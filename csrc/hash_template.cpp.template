@@ -1,0 +1,180 @@
+/** -*- mode: c++; -*-
+ * vim: set expandtab sw=4 ts=4 ft=cpp :
+ *
+ * Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Using openssl's EVP functions results in a significant performance drop for 
+ * small inputs. To avoid this performance drop, we use the lower-level APIs
+ * directly, but this means we end up writing a new set of bindings for each
+ * hash function, which all end up looking identical. So, we have this template
+ * file, which is #included multiple times to provide the actual implementations
+ * of each hash function. The java source is similarly template-expanded out with
+ * some sed hackery.
+ * 
+ * Prerequisites:
+ * #define DIGEST_NAME to be the openssl digest name prefix (e.g. SHA256)
+ * (optional) #define CTX to the name of the context type; otherwise
+ *   DIGEST_NAME_CTX will be used
+ * #include appropriate openssl headers
+ */
+
+#include "generated-headers.h"
+#include "env.h"
+#include "util.h"
+#include "buffer.h"
+
+#define JNI_NAME(name) \
+    CONCAT2( \
+        CONCAT2(Java_com_amazon_corretto_crypto_provider_, DIGEST_NAME), \
+        CONCAT2(Spi_, name) \
+    )
+
+#define OP(name) CONCAT2(DIGEST_NAME, CONCAT2(_, name))
+
+#ifndef CTX
+#define CTX OP(CTX)
+#endif
+
+using namespace AmazonCorrettoCryptoProvider;
+
+JNIEXPORT jint JNICALL JNI_NAME(getContextSize)
+  (JNIEnv *, jclass)
+{
+    return sizeof(CTX);
+}
+
+JNIEXPORT jint JNICALL JNI_NAME(getHashSize)
+  (JNIEnv *, jclass)
+{
+    return OP(DIGEST_LENGTH);
+}
+
+JNIEXPORT void JNICALL JNI_NAME(initContext)
+  (JNIEnv *pEnv, jclass, jbyteArray contextArray)
+{
+    try {
+        raii_env env(pEnv);
+        CTX ctx;
+        java_buffer contextBuffer = java_buffer::from_array(env, contextArray);
+
+        if (unlikely(contextBuffer.len() != sizeof(ctx))) {
+            throw_java_ex(EX_ILLEGAL_ARGUMENT, "Bad context buffer size");
+        }
+
+        CHECK_OPENSSL(OP(Init)(&ctx));
+
+        contextBuffer.put_bytes(env, reinterpret_cast<const uint8_t *>(&ctx), 0, sizeof(ctx));
+    } catch (java_ex &ex) {
+        ex.throw_to_java(pEnv);
+    }
+}
+
+JNIEXPORT void JNICALL JNI_NAME(updateContextByteArray)
+  (JNIEnv *pEnv, jclass, jbyteArray contextArray, jbyteArray dataArray, jint offset, jint length)
+{
+    try {
+        raii_env env(pEnv);
+
+        bounce_buffer<CTX> ctx = bounce_buffer<CTX>::from_array(env, contextArray);
+
+        try {
+            java_buffer databuf = java_buffer::from_array(env, dataArray, offset, length);
+            jni_borrow dataBorrow(env, databuf, "databuf");
+
+            CHECK_OPENSSL(OP(Update)(ctx.ptr(), dataBorrow.data(), dataBorrow.len()));
+        } catch (...) {
+            ctx.zeroize();
+            throw;
+        }
+    } catch (java_ex &ex) {
+        ex.throw_to_java(pEnv);
+    }
+}
+
+JNIEXPORT void JNICALL JNI_NAME(finish)
+  (JNIEnv *pEnv, jclass, jbyteArray contextArray, jbyteArray digestArray, jint offset)
+{
+    try {
+        raii_env env(pEnv);
+        bounce_buffer<CTX> ctx = bounce_buffer<CTX>::from_array(env, contextArray);
+
+        java_buffer digestbuf = java_buffer::from_array(env, digestArray);
+        jni_borrow digestBorrow(env, digestbuf, "digestbuf");
+
+        int success = OP(Final)(digestBorrow.check_range(offset, OP(DIGEST_LENGTH)), ctx);
+
+        // Always clear the context on final()
+        ctx.zeroize();
+
+        if (unlikely(!success)) {
+            digestBorrow.zeroize();
+            throw_openssl();
+        }
+    } catch (java_ex &ex) {
+        ex.throw_to_java(pEnv);
+    }
+}
+
+
+JNIEXPORT void JNICALL JNI_NAME(updateNativeByteBuffer)
+  (JNIEnv *pEnv, jclass, jbyteArray contextArray, jobject dataDirectBuf)
+{
+    try {
+        raii_env env(pEnv);
+        bounce_buffer<CTX> ctx = bounce_buffer<CTX>::from_array(env, contextArray);
+
+        java_buffer dataBuf = java_buffer::from_direct(env, dataDirectBuf);
+        jni_borrow dataBorrow(env, dataBuf, "dataBorrow");
+
+        try {
+            CHECK_OPENSSL(OP(Update)(ctx.ptr(), dataBorrow.data(), dataBorrow.len()));
+        } catch(...) {
+            ctx.zeroize();
+            throw;
+        }
+    } catch (java_ex &ex) {
+        ex.throw_to_java(pEnv);
+    }
+}
+
+JNIEXPORT void JNICALL JNI_NAME(fastDigest)
+  (JNIEnv *pEnv, jclass, jbyteArray digestArray, jbyteArray dataArray, jint dataLength)
+{
+    // As this method needs to be extremely high speed, we are omitting use of java_buffer
+    // to avoid the extra JNI calls it requires. Instead we are trusting that dataLength
+    // is correct.
+    try {
+        raii_env env(pEnv);
+
+        SecureBuffer<CTX, 1> ctx;
+        const size_t scratchSize = DIGEST_BLOCK_SIZE; // Size is arbitrarily chosen
+        SecureBuffer<uint8_t, OP(DIGEST_LENGTH)> digest;
+
+        if (unlikely(!OP(Init)(ctx))) {
+            throw java_ex::from_openssl(EX_RUNTIME_CRYPTO, "Unable to initialize context");
+        }
+
+        if (static_cast<size_t>(dataLength) > scratchSize) {
+            java_buffer dataBuffer = java_buffer::from_array(env, dataArray, 0, dataLength);
+            jni_borrow dataBorrow(env, dataBuffer, "data");
+            if (unlikely(!OP(Update)(ctx, dataBorrow.data(), dataBorrow.len()))) {
+                throw java_ex::from_openssl(EX_RUNTIME_CRYPTO, "Unable to update context");
+            }
+        } else {
+            SecureBuffer<uint8_t, scratchSize> scratch;
+            env->GetByteArrayRegion(dataArray, 0, dataLength, reinterpret_cast<jbyte *>(scratch.buf));
+            if (unlikely(!OP(Update)(ctx, scratch, dataLength))) {
+                            throw java_ex::from_openssl(EX_RUNTIME_CRYPTO, "Unable to update context");
+            }
+        }
+
+        if (unlikely(!OP(Final)(digest, ctx))) {
+            throw java_ex::from_openssl(EX_RUNTIME_CRYPTO, "Unable to finish digest");
+        }
+        env->SetByteArrayRegion(digestArray, 0, OP(DIGEST_LENGTH), reinterpret_cast<const jbyte *>(digest.buf));
+
+    } catch (java_ex &ex) {
+        ex.throw_to_java(pEnv);
+    }
+}

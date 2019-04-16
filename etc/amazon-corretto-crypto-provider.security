@@ -1,0 +1,34 @@
+#
+# List of providers and their preference orders
+
+# Note that we can't just insert ours at the top - we need to restate all
+# providers that are being shifted down to a different index (which is to say,
+# all of them).
+#
+security.provider.1=com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider
+security.provider.2=sun.security.provider.Sun
+security.provider.3=sun.security.rsa.SunRsaSign
+security.provider.4=sun.security.ec.SunEC
+security.provider.5=com.sun.net.ssl.internal.ssl.Provider
+security.provider.6=com.sun.crypto.provider.SunJCE
+security.provider.7=sun.security.jgss.SunProvider
+security.provider.8=com.sun.security.sasl.Provider
+security.provider.9=org.jcp.xml.dsig.internal.dom.XMLDSigRI
+security.provider.10=sun.security.smartcardio
+security.provider.11=sun.security.provider.certpath.ldap.JdkLDAP
+security.provider.12=com.sun.security.sasl.gsskerb.JdkSASL
+security.provider.13=apple.security.AppleProvider
+security.provider.14=sun.security.mscapi.SunMSCAPI
+security.provider.15=sun.security.pkcs11SunPKCS11
+
+#
+# A list of known strong SecureRandom implementations.
+#
+# To help guide applications in selecting a suitable strong
+# java.security.SecureRandom implementation, Java distributions should
+# indicate a list of known strong implementations using the property.
+#
+# This is a comma-separated list of algorithm and/or algorithm:provider
+# entries.
+#
+securerandom.strongAlgorithms=NIST800-90A/AES-CTR-256:AmazonCorrettoCryptoProvider,NativePRNGBlocking:SUN,DRBG:SUN

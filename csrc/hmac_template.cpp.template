@@ -1,0 +1,222 @@
+/** -*- mode: c++; -*-
+ * vim: set expandtab sw=4 ts=4 ft=cpp :
+ *
+ * Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Using openssl's EVP functions results in a significant performance drop for 
+ * small inputs. To avoid this performance drop, we use the lower-level APIs
+ * directly, but this means we end up writing a new set of bindings for each
+ * hash function, which all end up looking identical. So, we have this template
+ * file, which is #included multiple times to provide the actual implementations
+ * of each hash function. The java source is similarly template-expanded out with
+ * some sed hackery.
+ * 
+ * Prerequisites:
+ * #define DIGEST_NAME to be the openssl digest name prefix (e.g. SHA256)
+ * #define DIGEST_BLOCK_SIZE to be the internal block size of the digest
+ * (optional) #define CTX to the name of the context type; otherwise
+ *   DIGEST_NAME_CTX will be used
+ * #include appropriate openssl headers
+ */
+
+
+#ifndef DIGEST_NAME
+#error "Define DIGEST_NAME before including this file"
+#endif
+
+#ifndef DIGEST_BLOCK_SIZE
+#error "Define DIGEST_BLOCK_SIZE before including this file"
+#endif
+
+#include "generated-headers.h"
+#include "util.h"
+
+#define JNI_HMAC_NAME(name) \
+    CONCAT2( \
+            CONCAT2(Java_com_amazon_corretto_crypto_provider_Hmac, DIGEST_NAME), \
+            CONCAT2(Spi_, name) \
+            )
+
+using namespace AmazonCorrettoCryptoProvider;
+
+JNIEXPORT jint JNICALL JNI_HMAC_NAME(getContextSize)
+(JNIEnv *, jclass)
+{
+    return sizeof(CTX);
+}
+
+JNIEXPORT jint JNICALL JNI_HMAC_NAME(getHashSize)
+(JNIEnv *, jclass)
+{
+    return OP(DIGEST_LENGTH);
+}
+
+JNIEXPORT jint JNICALL JNI_HMAC_NAME(getBlockSize)
+(JNIEnv *, jclass)
+{
+    return DIGEST_BLOCK_SIZE;
+}
+
+JNIEXPORT void JNICALL JNI_HMAC_NAME(initContext)
+(JNIEnv *pEnv, jclass, jbyteArray contextArray)
+{
+    try {
+        raii_env env(pEnv);
+        CTX ctx;
+
+        if (!OP(Init)(&ctx)) {
+            throw java_ex::from_openssl(EX_RUNTIME_CRYPTO, "Failed to initialize context");
+        }
+
+        java_buffer buf = java_buffer::from_array(env, contextArray);
+        buf.put_bytes(env, reinterpret_cast<const uint8_t *>(&ctx), 0, sizeof(ctx));
+    } catch (java_ex &ex) {
+        ex.throw_to_java(pEnv);
+    }
+}
+
+static void calculateIkey(const SecureBuffer<uint8_t, DIGEST_BLOCK_SIZE>& key, SecureBuffer<uint8_t, DIGEST_BLOCK_SIZE>& ikey) {
+    memset(ikey, 0x36, DIGEST_BLOCK_SIZE);
+    fast_xor(ikey, key, DIGEST_BLOCK_SIZE);
+}
+
+static void calculateOkey(const SecureBuffer<uint8_t, DIGEST_BLOCK_SIZE>& key, SecureBuffer<uint8_t, DIGEST_BLOCK_SIZE>& okey) {
+    memset(okey, 0x5c, DIGEST_BLOCK_SIZE);
+    fast_xor(okey, key, DIGEST_BLOCK_SIZE);
+}
+
+namespace {
+void update(raii_env &env, CTX *ctx, jbyteArray normalKeyArray, java_buffer dataBuffer) {
+    if (normalKeyArray) {
+        // First update - mix in the key
+        SecureBuffer<uint8_t, DIGEST_BLOCK_SIZE> iKey, normalKey;
+
+        env->GetByteArrayRegion(normalKeyArray, 0, DIGEST_BLOCK_SIZE, reinterpret_cast<jbyte *>(normalKey.buf));
+        calculateIkey(normalKey, iKey);
+        if (unlikely(!OP(Update)(ctx, (uint8_t *)iKey, DIGEST_BLOCK_SIZE))) {
+            secureZero(ctx, sizeof(*ctx));
+            throw java_ex::from_openssl(EX_RUNTIME_CRYPTO, "Failed to update digest");
+        }
+    }
+
+    jni_borrow data(env, dataBuffer, "data");
+    if (unlikely(!OP(Update)(ctx, data.data(), data.len()))) {
+        secureZero(ctx, sizeof(*ctx));
+        throw java_ex::from_openssl(EX_RUNTIME_CRYPTO, "Failed to update digest");
+    }
+
+}
+}
+
+JNIEXPORT void JNICALL JNI_HMAC_NAME(updateCtxArray)
+(JNIEnv *pEnv, jclass, jbyteArray contextArray, jbyteArray normalKeyArray, jbyteArray dataArray, jint offset, jint length)
+{
+    try {
+        raii_env env(pEnv);
+        bounce_buffer<CTX> ctx = bounce_buffer<CTX>::from_array(env, contextArray);
+
+        update(env, ctx, normalKeyArray, java_buffer::from_array(env, dataArray, offset, length));
+    } catch (java_ex &ex) {
+        ex.throw_to_java(pEnv);
+    }
+}
+
+JNIEXPORT void JNICALL JNI_HMAC_NAME(doFinal)
+(JNIEnv *pEnv, jclass, jbyteArray contextArray, jbyteArray normalKeyArray, jbyteArray digestArray)
+{
+    try {
+        raii_env env(pEnv);
+        bounce_buffer<CTX> ctx = bounce_buffer<CTX>::from_array(env, contextArray);
+
+        try {
+            SecureBuffer<uint8_t, DIGEST_BLOCK_SIZE> okey, normalKey;
+            SecureBuffer<uint8_t, OP(DIGEST_LENGTH)> digest;
+
+            env->GetByteArrayRegion(normalKeyArray, 0, DIGEST_BLOCK_SIZE, reinterpret_cast<jbyte *>(normalKey.buf));
+            calculateOkey(normalKey, okey);
+            SecureBuffer<uint8_t, OP(DIGEST_LENGTH)> inner_value;
+
+            if (unlikely(!OP(Final)(inner_value, ctx))) {
+                throw java_ex::from_openssl(EX_RUNTIME_CRYPTO, "Failed to finalize digest");
+            }
+
+            if (unlikely(!OP(Init)(ctx))) {
+                throw java_ex::from_openssl(EX_RUNTIME_CRYPTO, "Failed to initialize digest");
+            }
+
+            if (unlikely(
+                !OP(Update)(ctx, okey, DIGEST_BLOCK_SIZE) ||
+                !OP(Update)(ctx, inner_value, OP(DIGEST_LENGTH))
+            )) {
+                throw java_ex::from_openssl(EX_RUNTIME_CRYPTO, "Failed to update digest");
+            }
+
+            if (unlikely(!OP(Final)(digest, ctx))) {
+                throw java_ex::from_openssl(EX_RUNTIME_CRYPTO, "Failed to finalize digest");
+            }
+            env->SetByteArrayRegion(digestArray, 0, OP(DIGEST_LENGTH), reinterpret_cast<const jbyte *>(digest.buf));
+        } catch(...) {
+            // always zero the context on exception
+            ctx.zeroize();
+            throw;
+        }
+    } catch (java_ex &ex) {
+        ex.throw_to_java(pEnv);
+    }
+}
+
+JNIEXPORT void JNICALL JNI_HMAC_NAME(updateCtxBuffer)
+(JNIEnv *pEnv, jclass, jbyteArray contextArray, jbyteArray normalKeyArray, jobject dataByteBuf)
+{
+    try {
+        raii_env env(pEnv);
+        bounce_buffer<CTX> ctx = bounce_buffer<CTX>::from_array(env, contextArray);
+
+        update(env, ctx, normalKeyArray, java_buffer::from_direct(env, dataByteBuf));
+    } catch (java_ex &ex) {
+        ex.throw_to_java(pEnv);
+    }
+}
+
+JNIEXPORT void JNICALL JNI_HMAC_NAME(fastHmac)
+(JNIEnv *pEnv, jclass, jbyteArray normalKeyArray, jbyteArray dataArray, jint offset, jint length, jbyteArray resultArray)
+{
+    try {
+        raii_env env(pEnv);
+        SecureBuffer<CTX, 1> ctx;
+        SecureBuffer<uint8_t, DIGEST_BLOCK_SIZE> normalKey;
+        SecureBuffer<uint8_t, DIGEST_BLOCK_SIZE> ikey;
+        SecureBuffer<uint8_t, DIGEST_BLOCK_SIZE> okey;
+        SecureBuffer<uint8_t, OP(DIGEST_LENGTH)> inner_value;
+        SecureBuffer<uint8_t, OP(DIGEST_LENGTH)> hash_result;
+
+        java_buffer dataBuffer = java_buffer::from_array(env, dataArray, offset, length);
+
+        env->GetByteArrayRegion(normalKeyArray, 0, DIGEST_BLOCK_SIZE, reinterpret_cast<jbyte *>(normalKey.buf));
+        calculateIkey(normalKey, ikey);
+        calculateOkey(normalKey, okey);
+
+        {
+            jni_borrow data(env, dataBuffer, "data");
+
+            if (!likely(
+                OP(Init)(ctx) &&
+                OP(Update)(ctx, ikey.buf, sizeof(ikey.buf)) &&
+                OP(Update)(ctx, data, data.len()) &&
+                OP(Final)(inner_value, ctx) &&
+                OP(Init)(ctx) &&
+                OP(Update)(ctx, okey.buf, sizeof(okey.buf)) &&
+                OP(Update)(ctx, inner_value.buf, sizeof(inner_value.buf)) &&
+                OP(Final)(hash_result, ctx))) {
+                throw java_ex::from_openssl(EX_RUNTIME_CRYPTO, "Unknown openssl error");
+            }
+        } // release borrow
+
+        // Java will performs bounds, type, and null checks for us, and stage an appropriate exception
+        // if they fail.
+        env->SetByteArrayRegion(resultArray, 0, OP(DIGEST_LENGTH), reinterpret_cast<jbyte *>(hash_result.buf));
+    } catch (java_ex &ex) {
+        ex.throw_to_java(pEnv);
+    }
+}
