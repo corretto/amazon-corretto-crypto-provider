@@ -1,0 +1,228 @@
+// Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+configurations {
+    jacocoAgent
+    testDep.extendsFrom(jacocoAgent)
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Separate so we can extract the jar for the agent specifically
+    jacocoAgent group: 'org.jacoco', name: 'org.jacoco.agent', version: '0.8.3', classifier: 'runtime'
+
+    testDep 'junit:junit:4.12'
+    testDep 'org.bouncycastle:bcprov-jdk15on:1.61'
+    testDep 'org.bouncycastle:bcpkix-jdk15on:1.61'
+    testDep 'commons-codec:commons-codec:1.12'
+    testDep 'org.hamcrest:hamcrest:2.1'
+    testDep 'org.jacoco:org.jacoco.core:0.8.3'
+    testDep 'org.jacoco:org.jacoco.report:0.8.3'
+}
+
+defaultTasks 'release'
+
+task getOpensslSrc(type: Exec) {
+    outputs.dir("${buildDir}/openssl/src")
+    doFirst {
+        mkdir "${buildDir}/openssl/src"
+        mkdir "${buildDir}/openssl/bin"
+        exec {
+            workingDir "${buildDir}/openssl"
+                commandLine 'wget', 'https://www.openssl.org/source/openssl-1.0.2r.tar.gz'
+        }
+    }
+    workingDir "${buildDir}/openssl"
+    commandLine 'sha256sum', '--check', "${projectDir}/openssl.sha256"
+    doLast {
+        exec {
+            workingDir "${buildDir}/openssl/src"
+            commandLine 'tar', '-xzv', '-C', "${buildDir}/openssl/src", '--strip-components=1', '-f', "${buildDir}/openssl/openssl-1.0.2r.tar.gz"
+        }
+    }
+}
+
+task buildOpenSsl(type: Exec) {
+    outputs.dir("${buildDir}/openssl/bin")
+    dependsOn getOpensslSrc
+    doFirst {
+        exec {
+            workingDir "${buildDir}/openssl/src"
+            commandLine './config', '-fPIC', '-ffunction-sections', '-fdata-sections', "--prefix=${buildDir}/openssl/bin", "threads", "no-zlib", "no-shared", "no-bf", "no-cast", "no-md2", "no-rc2", "no-rc4", "no-rc5", "no-jpake", "no-krb5", "no-ripemd", "no-srp", 'no-comp', 'no-hw', 'no-mdc2'
+        }
+        exec {
+            workingDir "${buildDir}/openssl/src"
+            commandLine 'make', 'depend'
+        }
+        exec {
+            workingDir "${buildDir}/openssl/src"
+            commandLine 'make'
+        }
+    }
+    workingDir "${buildDir}/openssl/src"
+    commandLine 'make', 'install'
+}
+
+task executeCmake(type: Exec) {
+    doFirst {
+        mkdir "${buildDir}/cmake"
+    }
+    workingDir "${buildDir}/cmake"
+    if (System.properties['prebuiltJar'] != null) {
+        commandLine 'cmake', "-DTEST_CLASSPATH=${configurations.testDep.asPath}", "-DJACOCO_AGENT_JAR=${configurations.jacocoAgent.singleFile}", "-DOPENSSL_ROOT_DIR=${buildDir}/openssl/bin",  '-DCMAKE_BUILD_TYPE=Release', "-DSIGNED_JAR=${projectDir}/" + System.properties['prebuiltJar'], projectDir
+    } else {
+        dependsOn buildOpenSsl
+        commandLine 'cmake', "-DTEST_CLASSPATH=${configurations.testDep.asPath}", "-DJACOCO_AGENT_JAR=${configurations.jacocoAgent.singleFile}", "-DOPENSSL_ROOT_DIR=${buildDir}/openssl/bin",  '-DCMAKE_BUILD_TYPE=Release', projectDir
+    }
+}
+
+task build_objects(type: Exec) {
+    dependsOn executeCmake
+    workingDir "${buildDir}/cmake"
+
+    commandLine 'make'
+}
+
+task build(type: Copy) {
+    dependsOn build_objects
+    from("${buildDir}/cmake") {
+        include 'AmazonCorrettoCryptoProvider.jar'
+    }
+    into "${buildDir}/lib"
+}
+
+task test_extra_checks(type: Exec) {
+    dependsOn executeCmake
+    workingDir "${buildDir}/cmake"
+    commandLine 'make', 'check-junit-extra-checks'
+}
+
+task test(type: Exec) {
+    dependsOn executeCmake
+    workingDir "${buildDir}/cmake"
+    commandLine 'make', 'check'
+}
+
+task test_integration(type: Exec) {
+    dependsOn executeCmake
+    workingDir "${buildDir}/cmake"
+    commandLine 'make', 'check-integration'
+}
+
+task test_integration_extra_checks(type: Exec) {
+    dependsOn executeCmake
+    workingDir "${buildDir}/cmake"
+    commandLine 'make', 'check-integration-extra-checks'
+}
+
+task dieharder(type: Exec) {
+    dependsOn executeCmake
+    workingDir "${buildDir}/cmake"
+    commandLine 'make', 'check-dieharder'
+}
+
+task dieharder_threads(type: Exec) {
+    dependsOn executeCmake
+    workingDir "${buildDir}/cmake"
+    commandLine 'make', 'check-dieharder-threads'
+}
+
+task dieharder_all {
+    dependsOn dieharder, dieharder_threads
+}
+
+task coverage_clean(type: Delete) {
+    delete fileTree("${buildDir}/cmake-coverage") {
+        include '**/*.gcda'
+    }
+    delete "${buildDir}/reports/cpp"
+}
+
+task coverage_cmake(type: Exec) {
+    dependsOn coverage_clean, buildOpenSsl
+    doFirst {
+        if (System.properties['prebuiltJar'] != null) {
+            ant.fail("Cannot run coverage with a prebuilt jar")
+        }
+        mkdir "${buildDir}/cmake-coverage"
+    }
+    workingDir "${buildDir}/cmake-coverage"
+    commandLine 'cmake', "-DTEST_CLASSPATH=${configurations.testDep.asPath}", "-DJACOCO_AGENT_JAR=${configurations.jacocoAgent.singleFile}", "-DOPENSSL_ROOT_DIR=${buildDir}/openssl/bin",  '-DCMAKE_BUILD_TYPE=Release', '-DCOVERAGE=ON', '-DENABLE_RNG_TEST_HOOKS=ON', projectDir
+}
+
+task coverage_exec(type: Exec) {
+    dependsOn coverage_cmake, coverage_clean
+    doFirst {
+        if (System.properties['prebuiltJar'] != null) {
+            ant.fail("Cannot run coverage with a prebuilt jar")
+        }
+    }
+    workingDir "${buildDir}/cmake-coverage"
+    commandLine 'make', 'coverage'
+}
+
+task coverage_java_report(type: Copy) {
+    doFirst {
+        mkdir "${buildDir}/reports/java"
+    }
+    dependsOn coverage_exec
+
+    from "${buildDir}/cmake-coverage/coverage/results/html/"
+    into "${buildDir}/reports/java"
+}
+
+task coverage_cpp_report {
+    dependsOn coverage_exec
+    doFirst {
+        mkdir "${buildDir}/reports/cpp"
+    }
+    doLast {
+        exec {
+            workingDir "${buildDir}/cmake-coverage"
+            commandLine 'lcov', '--capture', '--directory', "${buildDir}/cmake-coverage/CMakeFiles/amazonCorrettoCryptoProvider.dir/csrc", '--output-file', "${buildDir}/cmake-coverage/coverage.info", '--rc', 'lcov_branch_coverage=1'
+        }
+        // Convert absolute to relative paths
+        exec {
+            workingDir "${buildDir}/cmake-coverage"
+            commandLine 'perl', '-i', '-pe', "s[^SF:${projectDir}/*][SF:]", "${buildDir}/cmake-coverage/coverage.info"
+        }
+        // lcov captures coverage data for inline functions in system headers; strip this out to avoid
+        // polluting our metrics with unused STL code.
+        exec {
+            workingDir "${buildDir}/cmake-coverage"
+            commandLine 'lcov', '-e', "${buildDir}/cmake-coverage/coverage.info", 'csrc/*', '--rc', 'lcov_branch_coverage=1'
+            standardOutput = new FileOutputStream("${buildDir}/reports/cpp/coverage.info")
+        }
+        exec {
+             workingDir projectDir
+             commandLine 'genhtml', '-o', "${buildDir}/reports/cpp", '--rc', 'genhtml_branch_coverage=1', "${buildDir}/reports/cpp/coverage.info"
+        }
+    }
+}
+
+task coverage {
+    dependsOn coverage_java_report, coverage_cpp_report
+}
+
+task release {
+    dependsOn build, test, coverage
+}
+
+task overkill {
+    dependsOn test, test_extra_checks, test_integration, test_integration_extra_checks, dieharder_all
+}
+
+
+task clean(type: Delete) {
+   delete "${buildDir}/cmake"
+   delete "${buildDir}/cmake-coverage"
+   delete "${buildDir}/lib"
+   delete "${buildDir}/reports"
+}
+
+task deep_clean(type: Delete) {
+   delete buildDir
+}

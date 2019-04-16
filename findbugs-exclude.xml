@@ -1,0 +1,26 @@
+<!-- Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
+<FindBugsFilter>
+    <Match>
+        <And>
+            <Class name="com.amazon.corretto.crypto.provider.AesGcmSpi"/>
+            <Or>
+                <Field name="decryptInputBuf"/>
+                <Field name="iv"/>
+                <Field name="key"/>
+                <Field name="needReset"/>
+                <Field name="opMode"/>
+                <Field name="tagLength"/>
+            </Or>
+        </And>
+        <Bug pattern="IS2_INCONSISTENT_SYNC"/>
+    </Match>
+    <Match>
+        <And>
+            <Class name="com.amazon.corretto.crypto.provider.AesGcmSpi$NativeContext"/>
+            <Field name="released"/>
+        </And>
+        <Bug pattern="IS2_INCONSISTENT_SYNC"/>
+    </Match>
+</FindBugsFilter>
