@@ -63,7 +63,7 @@ task buildOpenSsl(type: Exec) {
         }
     }
     workingDir "${buildDir}/openssl/src"
-    commandLine 'make', 'install'
+    commandLine 'make', 'install_sw'
 }
 
 task executeCmake(type: Exec) {

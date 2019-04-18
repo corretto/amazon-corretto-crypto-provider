@@ -102,6 +102,7 @@ public class TestRunner {
             printUsage();
             System.exit(-1);
         } else {
+            printSystemInfo();
             final String suiteName = args[1];
             final Class[] parallel_classes = SUITES_PARALLEL.get(suiteName);
             final Class[] serial_classes = SUITES_SERIAL.get(suiteName);
@@ -171,6 +172,12 @@ public class TestRunner {
         System.out.println("java TestRunner --suite <suitename>");
     }
 
+    private static void printSystemInfo() {
+        final Runtime rt = Runtime.getRuntime();
+        System.out.println(format("System Info(Memory): %d free / %d total (max %d)",
+                rt.freeMemory(), rt.totalMemory(), rt.maxMemory()));
+    }
+
     public static StackTraceElement getFailureLocation(Throwable t) {
         final StackTraceElement[] stackTrace = t.getStackTrace();
         for (StackTraceElement e : stackTrace) {
@@ -178,7 +185,11 @@ public class TestRunner {
                 return e;
             }
         }
-      return stackTrace[0];
+        if (stackTrace.length > 0) {
+            return stackTrace[0];
+        } else {
+            return null;
+        }
     }
 
     public static class BasicListener extends RunListener {
