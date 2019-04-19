@@ -68,7 +68,7 @@ If ACCP is used/installed on a system it does not support, it will disable itsel
 Currently we only support manual installation. In the future much of this will be automated by integration with Maven.
 
 ## Acquiring the provider
-You can either download the provider from our official [releases](https://github.com/corretto/amazon-corretto-crypto-provider/releases) or by building it yourself.
+You can either download the provider from our official [releases](https://github.com/corretto/amazon-corretto-crypto-provider/releases) or by build it yourself.
 
 ### Building
 Building this provider requires a 64 bit Linux build system with the following prerequisites installed:
