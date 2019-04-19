@@ -3,6 +3,7 @@
 
 package com.amazon.corretto.crypto.provider.test.integration;
 
+import static com.amazon.corretto.crypto.provider.test.TestUtil.assumeMinimumVersion;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -90,7 +91,14 @@ public class ExternalHTTPSIntegrationTest {
         if (useBouncyCastle) {
             // Note also that BC cannot be installed as position 1, as it'll result in recursively invoking its own RNG
             // to perform initial seeding.
-            Security.insertProviderAt(new BouncyCastleProvider(), 2);
+            BouncyCastleProvider bcProv = new BouncyCastleProvider();
+            // There is a bug in versions of BouncyCastle prior to 1.61 related to PSS signatures in TLS with Java 11.
+            // Thus, if our URL is "https://example.com" and BouncyCastle is enabled with an old version, then we skip
+            // this test to avoid failures unrelated to ACCP.
+            if ("https://example.com".equals(this.url)) {
+                assumeMinimumVersion("1.62", bcProv);
+            }
+            Security.insertProviderAt(bcProv, 2);
         }
 
         assertEquals(AmazonCorrettoCryptoProvider.INSTANCE, Cipher.getInstance("AES/GCM/NoPadding").getProvider());
