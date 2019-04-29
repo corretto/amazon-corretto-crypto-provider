@@ -95,7 +95,7 @@ task build_objects(type: Exec) {
     dependsOn executeCmake
     workingDir "${buildDir}/cmake"
 
-    commandLine 'make'
+    commandLine 'make', 'accp-jar'
 }
 
 task build(overwrite:true) {
@@ -122,17 +122,38 @@ task build(overwrite:true) {
     }
 }
 
-/*
-task sign_jar {
-    dependsOn build_objects
-    ant.signjar(
-        alias: jcecertAlias,
-        jar: "${buildDir}/cmake/AmazonCorrettoCryptoProvider.jar",
-        destDir: "${buildDir}/lib",
-        storepass: jcecertPassword,
-        keystore: "${project.gradle.gradleUserHomeDir}/${jcecertJks}"
-    )
-}*/
+task javadoc(type: Jar) {
+    dependsOn executeCmake
+    doFirst {
+        mkdir "${buildDir}/lib"
+        exec {
+            workingDir "${buildDir}/cmake"
+            commandLine 'make', 'javadoc'
+        }
+    }
+    archiveFileName = 'AmazonCorrettoCryptoProvider-javadoc.jar'
+    archiveClassifier = 'javadoc'
+    destinationDirectory = file("${buildDir}/lib")
+    from "${buildDir}/cmake/javadoc/AmazonCorrettoCryptoProvider/"
+}
+
+task src_jar {
+    dependsOn executeCmake
+    outputs.file("${buildDir}/lib/AmazonCorrettoCryptoProvider-sources.jar")
+    doLast {
+        mkdir "${buildDir}/lib"
+        exec {
+            workingDir "${buildDir}/cmake"
+            commandLine 'make', 'accp-jar-source'
+        }
+        copy {
+            from("${buildDir}/cmake") {
+                include 'AmazonCorrettoCryptoProvider-sources.jar'
+            }
+            into "${buildDir}/lib"
+        }
+    }
+}
 
 task test_extra_checks(type: Exec) {
     dependsOn executeCmake
@@ -248,7 +269,7 @@ task coverage {
 }
 
 task release {
-    dependsOn build, test, coverage
+    dependsOn build, test, coverage, javadoc, src_jar
 }
 
 task overkill {
@@ -259,7 +280,10 @@ publishing {
     publications {
         mavenJava(MavenPublication) {
             artifactId = project.name
-            artifact "${buildDir}/lib/AmazonCorrettoCryptoProvider.jar"
+            artifact source: file("${buildDir}/lib/AmazonCorrettoCryptoProvider.jar"),classifier:"linux-x86_64",extension:"jar"
+            artifact javadoc
+            artifact source: file("${buildDir}/lib/AmazonCorrettoCryptoProvider-sources.jar"),classifier:"sources",extension:"jar"
+
             pom {
                 url = 'https://github.com/corretto/amazon-corretto-crypto-provider'
                 licenses {
@@ -298,6 +322,7 @@ task clean(overwrite: true, type: Delete) {
    delete "${buildDir}/cmake-coverage"
    delete "${buildDir}/lib"
    delete "${buildDir}/reports"
+   delete "${buildDir}/publications"
 }
 
 task deep_clean(type: Delete) {

@@ -126,12 +126,32 @@ set(BASE_JAVA_COMPILE_FLAGS ${CMAKE_JAVA_COMPILE_FLAGS} -h "${JNI_HEADER_DIR}" -
 # Java targets defined here are compiled for Java supporting modules
 set(CMAKE_JAVA_COMPILE_FLAGS ${BASE_JAVA_COMPILE_FLAGS} --release 9)
 
+set(ACCP_JAR "${CMAKE_CURRENT_BINARY_DIR}/AmazonCorrettoCryptoProvider.jar")
+set(ACCP_JAR_JAVADOC "${CMAKE_CURRENT_BINARY_DIR}/AmazonCorrettoCryptoProvider-javadoc.jar")
+set(ACCP_JAR_SOURCE "${CMAKE_CURRENT_BINARY_DIR}/AmazonCorrettoCryptoProvider-sources.jar")
+
 add_jar(
     module-jar
     SOURCES ${ACCP_SRC}
         src/module-info.java
     INCLUDE_JARS ${BUILD_CLASSPATH_LIST}
 )
+
+create_javadoc(
+    AmazonCorrettoCryptoProvider
+    FILES ${ACCP_SRC}
+    WINDOWTITLE "Amazon Corretto Crypto Provider"
+    DOCTITLE "<h1>Amazon Corretto Crypto Provider</h1>"
+    AUTHOR FALSE
+    USE TRUE
+    VERSION TRUE
+)
+
+add_jar(
+    AmazonCorrettoCryptoProvider-javadoc
+    SOURCE
+)
+add_custom_target(javadoc DEPENDS ${JNI_HEADER_DIR}/generated-headers.h ${GENERATED_JAVA_SRC} AmazonCorrettoCryptoProvider_javadoc)
 
 # All subsequent Java targets are compatible with Java 8
 set(CMAKE_JAVA_COMPILE_FLAGS ${BASE_JAVA_COMPILE_FLAGS} --release 8)
@@ -145,7 +165,6 @@ add_jar(
     INCLUDE_JARS ${BUILD_CLASSPATH_LIST}
 )
 
-set(ACCP_JAR "${CMAKE_CURRENT_BINARY_DIR}/AmazonCorrettoCryptoProvider.jar")
 if (SIGNED_JAR)
 # Just copy the JAR in
     add_custom_command(
@@ -224,7 +243,16 @@ add_library(
         csrc/testhooks.cpp
         csrc/util.cpp
         ${JNI_HEADER_DIR}/generated-headers.h
-        )
+)
+
+add_custom_command(
+    OUTPUT ${ACCP_JAR_SOURCE}
+    COMMAND ${Java_JAR_EXECUTABLE} cf ${ACCP_JAR_SOURCE} -C ${CMAKE_CURRENT_SOURCE_DIR} src
+    COMMAND ${Java_JAR_EXECUTABLE} uf ${ACCP_JAR_SOURCE} -C ${CMAKE_CURRENT_SOURCE_DIR} csrc
+    COMMAND ${Java_JAR_EXECUTABLE} uf ${ACCP_JAR_SOURCE} -C ${CMAKE_CURRENT_SOURCE_DIR} template-src
+)
+
+add_custom_target(accp-jar-source DEPENDS ${ACCP_JAR_SOURCE})
 
 if(ENABLE_RNG_TEST_HOOKS)
     add_executable(test_rdrand EXCLUDE_FROM_ALL

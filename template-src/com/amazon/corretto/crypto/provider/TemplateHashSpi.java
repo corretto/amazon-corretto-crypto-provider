@@ -11,7 +11,7 @@ import java.util.Arrays;
 
 /**
  * Template for hash function bindings. Unfortunately using openssl's common EVP interface for hash functions introduces
- * significant performance overhead (to the point that the default JCE provider is faster for <= 32 byte hashes).
+ * significant performance overhead (to the point that the default JCE provider is faster for &lt;= 32 byte hashes).
  * As such we build direct bindings to the older interfaces for each of our supported hash functions - since these
  * are nearly identical, though, we use templates on both the Java and C++ sides to accomplish this.
  *
