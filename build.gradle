@@ -1,6 +1,14 @@
 // Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+plugins {
+    id 'maven-publish'
+    id 'signing'
+}
+
+group = 'software.amazon.cryptools'
+version = '1.0.2'
+
 configurations {
     jacocoAgent
     testDep.extendsFrom(jacocoAgent)
@@ -25,19 +33,20 @@ dependencies {
 
 defaultTasks 'release'
 
-task getOpensslSrc(type: Exec) {
+task getOpensslSrc {
+    inputs.file("${projectDir}/openssl.sha256")
     outputs.dir("${buildDir}/openssl/src")
-    doFirst {
+    doLast {
         mkdir "${buildDir}/openssl/src"
         mkdir "${buildDir}/openssl/bin"
         exec {
             workingDir "${buildDir}/openssl"
                 commandLine 'wget', 'https://www.openssl.org/source/openssl-1.0.2r.tar.gz'
         }
-    }
-    workingDir "${buildDir}/openssl"
-    commandLine 'sha256sum', '--check', "${projectDir}/openssl.sha256"
-    doLast {
+        exec {
+            workingDir "${buildDir}/openssl"
+            commandLine 'sha256sum', '--check', "${projectDir}/openssl.sha256"
+        }
         exec {
             workingDir "${buildDir}/openssl/src"
             commandLine 'tar', '-xzv', '-C', "${buildDir}/openssl/src", '--strip-components=1', '-f', "${buildDir}/openssl/openssl-1.0.2r.tar.gz"
@@ -45,10 +54,10 @@ task getOpensslSrc(type: Exec) {
     }
 }
 
-task buildOpenSsl(type: Exec) {
-    outputs.dir("${buildDir}/openssl/bin")
+task buildOpenSsl {
+    outputs.file("${buildDir}/openssl/bin/lib/libcrypto.a")
     dependsOn getOpensslSrc
-    doFirst {
+    doLast {
         exec {
             workingDir "${buildDir}/openssl/src"
             commandLine './config', '-fPIC', '-ffunction-sections', '-fdata-sections', "--prefix=${buildDir}/openssl/bin", "threads", "no-zlib", "no-shared", "no-bf", "no-cast", "no-md2", "no-rc2", "no-rc4", "no-rc5", "no-jpake", "no-krb5", "no-ripemd", "no-srp", 'no-comp', 'no-hw', 'no-mdc2'
@@ -61,12 +70,15 @@ task buildOpenSsl(type: Exec) {
             workingDir "${buildDir}/openssl/src"
             commandLine 'make'
         }
+        exec {
+            workingDir "${buildDir}/openssl/src"
+            commandLine 'make', 'install_sw'
+        }
     }
-    workingDir "${buildDir}/openssl/src"
-    commandLine 'make', 'install_sw'
 }
 
 task executeCmake(type: Exec) {
+    outputs.dir("${buildDir}/cmake")
     doFirst {
         mkdir "${buildDir}/cmake"
     }
@@ -86,13 +98,41 @@ task build_objects(type: Exec) {
     commandLine 'make'
 }
 
-task build(type: Copy) {
+task build(overwrite:true) {
     dependsOn build_objects
-    from("${buildDir}/cmake") {
-        include 'AmazonCorrettoCryptoProvider.jar'
+    outputs.file("${buildDir}/lib/AmazonCorrettoCryptoProvider.jar")
+    doLast {
+        mkdir "${buildDir}/lib"
+        if (project.hasProperty('jcecertAlias')) {
+            ant.signjar(
+                alias: jcecertAlias,
+                jar: "${buildDir}/cmake/AmazonCorrettoCryptoProvider.jar",
+                destDir: "${buildDir}/lib",
+                storepass: jcecertPassword,
+                keystore: "${project.gradle.gradleUserHomeDir}/${jcecertJks}"
+            )
+        } else {
+            copy {
+                from("${buildDir}/cmake") {
+                    include 'AmazonCorrettoCryptoProvider.jar'
+                }
+                into "${buildDir}/lib"
+            }
+        }
     }
-    into "${buildDir}/lib"
 }
+
+/*
+task sign_jar {
+    dependsOn build_objects
+    ant.signjar(
+        alias: jcecertAlias,
+        jar: "${buildDir}/cmake/AmazonCorrettoCryptoProvider.jar",
+        destDir: "${buildDir}/lib",
+        storepass: jcecertPassword,
+        keystore: "${project.gradle.gradleUserHomeDir}/${jcecertJks}"
+    )
+}*/
 
 task test_extra_checks(type: Exec) {
     dependsOn executeCmake
@@ -215,8 +255,40 @@ task overkill {
     dependsOn test, test_extra_checks, test_integration, test_integration_extra_checks, dieharder_all
 }
 
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            artifactId = project.name
+            artifact "${buildDir}/lib/AmazonCorrettoCryptoProvider.jar"
+            pom {
+                url = 'https://github.com/corretto/amazon-corretto-crypto-provider'
+                licenses {
+                    license {
+                        name = 'The Apache License, Version 2.0'
+                        url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+                    }
+                }
+                scm {
+                    url = 'https://github.com/corretto/amazon-corretto-crypto-provider.git'
+                    connection = 'scm:git:git@github.com:corretto/amazon-corretto-crypto-provider.git'
+                    developerConnection = 'scm:git:git@github.com:corretto/amazon-corretto-crypto-provider.git'
+                }
+            }
+        }
+    }
+    repositories {
+        maven {
+            // TODO: Add non-staging repo
+            url = 'https://oss.sonatype.org/content/repositories/snapshots'
+        }
+    }
+}
 
-task clean(type: Delete) {
+signing {
+    sign publishing.publications.mavenJava
+}
+
+task clean(overwrite: true, type: Delete) {
    delete "${buildDir}/cmake"
    delete "${buildDir}/cmake-coverage"
    delete "${buildDir}/lib"
