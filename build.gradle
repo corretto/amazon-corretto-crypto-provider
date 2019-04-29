@@ -280,6 +280,11 @@ publishing {
         maven {
             // TODO: Add non-staging repo
             url = 'https://oss.sonatype.org/content/repositories/snapshots'
+
+            credentials {
+                username mavenUser
+                password mavenPassword
+            }
         }
     }
 }
