@@ -285,6 +285,8 @@ publishing {
             artifact source: file("${buildDir}/lib/AmazonCorrettoCryptoProvider-sources.jar"),classifier:"sources",extension:"jar"
 
             pom {
+                name = "Amazon Corretto Crypto Provider"
+                description = 'The Amazon Corretto Crypto Provider (ACCP) is a collection of high-performance cryptographic implementations exposed via the standard JCA/JCE interfaces.'
                 url = 'https://github.com/corretto/amazon-corretto-crypto-provider'
                 licenses {
                     license {
@@ -297,14 +299,19 @@ publishing {
                     connection = 'scm:git:git@github.com:corretto/amazon-corretto-crypto-provider.git'
                     developerConnection = 'scm:git:git@github.com:corretto/amazon-corretto-crypto-provider.git'
                 }
+                developers {
+                    developer {
+                        id = 'amazonwebservices'
+                        organization = 'Amazon Web Services'
+                        organizationUrl = 'https://aws.amazon.com'
+                    }
+                }
             }
         }
     }
     repositories {
         maven {
-            // TODO: Add non-staging repo
-            url = 'https://oss.sonatype.org/content/repositories/snapshots'
-
+            url = 'https://oss.sonatype.org/service/local/staging/deploy/maven2/'
             credentials {
                 username mavenUser
                 password mavenPassword
