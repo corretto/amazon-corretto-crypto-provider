@@ -12,6 +12,7 @@ version = '1.0.2'
 configurations {
     jacocoAgent
     testDep.extendsFrom(jacocoAgent)
+    stagingJar
 }
 
 repositories {
@@ -41,7 +42,7 @@ task getOpensslSrc {
         mkdir "${buildDir}/openssl/bin"
         exec {
             workingDir "${buildDir}/openssl"
-                commandLine 'wget', 'https://www.openssl.org/source/openssl-1.0.2r.tar.gz'
+            commandLine 'wget', 'https://www.openssl.org/source/openssl-1.0.2r.tar.gz'
         }
         exec {
             workingDir "${buildDir}/openssl"
@@ -83,8 +84,20 @@ task executeCmake(type: Exec) {
         mkdir "${buildDir}/cmake"
     }
     workingDir "${buildDir}/cmake"
-    if (System.properties['prebuiltJar'] != null) {
-        commandLine 'cmake', "-DTEST_CLASSPATH=${configurations.testDep.asPath}", "-DJACOCO_AGENT_JAR=${configurations.jacocoAgent.singleFile}", "-DOPENSSL_ROOT_DIR=${buildDir}/openssl/bin",  '-DCMAKE_BUILD_TYPE=Release', "-DSIGNED_JAR=${projectDir}/" + System.properties['prebuiltJar'], projectDir
+    def prebuiltJar = null
+    if (project.hasProperty('stagingUrl')) {
+        mkdir "${buildDir}/tmp"
+        exec {
+            workingDir "${buildDir}/tmp"
+            commandLine 'wget', "${stagingUrl}/software/amazon/cryptools/${project.name}/${stagingVersion}/${project.name}-${stagingVersion}-linux-x86_64.jar"
+        }
+        prebuiltJar = "${buildDir}/tmp/${project.name}-${stagingVersion}-linux-x86_64.jar"
+    } else if (System.properties['prebuiltJar'] != null) {
+        prebuiltJar = "${projectDir}/" + System.properties['prebuiltJar']
+    }
+
+    if (prebuiltJar != null) {
+        commandLine 'cmake', "-DTEST_CLASSPATH=${configurations.testDep.asPath}", "-DJACOCO_AGENT_JAR=${configurations.jacocoAgent.singleFile}", "-DOPENSSL_ROOT_DIR=${buildDir}/openssl/bin",  '-DCMAKE_BUILD_TYPE=Release', '-DSIGNED_JAR=' + prebuiltJar, projectDir
     } else {
         dependsOn buildOpenSsl
         commandLine 'cmake', "-DTEST_CLASSPATH=${configurations.testDep.asPath}", "-DJACOCO_AGENT_JAR=${configurations.jacocoAgent.singleFile}", "-DOPENSSL_ROOT_DIR=${buildDir}/openssl/bin",  '-DCMAKE_BUILD_TYPE=Release', projectDir
@@ -120,6 +133,12 @@ task build(overwrite:true) {
             }
         }
     }
+}
+
+task emptyJar(type: Jar) {
+    archiveFileName = 'empty.jar'
+    archiveClassifier = null
+    destinationDirectory = file("${buildDir}/lib")
 }
 
 task javadoc(type: Jar) {
@@ -281,6 +300,7 @@ publishing {
         mavenJava(MavenPublication) {
             artifactId = project.name
             artifact source: file("${buildDir}/lib/AmazonCorrettoCryptoProvider.jar"),classifier:"linux-x86_64",extension:"jar"
+            artifact emptyJar
             artifact javadoc
             artifact source: file("${buildDir}/lib/AmazonCorrettoCryptoProvider-sources.jar"),classifier:"sources",extension:"jar"
 
