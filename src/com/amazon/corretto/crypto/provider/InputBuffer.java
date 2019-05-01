@@ -23,7 +23,7 @@ import java.util.function.Supplier;
  * The following handlers <em>must</em> be set.
  * <ul>
  * <li>{@link #withUpdater(ArrayStateConsumer)}
- * <li>{@link #withDoFinal(Function)}
+ * <li>{@link #withDoFinal(FinalHandlerFunction)}
  * </ul>
  *
  * <p>
