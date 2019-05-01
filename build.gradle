@@ -295,53 +295,69 @@ task overkill {
     dependsOn test, test_extra_checks, test_integration, test_integration_extra_checks, dieharder_all
 }
 
-publishing {
-    publications {
-        mavenJava(MavenPublication) {
-            artifactId = project.name
-            artifact source: file("${buildDir}/lib/AmazonCorrettoCryptoProvider.jar"),classifier:"linux-x86_64",extension:"jar"
-            artifact emptyJar
-            artifact javadoc
-            artifact source: file("${buildDir}/lib/AmazonCorrettoCryptoProvider-sources.jar"),classifier:"sources",extension:"jar"
 
-            pom {
-                name = "Amazon Corretto Crypto Provider"
-                description = 'The Amazon Corretto Crypto Provider (ACCP) is a collection of high-performance cryptographic implementations exposed via the standard JCA/JCE interfaces.'
-                url = 'https://github.com/corretto/amazon-corretto-crypto-provider'
-                licenses {
-                    license {
-                        name = 'The Apache License, Version 2.0'
-                        url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+if (project.hasProperty('mavenUser') && project.hasProperty('jcecertAlias')) {
+    publishing {
+        publications {
+            mavenJava(MavenPublication) {
+                artifactId = project.name
+                artifact source: file("${buildDir}/lib/AmazonCorrettoCryptoProvider.jar"),classifier:"linux-x86_64",extension:"jar"
+                artifact emptyJar
+                artifact javadoc
+                artifact source: file("${buildDir}/lib/AmazonCorrettoCryptoProvider-sources.jar"),classifier:"sources",extension:"jar"
+
+                pom {
+                    name = "Amazon Corretto Crypto Provider"
+                    description = 'The Amazon Corretto Crypto Provider (ACCP) is a collection of high-performance cryptographic implementations exposed via the standard JCA/JCE interfaces.'
+                    url = 'https://github.com/corretto/amazon-corretto-crypto-provider'
+                    licenses {
+                        license {
+                            name = 'The Apache License, Version 2.0'
+                            url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+                        }
                     }
-                }
-                scm {
-                    url = 'https://github.com/corretto/amazon-corretto-crypto-provider.git'
-                    connection = 'scm:git:git@github.com:corretto/amazon-corretto-crypto-provider.git'
-                    developerConnection = 'scm:git:git@github.com:corretto/amazon-corretto-crypto-provider.git'
-                }
-                developers {
-                    developer {
-                        id = 'amazonwebservices'
-                        organization = 'Amazon Web Services'
-                        organizationUrl = 'https://aws.amazon.com'
+                    scm {
+                        url = 'https://github.com/corretto/amazon-corretto-crypto-provider.git'
+                        connection = 'scm:git:git@github.com:corretto/amazon-corretto-crypto-provider.git'
+                        developerConnection = 'scm:git:git@github.com:corretto/amazon-corretto-crypto-provider.git'
+                    }
+                    developers {
+                        developer {
+                            id = 'amazonwebservices'
+                            organization = 'Amazon Web Services'
+                            organizationUrl = 'https://aws.amazon.com'
+                        }
                     }
                 }
             }
         }
-    }
-    repositories {
-        maven {
-            url = 'https://oss.sonatype.org/service/local/staging/deploy/maven2/'
-            credentials {
-                username mavenUser
-                password mavenPassword
+        repositories {
+            maven {
+                url = 'https://oss.sonatype.org/service/local/staging/deploy/maven2/'
+                credentials {
+                    username mavenUser
+                    password mavenPassword
+                }
             }
         }
     }
-}
 
-signing {
-    sign publishing.publications.mavenJava
+    signing {
+        sign publishing.publications.mavenJava
+    }
+} else {
+    task publish(overwrite: true) {
+        doFirst {
+            ant.fail('Insufficient configuration for publishing')
+        }
+    }
+
+    task sign(overwrite: true) {
+        doFirst {
+            ant.fail('Insufficient configuration for signing')
+        }
+    }
+
 }
 
 task clean(overwrite: true, type: Delete) {
