@@ -110,7 +110,10 @@ public class ExternalHTTPSIntegrationTest {
             connection = (HttpsURLConnection)url.openConnection();
             connection.setSSLSocketFactory(context.getSocketFactory());
             connection.connect();
-            assertTrue(connection.getResponseCode() < 500 && connection.getResponseCode() >= 200);
+            // We don't actually care what the response code is. Just receiving it means that we successfully
+            // negotiated a TLS session and are now speaking HTTP with the underlying server.
+            assertTrue("Retrieved non-sensical response code: " + connection.getResponseCode(),
+                       connection.getResponseCode() > 0);
         } finally {
             try {
                 connection.getInputStream().close();
