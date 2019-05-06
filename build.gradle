@@ -80,9 +80,8 @@ task buildOpenSsl {
 
 task executeCmake(type: Exec) {
     outputs.dir("${buildDir}/cmake")
-    doFirst {
-        mkdir "${buildDir}/cmake"
-    }
+    dependsOn buildOpenSsl
+
     workingDir "${buildDir}/cmake"
     def prebuiltJar = null
     if (project.hasProperty('stagingUrl')) {
@@ -97,10 +96,9 @@ task executeCmake(type: Exec) {
     }
 
     if (prebuiltJar != null) {
-        commandLine 'cmake', "-DTEST_CLASSPATH=${configurations.testDep.asPath}", "-DJACOCO_AGENT_JAR=${configurations.jacocoAgent.singleFile}", "-DOPENSSL_ROOT_DIR=${buildDir}/openssl/bin",  '-DCMAKE_BUILD_TYPE=Release', '-DSIGNED_JAR=' + prebuiltJar, projectDir
+        commandLine 'cmake', "-DTEST_CLASSPATH=${configurations.testDep.asPath}", "-DJACOCO_AGENT_JAR=${configurations.jacocoAgent.singleFile}", "-DOPENSSL_ROOT_DIR=${buildDir}/openssl/bin", '-DCMAKE_BUILD_TYPE=Release', '-DSIGNED_JAR=' + prebuiltJar, projectDir
     } else {
-        dependsOn buildOpenSsl
-        commandLine 'cmake', "-DTEST_CLASSPATH=${configurations.testDep.asPath}", "-DJACOCO_AGENT_JAR=${configurations.jacocoAgent.singleFile}", "-DOPENSSL_ROOT_DIR=${buildDir}/openssl/bin",  '-DCMAKE_BUILD_TYPE=Release', projectDir
+        commandLine 'cmake', "-DTEST_CLASSPATH=${configurations.testDep.asPath}", "-DJACOCO_AGENT_JAR=${configurations.jacocoAgent.singleFile}", "-DOPENSSL_ROOT_DIR=${buildDir}/openssl/bin", '-DCMAKE_BUILD_TYPE=Release', projectDir
     }
 }
 
