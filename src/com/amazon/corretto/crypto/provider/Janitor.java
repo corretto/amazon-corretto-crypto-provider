@@ -201,8 +201,8 @@ class Janitor {
                 // be removed from the list before it is added - thus becoming stuck in the doubly linked list forever.
                 //
                 // Holding the monitor means that, even if this were to occur, the cleaner thread will be stuck waiting
-                // for the monitor, and by the time it's released, we'll have finished establishing the doubly linked
-                // list.
+                // for the monitor (in HeldReference.clean()), and by the time it's released, we'll have finished
+                // establishing the doubly linked list.
                 HeldReference ref = new HeldReference(referent, this, cleaner);
 
                 outstandingRefs++;
