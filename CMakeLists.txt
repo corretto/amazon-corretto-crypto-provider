@@ -146,10 +146,6 @@ create_javadoc(
     VERSION TRUE
 )
 
-add_jar(
-    AmazonCorrettoCryptoProvider-javadoc
-    SOURCE
-)
 add_custom_target(javadoc DEPENDS ${JNI_HEADER_DIR}/generated-headers.h ${GENERATED_JAVA_SRC} AmazonCorrettoCryptoProvider_javadoc)
 
 # All subsequent Java targets are compatible with Java 8
