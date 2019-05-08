@@ -532,7 +532,7 @@ class RsaCipher extends CipherSpi {
 
     private static class NativeRsaKey extends NativeResource {
         protected NativeRsaKey(final long ptr) {
-            super(ptr, RsaCipher::releaseNativeKey);
+            super(ptr, RsaCipher::releaseNativeKey, true);
         }
     }
 

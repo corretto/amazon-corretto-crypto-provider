@@ -29,14 +29,9 @@ import com.amazon.corretto.crypto.provider.EcUtils.NativeGroup;
 
 class EcGen extends KeyPairGeneratorSpi {
     private static final ECGenParameterSpec DEFAULT_SPEC = new ECGenParameterSpec("secp384r1");
-    private static final ConcurrentHashMap<ECInfo, ThreadLocal<NativeParams>> PARAM_CACHE = new ConcurrentHashMap<>();
-    private static final Function<ECInfo, ThreadLocal<NativeParams>> CACHE_LOADER = t -> {
-            return new ThreadLocal<EcGen.NativeParams>() {
-                @Override
-                protected NativeParams initialValue() {
+    private static final ConcurrentHashMap<ECInfo, NativeParams> PARAM_CACHE = new ConcurrentHashMap<>();
+    private static final Function<ECInfo, NativeParams> CACHE_LOADER = t -> {
                     return new NativeParams(buildEcParams(t.nid));
-                }
-            };
     };
 
     private static native long buildEcParams(int nid);
@@ -48,7 +43,7 @@ class EcGen extends KeyPairGeneratorSpi {
      * @param params
      *            a native pointer created by {@link #buildEcParams(int)}
      * @param curve
-     *            a native pointer returned by {@link ECInfo#groupPtr()}
+     *            a native pointer returned by {@link NativeGroup}
      * @param checkConsistency
      *            Run additional consistency checks on the generated keypair
      * @param x
@@ -180,12 +175,12 @@ class EcGen extends KeyPairGeneratorSpi {
     }
 
     private static NativeParams getParams(ECInfo info) {
-        return PARAM_CACHE.computeIfAbsent(info, CACHE_LOADER).get();
+        return PARAM_CACHE.computeIfAbsent(info, CACHE_LOADER);
     }
 
     private static final class NativeParams extends NativeResource {
         private NativeParams(long ptr) {
-            super(ptr, EcGen::freeEcParams);
+            super(ptr, EcGen::freeEcParams, true);
         }
     }
 }
