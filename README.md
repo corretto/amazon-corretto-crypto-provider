@@ -74,6 +74,7 @@ We strongly recommend you always pull in the latest version for best performance
   <groupId>software.amazon.cryptools</groupId>
   <artifactId>AmazonCorrettoCryptoProvider</artifactId>
   <version>LATEST</version>
+  <classifier>linux-x86_64</classifier>
 </dependency>
 ```
 
