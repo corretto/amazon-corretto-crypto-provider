@@ -590,13 +590,6 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
         sigLen,
         ctxHandleArr != NULL);
 
-    // When verification is not successful, OpenSSL sometimes sets an error code.
-    // We need to clear this to avoid contaminating the error stack later.
-    // However, we really don't care about it's value.
-    if (!result) {
-        ERR_clear_error();
-    }
-
     if (ctxHandleArr && ctxHandle == 0) {
         pEnv->SetLongArrayRegion(ctxHandleArr, 0, 1, &ctx);
     }
