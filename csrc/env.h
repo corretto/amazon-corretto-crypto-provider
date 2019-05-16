@@ -19,6 +19,10 @@
 #include <type_traits>
 #endif
 
+#ifdef EXTRA_TEST_ASSERT
+#include <openssl/err.h>
+#endif
+
 namespace AmazonCorrettoCryptoProvider {
     void capture_trace(std::vector<void *> &trace) COLD;
     void format_trace(std::ostringstream &, const std::vector<void *> &trace) COLD;
@@ -168,7 +172,6 @@ class raii_env {
         raii_env(JNIEnv *env)
         : m_env(env), m_last_buffer_lock(nullptr)
         {
-            drainOpensslErrors(); // We don't want old errors confusing us.
         }
 
         JNIEnv *operator->() const __attribute__((always_inline)) {
@@ -191,6 +194,26 @@ class raii_env {
                 dtor_err();
                 abort();
             }
+#ifdef EXTRA_TEST_ASSERT
+            // This check is very expensive when there are lots of threads and /should/ be NOP.
+            // So we add it only for test builds and abort/fail the test if there are any unhandled errors.
+            // We also manually loop over the errors rather than using drainOpensslErrors so we can
+            // explicitly log them all for easier debugging.
+            bool errorFound = false;
+            const char* file;
+            int line;
+            unsigned long unhandledError = ERR_get_error_line(&file, &line);
+            while (unhandledError) {
+                errorFound = true;
+                std::cerr << "Found unhandled openssl error: " << formatOpensslError(unhandledError, "NO_TEXT");
+                std::cerr << " @ " << file << ":" << line << std::endl;
+                unhandledError = ERR_get_error_line(&file, &line);
+            }
+            if (errorFound) {
+                abort();
+            }
+// EXTRA_TEST_ASSERT
+#endif
         }
 };
 

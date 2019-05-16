@@ -30,7 +30,7 @@ final class Loader {
     // Cannot be fully removed until we remove support for Java 8
     static final double PROVIDER_VERSION = 1.0;
     // Note, this must be kept in sync with the value in C++.
-    static final String PROVIDER_VERSION_STR = "1.0.2";
+    static final String PROVIDER_VERSION_STR = "1.0.3";
     private static final String LIBRARY_NAME = "amazonCorrettoCryptoProvider";
     private static final Logger LOG = Logger.getLogger("AmazonCorrettoCryptoProvider");
 
