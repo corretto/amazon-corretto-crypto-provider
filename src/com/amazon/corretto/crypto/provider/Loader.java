@@ -19,31 +19,52 @@ import java.security.AccessController;
 import java.security.PrivilegedExceptionAction;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Properties;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 final class Loader {
-    // Version strings live in the loader because we want to be able to access them before
-    // any other parts of this library are touched and potentially (statically) loaded.
-    @Deprecated
-    // Cannot be fully removed until we remove support for Java 8
-    static final double PROVIDER_VERSION = 1.0;
-    // Note, this must be kept in sync with the value in C++.
-    static final String PROVIDER_VERSION_STR = "1.0.3";
+    private static final String RESOURCE_PATH = "com/amazon/corretto/crypto/provider/";
     private static final String LIBRARY_NAME = "amazonCorrettoCryptoProvider";
     private static final Logger LOG = Logger.getLogger("AmazonCorrettoCryptoProvider");
+
+    // Version strings live in the loader because we want to be able to access them before
+    // any other parts of this library are touched and potentially (statically) loaded.
+    private static final Pattern OLD_VERSION_PATTERN = Pattern.compile("(\\d+\\.\\d+)\\.\\d+");
+    @Deprecated
+    // Cannot be fully removed until we remove support for Java 8
+    static final double PROVIDER_VERSION;
+    static final String PROVIDER_VERSION_STR;
 
     static {
         boolean available = false;
         Throwable error = null;
+        String versionStr = null;
+        double oldVersion = 0;
+
         try {
+            // Load our version information
+            try (InputStream is = Loader.class.getClassLoader().getResourceAsStream(RESOURCE_PATH + "version.properties")){
+                Properties p = new Properties();
+                p.load(is);
+                versionStr = p.getProperty("versionStr");
+                Matcher m = OLD_VERSION_PATTERN.matcher(versionStr);
+                if (!m.matches()) {
+                    throw new AssertionError("Version string has wrong form: " + versionStr);
+                }
+                oldVersion = Double.parseDouble(m.group(1));
+            }
+
             available = AccessController.doPrivileged((PrivilegedExceptionAction<Boolean>) () -> {
                 // This is to work a JVM runtime bug where FileSystems.getDefault() and
                 // System.loadLibrary() can deadlock. Calling this explicitly shoulf prevent
                 // the problem from happening, but since we don't know what other threads are
                 // doing, we cannot promise success.
                 FileSystems.getDefault();
+
 
                 // First, try to find the library in our own jar
                 String libraryName = System.mapLibraryName(LIBRARY_NAME);
@@ -52,9 +73,8 @@ final class Loader {
                     final String prefix = libraryName.substring(0, index);
                     final String suffix = libraryName.substring(index, libraryName.length());
 
-
                     final Path libPath = createTmpFile(prefix, suffix);
-                    libraryName = "com/amazon/corretto/crypto/provider/" + libraryName;
+                    libraryName = RESOURCE_PATH + libraryName;
                     try (final InputStream is = Loader.class.getClassLoader().getResourceAsStream(libraryName);
                          final OutputStream os = Files.newOutputStream(libPath, StandardOpenOption.CREATE,
                                  StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING)) {
@@ -88,6 +108,9 @@ final class Loader {
             available = false;
             error = t;
         }
+        PROVIDER_VERSION_STR = versionStr;
+        PROVIDER_VERSION = oldVersion;
+
         // Check for native/java library version mismatch
         if (available) {
             try {
@@ -100,11 +123,10 @@ final class Loader {
         IS_AVAILABLE = available;
         LOADING_ERROR = error;
         if (available) {
-            LOG.log(Level.INFO, "Successfully loaded native library");
+            LOG.log(Level.INFO, "Successfully loaded native library version " + PROVIDER_VERSION_STR);
         } else {
             LOG.log(Level.WARNING, "Unable to load native library", error);
         }
-
     }
 
     static final boolean IS_AVAILABLE;

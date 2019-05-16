@@ -69,6 +69,9 @@
 #define CONCAT2_INTERNAL(a,b) a ## b
 #define CONCAT2(a,b) CONCAT2_INTERNAL(a,b)
 
+#define STRINGIFY_INTERNAL(x) #x
+#define STRINGIFY(x) STRINGIFY_INTERNAL(x)
+
 #define likely(x) __builtin_expect(!!(x), true)
 #define unlikely(x) __builtin_expect(!!(x), false)
 

@@ -39,6 +39,7 @@ set(ENABLE_RNG_TEST_HOOKS NO CACHE BOOL "Enable debugging hooks in the RNG. Disa
 set(FORCE_DISABLE_RDRAND NO CACHE BOOL "Force CPUID detection of rdrand support to fail. For testing purposes.")
 set(TEST_DATA_DIR ${PROJECT_SOURCE_DIR}/test-data/ CACHE STRING "Path to directory containing test data")
 set(ORIG_SRCROOT ${PROJECT_SOURCE_DIR} CACHE STRING "Path to root of original package")
+set(PROVIDER_VERSION_STRING "" CACHE STRING "X.Y.Z formatted version of the provider")
 
 if (NOT DEFINED JACOCO_AGENT_JAR)
    set(JACOCO_AGENT_JAR ${JACOCO_ROOT}/jacocoagent.jar)
@@ -82,6 +83,14 @@ endif()
 # results in re-invoking cmake to perform this substitution.
 
 CONFIGURE_FILE(${GENERATE_HASHERS} ${CMAKE_CURRENT_BINARY_DIR}/dummy-file)
+
+set(VERSION_PROPERTIES_FILE ${GENERATED_JAVA_DIR}/version.properties)
+
+add_custom_command(
+    OUTPUT ${VERSION_PROPERTIES_FILE}
+    COMMAND ${CMAKE_COMMAND} -E echo versionStr=${PROVIDER_VERSION_STRING} > ${VERSION_PROPERTIES_FILE}
+    COMMENT "Generation version properties file"
+)
 
 add_custom_command(
     COMMAND ${GENERATE_HASHERS} generate ${CMAKE_CURRENT_SOURCE_DIR} ${GENERATED_JAVA_DIR}
@@ -182,8 +191,9 @@ else()
         COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/tmplib/com/amazon/corretto/crypto/provider/
         COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:amazonCorrettoCryptoProvider> ${CMAKE_CURRENT_BINARY_DIR}/tmplib/com/amazon/corretto/crypto/provider/
         COMMAND ${Java_JAR_EXECUTABLE} uf ${ACCP_JAR_TMP} -C ${CMAKE_CURRENT_BINARY_DIR}/tmplib/ com/amazon/corretto/crypto/provider/$<TARGET_FILE_NAME:amazonCorrettoCryptoProvider>
+        COMMAND ${Java_JAR_EXECUTABLE} uf ${ACCP_JAR_TMP} -C ${CMAKE_CURRENT_BINARY_DIR}/generated-java/ com/amazon/corretto/crypto/provider/version.properties
         COMMAND ${CMAKE_COMMAND} -E copy ${ACCP_JAR_TMP} ${ACCP_JAR}
-        DEPENDS code-only-jar module-jar
+        DEPENDS code-only-jar module-jar ${VERSION_PROPERTIES_FILE}
     )
 endif()
 
@@ -486,6 +496,9 @@ if(NOT ${CMAKE_BUILD_TYPE} STREQUAL "Release")
     # This enables expensive test-only assertions
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DEXTRA_TEST_ASSERT")
 endif()
+
+# Pass in provider version
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DPROVIDER_VERSION_STRING=${PROVIDER_VERSION_STRING}")
 
 # CMake disallows leading or trailing whitespace here, but our concatenations will
 # leave us with leading whitespace, so strip it off first.
