@@ -7,7 +7,7 @@ plugins {
 }
 
 group = 'software.amazon.cryptools'
-version = '1.0.2'
+version = '1.0.3'
 
 configurations {
     jacocoAgent
@@ -228,7 +228,7 @@ task coverage_cmake(type: Exec) {
         mkdir "${buildDir}/cmake-coverage"
     }
     workingDir "${buildDir}/cmake-coverage"
-    commandLine 'cmake', "-DTEST_CLASSPATH=${configurations.testDep.asPath}", "-DJACOCO_AGENT_JAR=${configurations.jacocoAgent.singleFile}", "-DOPENSSL_ROOT_DIR=${buildDir}/openssl/bin",  '-DCMAKE_BUILD_TYPE=Release', '-DCOVERAGE=ON', '-DENABLE_RNG_TEST_HOOKS=ON', projectDir
+    commandLine 'cmake', "-DTEST_CLASSPATH=${configurations.testDep.asPath}", "-DJACOCO_AGENT_JAR=${configurations.jacocoAgent.singleFile}", "-DOPENSSL_ROOT_DIR=${buildDir}/openssl/bin",  '-DCMAKE_BUILD_TYPE=Coverage', '-DCOVERAGE=ON', '-DENABLE_RNG_TEST_HOOKS=ON', projectDir
 }
 
 task coverage_exec(type: Exec) {

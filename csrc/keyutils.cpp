@@ -71,7 +71,7 @@ EVP_PKEY* der2EvpPublicKey(const unsigned char* der, const int derLen, const cha
     if (result) {
       EVP_PKEY_free(result);
     }
-    throw_java_ex(javaExceptionClass, "Extra key information");
+    throw_openssl(javaExceptionClass, "Extra key information");
   }
   if (!result) {
     throw_openssl(javaExceptionClass, "Unable to parse key");

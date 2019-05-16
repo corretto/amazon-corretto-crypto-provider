@@ -25,7 +25,7 @@
 using namespace AmazonCorrettoCryptoProvider;
 
 // NOTE: This must be kept in sync with the value in Java.
-#define PROVIDER_VERSION_STRING "1.0.2"
+#define PROVIDER_VERSION_STRING "1.0.3"
 
 namespace {
 

@@ -4,6 +4,7 @@
 #include "env.h"
 #include "buffer.h"
 #include <cassert>
+#include <openssl/err.h>
 
 #ifdef BACKTRACE_ON_EXCEPTION
 #include <execinfo.h>
@@ -138,7 +139,7 @@ void java_ex::throw_to_java(JNIEnv *env) {
     // by this point, so to ensure there are no errors left in
     // the openssl error queue, we empty it. This avoids accidentally
     // leaving an old error for later error handling to find.
-    drainOpensslErrors();
+    ERR_clear_error();
 
     assert(env->ExceptionCheck());
 }

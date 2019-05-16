@@ -482,6 +482,11 @@ endif()
 
 ### End feature tests - add our probed flags to the library link invocation
 
+if(NOT ${CMAKE_BUILD_TYPE} STREQUAL "Release")
+    # This enables expensive test-only assertions
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DEXTRA_TEST_ASSERT")
+endif()
+
 # CMake disallows leading or trailing whitespace here, but our concatenations will
 # leave us with leading whitespace, so strip it off first.
 string(STRIP "${PROBED_LINKED_FLAGS}" PROBED_LINKED_FLAGS)

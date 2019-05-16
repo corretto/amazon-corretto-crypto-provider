@@ -469,6 +469,13 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
 
         result = EVP_DigestVerifyFinal(ctx->getDigestCtx(), sigBorrow.data(), sigBorrow.len());
 
+        // When verification is not successful, OpenSSL sometimes sets an error code.
+        // We need to clear this to avoid contaminating the error stack later.
+        // However, we really don't care about it's value.
+        if (result != 1) {
+            ERR_clear_error();
+        }
+
         if (!preserveCtx) {
             delete ctx;
         }
@@ -677,12 +684,13 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
 
         if (likely(ret == 1)) {
             return true;
-        } else if (ret == 0) {
-            return false;
         } else {
             unsigned long errorCode = drainOpensslErrors();
 
-            if (ERR_GET_LIB(errorCode) == ERR_LIB_ASN1) {
+            if (errorCode == 0) {
+                // Bad signature but no further error
+                return false;
+            } else if (ERR_GET_LIB(errorCode) == ERR_LIB_ASN1) {
                 // ASN.1 decoding error - signature is corrupt. Treat this as a verify failure.
                 return false;
             } else if (errorCode == 0x2A066064) {
