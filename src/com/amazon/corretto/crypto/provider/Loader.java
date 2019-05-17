@@ -65,7 +65,6 @@ final class Loader {
                 // doing, we cannot promise success.
                 FileSystems.getDefault();
 
-
                 // First, try to find the library in our own jar
                 String libraryName = System.mapLibraryName(LIBRARY_NAME);
                 if (libraryName != null) {
