@@ -74,7 +74,7 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_curveNam
 
         int nid = OBJ_txt2nid(jniCurve.native_str);
         if (nid == NID_undef) {
-            drainOpensslErrors();
+            ERR_clear_error();
             return 0;
         }
 

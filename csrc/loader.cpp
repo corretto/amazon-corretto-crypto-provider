@@ -24,9 +24,6 @@
 
 using namespace AmazonCorrettoCryptoProvider;
 
-// NOTE: This must be kept in sync with the value in Java.
-#define PROVIDER_VERSION_STRING "1.0.2"
-
 namespace {
 
 static pthread_mutex_t *lock_cs;
@@ -109,7 +106,7 @@ JNIEXPORT jstring JNICALL Java_com_amazon_corretto_crypto_provider_Loader_getNat
     try {
         raii_env env(pEnv);
 
-        return env->NewStringUTF(PROVIDER_VERSION_STRING);
+        return env->NewStringUTF(STRINGIFY(PROVIDER_VERSION_STRING));
     } catch (java_ex &ex) {
         ex.throw_to_java(pEnv);
         return NULL;
