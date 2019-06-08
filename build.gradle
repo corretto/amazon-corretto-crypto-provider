@@ -24,8 +24,8 @@ dependencies {
     jacocoAgent group: 'org.jacoco', name: 'org.jacoco.agent', version: '0.8.3', classifier: 'runtime'
 
     testDep 'junit:junit:4.12'
-    testDep 'org.bouncycastle:bcprov-jdk15on:1.61'
-    testDep 'org.bouncycastle:bcpkix-jdk15on:1.61'
+    testDep 'org.bouncycastle:bcprov-jdk15on:1.62'
+    testDep 'org.bouncycastle:bcpkix-jdk15on:1.62'
     testDep 'commons-codec:commons-codec:1.12'
     testDep 'org.hamcrest:hamcrest:2.1'
     testDep 'org.jacoco:org.jacoco.core:0.8.3'
