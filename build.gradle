@@ -7,7 +7,7 @@ plugins {
 }
 
 group = 'software.amazon.cryptools'
-version = '1.0.3'
+version = '1.0.4'
 
 configurations {
     jacocoAgent
