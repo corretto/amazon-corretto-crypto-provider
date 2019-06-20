@@ -36,6 +36,7 @@ import org.bouncycastle.asn1.ASN1Encodable;
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.ASN1Sequence;
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -122,6 +123,14 @@ public class EcGenTest {
     public void setup() throws GeneralSecurityException {
         nativeGen = KeyPairGenerator.getInstance("EC", "AmazonCorrettoCryptoProvider");
         jceGen = KeyPairGenerator.getInstance("EC", "SunEC");
+    }
+
+    @After
+    public void teardown() {
+        // It is unclear if JUnit always properly releases references to classes and thus we may have memory leaks
+        // if we do not properly null our references
+        nativeGen = null;
+        jceGen = null;
     }
 
     @Test

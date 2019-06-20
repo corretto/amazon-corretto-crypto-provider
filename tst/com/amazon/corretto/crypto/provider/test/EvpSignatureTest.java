@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.function.BiFunction;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -150,6 +151,15 @@ public class EvpSignatureTest {
         verifier_.initVerify(keyPair_.getPublic());
         jceVerifier_ = getJceSigner();
         jceVerifier_.initVerify(keyPair_.getPublic());
+    }
+
+    @After
+    public void teardown() {
+        // It is unclear if JUnit always properly releases references to classes and thus we may have memory leaks
+        // if we do not properly null our references
+        signer_ = null;
+        verifier_ = null;
+        jceVerifier_ = null;
     }
 
     private Signature getNativeSigner() throws NoSuchAlgorithmException {
