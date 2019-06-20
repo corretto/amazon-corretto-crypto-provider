@@ -140,7 +140,7 @@ if (Cipher.getInstance("AES/GCM/NoPadding").getProvider().getName().equals(Amazo
 ```
 2. Ask ACCP about its health
 ```java
-if (AmazonCorrettoCryptoProvider.INSTANCE.getLoadingError() == null && AmazonCorrettoCryptoProvider.INSTANCE.runSelfTests().equals(SelfTestState.PASSED)) {
+if (AmazonCorrettoCryptoProvider.INSTANCE.getLoadingError() == null && AmazonCorrettoCryptoProvider.INSTANCE.runSelfTests().equals(SelfTestStatus.PASSED)) {
 	// Successfully installed
 }
 ```
