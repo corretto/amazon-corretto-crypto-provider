@@ -51,6 +51,7 @@ import org.bouncycastle.asn1.ASN1Sequence;
 import org.bouncycastle.asn1.DERBitString;
 import org.bouncycastle.asn1.DERSequence;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -133,6 +134,14 @@ public class EvpKeyAgreementTest {
     public void setup() throws GeneralSecurityException {
         nativeAgreement = KeyAgreement.getInstance(algorithm, nativeProvider);
         jceAgreement = KeyAgreement.getInstance(algorithm, jceProvider);
+    }
+
+    @After
+    public void teardown() {
+        // It is unclear if JUnit always properly releases references to classes and thus we may have memory leaks
+        // if we do not properly null our references
+        nativeAgreement = null;
+        jceAgreement = null;
     }
 
     private static Object[] buildDhParameters(final int keySize) throws GeneralSecurityException {

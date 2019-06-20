@@ -45,6 +45,7 @@ import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -78,6 +79,15 @@ public class AesTest {
         rnd.nextBytes(nonce);
         jceC = Cipher.getInstance(ALGO_NAME);
         amznC = Cipher.getInstance(ALGO_NAME, AmazonCorrettoCryptoProvider.INSTANCE);
+    }
+
+    @After
+    public void teardown() {
+        // It is unclear if JUnit always properly releases references to classes and thus we may have memory leaks
+        // if we do not properly null our references
+        key = null;
+        jceC = null;
+        amznC = null;
     }
 
     private Object getSpiInstance() throws Throwable {

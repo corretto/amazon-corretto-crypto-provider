@@ -1,7 +1,8 @@
 # Changelog
 
 ## 1.0.4
-No changes from 1.0.3. This version exists to be the official public release version.
+### Maintenance
+* Fix Java heap space issues in unit tests
 
 ## 1.0.3
 

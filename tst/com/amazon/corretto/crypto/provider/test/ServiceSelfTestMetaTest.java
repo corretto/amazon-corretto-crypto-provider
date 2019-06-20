@@ -29,7 +29,7 @@ import com.amazon.corretto.crypto.provider.SelfTestResult;
 import com.amazon.corretto.crypto.provider.SelfTestStatus;
 
 public class ServiceSelfTestMetaTest {
-    AmazonCorrettoCryptoProvider aacp;
+    AmazonCorrettoCryptoProvider accp;
 
     @Before
     public void setUp() throws Throwable {
@@ -38,12 +38,15 @@ public class ServiceSelfTestMetaTest {
 
         // AACP instances cache the self-test status within each Service, so create a new instance to clear that cache.
         // This also makes sure the native library is loaded.
-        aacp = new AmazonCorrettoCryptoProvider();
+        accp = new AmazonCorrettoCryptoProvider();
     }
 
     @After
     public void reset() throws Throwable {
         sneakyInvoke(AmazonCorrettoCryptoProvider.INSTANCE, "resetAllSelfTests");
+        // It is unclear if JUnit always properly releases references to classes and thus we may have memory leaks
+        // if we do not properly null our references
+        accp = null;
     }
 
     @Test
@@ -54,7 +57,7 @@ public class ServiceSelfTestMetaTest {
 
         boolean drbgWasUsable = false;
 
-        for (Provider.Service service : aacp.getServices()) {
+        for (Provider.Service service : accp.getServices()) {
             try {
                 Object instance = service.newInstance(null);
 
@@ -76,7 +79,7 @@ public class ServiceSelfTestMetaTest {
         Object test = TestUtil.sneakyGetField(spi, "SELF_TEST");
         sneakyInvoke(test, "forceFailure");
 
-        for (Provider.Service service : aacp.getServices()) {
+        for (Provider.Service service : accp.getServices()) {
             try {
                 Object instance = service.newInstance(null);
 
