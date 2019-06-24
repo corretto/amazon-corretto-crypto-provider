@@ -218,7 +218,7 @@ public class TestHTTPSServer {
     }
 
     public static void main(String[] args) throws Exception {
-        if (Boolean.parseBoolean(System.getProperty("aacp"))) {
+        if (Boolean.parseBoolean(System.getProperty("accp"))) {
             AmazonCorrettoCryptoProvider.install();
         }
 
@@ -295,11 +295,11 @@ public class TestHTTPSServer {
         t.start();
     }
 
-    public static TestHTTPSServer launch(boolean aacp) throws Exception {
+    public static TestHTTPSServer launch(boolean accp) throws Exception {
         CompletableFuture<Integer> portCompletion = new CompletableFuture<>();
 
         Process process = launchSubJava(
-                "-Daacp=" + aacp,
+                "-Daccp=" + accp,
                 TestHTTPSServer.class.getCanonicalName()
         );
 

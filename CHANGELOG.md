@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.4
+### Maintenance
+* Fix Java heap space issues in unit tests
+
 ## 1.0.3
 
 ### Patches

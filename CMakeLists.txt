@@ -583,6 +583,7 @@ add_custom_target(check-junit
         -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
         -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
         -Dtest.data.dir=${TEST_DATA_DIR}
+        -XX:+HeapDumpOnOutOfMemoryError
         ${TEST_JAVA_ARGS}
         com.amazon.corretto.crypto.provider.test.TestRunner --suite unit
 
@@ -595,7 +596,8 @@ add_custom_target(check-junit-extra-checks
         -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
         -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
         -Dtest.data.dir=${TEST_DATA_DIR}
-	-Dcom.amazon.corretto.crypto.provider.extrachecks=ALL
+        -Dcom.amazon.corretto.crypto.provider.extrachecks=ALL
+        -XX:+HeapDumpOnOutOfMemoryError
         ${TEST_JAVA_ARGS}
         com.amazon.corretto.crypto.provider.test.TestRunner --suite unit
 
