@@ -5,6 +5,7 @@
 ### Patches
 * Reject RSA key generation shorter than 512 bits
 * Fix incorrect exception when SunJSSE validates RSA signatures backed by ACCP RSA
+* Make the provider actually serializable to keep JTREG happy
 
 ## 1.0.4
 ### Maintenance

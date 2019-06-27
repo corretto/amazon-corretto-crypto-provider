@@ -7,6 +7,11 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.security.MessageDigest;
 import java.security.Security;
 
@@ -44,5 +49,24 @@ public class TestProviderInstallation {
     @Test
     public void testAssertHealthy() {
         AmazonCorrettoCryptoProvider.INSTANCE.assertHealthy();
+    }
+
+    @Test
+    public void testSerialization() throws Exception {
+        final byte[] serialized;
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (ObjectOutputStream oos = new ObjectOutputStream(baos) ) {
+            oos.writeObject(AmazonCorrettoCryptoProvider.INSTANCE);
+            oos.flush();
+        }
+        baos.close();
+        serialized = baos.toByteArray();
+
+
+        try (ByteArrayInputStream bais = new ByteArrayInputStream(serialized);
+             ObjectInputStream ois = new ObjectInputStream(bais)) {
+            AmazonCorrettoCryptoProvider result = (AmazonCorrettoCryptoProvider) ois.readObject();
+            result.assertHealthy();
+        }
     }
 }
