@@ -40,8 +40,8 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
     private static native boolean nativeRdRandSupported();
 
-    private final SelfTestSuite selfTestSuite = new SelfTestSuite();
     private final EnumSet<ExtraCheck> extraChecks = EnumSet.noneOf(ExtraCheck.class);
+    private transient SelfTestSuite selfTestSuite = new SelfTestSuite();
 
     static {
         if (!Loader.IS_AVAILABLE) {
@@ -271,6 +271,13 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
         buildServiceMap();
 
+        initializeSelfTests();
+    }
+
+    private synchronized void initializeSelfTests() {
+        if (selfTestSuite == null) {
+            selfTestSuite = new SelfTestSuite();
+        }
         selfTestSuite.addSelfTest(HmacSHA512Spi.SELF_TEST);
         selfTestSuite.addSelfTest(HmacSHA384Spi.SELF_TEST);
         selfTestSuite.addSelfTest(HmacSHA256Spi.SELF_TEST);
@@ -381,17 +388,12 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
       extraChecks.addAll(Arrays.asList(checks));
     }
 
-    // Unfortunately Provider ends up extending Hashtable which implements Serializable for no good reason.
-    // We'll implementing custom serialization with exception-throwing implementations to make findbugs happy about this.
+    private void readObject(java.io.ObjectInputStream in) {
+        readObjectNoData();
+    }
 
-    private void readObject(java.io.ObjectInputStream stream) throws IOException, ClassNotFoundException {
-        throw new UnsupportedOperationException();
-    }
-    private void writeObject(java.io.ObjectOutputStream stream) throws IOException {
-        throw new UnsupportedOperationException();
-    }
-    private void readObjectNoData() throws ObjectStreamException {
-        throw new UnsupportedOperationException();
+    private void readObjectNoData() {
+        initializeSelfTests();
     }
 }
 
