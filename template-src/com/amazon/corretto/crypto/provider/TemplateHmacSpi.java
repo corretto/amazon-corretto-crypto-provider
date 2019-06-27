@@ -160,8 +160,7 @@ public class TemplateHmacSpi extends MacSpi {
         hashCategory.put("HmacSHA512", "sha2");
         hashLocation.put("HmacSHA512", 2);
 
-        try (final Scanner in = new Scanner(
-                SPI.class.getResourceAsStream("/test-data/hmac.txt"), StandardCharsets.US_ASCII.name())) {
+        try (final Scanner in = new Scanner(Loader.getTestData("hmac.txt"), StandardCharsets.US_ASCII.name())) {
             final Mac testMac = Mac.getInstance(MAC_NAME, p);
             while (in.hasNext()) {
                 tests++;

@@ -246,7 +246,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     public AmazonCorrettoCryptoProvider() {
         super("AmazonCorrettoCryptoProvider", PROVIDER_VERSION, "");
 
-        final String[] extraCheckOptions = System.getProperty("com.amazon.corretto.crypto.provider.extrachecks", "").split(",");
+        final String[] extraCheckOptions = Loader.getProperty("extrachecks", "").split(",");
         for (final String check : extraCheckOptions) {
           if (check.equalsIgnoreCase("all")) {
             extraChecks.addAll(EnumSet.allOf(ExtraCheck.class));
