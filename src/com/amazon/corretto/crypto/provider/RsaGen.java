@@ -5,6 +5,7 @@ package com.amazon.corretto.crypto.provider;
 
 import java.math.BigInteger;
 import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidParameterException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGeneratorSpi;
@@ -97,14 +98,25 @@ class RsaGen extends KeyPairGeneratorSpi {
     @Override
     public void initialize(AlgorithmParameterSpec spec, SecureRandom rnd) throws InvalidAlgorithmParameterException {
         if (spec instanceof RSAKeyGenParameterSpec) {
-            kgSpec = (RSAKeyGenParameterSpec) spec;
+            kgSpec = validateParameter((RSAKeyGenParameterSpec) spec);
         } else {
             throw new InvalidAlgorithmParameterException("Unsupported AlgorithmParameterSpec: " + spec);
         }
     }
 
     @Override
-    public void initialize(int keysize, SecureRandom rnd) {
-        kgSpec = new RSAKeyGenParameterSpec(keysize, RSAKeyGenParameterSpec.F4);
+    public void initialize(int keysize, SecureRandom rnd) throws InvalidParameterException {
+        try {
+            kgSpec = validateParameter(new RSAKeyGenParameterSpec(keysize, RSAKeyGenParameterSpec.F4));
+        } catch (final InvalidAlgorithmParameterException ex) {
+            throw new InvalidParameterException(ex.getMessage());
+        }
+    }
+
+    private static RSAKeyGenParameterSpec validateParameter(RSAKeyGenParameterSpec spec) throws InvalidAlgorithmParameterException {
+        if (spec.getKeysize() < 512) {
+            throw new InvalidAlgorithmParameterException("Unsupported key size: " + spec.getKeysize());
+        }
+        return spec;
     }
 }
