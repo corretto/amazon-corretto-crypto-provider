@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.0
+
+### Patches
+* Reject RSA key generation shorter than 512 bits
+* Fix incorrect exception when SunJSSE validates RSA signatures backed by ACCP RSA
+
 ## 1.0.4
 ### Maintenance
 * Fix Java heap space issues in unit tests
