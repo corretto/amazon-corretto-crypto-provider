@@ -407,8 +407,11 @@ public class EvpKeyAgreementTest {
 
         agree.init(pairs[0].getPrivate(), (AlgorithmParameterSpec) null);
 
-        assertThrows(IllegalStateException.class, "Only single phase agreement is supported",
-                () -> agree.doPhase(pairs[0].getPublic(), false));
+        // This test doesn't apply to DH
+        if (!algorithm.equals("DH")) {
+            assertThrows(IllegalStateException.class, "Only single phase agreement is supported",
+                    () -> agree.doPhase(pairs[0].getPublic(), false));
+        }
         assertThrows(IllegalStateException.class, "KeyAgreement has not been completed", () -> agree.generateSecret());
 
         assertThrows(InvalidKeyException.class,

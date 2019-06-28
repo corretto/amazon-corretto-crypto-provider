@@ -6,9 +6,14 @@ package com.amazon.corretto.crypto.provider.test;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyInvokeExplicit;
 
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
+
 import java.util.Arrays;
 import java.security.GeneralSecurityException;
 import java.security.InvalidKeyException;
+import java.security.Key;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.interfaces.ECPublicKey;
@@ -120,6 +125,78 @@ public class EvpKeyAgreementSpecificTest {
                (ECPublicKey) EC_KEYPAIR.getPublic()).getEncoded(),
             EC_TYPE));
 
+    }
+
+    // This test covers three-way DH
+    @Test
+    public void dh3() throws Throwable {
+        final KeyPairGenerator kg = KeyPairGenerator.getInstance("DH");
+        kg.initialize(1024);
+        final KeyPair alice = kg.generateKeyPair();
+        final KeyPair bob = kg.generateKeyPair();
+        final KeyPair carol = kg.generateKeyPair();
+
+        final KeyAgreement aNativeKA = KeyAgreement.getInstance("DH", AmazonCorrettoCryptoProvider.INSTANCE);
+        final KeyAgreement bNativeKA = KeyAgreement.getInstance("DH", AmazonCorrettoCryptoProvider.INSTANCE);
+        final KeyAgreement cNativeKA = KeyAgreement.getInstance("DH", AmazonCorrettoCryptoProvider.INSTANCE);
+
+        final KeyAgreement aSunKA = KeyAgreement.getInstance("DH", "SunJCE");
+        final KeyAgreement bSunKA = KeyAgreement.getInstance("DH", "SunJCE");
+        final KeyAgreement cSunKA = KeyAgreement.getInstance("DH", "SunJCE");
+
+        aNativeKA.init(alice.getPrivate());
+        aSunKA.init(alice.getPrivate());
+
+        bNativeKA.init(bob.getPrivate());
+        bSunKA.init(bob.getPrivate());
+
+        cNativeKA.init(carol.getPrivate());
+        cSunKA.init(carol.getPrivate());
+
+        // Phase 1
+        final Key acNative = aNativeKA.doPhase(carol.getPublic(), false);
+        final Key acSun = aSunKA.doPhase(carol.getPublic(), false);
+        assertKeyEquals("AC keys", acSun, acNative);
+
+        final Key baNative = bNativeKA.doPhase(alice.getPublic(), false);
+        final Key baSun = bSunKA.doPhase(alice.getPublic(), false);
+        assertKeyEquals("BA keys", baSun, baNative);
+
+        final Key cbNative = cNativeKA.doPhase(bob.getPublic(), false);
+        final Key cbSun = cSunKA.doPhase(bob.getPublic(), false);
+        assertKeyEquals("CB keys", cbSun, cbNative);
+
+        // Complete agreement
+        assertNull(aNativeKA.doPhase(cbNative, true));
+        assertNull(aSunKA.doPhase(cbSun, true));
+
+        assertNull(bNativeKA.doPhase(acNative, true));
+        assertNull(bSunKA.doPhase(acSun, true));
+
+        assertNull(cNativeKA.doPhase(baNative, true));
+        assertNull(cSunKA.doPhase(baSun, true));
+
+        // Get the results and ensure they match the default Java implementation
+        final byte[] aliceNativeSecret = aNativeKA.generateSecret();
+        final byte[] aliceSunSecret = aSunKA.generateSecret();
+        assertArrayEquals("Alice secrets", aliceSunSecret, aliceNativeSecret);
+
+        final byte[] bobNativeSecret = bNativeKA.generateSecret();
+        final byte[] bobSunSecret = bSunKA.generateSecret();
+        assertArrayEquals("Bob secrets", bobSunSecret, bobNativeSecret);
+
+        final byte[] carolNativeSecret = cNativeKA.generateSecret();
+        final byte[] carolSunSecret = cSunKA.generateSecret();
+        assertArrayEquals("Carol secrets", carolSunSecret, carolNativeSecret);
+
+        // Finally ensure that the values all match
+        assertArrayEquals("Alice and Bob", aliceNativeSecret, bobNativeSecret);
+        assertArrayEquals("Alice and Carol", aliceNativeSecret, carolNativeSecret);
+    }
+
+    private static void assertKeyEquals(String message, Key a, Key b) {
+        assertEquals(message, a.getFormat(), b.getFormat());
+        assertArrayEquals(message, a.getEncoded(), b.getEncoded());
     }
 
     private static byte[] agree(byte[] privateKeyDer, byte[] publicKeyDer, int keyType)
