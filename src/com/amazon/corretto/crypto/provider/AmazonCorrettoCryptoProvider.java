@@ -388,7 +388,8 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
       extraChecks.addAll(Arrays.asList(checks));
     }
 
-    private void readObject(java.io.ObjectInputStream in) {
+    private void readObject(java.io.ObjectInputStream in) throws IOException, ClassNotFoundException {
+        in.defaultReadObject();
         readObjectNoData();
     }
 
