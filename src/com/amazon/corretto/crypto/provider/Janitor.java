@@ -32,7 +32,7 @@ class Janitor {
     private static final long CLEAN_TIMEOUT = 1000;
 
     // Overriding this property directly sets the number of stripes to allocate
-    private static final String PROP_NSTRIPES = "com.amazon.corretto.crypto.provider.janitor.stripes";
+    private static final String PROP_NSTRIPES = "janitor.stripes";
     // By default we apply a multiplier to the number of CPUs
     private static final int DEFAULT_PROCESSOR_MULTIPLER = 4; // 4 stripes per CPU (rounded up to a power of two)
 
@@ -277,8 +277,8 @@ class Janitor {
         JanitorState(Janitor parent, ThreadFactory factory) {
             int nstripes;
 
-            if (System.getProperty(PROP_NSTRIPES) != null) {
-                nstripes = Integer.parseInt(System.getProperty(PROP_NSTRIPES));
+            if (Loader.getProperty(PROP_NSTRIPES) != null) {
+                nstripes = Integer.parseInt(Loader.getProperty(PROP_NSTRIPES));
             } else {
                 nstripes = Runtime.getRuntime().availableProcessors() * DEFAULT_PROCESSOR_MULTIPLER;
             }
