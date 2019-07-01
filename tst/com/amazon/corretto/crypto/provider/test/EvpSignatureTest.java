@@ -3,6 +3,8 @@
 
 package com.amazon.corretto.crypto.provider.test;
 
+import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
+
 import static java.lang.String.format;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -12,11 +14,14 @@ import static org.junit.Assume.assumeTrue;
 
 import java.nio.ByteBuffer;
 import java.security.GeneralSecurityException;
+import java.security.InvalidKeyException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
+import java.security.PublicKey;
 import java.security.Signature;
+import java.security.SignatureException;
 import java.security.interfaces.DSAKey;
 import java.security.interfaces.ECKey;
 import java.security.spec.ECGenParameterSpec;
@@ -260,15 +265,25 @@ public class EvpSignatureTest {
         verifier_.update(message_);
         byte[] badSignature = goodSignature_.clone();
         badSignature[badSignature.length - 1]++;
-        assertFalse(verifier_.verify(badSignature));
+        // Bad signatures will sometime return false and sometimes throw an exception. Both are acceptable
+        try {
+            assertFalse(verifier_.verify(badSignature));
+        } catch (final SignatureException ex) {
+            // Expected
+        }
     }
 
     @Test
-    public void verifyTrucatedSignature() throws GeneralSecurityException {
+    public void verifyTruncatedSignature() throws GeneralSecurityException {
         assumeNonByteBufferTestApplicable();
         verifier_.update(message_);
         byte[] badSignature = Arrays.copyOf(goodSignature_, goodSignature_.length - 1);
-        assertFalse(verifier_.verify(badSignature));
+        // Truncated signatures will sometime return false and sometimes throw an exception. Both are acceptable
+        try {
+            assertFalse(verifier_.verify(badSignature));
+        } catch (final SignatureException ex) {
+            // Expected
+        }
     }
 
     @Test
@@ -389,6 +404,25 @@ public class EvpSignatureTest {
     public void verifySubByteBufferDirect() throws GeneralSecurityException {
         final ByteBuffer bbuff = ByteBuffer.allocateDirect(message_.length);
         testSubByteBuffer(false, new BufferSplitter(bbuff));
+    }
+
+    @Test
+    public void nullKeyYieldsInvalidKeyException() throws GeneralSecurityException {
+        assertThrows(InvalidKeyException.class, () -> signer_.initSign(null));
+        assertThrows(InvalidKeyException.class, () -> verifier_.initVerify((PublicKey) null));
+    }
+
+    @Test
+    public void corruptedSignatureYieldsException() throws GeneralSecurityException {
+        // JCA/JCE standards require that we try to throw an exception if the underlying signature is "corrupt" and not
+        // just invalid.
+        assumeFalse(algorithm_.contains("RSA")); // Does not apply to RSA algorithms
+        byte[] badSignature = goodSignature_.clone();
+        for (int x = 0; x < badSignature.length; x++) {
+            badSignature[x] ^= 0x5c;
+        }
+
+        assertThrows(SignatureException.class, () -> verifier_.verify(badSignature));
     }
 
     private void testSingleByteBuffer(boolean signMode, final ByteBuffer buff) throws GeneralSecurityException {

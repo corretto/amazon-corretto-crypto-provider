@@ -402,6 +402,8 @@ public class EvpKeyAgreementTest {
         assertThrows(InvalidKeyException.class,
                 () -> agree.init(new SecretKeySpec("YellowSubmarine".getBytes(StandardCharsets.UTF_8), "AES")));
 
+        assertThrows(InvalidKeyException.class, () -> agree.init(null));
+
         assertThrows(InvalidAlgorithmParameterException.class,
                 () -> agree.init(pairs[0].getPrivate(), new IvParameterSpec(new byte[0])));
 
