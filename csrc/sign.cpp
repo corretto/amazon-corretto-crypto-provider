@@ -454,7 +454,6 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
  jboolean preserveCtx)
 {
     EvpKeyContext* ctx = (EvpKeyContext*) ctxPtr;
-    int result = 0;
 
     try {
         raii_env env(pEnv);
@@ -463,30 +462,33 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
             throw_java_ex(EX_NPE, "Null context");
         }
 
+        int keyType = EVP_PKEY_base_id(ctx->getKey());
         // might throw
         java_buffer signatureBuf = java_buffer::from_array(env, signature, sigOff, sigLen);
         jni_borrow sigBorrow(env, signatureBuf, "signature");
 
-        result = EVP_DigestVerifyFinal(ctx->getDigestCtx(), sigBorrow.data(), sigBorrow.len());
+        int result = EVP_DigestVerifyFinal(ctx->getDigestCtx(), sigBorrow.data(), sigBorrow.len());
 
         if (!preserveCtx) {
             delete ctx;
         }
 
-        if (result != 1) {
-          unsigned long errorCode = drainOpensslErrors();
-          if (errorCode != 0 &&
-              errorCode != ERR_PACK(ERR_LIB_RSA, RSA_F_INT_RSA_VERIFY, RSA_R_BAD_SIGNATURE)
-              ) {
-            // JCA/JCA requires us to try to throw an exception on corrupted signatures
-            throw_java_ex(EX_SIGNATURE_EXCEPTION, formatOpensslError(errorCode, "Unknown error verifying signature"));
-          }
+        if (likely(result == 1)) {
+            return true;
+        } else {
+            unsigned long errorCode = drainOpensslErrors();
+
+            // JCA/JCA requires us to try to throw an exception on corrupted signatures, but only if it isn't an RSA signature
+            if (errorCode != 0 && keyType != EVP_PKEY_RSA) {
+              throw_java_ex(EX_SIGNATURE_EXCEPTION, formatOpensslError(errorCode, "Unknown error verifying signature"));
+            }
+
+            return false;
         }
     } catch (java_ex &ex) {
         ex.throw_to_java(pEnv);
+        return false;
     }
-
-    return result == 1;
 }
 
 
@@ -690,17 +692,11 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
         } else {
             unsigned long errorCode = drainOpensslErrors();
 
-            if (errorCode == 0) {
-                // Bad signature but no further error
-                return false;
-            } else {
-              // JCA/JCA requires us to try to throw an exception on corrupted signatures
+            // JCA/JCA requires us to try to throw an exception on corrupted signatures, but only if it isn't an RSA signature
+            if (errorCode != 0 && keyType != EVP_PKEY_RSA) {
               throw_java_ex(EX_SIGNATURE_EXCEPTION, formatOpensslError(errorCode, "Unknown error verifying signature"));
-              return false;
             }
 
-            // This return is unreachable, but some compilers don't pay attention to noreturn attributes when determining
-            // unreachability, and end up warning about there not being a value returned from the function.
             return false;
         }
     } catch (java_ex &ex) {

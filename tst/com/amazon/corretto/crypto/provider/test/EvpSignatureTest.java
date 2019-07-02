@@ -265,11 +265,13 @@ public class EvpSignatureTest {
         verifier_.update(message_);
         byte[] badSignature = goodSignature_.clone();
         badSignature[badSignature.length - 1]++;
-        // Bad signatures will sometime return false and sometimes throw an exception. Both are acceptable
         try {
             assertFalse(verifier_.verify(badSignature));
         } catch (final SignatureException ex) {
-            // Expected
+            if (algorithm_.contains("RSA")) {
+                // RSA is not allowed to fail with an exception
+                throw ex;
+            }
         }
     }
 
@@ -282,7 +284,10 @@ public class EvpSignatureTest {
         try {
             assertFalse(verifier_.verify(badSignature));
         } catch (final SignatureException ex) {
-            // Expected
+            if (algorithm_.contains("RSA")) {
+                // RSA is not allowed to fail with an exception
+                throw ex;
+            }
         }
     }
 

@@ -122,7 +122,10 @@ public class EvpSignatureSpecificTest {
             try {
                 assertFalse(sig.verify(badSignature));
             } catch (SignatureException ex) {
-                // Acceptable exception
+                if (algorithm.contains("RSA")) {
+                    // RSA is not allowed to fail with an exception
+                    throw ex;
+                }
             } catch (Throwable t) {
                 throw new RuntimeException("Exception at bitpos " + bitpos, t);
             }
