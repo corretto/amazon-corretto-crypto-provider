@@ -1,6 +1,16 @@
 # Amazon Corretto Crypto Provider
 The Amazon Corretto Crypto Provider (ACCP) is a collection of high-performance cryptographic implementations exposed via the standard [JCA/JCE](https://docs.oracle.com/en/java/javase/11/security/java-cryptography-architecture-jca-reference-guide.html) interfaces. This means that it can be used as a drop in replacement for many different Java applications. Currently algorithms are primarily backed by OpenSSL's implementations but this may change in the future.
 
+## Build Status
+Please be aware that "Overkill" tests are known to be flakey
+
+| Build Name | master branch | develop branch |
+| ---------- | ------------- | -------------- |
+| Unit Tests | ![Build Badge](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiMVYvdkw0MjJrcWJjdzc4TlNLcjdacGZDRVlWS0I2d1F1dThPM2RkNDZOVDlUMVJjU2o3TlAyTFZ2SlhtK1RnRm9LN09ySURjN2RYbjN3RmQ3bmFUZTBZPSIsIml2UGFyYW1ldGVyU3BlYyI6Inp3RWNaSXJtWVhISVUxU28iLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=master) | ![Build Badge](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiMVYvdkw0MjJrcWJjdzc4TlNLcjdacGZDRVlWS0I2d1F1dThPM2RkNDZOVDlUMVJjU2o3TlAyTFZ2SlhtK1RnRm9LN09ySURjN2RYbjN3RmQ3bmFUZTBZPSIsIml2UGFyYW1ldGVyU3BlYyI6Inp3RWNaSXJtWVhISVUxU28iLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=develop) |
+| Integ Tests | ![Build Badge](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiOHE2R2FnSVEwTDEvcTdUQXMxdkpuY1ROdFBveHNGM3U0Uk81UkJxaUY2U1MvS1pPaFBmZWZSZS9FZHM5U1V2MUc1NEkzWDlLbjFpYjRXQkVNQ050VWVvPSIsIml2UGFyYW1ldGVyU3BlYyI6IlkycVZtSjNCM25SOW9iWlgiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=master) | ![Build Badge](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiOHE2R2FnSVEwTDEvcTdUQXMxdkpuY1ROdFBveHNGM3U0Uk81UkJxaUY2U1MvS1pPaFBmZWZSZS9FZHM5U1V2MUc1NEkzWDlLbjFpYjRXQkVNQ050VWVvPSIsIml2UGFyYW1ldGVyU3BlYyI6IlkycVZtSjNCM25SOW9iWlgiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=develop) |
+| Dieharder Tests | ![Build Badge](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoia0IxUitySWNCQ2hCSGN0T0xUZjV2VzNWb1hTZ2ljMzN1dnJienNQbFZRUGtTOXZJKzJmMUVvZk12MTM2enlWb1lmTTcrdUVlZStNYWx5V0taeU9naG1NPSIsIml2UGFyYW1ldGVyU3BlYyI6ImxIMlNyM1IzUHpFalAwQ20iLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=master) | ![Build Badge](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoia0IxUitySWNCQ2hCSGN0T0xUZjV2VzNWb1hTZ2ljMzN1dnJienNQbFZRUGtTOXZJKzJmMUVvZk12MTM2enlWb1lmTTcrdUVlZStNYWx5V0taeU9naG1NPSIsIml2UGFyYW1ldGVyU3BlYyI6ImxIMlNyM1IzUHpFalAwQ20iLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=develop) |
+| Overkill | ![Build Badge](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiQjBiWm5McXZDazZ3MnI3UnRjZWJJZkZRM200L2tqM3E0ZWJjVmc1RHBXbWRuMWZ5dHdXU3A0Tms4ZEVJNDBDdWdnQWdnTjkxTXBmNGxIWElVTFNPU1VVPSIsIml2UGFyYW1ldGVyU3BlYyI6Ikh5M0lRSHdFSkdoUC9hb2YiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=master) | ![Build Badge](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiQjBiWm5McXZDazZ3MnI3UnRjZWJJZkZRM200L2tqM3E0ZWJjVmc1RHBXbWRuMWZ5dHdXU3A0Tms4ZEVJNDBDdWdnQWdnTjkxTXBmNGxIWElVTFNPU1VVPSIsIml2UGFyYW1ldGVyU3BlYyI6Ikh5M0lRSHdFSkdoUC9hb2YiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=develop) |
+
 ## Supported Algorithms
 MessageDigest algorithms:
 * SHA-512
