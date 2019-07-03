@@ -10,6 +10,8 @@
 * Fix incorrect exception when SunJSSE validates RSA signatures backed by ACCP RSA
 * Make the provider actually serializable to keep JTREG happy
 * Moved property and resource access to inside PrivilegedAction blocks
+* Throw `InvalidKeyException` when KeyAgreement and Signature gets `null` keys
+* Throw `SignatureException` on corrupted signatures as required by the JCA/JCE
 
 ## 1.0.4
 ### Maintenance

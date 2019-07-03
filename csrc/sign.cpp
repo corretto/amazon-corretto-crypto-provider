@@ -454,7 +454,6 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
  jboolean preserveCtx)
 {
     EvpKeyContext* ctx = (EvpKeyContext*) ctxPtr;
-    int result = 0;
 
     try {
         raii_env env(pEnv);
@@ -463,27 +462,33 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
             throw_java_ex(EX_NPE, "Null context");
         }
 
+        int keyType = EVP_PKEY_base_id(ctx->getKey());
         // might throw
         java_buffer signatureBuf = java_buffer::from_array(env, signature, sigOff, sigLen);
         jni_borrow sigBorrow(env, signatureBuf, "signature");
 
-        result = EVP_DigestVerifyFinal(ctx->getDigestCtx(), sigBorrow.data(), sigBorrow.len());
-
-        // When verification is not successful, OpenSSL sometimes sets an error code.
-        // We need to clear this to avoid contaminating the error stack later.
-        // However, we really don't care about it's value.
-        if (result != 1) {
-            ERR_clear_error();
-        }
+        int result = EVP_DigestVerifyFinal(ctx->getDigestCtx(), sigBorrow.data(), sigBorrow.len());
 
         if (!preserveCtx) {
             delete ctx;
         }
+
+        if (likely(result == 1)) {
+            return true;
+        } else {
+            unsigned long errorCode = drainOpensslErrors();
+
+            // JCA/JCA requires us to try to throw an exception on corrupted signatures, but only if it isn't an RSA signature
+            if (errorCode != 0 && keyType != EVP_PKEY_RSA) {
+              throw_java_ex(EX_SIGNATURE_EXCEPTION, formatOpensslError(errorCode, "Unknown error verifying signature"));
+            }
+
+            return false;
+        }
     } catch (java_ex &ex) {
         ex.throw_to_java(pEnv);
+        return false;
     }
-
-    return result == 1;
 }
 
 
@@ -687,30 +692,11 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
         } else {
             unsigned long errorCode = drainOpensslErrors();
 
-            if (errorCode == 0) {
-                // Bad signature but no further error
-                return false;
-            } else if (ERR_GET_LIB(errorCode) == ERR_LIB_ASN1) {
-                // ASN.1 decoding error - signature is corrupt. Treat this as a verify failure.
-                return false;
-            } else if (errorCode == 0x2A066064) {
-                // 0x2A066064 = lib(42):ECDSA_do_verify:bad signature
-                return false;
-            } else if (errorCode == 0) {
-                if (ret == -1) {
-                    // errorCode == 0 and ret == -1 can happen in some cases of signature corruption.
-                    // Treat this as a verify failure as well.
-                    return false;
-                }
-
-                char buf[256];
-                sprintf(buf, "Unknown error verifying signature (return code %d)", ret);
-                throw_java_ex(EX_RUNTIME_CRYPTO, buf);
+            // JCA/JCA requires us to try to throw an exception on corrupted signatures, but only if it isn't an RSA signature
+            if (errorCode != 0 && keyType != EVP_PKEY_RSA) {
+              throw_java_ex(EX_SIGNATURE_EXCEPTION, formatOpensslError(errorCode, "Unknown error verifying signature"));
             }
-            throw_java_ex(EX_RUNTIME_CRYPTO, formatOpensslError(errorCode, "Unknown error verifying signature"));
 
-            // This return is unreachable, but some compilers don't pay attention to noreturn attributes when determining
-            // unreachability, and end up warning about there not being a value returned from the function.
             return false;
         }
     } catch (java_ex &ex) {

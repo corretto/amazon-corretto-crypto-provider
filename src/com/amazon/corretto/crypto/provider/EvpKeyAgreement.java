@@ -167,6 +167,9 @@ class EvpKeyAgreement extends KeyAgreementSpi {
 
     @Override
     protected void engineInit(final Key key, final SecureRandom ignored) throws InvalidKeyException {
+        if (key == null) {
+            throw new InvalidKeyException("Key must not be null");
+        }
         if (!keyType_.privateKeyClass.isAssignableFrom(key.getClass())) {
             throw new InvalidKeyException("Expected key of type " + keyType_.privateKeyClass + " not " + key.getClass());
         }

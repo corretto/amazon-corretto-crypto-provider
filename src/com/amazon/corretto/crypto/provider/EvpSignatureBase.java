@@ -47,6 +47,10 @@ abstract class EvpSignatureBase extends SignatureSpi {
 
     @Override
     protected synchronized void engineInitSign(final PrivateKey privateKey) throws InvalidKeyException {
+        if (privateKey == null) {
+            throw new InvalidKeyException("Key must not be null");
+        }
+
         if (key_ != privateKey) {
             if (!keyType_.jceName.equalsIgnoreCase(privateKey.getAlgorithm())) {
                 throw new InvalidKeyException();
@@ -71,6 +75,10 @@ abstract class EvpSignatureBase extends SignatureSpi {
 
     @Override
     protected synchronized void engineInitVerify(final PublicKey publicKey) throws InvalidKeyException {
+        if (publicKey == null) {
+            throw new InvalidKeyException("Key must not be null");
+        }
+
         if (key_ != publicKey) {
             if (!keyType_.jceName.equalsIgnoreCase(publicKey.getAlgorithm())) {
                 throw new InvalidKeyException();
