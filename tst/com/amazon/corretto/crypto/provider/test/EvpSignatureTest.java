@@ -424,7 +424,7 @@ public class EvpSignatureTest {
         assumeFalse(algorithm_.contains("RSA")); // Does not apply to RSA algorithms
         byte[] badSignature = goodSignature_.clone();
         for (int x = 0; x < badSignature.length; x++) {
-            badSignature[x] ^= 0x5c;
+            badSignature[x] ^= 0x5c; // Arbitrary value to twiddle the bits
         }
 
         assertThrows(SignatureException.class, () -> verifier_.verify(badSignature));
