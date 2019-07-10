@@ -13,6 +13,9 @@
 * Throw `InvalidKeyException` when KeyAgreement and Signature gets `null` keys
 * Throw `SignatureException` on corrupted signatures as required by the JCA/JCE
 
+### Maintenance
+* Changed logging level to eliminate output under normal usage.
+
 ## 1.0.4
 ### Maintenance
 * Fix Java heap space issues in unit tests

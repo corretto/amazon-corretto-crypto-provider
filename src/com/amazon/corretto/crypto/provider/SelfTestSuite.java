@@ -71,7 +71,7 @@ class SelfTestSuite {
                 LOGGER.finer(() -> String.format("Self-test result for JCE algo %s: PASSED",
                                                  getAlgorithmName()));
             } else {
-                LOGGER.warning(
+                LOGGER.severe(
                         () -> {
                             StringWriter sw = new StringWriter();
 

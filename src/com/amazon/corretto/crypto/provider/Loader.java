@@ -163,9 +163,9 @@ final class Loader {
         IS_AVAILABLE = available;
         LOADING_ERROR = error;
         if (available) {
-            LOG.log(Level.INFO, "Successfully loaded native library version " + PROVIDER_VERSION_STR);
+            LOG.log(Level.CONFIG, "Successfully loaded native library version " + PROVIDER_VERSION_STR);
         } else {
-            LOG.log(Level.WARNING, "Unable to load native library", error);
+            LOG.log(Level.CONFIG, "Unable to load native library", error);
         }
     }
 
