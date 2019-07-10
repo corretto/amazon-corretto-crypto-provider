@@ -45,7 +45,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
     static {
         if (!Loader.IS_AVAILABLE) {
-            getLogger("AmazonCorrettoCryptoProvider").warning("Native JCE libraries are unavailable - disabling");
+            getLogger("AmazonCorrettoCryptoProvider").fine("Native JCE libraries are unavailable - disabling");
             rdRandSupported_ = false;
         } else {
             rdRandSupported_ = nativeRdRandSupported();
@@ -202,7 +202,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
                 case FAILED:
                     synchronized (this) {
                         if (!failMessagePrinted) {
-                            getLogger("AmazonCorrettoCryptoProvider").warning("Self tests failed - disabling. " +
+                            getLogger("AmazonCorrettoCryptoProvider").severe("Self tests failed - disabling. " +
                                                            "Detailed results: " + selfTestSuite.getAllTestResults()
                                                                                                .toString());
                             failMessagePrinted = true;
@@ -263,7 +263,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
         }
 
         if (!Loader.IS_AVAILABLE) {
-            getLogger("AmazonCorrettoCryptoProvider").warning("Native JCE libraries are unavailable - disabling");
+            getLogger("AmazonCorrettoCryptoProvider").fine("Native JCE libraries are unavailable - disabling");
 
             // Don't implement anything
             return;
