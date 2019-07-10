@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.1.0
+
+### Improvements
+* Now supports DH key agreement for more than two parties.
+
+### Patches
+* Reject RSA key generation shorter than 512 bits
+* Fix incorrect exception when SunJSSE validates RSA signatures backed by ACCP RSA
+* Make the provider actually serializable to keep JTREG happy
+* Moved property and resource access to inside PrivilegedAction blocks
+* Throw `InvalidKeyException` when KeyAgreement and Signature gets `null` keys
+* Throw `SignatureException` on corrupted signatures as required by the JCA/JCE
+
+### Maintenance
+* Changed logging level to eliminate output under normal usage.
+
 ## 1.0.4
 ### Maintenance
 * Fix Java heap space issues in unit tests

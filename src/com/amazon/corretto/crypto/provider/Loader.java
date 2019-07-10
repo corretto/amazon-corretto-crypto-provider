@@ -16,6 +16,7 @@ import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.security.PrivilegedExceptionAction;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -28,16 +29,54 @@ import java.util.regex.Pattern;
 
 final class Loader {
     private static final String RESOURCE_PATH = "com/amazon/corretto/crypto/provider/";
+    private static final String PROPERTY_BASE = "com.amazon.corretto.crypto.provider.";
     private static final String LIBRARY_NAME = "amazonCorrettoCryptoProvider";
+    private static final Pattern TEST_FILENAME_PATTERN = Pattern.compile("[-a-zA-Z0-9]+(\\.[a-zA-Z0-9]+)*");
     private static final Logger LOG = Logger.getLogger("AmazonCorrettoCryptoProvider");
 
     // Version strings live in the loader because we want to be able to access them before
     // any other parts of this library are touched and potentially (statically) loaded.
     private static final Pattern OLD_VERSION_PATTERN = Pattern.compile("(\\d+\\.\\d+)\\.\\d+");
+
     @Deprecated
     // Cannot be fully removed until we remove support for Java 8
     static final double PROVIDER_VERSION;
     static final String PROVIDER_VERSION_STR;
+
+    /**
+     * Returns an InputStream associated with {@code fileName} contained in the "/test-data/" directory of the jar
+     * containing this class file.
+     */
+    static InputStream getTestData(String fileName) {
+        if (!TEST_FILENAME_PATTERN.matcher(fileName).matches()) {
+            throw new IllegalArgumentException("Invalid filename: " + fileName);
+        }
+        final InputStream result = AccessController.doPrivileged(
+                (PrivilegedAction<InputStream>) () -> Loader.class.getResourceAsStream("/test-data/" + fileName)
+        );
+        if (result == null) {
+            throw new AssertionError("Unable to load test data from file /test-data/" + fileName);
+        }
+        return result;
+    }
+
+    /**
+     * Prepends {@link #PROPERTY_BASE} and then calls {@link System#getProperty(String)} in a privileged context.
+     */
+    static String getProperty(String propertyName) {
+        return AccessController.doPrivileged(
+                (PrivilegedAction<String>) () -> System.getProperty(PROPERTY_BASE + propertyName)
+        );
+    }
+
+    /**
+     * Prepends {@link #PROPERTY_BASE} and then calls {@link System#getProperty(String, String)} in a privileged context.
+     */
+    static String getProperty(String propertyName, String def) {
+        return AccessController.doPrivileged(
+                (PrivilegedAction<String>) () -> System.getProperty(PROPERTY_BASE + propertyName, def)
+        );
+    }
 
     static {
         boolean available = false;
@@ -46,17 +85,19 @@ final class Loader {
         double oldVersion = 0;
 
         try {
-            // Load our version information
-            try (InputStream is = Loader.class.getClassLoader().getResourceAsStream(RESOURCE_PATH + "version.properties")){
-                Properties p = new Properties();
-                p.load(is);
-                versionStr = p.getProperty("versionStr");
-                Matcher m = OLD_VERSION_PATTERN.matcher(versionStr);
-                if (!m.matches()) {
-                    throw new AssertionError("Version string has wrong form: " + versionStr);
+            versionStr = AccessController.doPrivileged((PrivilegedExceptionAction<String>) () -> {
+                try (InputStream is = Loader.class.getClassLoader().getResourceAsStream(RESOURCE_PATH + "version.properties")) {
+                    Properties p = new Properties();
+                    p.load(is);
+                    return p.getProperty("versionStr");
                 }
-                oldVersion = Double.parseDouble(m.group(1));
+            });
+
+            Matcher m = OLD_VERSION_PATTERN.matcher(versionStr);
+            if (!m.matches()) {
+                throw new AssertionError("Version string has wrong form: " + versionStr);
             }
+            oldVersion = Double.parseDouble(m.group(1));
 
             available = AccessController.doPrivileged((PrivilegedExceptionAction<Boolean>) () -> {
                 // This is to work a JVM runtime bug where FileSystems.getDefault() and
@@ -122,9 +163,9 @@ final class Loader {
         IS_AVAILABLE = available;
         LOADING_ERROR = error;
         if (available) {
-            LOG.log(Level.INFO, "Successfully loaded native library version " + PROVIDER_VERSION_STR);
+            LOG.log(Level.CONFIG, "Successfully loaded native library version " + PROVIDER_VERSION_STR);
         } else {
-            LOG.log(Level.WARNING, "Unable to load native library", error);
+            LOG.log(Level.CONFIG, "Unable to load native library", error);
         }
     }
 

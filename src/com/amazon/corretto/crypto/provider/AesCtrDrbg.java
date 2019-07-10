@@ -5,7 +5,11 @@ package com.amazon.corretto.crypto.provider;
 
 import static java.util.logging.Logger.getLogger;
 
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.security.AccessControlContext;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.security.SecureRandom;
 import java.security.SecureRandomSpi;
 import java.util.Arrays;
@@ -47,8 +51,8 @@ public class AesCtrDrbg extends SecureRandom {
 
         static SelfTestResult runSelfTest() {
             int tests = 0;
-            try (final Scanner in = new Scanner(
-                    SPI.class.getResourceAsStream("/test-data/ctr-drbg.txt"), StandardCharsets.US_ASCII.name())) {
+
+            try (final Scanner in = new Scanner(Loader.getTestData("ctr-drbg.txt"), StandardCharsets.US_ASCII.name())) {
                 while (in.hasNext()) {
                     tests++;
                     final int bytesGenerated = in.nextInt() / 8;

@@ -95,7 +95,7 @@ public class EvpSignatureSpecificTest {
     @Test
     public void signatureCorruptionSweeps() throws Exception {
         // Verify that, for any one-bit manipulation of the signature, we 1) get a bad signature result and 2) don't
-        // throw an exception
+        // throw an unexpected exception
         doCorruptionSweep("NONEwithDSA", DSA_PAIR);
         doCorruptionSweep("NONEwithECDSA", ECDSA_PAIR);
         doCorruptionSweep("SHA1withDSA", DSA_PAIR);
@@ -121,6 +121,11 @@ public class EvpSignatureSpecificTest {
             sig.update(message);
             try {
                 assertFalse(sig.verify(badSignature));
+            } catch (SignatureException ex) {
+                if (algorithm.contains("RSA")) {
+                    // RSA is not allowed to fail with an exception
+                    throw ex;
+                }
             } catch (Throwable t) {
                 throw new RuntimeException("Exception at bitpos " + bitpos, t);
             }

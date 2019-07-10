@@ -165,6 +165,7 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_RsaCipher_cipher
                   || errCode == ERR_PACK(ERR_LIB_RSA, RSA_F_RSA_EAY_PRIVATE_DECRYPT, RSA_R_DATA_TOO_LARGE_FOR_MODULUS)
                   || errCode == ERR_PACK(ERR_LIB_RSA, RSA_F_RSA_PADDING_CHECK_PKCS1_TYPE_2, RSA_R_PKCS_DECODING_ERROR)
                   || errCode == ERR_PACK(ERR_LIB_RSA, RSA_F_RSA_EAY_PRIVATE_DECRYPT, RSA_R_PADDING_CHECK_FAILED)
+                  || errCode == ERR_PACK(ERR_LIB_RSA, RSA_F_RSA_EAY_PUBLIC_DECRYPT, RSA_R_PADDING_CHECK_FAILED)
                   || errCode == ERR_PACK(ERR_LIB_RSA, RSA_F_RSA_PADDING_CHECK_PKCS1_OAEP, RSA_R_OAEP_DECODING_ERROR)) {
                     throw_java_ex(EX_BADPADDING, errBuf);
                 } else {

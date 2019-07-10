@@ -3,12 +3,16 @@
 
 package com.amazon.corretto.crypto.provider.test;
 
+import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.assumeMinimumVersion;
+
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
 import java.math.BigInteger;
 import java.security.GeneralSecurityException;
+import java.security.InvalidParameterException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.SecureRandom;
@@ -47,6 +51,13 @@ public class RsaGenTest {
         final RSAPrivateCrtKey privKey = (RSAPrivateCrtKey) keyPair.getPrivate();
 
         assertConsistency(pubKey, privKey);
+    }
+
+    @Test
+    public void test128() throws GeneralSecurityException {
+        assumeMinimumVersion("1.1.0", AmazonCorrettoCryptoProvider.INSTANCE);
+        final KeyPairGenerator generator = getGenerator();
+        assertThrows(InvalidParameterException.class, () -> generator.initialize(128));
     }
 
     @Test

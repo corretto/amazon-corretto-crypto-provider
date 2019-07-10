@@ -40,12 +40,12 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
     private static native boolean nativeRdRandSupported();
 
-    private final SelfTestSuite selfTestSuite = new SelfTestSuite();
     private final EnumSet<ExtraCheck> extraChecks = EnumSet.noneOf(ExtraCheck.class);
+    private transient SelfTestSuite selfTestSuite = new SelfTestSuite();
 
     static {
         if (!Loader.IS_AVAILABLE) {
-            getLogger("AmazonCorrettoCryptoProvider").warning("Native JCE libraries are unavailable - disabling");
+            getLogger("AmazonCorrettoCryptoProvider").fine("Native JCE libraries are unavailable - disabling");
             rdRandSupported_ = false;
         } else {
             rdRandSupported_ = nativeRdRandSupported();
@@ -202,7 +202,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
                 case FAILED:
                     synchronized (this) {
                         if (!failMessagePrinted) {
-                            getLogger("AmazonCorrettoCryptoProvider").warning("Self tests failed - disabling. " +
+                            getLogger("AmazonCorrettoCryptoProvider").severe("Self tests failed - disabling. " +
                                                            "Detailed results: " + selfTestSuite.getAllTestResults()
                                                                                                .toString());
                             failMessagePrinted = true;
@@ -246,7 +246,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     public AmazonCorrettoCryptoProvider() {
         super("AmazonCorrettoCryptoProvider", PROVIDER_VERSION, "");
 
-        final String[] extraCheckOptions = System.getProperty("com.amazon.corretto.crypto.provider.extrachecks", "").split(",");
+        final String[] extraCheckOptions = Loader.getProperty("extrachecks", "").split(",");
         for (final String check : extraCheckOptions) {
           if (check.equalsIgnoreCase("all")) {
             extraChecks.addAll(EnumSet.allOf(ExtraCheck.class));
@@ -263,7 +263,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
         }
 
         if (!Loader.IS_AVAILABLE) {
-            getLogger("AmazonCorrettoCryptoProvider").warning("Native JCE libraries are unavailable - disabling");
+            getLogger("AmazonCorrettoCryptoProvider").fine("Native JCE libraries are unavailable - disabling");
 
             // Don't implement anything
             return;
@@ -271,6 +271,13 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
         buildServiceMap();
 
+        initializeSelfTests();
+    }
+
+    private synchronized void initializeSelfTests() {
+        if (selfTestSuite == null) {
+            selfTestSuite = new SelfTestSuite();
+        }
         selfTestSuite.addSelfTest(HmacSHA512Spi.SELF_TEST);
         selfTestSuite.addSelfTest(HmacSHA384Spi.SELF_TEST);
         selfTestSuite.addSelfTest(HmacSHA256Spi.SELF_TEST);
@@ -381,17 +388,13 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
       extraChecks.addAll(Arrays.asList(checks));
     }
 
-    // Unfortunately Provider ends up extending Hashtable which implements Serializable for no good reason.
-    // We'll implementing custom serialization with exception-throwing implementations to make findbugs happy about this.
+    private void readObject(java.io.ObjectInputStream in) throws IOException, ClassNotFoundException {
+        in.defaultReadObject();
+        readObjectNoData();
+    }
 
-    private void readObject(java.io.ObjectInputStream stream) throws IOException, ClassNotFoundException {
-        throw new UnsupportedOperationException();
-    }
-    private void writeObject(java.io.ObjectOutputStream stream) throws IOException {
-        throw new UnsupportedOperationException();
-    }
-    private void readObjectNoData() throws ObjectStreamException {
-        throw new UnsupportedOperationException();
+    private void readObjectNoData() {
+        initializeSelfTests();
     }
 }
 

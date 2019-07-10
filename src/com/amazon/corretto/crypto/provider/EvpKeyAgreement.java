@@ -3,6 +3,7 @@
 
 package com.amazon.corretto.crypto.provider;
 
+import java.math.BigInteger;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.Key;
@@ -17,9 +18,12 @@ import java.util.Arrays;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import javax.crypto.interfaces.DHKey;
 import javax.crypto.KeyAgreementSpi;
 import javax.crypto.SecretKey;
 import javax.crypto.ShortBufferException;
+import javax.crypto.spec.DHParameterSpec;
+import javax.crypto.spec.DHPublicKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 
 class EvpKeyAgreement extends KeyAgreementSpi {
@@ -49,9 +53,7 @@ class EvpKeyAgreement extends KeyAgreementSpi {
         if (privKey == null) {
             throw new IllegalStateException("KeyAgreement has not been initialized");
         }
-        if (!lastPhase) {
-            throw new IllegalStateException("Only single phase agreement is supported");
-        }
+
         if (!keyType_.publicKeyClass.isAssignableFrom(key.getClass())) {
             throw new InvalidKeyException("Expected key of type " + keyType_.publicKeyClass + " not " + key.getClass());
         }
@@ -61,12 +63,33 @@ class EvpKeyAgreement extends KeyAgreementSpi {
         } catch (final InvalidKeySpecException | NullPointerException ex) {
             throw new InvalidKeyException(ex);
         }
-        // We do the actual agreement here because that is where key validation and thus exceptions
-        // get thrown.
-        secret = agree(privKeyDer, pubKeyDer, keyType_.nativeValue,
-            provider_.hasExtraCheck(ExtraCheck.PRIVATE_KEY_CONSISTENCY)
-            );
-        return null;
+
+        if (lastPhase) {
+            // We do the actual agreement here because that is where key validation and thus exceptions
+            // get thrown.
+            secret = agree(privKeyDer, pubKeyDer, keyType_.nativeValue,
+                provider_.hasExtraCheck(ExtraCheck.PRIVATE_KEY_CONSISTENCY)
+                );
+            return null;
+        } else if ("DH".equals(algorithm_)) {
+            final DHParameterSpec dhParams = ((DHKey) privKey).getParams();
+            try {
+                final Key result = keyType_.getKeyFactory().generatePublic(new DHPublicKeySpec(
+                    new BigInteger(1,
+                        agree(privKeyDer, pubKeyDer, keyType_.nativeValue,
+                            provider_.hasExtraCheck(ExtraCheck.PRIVATE_KEY_CONSISTENCY)
+                            )), // y
+                    dhParams.getP(),
+                    dhParams.getG()
+                ));
+                return result;
+            } catch (final InvalidKeySpecException ex) {
+                throw new RuntimeCryptoException(ex);
+            }
+        } else {
+            secret = null;
+            throw new IllegalStateException("Only single phase agreement is supported");
+        }
     }
 
     @Override
@@ -144,6 +167,9 @@ class EvpKeyAgreement extends KeyAgreementSpi {
 
     @Override
     protected void engineInit(final Key key, final SecureRandom ignored) throws InvalidKeyException {
+        if (key == null) {
+            throw new InvalidKeyException("Key must not be null");
+        }
         if (!keyType_.privateKeyClass.isAssignableFrom(key.getClass())) {
             throw new InvalidKeyException("Expected key of type " + keyType_.privateKeyClass + " not " + key.getClass());
         }
