@@ -65,7 +65,7 @@ SecureRandom algorithms:
 
 # Compatibility
 This library is compatible with:
-* OpenJDK 8 or newer (This include [Amazon Corretto](https://aws.amazon.com/corretto/))
+* OpenJDK 8 or newer (This includes [Amazon Corretto](https://aws.amazon.com/corretto/))
 * OracleJDK 8 or newer
 * Linux x86_64
 
