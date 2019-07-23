@@ -76,18 +76,43 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_RsaCipher_cipher
 
         RSA_auto backing; // Used for auto-cleanup
         RSA* r = (RSA *) backing;
+        BIGNUM *bn_n;
+        BIGNUM *bn_e;
+        BIGNUM *bn_d;
+        BIGNUM *bn_p;
+        BIGNUM *bn_q;
+        BIGNUM *bn_dmp1;
+        BIGNUM *bn_dmq1;
+        BIGNUM *bn_iqmp;
         switch (handleMode) {
         case com_amazon_corretto_crypto_provider_RsaCipher_HANDLE_USAGE_IGNORE: // fallthrough
         case com_amazon_corretto_crypto_provider_RsaCipher_HANDLE_USAGE_CREATE:
-            r->n = opt_jarr2bn(env, n);
-            r->e = opt_jarr2bn(env, e);
-            r->d = opt_jarr2bn(env, d);
-            r->p = opt_jarr2bn(env, p);
-            r->q = opt_jarr2bn(env, q);
-            r->dmp1 = opt_jarr2bn(env, dmp1);
-            r->dmq1 = opt_jarr2bn(env, dmq1);
-            r->iqmp = opt_jarr2bn(env, iqmp);
+            bn_n = opt_jarr2bn(env, n);
+            bn_e = opt_jarr2bn(env, e);
+            bn_d = opt_jarr2bn(env, d);
+            bn_p = opt_jarr2bn(env, p);
+            bn_q = opt_jarr2bn(env, q);
+            bn_dmp1 = opt_jarr2bn(env, dmp1);
+            bn_dmq1 = opt_jarr2bn(env, dmq1);
+            bn_iqmp = opt_jarr2bn(env, iqmp);
 
+            if (!bn_e) {
+                bn_e = BN_new();
+            }
+            if (!bn_d) {
+                bn_d = BN_new();
+            }
+            if (!RSA_set0_key(r, bn_n, bn_e, bn_d)) {
+                throw_openssl(EX_RUNTIME_CRYPTO, "Unable to set key parameters");
+            }
+
+            if (p && q && !RSA_set0_factors(r, bn_p, bn_q)) {
+                throw_openssl(EX_RUNTIME_CRYPTO, "Unable to set key factors");
+            }
+
+            if (dmp1 && dmq1 && iqmp && !RSA_set0_crt_params(r, bn_dmp1, bn_dmq1, bn_iqmp)) {
+                throw_openssl(EX_RUNTIME_CRYPTO, "Unable to set key crt_params");
+            }
             // If it is a private key, we check it for consistency, if possible and requested
             if (checkPrivateKey && d != NULL && p != NULL && q != NULL) {
                 if (RSA_check_key(r) != 1) {
@@ -154,23 +179,7 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_RsaCipher_cipher
             }
 
             if (len < 0) {
-                unsigned long errCode = drainOpensslErrors();
-                char errBuf[120];
-                ERR_error_string_n(errCode, errBuf, sizeof(errBuf));
-
-                // Ensure the buffer is null-terminated even if the message is truncated.
-                errBuf[sizeof(errBuf)-1] = 0;
-
-                if (errCode == ERR_PACK(ERR_LIB_RSA, RSA_F_RSA_EAY_PUBLIC_ENCRYPT, RSA_R_DATA_TOO_LARGE_FOR_MODULUS)
-                  || errCode == ERR_PACK(ERR_LIB_RSA, RSA_F_RSA_EAY_PRIVATE_DECRYPT, RSA_R_DATA_TOO_LARGE_FOR_MODULUS)
-                  || errCode == ERR_PACK(ERR_LIB_RSA, RSA_F_RSA_PADDING_CHECK_PKCS1_TYPE_2, RSA_R_PKCS_DECODING_ERROR)
-                  || errCode == ERR_PACK(ERR_LIB_RSA, RSA_F_RSA_EAY_PRIVATE_DECRYPT, RSA_R_PADDING_CHECK_FAILED)
-                  || errCode == ERR_PACK(ERR_LIB_RSA, RSA_F_RSA_EAY_PUBLIC_DECRYPT, RSA_R_PADDING_CHECK_FAILED)
-                  || errCode == ERR_PACK(ERR_LIB_RSA, RSA_F_RSA_PADDING_CHECK_PKCS1_OAEP, RSA_R_OAEP_DECODING_ERROR)) {
-                    throw_java_ex(EX_BADPADDING, errBuf);
-                } else {
-                    throw_java_ex(EX_RUNTIME_CRYPTO, errBuf);
-                }
+                throw_openssl(EX_BADPADDING, "Unknown error");
             }
         }
         if (handleMode == com_amazon_corretto_crypto_provider_RsaCipher_HANDLE_USAGE_CREATE) {

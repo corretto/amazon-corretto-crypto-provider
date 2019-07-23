@@ -38,25 +38,48 @@ EVP_PKEY* der2EvpPrivateKey(const unsigned char* der, const int derLen, const bo
   }
 
   if (EVP_PKEY_base_id(result) == EVP_PKEY_RSA) {
-      RSA *rsa = EVP_PKEY_get1_RSA(result);
+      const RSA *rsa = EVP_PKEY_get0_RSA(result);
 
       if (rsa) {
           // We need strip zero CRT values which can confuse OpenSSL
-          BN_null_if_zero(rsa->e);
-          BN_null_if_zero(rsa->p);
-          BN_null_if_zero(rsa->q);
-          BN_null_if_zero(rsa->dmp1);
-          BN_null_if_zero(rsa->dmq1);
-          BN_null_if_zero(rsa->iqmp);
+          const BIGNUM *n;
+          const BIGNUM *e;
+          const BIGNUM *d;
+          const BIGNUM *p;
+          const BIGNUM *q;
+          const BIGNUM *dmp1;
+          const BIGNUM *dmq1;
+          const BIGNUM *iqmp;
+          bool need_rebuild = false;
 
-          if (rsa->e) {
-              RSA_blinding_on(rsa, NULL);
-          } else {
-              RSA_blinding_off(rsa);
+          RSA_get0_key(rsa, &n, &e, &d);
+          RSA_get0_factors(rsa, &p, &q);
+          RSA_get0_crt_params(rsa, &dmp1, &dmq1, &iqmp);
+          if (e && BN_is_zero(e)) {
+            need_rebuild = true;
+          } else if (p && BN_is_zero(p)) {
+            need_rebuild = true;
+          } else if (q && BN_is_zero(q)) {
+            need_rebuild = true;
+          } else if (dmp1 && BN_is_zero(dmp1)) {
+            need_rebuild = true;
+          } else if (dmq1 && BN_is_zero(dmq1)) {
+            need_rebuild = true;
+          } else if (iqmp && BN_is_zero(iqmp)) {
+            need_rebuild = true;
           }
 
-          // get1_RSA incremented the key's reference count, so we need to free to decrement it again
-          RSA_free(rsa);
+          if (need_rebuild) {
+            // This key likely only has (n, d) set. Very weird, but it happens in java sometimes.
+            RSA *nulled_rsa = RSA_new();
+
+            if (!RSA_set0_key(nulled_rsa, BN_dup(n), BN_dup(e), BN_dup(d))) {
+              throw_openssl(javaExceptionClass, "Unable to set RSA key parameters");
+            }
+            EVP_PKEY_set1_RSA(result, nulled_rsa);
+            RSA_free(nulled_rsa); // Decrement reference counter
+            RSA_blinding_off(nulled_rsa);
+          }
       }
   }
 
@@ -88,26 +111,28 @@ bool checkKey(EVP_PKEY* key) {
     int keyType = EVP_PKEY_base_id(key);
     bool result = false;
 
-    RSA* rsaKey;
-    EC_KEY* ecKey;
+    const RSA* rsaKey;
+    const BIGNUM *p;
+    const BIGNUM *q;
+    const EC_KEY* ecKey;
 
     switch (keyType) {
     case EVP_PKEY_RSA:
-        rsaKey = EVP_PKEY_get1_RSA(key);
+        rsaKey = EVP_PKEY_get0_RSA(key);
+        RSA_get0_factors(rsaKey, &p, &q);
         // RSA_check_key only works when sufficient private values are set
-        if (rsaKey->p && !BN_is_zero(rsaKey->p) && rsaKey->q && !BN_is_zero(rsaKey->q)) {
+        if (p && !BN_is_zero(p) && q && !BN_is_zero(q)) {
             result = RSA_check_key(rsaKey) == 1;
         } else {
             // We don't have enough information to actually check the key
             result = true;
         }
-        RSA_free(rsaKey);
+
         break;
     case EVP_PKEY_EC:
-        ecKey = EVP_PKEY_get1_EC_KEY(key);
+        ecKey = EVP_PKEY_get0_EC_KEY(key);
         result = EC_KEY_check_key(ecKey) == 1;
 
-        EC_KEY_free(ecKey);
         break;
     default:
         // Keys we can't check, we just claim are fine, because there is nothing else we can do.

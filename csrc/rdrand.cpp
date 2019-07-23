@@ -7,6 +7,7 @@
 #include "buffer.h"
 #include "generated-headers.h"
 #include "rdrand.h"
+#include "keyutils.h"
 #include <openssl/evp.h>
 
 #define DEFAULT_RETRY_COUNT 100
@@ -182,8 +183,9 @@ bool rdseed_fallback(uint64_t *dest) {
     bool success = false;
     int blockindex = 0, rdrand_retries_remain = 100;
 
-    EVP_CIPHER_CTX ctx;
-    EVP_CIPHER_CTX_init(&ctx);
+    raii_cipher_ctx ctx;
+    ctx.init();
+    EVP_CIPHER_CTX_init(ctx);
 
     for (blockindex = 0; blockindex < (512 + 2) * 2; blockindex++) {
         // First, retry rdseed. Maybe it'll work this time?
@@ -216,17 +218,17 @@ bool rdseed_fallback(uint64_t *dest) {
                 memcpy(iv, inbuf, 16);
                 memset(inbuf, 0, 16);
 
-                if (!EVP_EncryptInit_ex(&ctx, EVP_aes_128_cbc(), NULL, key, iv)) {
+                if (!EVP_EncryptInit_ex(ctx, EVP_aes_128_cbc(), NULL, key, iv)) {
                     goto out;
                 }
 
-                if (!EVP_CIPHER_CTX_set_padding(&ctx, 0)) {
+                if (!EVP_CIPHER_CTX_set_padding(ctx, 0)) {
                     goto out;
                 }
 
                 break;
             default: // all other blocks are data to pump through
-                if (!EVP_EncryptUpdate(&ctx, outbuf, &outl, inbuf, sizeof(inbuf))) {
+                if (!EVP_EncryptUpdate(ctx, outbuf, &outl, inbuf, sizeof(inbuf))) {
                     goto out;
                 }
 
@@ -259,8 +261,6 @@ out:
     secureZero(iv, sizeof(outbuf));
 
     if (!success) *dest = 0;
-
-    EVP_CIPHER_CTX_cleanup(&ctx);
 
     return success;
 }

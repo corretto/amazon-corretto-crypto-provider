@@ -10,6 +10,7 @@
 #include "util.h"
 #include "env.h"
 #include "buffer.h"
+#include "keyutils.h"
 
 #define NATIVE_MODE_ENCRYPT 1
 #define NATIVE_MODE_DECRYPT 0
@@ -28,37 +29,9 @@
 
 using namespace AmazonCorrettoCryptoProvider;
 
-class EVP_CIPHER_CTX_auto : public EVP_CIPHER_CTX {
-    public:
-        EVP_CIPHER_CTX_auto() {
-            EVP_CIPHER_CTX_init(this);
-        }
-        ~EVP_CIPHER_CTX_auto() {
-            EVP_CIPHER_CTX_cleanup(this);
-        }
-};
-
-static volatile long leak_tracking_enabled = 0;
-static volatile long active_instances = 0;
-
-struct native_context : public EVP_CIPHER_CTX {
-    public:
-        // True if this was counted to the leak tracking counters
-        bool leak_tracking;
-
-        native_context() {
-            leak_tracking = leak_tracking_enabled;
-            if (unlikely(leak_tracking)) __sync_add_and_fetch(&active_instances, 1);
-        }
-
-        ~native_context() {
-            if (unlikely(leak_tracking)) __sync_add_and_fetch(&active_instances, -1);
-        }
-};
-
 static void initContext(
   raii_env &env,
-  EVP_CIPHER_CTX *ctx,
+  raii_cipher_ctx &ctx,
   jint opMode,
   java_buffer key,
   java_buffer iv
@@ -127,7 +100,7 @@ static int updateLoop(raii_env &env, java_buffer out, java_buffer in, EVP_CIPHER
     return total_output;
 }
 
-static int cryptFinish(raii_env &env, int opMode, java_buffer resultBuf, unsigned int tagLen, EVP_CIPHER_CTX *ctx) {
+static int cryptFinish(raii_env &env, int opMode, java_buffer resultBuf, unsigned int tagLen, raii_cipher_ctx &ctx) {
     if (opMode == NATIVE_MODE_ENCRYPT &&
         unlikely(tagLen > resultBuf.len())) {
         throw java_ex(EX_SHORTBUF, "No space for GCM tag");
@@ -190,16 +163,16 @@ JNIEXPORT int JNICALL Java_com_amazon_corretto_crypto_provider_AesGcmSpi_oneShot
         java_buffer result = java_buffer::from_array(env, resultArray, resultOffset);
         java_buffer iv = java_buffer::from_array(env, ivArray);
 
-        native_context *ctx;
+        raii_cipher_ctx ctx;
         if (ctxPtr) {
-            ctx = reinterpret_cast<native_context*>(ctxPtr);
+            ctx.borrow(reinterpret_cast<EVP_CIPHER_CTX*>(ctxPtr));
 
             jni_borrow ivBorrow(env, iv, "iv");
             if (unlikely(!EVP_CipherInit_ex(ctx, NULL, NULL, NULL, ivBorrow.data(), NATIVE_MODE_ENCRYPT))) {
                 throw java_ex::from_openssl(EX_RUNTIME_CRYPTO, "Failed to set IV");
             }
         } else {
-            ctx = new native_context();
+            ctx.init();
             EVP_CIPHER_CTX_init(ctx);
             java_buffer key = java_buffer::from_array(env, keyArray);
             initContext(env, ctx, NATIVE_MODE_ENCRYPT, key, iv);
@@ -211,13 +184,9 @@ JNIEXPORT int JNICALL Java_com_amazon_corretto_crypto_provider_AesGcmSpi_oneShot
         result = result.subrange(outoffset);
         int finalOffset = cryptFinish(env, NATIVE_MODE_ENCRYPT, result, tagLen, ctx);
 
-        if (!ctxPtr && !ctxOut) {
-            // Context is new and caller doesn't want it back
-            EVP_CIPHER_CTX_cleanup(ctx);
-            delete(ctx);
-        } else if (!ctxPtr) {
+        if (!ctxPtr && ctxOut) {
             // Context is new, but caller does want it back
-            jlong tmpPtr = reinterpret_cast<jlong>(ctx);
+            jlong tmpPtr = reinterpret_cast<jlong>(ctx.take());
             env->SetLongArrayRegion(ctxOut, 0 /* start position */, 1 /* number of elements */, &tmpPtr);
         }
 
@@ -236,7 +205,7 @@ JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_AesGcmSpi_encryp
 
         if (!ctxPtr) throw java_ex(EX_NPE, "Null context");
 
-        native_context *ctx = reinterpret_cast<native_context*>(ctxPtr);
+        EVP_CIPHER_CTX *ctx = reinterpret_cast<EVP_CIPHER_CTX*>(ctxPtr);
         java_buffer iv = java_buffer::from_array(env, ivArray);
 
         jni_borrow ivBorrow(env, iv, "iv");
@@ -251,7 +220,8 @@ JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_AesGcmSpi_encryp
 JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_AesGcmSpi_encryptInit___3B_3B
   (JNIEnv *pEnv, jclass, jbyteArray keyArray, jbyteArray ivArray)
 {
-    native_context *ctx = new native_context();
+    raii_cipher_ctx ctx;
+    ctx.init();
     EVP_CIPHER_CTX_init(ctx);
 
     try {
@@ -262,11 +232,8 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_AesGcmSpi_encry
 
         initContext(env, ctx, NATIVE_MODE_ENCRYPT, key, iv);
 
-        return (jlong)ctx;
+        return (jlong)ctx.take();
     } catch (java_ex &ex) {
-        EVP_CIPHER_CTX_cleanup(ctx);
-        delete ctx;
-
         ex.throw_to_java(pEnv);
 
         return 0;
@@ -275,10 +242,9 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_AesGcmSpi_encry
 
 JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_AesGcmSpi_releaseContext
   (JNIEnv *, jclass, jlong ctxPtr) {
-    native_context *ctx = (native_context *)ctxPtr;
+    EVP_CIPHER_CTX *ctx = (EVP_CIPHER_CTX *)ctxPtr;
 
-    EVP_CIPHER_CTX_cleanup(ctx);
-    delete ctx;
+    EVP_CIPHER_CTX_free(ctx);
 }
 
 JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesGcmSpi_encryptUpdate
@@ -297,7 +263,7 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesGcmSpi_encryp
         java_buffer input = java_buffer::from_array(env, inputArray, inoffset, inlen);
         java_buffer result = java_buffer::from_array(env, resultArray, resultOffset);
 
-        native_context *ctx = (native_context *)ctxPtr;
+        EVP_CIPHER_CTX *ctx = (EVP_CIPHER_CTX *)ctxPtr;
         return updateLoop(env, result, input, ctx);
     } catch (java_ex &ex) {
         ex.throw_to_java(pEnv);
@@ -329,7 +295,7 @@ JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_AesGcmSpi_encryp
         raii_env env(pEnv);
         if (!ctxPtr) throw java_ex(EX_NPE, "Null context");
 
-        native_context *ctx = (native_context *)ctxPtr;
+        EVP_CIPHER_CTX *ctx = (EVP_CIPHER_CTX *)ctxPtr;
         java_buffer aadBuf = java_buffer::from_array(env, input, offset, length);
 
         updateAAD_loop(env, ctx, aadBuf);
@@ -350,7 +316,12 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesGcmSpi_encryp
    jint resultOffset,
    jint tagLen
 ) {
-    native_context *ctx = (native_context *)ctxPtr;
+    raii_cipher_ctx ctx;
+    if (releaseContext) {
+        ctx.move((EVP_CIPHER_CTX *)ctxPtr);
+    } else {
+        ctx.borrow((EVP_CIPHER_CTX *)ctxPtr);
+    }
 
     int rv = -1;
     try {
@@ -369,18 +340,10 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesGcmSpi_encryp
 
         rv = outoffset + finalOffset;
     } catch (java_ex &ex) {
-        if (ctx) {
-            EVP_CIPHER_CTX_cleanup(ctx);
-            delete ctx;
-        }
+        EVP_CIPHER_CTX_free(ctx.take());
 
         ex.throw_to_java(pEnv);
         return -1;
-    }
-
-    if (releaseContext) {
-        EVP_CIPHER_CTX_cleanup(ctx);
-        delete ctx;
     }
 
     return rv;
@@ -409,16 +372,16 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesGcmSpi_oneSho
         java_buffer result = java_buffer::from_array(env, resultArray, resultOffset);
         java_buffer iv = java_buffer::from_array(env, ivArray);
 
-        native_context stackCtx;
-        native_context *ctx;
+        raii_cipher_ctx ctx;
         if (ctxPtr) {
-            ctx = reinterpret_cast<native_context*>(ctxPtr);
+            ctx.borrow(reinterpret_cast<EVP_CIPHER_CTX *>(ctxPtr));
+
             jni_borrow ivBorrow(env, iv, "iv");
             if (unlikely(!EVP_CipherInit_ex(ctx, NULL, NULL, NULL, ivBorrow.data(), NATIVE_MODE_DECRYPT))) {
                 throw java_ex::from_openssl(EX_RUNTIME_CRYPTO, "Failed to set IV");
             }
         } else {
-            ctx = (!ctxOut ? &stackCtx : new native_context());
+            ctx.init();
             EVP_CIPHER_CTX_init(ctx);
             java_buffer key = java_buffer::from_array(env, keyArray);
             initContext(env, ctx, NATIVE_MODE_DECRYPT, key, iv);
@@ -448,12 +411,9 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesGcmSpi_oneSho
         int outoffset = updateLoop(env, result, input, ctx);
         outoffset += cryptFinish(env, NATIVE_MODE_DECRYPT, result.subrange(outoffset), tagLen, ctx);
 
-        if (!ctxPtr && !ctxOut) {
-            // Context is new and caller doesn't want it back
-            EVP_CIPHER_CTX_cleanup(ctx);
-        } else if (!ctxPtr) {
+        if (!ctxPtr && ctxOut) {
             // Context is new, but caller does want it back
-            jlong tmpPtr = reinterpret_cast<jlong>(ctx);
+            jlong tmpPtr = reinterpret_cast<jlong>(ctx.take());
             env->SetLongArrayRegion(ctxOut, 0, 1, &tmpPtr);
         }
 
@@ -462,16 +422,4 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesGcmSpi_oneSho
         ex.throw_to_java(pEnv);
         return -1;
     }
-}
-
-JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_AesGcmSpi_configureLeakTracking
-  (JNIEnv *, jclass, jboolean enable)
-{
-    leak_tracking_enabled = !!enable;
-}
-
-JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_AesGcmSpi_getOutstandingInstanceCount
-  (JNIEnv *, jclass)
-{
-    return active_instances;
 }

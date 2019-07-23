@@ -36,7 +36,7 @@ private:
 
     bool initialized;
     bool ctxNeedsCleanup;
-    EVP_CIPHER_CTX ctx;
+    EVP_CIPHER_CTX *ctx;
     SecureBuffer<uint8_t, DRBG_BLOCK_SIZE> v;
     // For testing purposes only
     int fake_entropy_pos;
