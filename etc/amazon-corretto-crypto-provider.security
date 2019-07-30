@@ -5,21 +5,45 @@
 # providers that are being shifted down to a different index (which is to say,
 # all of them).
 #
+# Also, JDK9+ handles this list very differently from JDK8.
+# JDK8 requires that providers be specified using fully-qualified class names.
+# JDK9+ supports fully-qualified class names if and only if the module containing the class exports it.
+# For modules which don't export the class in question, the provider must be specified used its "Provider Name".
+# Many of the providers which come as part of the JDK (e.g., SunEC) are not exported from their modules and
+# thus must be specified using their Provider Name rather than their class name.
+#
+# This means that for most of these providers there is no single way to specify them which works for both JDK8 and JDK9+.
+#
+# Rather than have two different copies of this file (one for JDK8 and one for JDK9+) which users must select between
+# depending on which JDK8 they are running, we have created a single merged listing.
+# ACCP is listed first as a fully-qualified class (because it is exported by the module and will work on all systems).
+# After that we alternate between the fully-qualified class (for JDK8) and the provider name for those which
+# are not exported by the module for JDK9+.
+# Each JDK will ignore entries it doesn't understand.
+# JDK8 will determine that there is no class with the short provider name and skip it.
+# JDK9+ will determine that the fully-qualified class is not visible and will skip it.
+#
+# This results in a single list with proper behavior on both JDK8 and JDK9+ systems.
+#
+
 security.provider.1=com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider
 security.provider.2=sun.security.provider.Sun
 security.provider.3=sun.security.rsa.SunRsaSign
 security.provider.4=sun.security.ec.SunEC
-security.provider.5=com.sun.net.ssl.internal.ssl.Provider
-security.provider.6=com.sun.crypto.provider.SunJCE
-security.provider.7=sun.security.jgss.SunProvider
-security.provider.8=com.sun.security.sasl.Provider
-security.provider.9=org.jcp.xml.dsig.internal.dom.XMLDSigRI
-security.provider.10=sun.security.smartcardio
-security.provider.11=sun.security.provider.certpath.ldap.JdkLDAP
-security.provider.12=com.sun.security.sasl.gsskerb.JdkSASL
-security.provider.13=apple.security.AppleProvider
-security.provider.14=sun.security.mscapi.SunMSCAPI
-security.provider.15=sun.security.pkcs11SunPKCS11
+security.provider.5=SunEC
+security.provider.6=com.sun.net.ssl.internal.ssl.Provider
+security.provider.7=com.sun.crypto.provider.SunJCE
+security.provider.8=sun.security.jgss.SunProvider
+security.provider.9=SunJGSS
+security.provider.10=com.sun.security.sasl.Provider
+security.provider.11=SunSASL
+security.provider.12=org.jcp.xml.dsig.internal.dom.XMLDSigRI
+security.provider.13=XMLDSig
+security.provider.14=sun.security.smartcardio.SunPCSC
+security.provider.15=SunPCSC
+security.provider.16=JdkLDAP
+security.provider.17=JdkSASL
+security.provider.18=SunPKCS11
 
 #
 # A list of known strong SecureRandom implementations.
