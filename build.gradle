@@ -7,7 +7,7 @@ plugins {
 }
 
 group = 'software.amazon.cryptools'
-version = '1.1.0'
+version = '1.1.1'
 
 configurations {
     jacocoAgent
@@ -95,11 +95,19 @@ task executeCmake(type: Exec) {
         prebuiltJar = "${projectDir}/" + System.properties['prebuiltJar']
     }
 
+    executable 'cmake'
+    args 'cmake', "-DTEST_CLASSPATH=${configurations.testDep.asPath}", "-DJACOCO_AGENT_JAR=${configurations.jacocoAgent.singleFile}"
+    args "-DOPENSSL_ROOT_DIR=${buildDir}/openssl/bin", '-DCMAKE_BUILD_TYPE=Release', '-DPROVIDER_VERSION_STRING=' + version
+
     if (prebuiltJar != null) {
-        commandLine 'cmake', "-DTEST_CLASSPATH=${configurations.testDep.asPath}", "-DJACOCO_AGENT_JAR=${configurations.jacocoAgent.singleFile}", "-DOPENSSL_ROOT_DIR=${buildDir}/openssl/bin", '-DCMAKE_BUILD_TYPE=Release', '-DSIGNED_JAR=' + prebuiltJar, '-DPROVIDER_VERSION_STRING=' + version, projectDir
-    } else {
-        commandLine 'cmake', "-DTEST_CLASSPATH=${configurations.testDep.asPath}", "-DJACOCO_AGENT_JAR=${configurations.jacocoAgent.singleFile}", "-DOPENSSL_ROOT_DIR=${buildDir}/openssl/bin", '-DCMAKE_BUILD_TYPE=Release', '-DPROVIDER_VERSION_STRING=' + version, projectDir
+       args '-DSIGNED_JAR=' + prebuiltJar
     }
+
+    if (System.properties['TEST_JAVA_HOME'] != null) {
+        args '-DTEST_JAVA_HOME=' + System.properties['TEST_JAVA_HOME']
+    }
+
+    args projectDir
 }
 
 task build_objects(type: Exec) {
