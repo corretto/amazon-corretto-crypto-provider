@@ -28,6 +28,7 @@ import java.util.Scanner;
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import org.apache.commons.codec.DecoderException;
 import org.apache.commons.codec.binary.Hex;
+import org.junit.After;
 import org.junit.Assume;
 import org.junit.AssumptionViolatedException;
 import org.junit.Before;
@@ -45,6 +46,11 @@ public class AesCtrDrbgTest {
         Assume.assumeTrue("RDRand must be supported", AmazonCorrettoCryptoProvider.isRdRandSupported());
 
         rnd = new AesCtrDrbg();
+    }
+
+    @After
+    public void teardown() {
+        rnd = null;
     }
 
     @Test

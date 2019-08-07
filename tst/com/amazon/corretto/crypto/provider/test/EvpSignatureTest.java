@@ -55,8 +55,6 @@ public class EvpSignatureTest {
     private static final int[] MESSAGE_LENGTHS = new int[] { 0, 1, 16, 32, 2047, 2048, 2049, 4100 };
     private static Map<String, KeyPair> KEY_PAIRS;
 
-    private final byte[] message_;
-
     static {
         try {
             final Map<String, KeyPair> tmpMap = new HashMap<>();
@@ -120,32 +118,27 @@ public class EvpSignatureTest {
     private final boolean readOnly_;
     private final boolean slice_;
     private final KeyPair keyPair_;
-    private final byte[] goodSignature_;
+    private final int length_;
 
+    private byte[] message_;
     private Signature signer_;
     private Signature verifier_;
     private Signature jceVerifier_;
+    private byte[] goodSignature_;
 
     public EvpSignatureTest(final String base, final String hash, final int length, boolean readOnly, boolean slice) throws GeneralSecurityException {
         base_ = base;
         hash_ = hash;
         readOnly_ = readOnly;
         slice_ = slice;
-        message_ = new byte[length];
+        length_ = length;
 
-        for (int x = 0; x < message_.length; x++) {
-            message_[x] = (byte) ((x % 256) - 128);
-        }
         if (base_.startsWith("RSA")) {
             keyPair_ = KEY_PAIRS.get("RSA");
         } else {
             keyPair_ = KEY_PAIRS.get(base_);
         }
         algorithm_ = format("%swith%s", hash_, base_);
-        final Signature jceSigner = getJceSigner();
-        jceSigner.initSign(keyPair_.getPrivate());
-        jceSigner.update(message_);
-        goodSignature_ = jceSigner.sign();
     }
 
     @Before
@@ -156,6 +149,17 @@ public class EvpSignatureTest {
         verifier_.initVerify(keyPair_.getPublic());
         jceVerifier_ = getJceSigner();
         jceVerifier_.initVerify(keyPair_.getPublic());
+
+        message_ = new byte[length_];
+
+        for (int x = 0; x < message_.length; x++) {
+            message_[x] = (byte) ((x % 256) - 128);
+        }
+
+        final Signature jceSigner = getJceSigner();
+        jceSigner.initSign(keyPair_.getPrivate());
+        jceSigner.update(message_);
+        goodSignature_ = jceSigner.sign();
     }
 
     @After
@@ -165,6 +169,8 @@ public class EvpSignatureTest {
         signer_ = null;
         verifier_ = null;
         jceVerifier_ = null;
+        message_ = null;
+        goodSignature_ = null;
     }
 
     private Signature getNativeSigner() throws NoSuchAlgorithmException {

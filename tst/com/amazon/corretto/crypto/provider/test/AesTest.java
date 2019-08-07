@@ -56,7 +56,7 @@ public class AesTest {
     private static final String ALGO_NAME = "AES/GCM/NoPadding";
     private static final String PROVIDER_SUN = "SunJCE";
     private static final String PROVIDER_AMAZON = "AmazonCorrettoCryptoProvider";
-    private final byte[] nonce = new byte[12];
+    private byte[] nonce;
     private SecretKeySpec key;
     private Cipher jceC;
     private Cipher amznC;
@@ -76,6 +76,7 @@ public class AesTest {
         byte[] foo = new byte[16];
         rnd.nextBytes(foo);
         key = new SecretKeySpec(foo, "AES");
+        nonce = new byte[12];
         rnd.nextBytes(nonce);
         jceC = Cipher.getInstance(ALGO_NAME);
         amznC = Cipher.getInstance(ALGO_NAME, AmazonCorrettoCryptoProvider.INSTANCE);
@@ -88,6 +89,7 @@ public class AesTest {
         key = null;
         jceC = null;
         amznC = null;
+        nonce = null;
     }
 
     private Object getSpiInstance() throws Throwable {

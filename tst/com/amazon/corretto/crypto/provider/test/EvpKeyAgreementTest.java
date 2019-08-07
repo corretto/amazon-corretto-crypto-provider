@@ -69,8 +69,8 @@ public class EvpKeyAgreementTest {
     private final KeyPairGenerator keyGen;
     // We test pairwise across lots of keypairs in an effort
     // to catch rarer edge-cases.
-    private final KeyPair[] pairs;
-    private final byte[][][] rawSecrets;
+    private KeyPair[] pairs;
+    private byte[][][] rawSecrets;
     private final List<? extends PublicKey> invalidKeys;
     private final Provider nativeProvider;
     private final Provider jceProvider;
@@ -86,27 +86,6 @@ public class EvpKeyAgreementTest {
         this.invalidKeys = invalidKeys;
         this.nativeProvider = nativeProvider;
         this.jceProvider = jceProvider;
-
-        pairs = new KeyPair[PAIR_COUNT];
-        for (int x = 0; x < pairs.length; x++) {
-            pairs[x] = keyGen.generateKeyPair();
-        }
-
-        nativeAgreement = KeyAgreement.getInstance(algorithm, nativeProvider);
-        jceAgreement = KeyAgreement.getInstance(algorithm, jceProvider);
-        // Do pairwise agreement between all pairs
-        rawSecrets = new byte[pairs.length][][];
-        for (int x = 0; x < pairs.length; x++) {
-            rawSecrets[x] = new byte[pairs.length][];
-        }
-        for (int x = 0; x < pairs.length; x++) {
-            for (int y = x; y < pairs.length; y++) {
-                jceAgreement.init(pairs[x].getPrivate());
-                jceAgreement.doPhase(pairs[y].getPublic(), true);
-                rawSecrets[x][y] = jceAgreement.generateSecret();
-                rawSecrets[y][x] = rawSecrets[x][y];
-            }
-        }
     }
 
     @Parameters(name = "{1}")
@@ -134,6 +113,25 @@ public class EvpKeyAgreementTest {
     public void setup() throws GeneralSecurityException {
         nativeAgreement = KeyAgreement.getInstance(algorithm, nativeProvider);
         jceAgreement = KeyAgreement.getInstance(algorithm, jceProvider);
+
+        pairs = new KeyPair[PAIR_COUNT];
+        for (int x = 0; x < pairs.length; x++) {
+            pairs[x] = keyGen.generateKeyPair();
+        }
+
+        // Do pairwise agreement between all pairs
+        rawSecrets = new byte[pairs.length][][];
+        for (int x = 0; x < pairs.length; x++) {
+            rawSecrets[x] = new byte[pairs.length][];
+        }
+        for (int x = 0; x < pairs.length; x++) {
+            for (int y = x; y < pairs.length; y++) {
+                jceAgreement.init(pairs[x].getPrivate());
+                jceAgreement.doPhase(pairs[y].getPublic(), true);
+                rawSecrets[x][y] = jceAgreement.generateSecret();
+                rawSecrets[y][x] = rawSecrets[x][y];
+            }
+        }
     }
 
     @After
@@ -142,6 +140,8 @@ public class EvpKeyAgreementTest {
         // if we do not properly null our references
         nativeAgreement = null;
         jceAgreement = null;
+        pairs = null;
+        rawSecrets = null;
     }
 
     private static Object[] buildDhParameters(final int keySize) throws GeneralSecurityException {
