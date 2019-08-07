@@ -28,6 +28,7 @@ public final class TemplateHashSpi extends MessageDigestSpi implements Cloneable
     private static final int HASH_SIZE;
     private static final byte[] INITIAL_CONTEXT;
 
+    private byte[] oneByteArray = null;
     private InputBuffer<byte[], byte[]> buffer;
 
     static {
@@ -117,7 +118,11 @@ public final class TemplateHashSpi extends MessageDigestSpi implements Cloneable
 
     @Override
     protected void engineUpdate(byte input) {
-        engineUpdate(new byte[] { input }, 0, 1);
+        if (oneByteArray == null) {
+            oneByteArray = new byte[1];
+        }
+        oneByteArray[0] = input;
+        engineUpdate(oneByteArray, 0, 1);
     }
 
     // Note that routines that interact with the native buffer need to be synchronized, to ensure that we don't cause
