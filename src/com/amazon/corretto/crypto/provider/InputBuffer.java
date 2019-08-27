@@ -193,7 +193,7 @@ public class InputBuffer<T, S> implements Cloneable {
     //@ public invariant bufferStateConsistent(bufferState, firstData);
     
     //@ normal_behavior
-    //@   requires 0 <= capacity;
+    //@   requires 0 < capacity;
     //@   ensures bytesReceived == 0;
     //@   ensures bytesProcessed == 0;
     //@   ensures bufferState == BufferState.Uninitialized;
@@ -203,8 +203,8 @@ public class InputBuffer<T, S> implements Cloneable {
     //@   signals_only IllegalArgumentException;
     //@ pure
     InputBuffer(final int capacity) {
-        if (capacity < 0) {
-            throw new IllegalArgumentException("Capacity must be non-negative");
+        if (capacity <= 0) {
+            throw new IllegalArgumentException("Capacity must be positive");
         }
         //@ set bufferState = BufferState.Uninitialized;
         buff = new AccessibleByteArrayOutputStream(0, capacity);
@@ -376,6 +376,49 @@ public class InputBuffer<T, S> implements Cloneable {
         }
         //@ set bytesReceived = bytesReceived + length;
 	//@ set bufferState = (bufferState == BufferState.Ready) ? BufferState.DataIn : bufferState;
+        return true;
+    }
+
+    /*@ private normal_behavior
+      @   requires canTakeData(bufferState);
+      @   {|
+      @       requires buffSize - buff.count >= 1;
+      @       assignable buff.count, bytesReceived, bufferState;
+      @       ensures \result;
+      @       ensures bytesReceived == \old(bytesReceived) + 1;
+      @       ensures buff.count == \old(buff.count) + 1;
+      @       ensures \old(bufferState) == BufferState.Ready
+      @                ==> bufferState == BufferState.DataIn;
+      @       ensures \old(bufferState) != BufferState.Ready
+      @                ==> bufferState == \old(bufferState);
+      @       also
+      @       requires buffSize - buff.count < 1;
+      @       assignable \nothing;
+      @       ensures !\result;
+      @   |}
+      @ also
+      @ private exceptional_behavior
+      @   requires buff.count <= buffSize - 1;
+      @   assignable \nothing;
+      @   signals_only ArrayIndexOutOfBoundsException;
+      @*/
+    /**
+     * Copies all requested data from {@code arr} into {@link #buff} if an only if there is
+     * sufficient space. Returns {@code true} if the data was copied.
+     * @return {@code true} if there was sufficient space in the buffer and data was copied.
+     */
+    private boolean fillBuffer(final byte val) {
+        // Overflow safe comparison.
+        if (buffSize - buff.size() < 1) {
+            return false;
+        }
+        try {
+            buff.write(val);
+        } catch (IndexOutOfBoundsException ex) {
+            throw new ArrayIndexOutOfBoundsException(ex.toString());
+        }
+        //@ set bytesReceived = bytesReceived + 1;
+        //@ set bufferState = (bufferState == BufferState.Ready) ? BufferState.DataIn : bufferState;
         return true;
     }
 
@@ -562,6 +605,32 @@ public class InputBuffer<T, S> implements Cloneable {
         //@ set bufferState = BufferState.HandlerCalled;
         //@ set bytesProcessed = bytesProcessed + length;
         //@ set bytesReceived = bytesReceived + length;
+    }
+
+    /*@ public normal_behavior
+      @   requires canTakeData(bufferState);
+      @   requires arrayUpdater != null;
+      @   assignable state, state.*, buff.count, firstData, bytesProcessed,
+      @              bytesReceived, bufferState;
+      @   ensures bytesReceived == \old(bytesReceived) + 1;
+      @   ensures canTakeData(bufferState);
+      @ also
+      @ public exceptional_behavior
+      @   requires buff.count <= buffSize - 1;
+      @   assignable \nothing;
+      @   signals_only ArrayIndexOutOfBoundsException;
+      @*/
+    public void update(final byte val) {
+        if (fillBuffer(val)) {
+            return;
+        }
+        processBuffer(false);
+        if (fillBuffer(val)) {
+            return;
+        }
+
+        // We explicitly do not support capacities of zero where we cannot even append a single byte.
+        throw new AssertionError("Unreachable code. Cannot buffer even a single byte");
     }
 
     //@ public normal_behavior
