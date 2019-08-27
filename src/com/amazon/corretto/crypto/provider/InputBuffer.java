@@ -403,7 +403,7 @@ public class InputBuffer<T, S> implements Cloneable {
       @   signals_only ArrayIndexOutOfBoundsException;
       @*/
     /**
-     * Copies all requested data from {@code arr} into {@link #buff} if an only if there is
+     * Copies {@code val} into {@link #buff} if an only if there is
      * sufficient space. Returns {@code true} if the data was copied.
      * @return {@code true} if there was sufficient space in the buffer and data was copied.
      */
