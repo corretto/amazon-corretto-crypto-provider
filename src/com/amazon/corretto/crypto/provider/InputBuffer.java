@@ -379,29 +379,6 @@ public class InputBuffer<T, S> implements Cloneable {
         return true;
     }
 
-    /*@ private normal_behavior
-      @   requires canTakeData(bufferState);
-      @   {|
-      @       requires buffSize - buff.count >= 1;
-      @       assignable buff.count, bytesReceived, bufferState;
-      @       ensures \result;
-      @       ensures bytesReceived == \old(bytesReceived) + 1;
-      @       ensures buff.count == \old(buff.count) + 1;
-      @       ensures \old(bufferState) == BufferState.Ready
-      @                ==> bufferState == BufferState.DataIn;
-      @       ensures \old(bufferState) != BufferState.Ready
-      @                ==> bufferState == \old(bufferState);
-      @       also
-      @       requires buffSize - buff.count < 1;
-      @       assignable \nothing;
-      @       ensures !\result;
-      @   |}
-      @ also
-      @ private exceptional_behavior
-      @   requires buff.count <= buffSize - 1;
-      @   assignable \nothing;
-      @   signals_only ArrayIndexOutOfBoundsException;
-      @*/
     /**
      * Copies {@code val} into {@link #buff} if an only if there is
      * sufficient space. Returns {@code true} if the data was copied.
@@ -607,19 +584,6 @@ public class InputBuffer<T, S> implements Cloneable {
         //@ set bytesReceived = bytesReceived + length;
     }
 
-    /*@ public normal_behavior
-      @   requires canTakeData(bufferState);
-      @   requires arrayUpdater != null;
-      @   assignable state, state.*, buff.count, firstData, bytesProcessed,
-      @              bytesReceived, bufferState;
-      @   ensures bytesReceived == \old(bytesReceived) + 1;
-      @   ensures canTakeData(bufferState);
-      @ also
-      @ public exceptional_behavior
-      @   requires buff.count <= buffSize - 1;
-      @   assignable \nothing;
-      @   signals_only ArrayIndexOutOfBoundsException;
-      @*/
     public void update(final byte val) {
         if (fillBuffer(val)) {
             return;
