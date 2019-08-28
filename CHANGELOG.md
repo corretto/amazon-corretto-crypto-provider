@@ -8,6 +8,7 @@
 
 ### Maintenance
 * Support using a different JDK for testing via the `TEST_JAVA_HOME` JVM property
+* Clarify licensing
 
 ## 1.1.0
 

@@ -161,4 +161,8 @@ AmazonCorrettoCryptoProvider.INSTANCE.assertHealthy();
 ```
 
 # License
-This library is licensed under the Apache 2.0 License. 
+This library is licensed under the Apache 2.0 license although portions of this product include software licensed under the
+[dual OpenSSL and SSLeay license](https://www.openssl.org/source/license.html).
+Specifically, this product includes software developed by the OpenSSL Project for use in the OpenSSL Toolkit ([http://www.openssl.org](http://www.openssl.org/))
+and this product also includes cryptographic software written by Eric Young (eay@cryptsoft.com).
+
