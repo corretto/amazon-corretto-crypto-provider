@@ -57,6 +57,8 @@ public class TemplateHmacSpi extends MacSpi {
      */
     private static native void initContext(byte[] ctx);
 
+    // Note: All following native methods assume that normalKey has the correctLength of {@link #BLOCK_SIZE}.
+
     /**
      * Updates the provided context with the data specifried by {@code src}. The {@code key} is
      * optional and must be provided <em>only</em> for the initial {@code update*} call (whether
@@ -78,6 +80,11 @@ public class TemplateHmacSpi extends MacSpi {
      */
     private static native void updateCtxArray(byte[] ctx, byte[] normalKey, byte[] src, int offset,
             int length);
+    private static void synchronizedUpdateCtxArray(byte[] ctx, byte[] normalKey, byte[] src, int offset, int length) {
+        synchronized (ctx) {
+            updateCtxArray(ctx, normalKey, src, offset, length);
+        }
+    }
 
     /**
      * Updates the provided context with the data specifried by {@code src}. The {@code key} is
@@ -95,6 +102,11 @@ public class TemplateHmacSpi extends MacSpi {
      *            data the be included in the HMAC
      */
     private static native void updateCtxBuffer(byte[] ctx, byte[] normalKey, ByteBuffer src);
+    private static void synchronizedUpdateCtxBuffer(byte[] ctx, byte[] normalKey, ByteBuffer src) {
+        synchronized (ctx) {
+            updateCtxBuffer(ctx, normalKey, src);
+        }
+    }
 
     /**
      * Finishes calculating and returns the HMAC in {@code result}.
@@ -107,6 +119,11 @@ public class TemplateHmacSpi extends MacSpi {
      *            an array of length {@link #getContextSize()} to receive the HMAC result
      */
     private static native void doFinal(byte[] ctx, byte[] normalKey, byte[] result);
+    private static void synchronizedDoFinal(byte[] ctx, byte[] normalKey, byte[] result) {
+        synchronized (ctx) {
+            doFinal(ctx, normalKey, result);
+        }
+    }
 
     private static native void fastHmac(byte[] normalKey, byte[] message, int offset, int length,
             byte[] result);
@@ -216,26 +233,26 @@ public class TemplateHmacSpi extends MacSpi {
         buffer = new InputBuffer<byte[], Void>(1024)
                 .withInitialUpdater((src, offset, length) -> {
                     assertInitialized();
-                    updateCtxArray(baseState.ctx, baseState.normalKey, src, offset, length);
+                    synchronizedUpdateCtxArray(baseState.ctx, baseState.normalKey, src, offset, length);
                     return null;
                     })
                 .withInitialUpdater((src) -> {
                     assertInitialized();
-                    updateCtxBuffer(baseState.ctx, baseState.normalKey, src);
+                    synchronizedUpdateCtxBuffer(baseState.ctx, baseState.normalKey, src);
                     return null;
                     })
                 .withUpdater((ignored, src, offset, length) -> {
                     assertInitialized();
-                    updateCtxArray(baseState.ctx, null, src, offset, length);
+                    synchronizedUpdateCtxArray(baseState.ctx, null, src, offset, length);
                     })
                 .withUpdater((ignored, src) -> {
                     assertInitialized();
-                    updateCtxBuffer(baseState.ctx, null, src);
+                    synchronizedUpdateCtxBuffer(baseState.ctx, null, src);
                     })
                 .withDoFinal((ignored) -> {
                     assertInitialized();
                     final byte[] result = new byte[HASH_SIZE];
-                    doFinal(baseState.ctx, baseState.normalKey, result);
+                    synchronizedDoFinal(baseState.ctx, baseState.normalKey, result);
                     baseState.reset();
                     return result;
                 })
@@ -255,7 +272,7 @@ public class TemplateHmacSpi extends MacSpi {
     }
 
     @Override
-    protected synchronized byte[] engineDoFinal() {
+    protected byte[] engineDoFinal() {
         try {
             return buffer.doFinal();
         } finally {
@@ -264,12 +281,12 @@ public class TemplateHmacSpi extends MacSpi {
     }
 
     @Override
-    protected synchronized int engineGetMacLength() {
+    protected int engineGetMacLength() {
         return HASH_SIZE;
     }
 
     @Override
-    protected synchronized void engineInit(Key key, AlgorithmParameterSpec params)
+    protected void engineInit(Key key, AlgorithmParameterSpec params)
             throws InvalidKeyException, InvalidAlgorithmParameterException {
         if (params != null) {
             throw new InvalidAlgorithmParameterException("Params must be null");
@@ -291,26 +308,22 @@ public class TemplateHmacSpi extends MacSpi {
     }
 
     @Override
-    protected synchronized void engineReset() {
+    protected void engineReset() {
         buffer.reset();
     }
 
     @Override
-    protected synchronized void engineUpdate(byte val) {
-        if (oneByteArray == null) {
-            oneByteArray = new byte[1];
-        }
-        oneByteArray[0] = val;
-        engineUpdate(oneByteArray, 0, 1);
+    protected void engineUpdate(byte val) {
+        buffer.update(val);
     }
 
     @Override
-    protected synchronized void engineUpdate(byte[] src, int offset, int length) {
+    protected void engineUpdate(byte[] src, int offset, int length) {
         buffer.update(src, offset, length);
     }
 
     @Override
-    protected synchronized void engineUpdate(ByteBuffer input) {
+    protected void engineUpdate(ByteBuffer input) {
         buffer.update(input);
     }
 }

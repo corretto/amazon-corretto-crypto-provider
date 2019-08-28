@@ -3,6 +3,8 @@
 
 package com.amazon.corretto.crypto.provider.test;
 
+import static java.lang.String.format;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyConstruct;
 import static org.junit.Assert.*;
 
@@ -25,6 +27,13 @@ public class InputBufferTest {
           throw new AssertionError(ex);
       }
     }
+
+    @Test
+    public void requiresPositiveCapacity() throws Throwable {
+        assertThrows(IllegalArgumentException.class, () -> sneakyConstruct(InputBuffer.class.getName(), Integer.valueOf(0)));
+        assertThrows(IllegalArgumentException.class, () -> sneakyConstruct(InputBuffer.class.getName(), Integer.valueOf(-1)));
+    }
+
     @Test
     public void minimalCase() {
         // Just tests the bare minimum configuration and ensures things are properly buffered
@@ -61,6 +70,36 @@ public class InputBufferTest {
         buffer.update(direct);
         assertEquals("Prior to doFinal", 16, result.position());
         assertArrayEquals(expected, buffer.doFinal());
+    }
+
+    @Test
+    public void singleByteUpdates() {
+        byte[] expected = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
+        final ByteBuffer result = ByteBuffer.allocate(2);
+        // In all cases, the byte being processed should be exactly one byte and one byte behind.
+
+        final InputBuffer<byte[], ByteBuffer> buffer = getBuffer(1);
+        buffer.withInitialStateSupplier(() -> { return result; })
+              .withUpdater((ctx, src, offset, length) -> ctx.put(src, offset, length))
+              .withDoFinal(ByteBuffer::array);
+
+        for (int x = 0; x < expected.length; x++) {
+            buffer.update(expected[x]);
+            if (x == 0) {
+                assertEquals("First byte buffered", 0, result.position());
+            } else {
+                assertEquals(format("Position %d flushed buffer", x), 1, result.position());
+                result.flip();
+                assertEquals(format("Position %d flushed correct value", x), expected[x - 1], result.get());
+                result.clear();
+            }
+        }
+
+        buffer.doFinal();
+        assertEquals("doFinal flushed buffer", 1, result.position());
+        result.flip();
+        assertEquals("doFinal flushed correct value", expected[expected.length - 1], result.get());
+        result.clear();
     }
 
     @Test

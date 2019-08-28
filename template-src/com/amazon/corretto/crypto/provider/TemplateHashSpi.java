@@ -45,6 +45,7 @@ public final class TemplateHashSpi extends MessageDigestSpi implements Cloneable
      * @param digest Output buffer - must have at least getHashSize() bytes
      * @param buf Input buffer
      */
+    // NOTE: This method trusts that all of the array lengths and bufLen are sane.
     static native void fastDigest(byte[] digest, byte[] buf, int bufLen);
 
     /**
@@ -73,6 +74,11 @@ public final class TemplateHashSpi extends MessageDigestSpi implements Cloneable
      * @param length Length within buf
      */
     private static native void updateContextByteArray(byte[] context, byte[] buf, int offset, int length);
+    private static void synchronizedUpdateContextByteArray(byte[] context, byte[] buf, int offset, int length) {
+        synchronized (context) {
+            updateContextByteArray(context, buf, offset, length);
+        }
+    }
 
     /**
      * Updates a native context array with some bytes from a native byte buffer. Note that the native-side code does not
@@ -82,6 +88,11 @@ public final class TemplateHashSpi extends MessageDigestSpi implements Cloneable
      * @param buf Buffer to update from
      */
     private static native void updateNativeByteBuffer(byte[] context, ByteBuffer buf);
+    private static void synchronizedUpdateNativeByteBuffer(byte[] context, ByteBuffer buf) {
+        synchronized (context) {
+            updateNativeByteBuffer(context, buf);
+        }
+    }
 
     /**
      * Finishes the digest operation. The native context is left in an undefined state.
@@ -91,17 +102,22 @@ public final class TemplateHashSpi extends MessageDigestSpi implements Cloneable
      * @param offset Offset within output buffer
      */
     private static native void finish(byte[] context, byte[] digest, int offset);
+    private static void synchronizedFinish(byte[] context, byte[] digest, int offset) {
+        synchronized (context) {
+            finish(context, digest, offset);
+        }
+    }
 
     public TemplateHashSpi() {
         Loader.checkNativeLibraryAvailability();
 
         this.buffer = new InputBuffer<byte[], byte[]>(1024)
             .withInitialStateSupplier(INITIAL_CONTEXT::clone)
-            .withUpdater(TemplateHashSpi::updateContextByteArray)
-            .withUpdater(TemplateHashSpi::updateNativeByteBuffer)
+            .withUpdater(TemplateHashSpi::synchronizedUpdateContextByteArray)
+            .withUpdater(TemplateHashSpi::synchronizedUpdateNativeByteBuffer)
             .withDoFinal((context) -> {
                 final byte[] result = new byte[HASH_SIZE];
-                finish(context, result, 0);
+                synchronizedFinish(context, result, 0);
                 return result;
             })
             .withSinglePass((src, offset, length) -> {
@@ -118,31 +134,16 @@ public final class TemplateHashSpi extends MessageDigestSpi implements Cloneable
 
     @Override
     protected void engineUpdate(byte input) {
-        if (oneByteArray == null) {
-            oneByteArray = new byte[1];
-        }
-        oneByteArray[0] = input;
-        engineUpdate(oneByteArray, 0, 1);
+        buffer.update(input);
     }
 
-    // Note that routines that interact with the native buffer need to be synchronized, to ensure that we don't cause
-    // heap corruption or other such fun shenanigans when multiple C threads try to manipulate native offsets at the
-    // same time. For routines that don't interact with the native buffer directly, we don't synchronize them as this
-    // class is documented to be non-thread-safe.
-
-    // In practice, the synchronization overhead is small enough to be negligible, as the monitor lock should be
-    // uncontended as long as the caller abides by the MessageDigest contract.
-
-    // Note that we could probably still do better than this in native code by adding a simple atomic field to mark the
-    // buffer as being busy.
-
     @Override
-    protected synchronized void engineUpdate(byte[] input, int offset, int length) {
+    protected void engineUpdate(byte[] input, int offset, int length) {
         buffer.update(input, offset, length);
     }
 
     @Override
-    protected synchronized void engineUpdate(ByteBuffer buf) {
+    protected void engineUpdate(ByteBuffer buf) {
         buffer.update(buf);
     }
 
@@ -153,7 +154,7 @@ public final class TemplateHashSpi extends MessageDigestSpi implements Cloneable
 
     @SuppressWarnings("unchecked")
     @Override
-    public synchronized Object clone() {
+    public Object clone() {
         try {
             TemplateHashSpi clonedObject = (TemplateHashSpi)super.clone();
 
@@ -166,7 +167,7 @@ public final class TemplateHashSpi extends MessageDigestSpi implements Cloneable
     }
 
     @Override
-    protected synchronized byte[] engineDigest() {
+    protected byte[] engineDigest() {
         try {
             return buffer.doFinal();
         } finally {
@@ -175,7 +176,7 @@ public final class TemplateHashSpi extends MessageDigestSpi implements Cloneable
     }
 
     @Override
-    protected synchronized int engineDigest(byte[] buf, int offset, int len) throws DigestException {
+    protected int engineDigest(byte[] buf, int offset, int len) throws DigestException {
         if (len < HASH_SIZE) throw new IllegalArgumentException("Buffer length too small");
         final byte[] digest = engineDigest();
         try {
@@ -187,7 +188,7 @@ public final class TemplateHashSpi extends MessageDigestSpi implements Cloneable
     }
 
     @Override
-    protected synchronized void engineReset() {
+    protected void engineReset() {
         buffer.reset();
     }
 }
