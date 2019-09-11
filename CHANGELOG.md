@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.1.1 (Unreleased)
+## 1.1.1
 
 ### Patches
 * `amazon-corretto-crypto-provider.security` updated to work on both JDK8 and JDK9+
