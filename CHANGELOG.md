@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.0
+
+### Improvements
+* Now uses [OpenSSL 1.1.1.c](https://www.openssl.org/source/openssl-1.1.1c.tar.gz)
+
 ## 1.1.1
 
 ### Patches
