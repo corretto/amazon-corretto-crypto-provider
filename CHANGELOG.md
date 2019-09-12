@@ -1,12 +1,14 @@
 # Changelog
 
-## 1.1.1 (Unreleased)
+## 1.1.1
 
 ### Patches
 * `amazon-corretto-crypto-provider.security` updated to work on both JDK8 and JDK9+
+* Improve performance of single-byte handling in message digests.
 
 ### Maintenance
 * Support using a different JDK for testing via the `TEST_JAVA_HOME` JVM property
+* Clarify licensing
 
 ## 1.1.0
 
