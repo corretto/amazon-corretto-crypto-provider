@@ -26,30 +26,36 @@ import org.junit.Before;
 import org.junit.Test;
 
 public class JanitorTest {
-    private Constructor<?> ctor_Janitor;
-    private Method m_register;
-    private Method m_clean;
+    private static final Constructor<?> ctor_Janitor;
+    private static final Method m_register;
+    private static final Method m_clean;
+
+    static {
+        try {
+            Class<?> janitorClass = JanitorTest.class.getClassLoader().loadClass(
+                    "com.amazon.corretto.crypto.provider.Janitor"
+            );
+
+            ctor_Janitor = janitorClass.getDeclaredConstructor(ThreadFactory.class);
+            ctor_Janitor.setAccessible(true);
+
+            m_register = janitorClass.getDeclaredMethod("register", Object.class, Runnable.class);
+            m_register.setAccessible(true);
+
+            m_clean = JanitorTest.class.getClassLoader().loadClass(
+                    "com.amazon.corretto.crypto.provider.Janitor$Mess"
+            ).getDeclaredMethod("clean");
+            m_clean.setAccessible(true);
+        } catch (ReflectiveOperationException ex) {
+            throw new AssertionError(ex);
+        }
+    }
 
     private Object referent;
     private ThreadGroup threadGroup;
 
     public JanitorTest() throws Exception {
         threadGroup = new ThreadGroup("Cleaner thread group");
-
-        Class<?> janitorClass = JanitorTest.class.getClassLoader().loadClass(
-                "com.amazon.corretto.crypto.provider.Janitor"
-        );
-
-        ctor_Janitor = janitorClass.getDeclaredConstructor(ThreadFactory.class);
-        ctor_Janitor.setAccessible(true);
-
-        m_register = janitorClass.getDeclaredMethod("register", Object.class, Runnable.class);
-        m_register.setAccessible(true);
-
-        m_clean = JanitorTest.class.getClassLoader().loadClass(
-                "com.amazon.corretto.crypto.provider.Janitor$Mess"
-        ).getDeclaredMethod("clean");
-        m_clean.setAccessible(true);
     }
 
     @Before
@@ -63,6 +69,7 @@ public class JanitorTest {
 
         // Wait for any stray janitors to clean up
         eventually("tearDown: Janitors stopped", () -> !isCleanerRunning());
+        threadGroup = null;
     }
 
     @Test
