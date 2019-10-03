@@ -66,12 +66,12 @@ public class EvpKeyAgreementTest {
     @SuppressWarnings("unused")
     private final String displayName;
     @SuppressWarnings("unused")
-    private final KeyPairGenerator keyGen;
+    private KeyPairGenerator keyGen;
     // We test pairwise across lots of keypairs in an effort
     // to catch rarer edge-cases.
     private KeyPair[] pairs;
     private byte[][][] rawSecrets;
-    private final List<? extends PublicKey> invalidKeys;
+    private List<? extends PublicKey> invalidKeys;
     private final Provider nativeProvider;
     private final Provider jceProvider;
     private KeyAgreement nativeAgreement;
@@ -142,6 +142,8 @@ public class EvpKeyAgreementTest {
         jceAgreement = null;
         pairs = null;
         rawSecrets = null;
+        invalidKeys = null;
+        keyGen = null;
     }
 
     private static Object[] buildDhParameters(final int keySize) throws GeneralSecurityException {
