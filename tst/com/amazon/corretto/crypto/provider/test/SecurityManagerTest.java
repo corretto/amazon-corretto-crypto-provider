@@ -41,6 +41,7 @@ public class SecurityManagerTest {
         System.setSecurityManager(null);
 
         Security.removeProvider("AmazonCorrettoCryptoProvider");
+        threadToDeny = null;
     }
 
     @Test(expected = SecurityException.class)

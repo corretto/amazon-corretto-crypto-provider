@@ -38,6 +38,7 @@ import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
+import org.junit.After;
 import org.junit.Test;
 
 public class AESGenerativeTest {
@@ -52,6 +53,15 @@ public class AESGenerativeTest {
 
     public AESGenerativeTest() throws Exception {
         Security.addProvider(AmazonCorrettoCryptoProvider.INSTANCE);
+    }
+
+
+    @After
+    public void teardown() {
+        jceCipherEncrypt = null;
+        jceCipherDecrypt = null;
+        amzCipherEncrypt = null;
+        amzCipherDecrypt = null;
     }
 
     @Test
