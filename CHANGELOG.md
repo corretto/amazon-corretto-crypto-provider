@@ -3,6 +3,7 @@
 ## 1.1.2 (Unreleased)
 ### Maintenance
 * Add prefix to test output lines indicating if suite will fail.
+* Now colored output from tests can be disabled by setting the environment variable `ACCP_TEST_COLOR` to `false`
 
 ## 1.1.1
 
