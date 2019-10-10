@@ -147,7 +147,7 @@ public class TestRunner {
             }
 
             final boolean failed = failureCount > 0;
-            System.out.format("%s Suite %s ran %d tests in %.2f seconds with %d failures. (Ignored %d)\n",
+            System.out.format("%s Suite %s ran %d tests in %.2f seconds with %d failures. (Ignored %d)%n",
                     failed ? FAILED_NOTICE : PASSED_NOTICE,
                     suiteName,
                     runCount,
@@ -156,7 +156,7 @@ public class TestRunner {
                     ignoreCount
                     );
             if (failed) {
-                System.out.format("%s %s\n", FAILED_NOTICE,
+                System.out.format("%s %s%n", FAILED_NOTICE,
                     failures.stream()
                       .map(f -> f.toString() + "@" + getFailureLocation(f.getException()))
                       .collect(Collectors.toList())
@@ -174,7 +174,7 @@ public class TestRunner {
 
     private static void printSystemInfo() {
         final Runtime rt = Runtime.getRuntime();
-        System.out.format("System Info(Memory): %d free / %d total (max %d)\n",
+        System.out.format("System Info(Memory): %d free / %d total (max %d)%n",
                 rt.freeMemory(), rt.totalMemory(), rt.maxMemory());
     }
 
@@ -206,7 +206,7 @@ public class TestRunner {
 
         @Override
         public void testRunStarted(Description description) throws Exception {
-            System.out.format("Starting test suite: %s\n", suiteName_);
+            System.out.format("Starting test suite: %s%n", suiteName_);
             System.out.println(description.getChildren());
         }
 
@@ -261,7 +261,7 @@ public class TestRunner {
         }       
 
         private void printNotice(final String notice, final Object description) {
-            System.out.format("%s%s %s\n",
+            System.out.format("%s%s %s%n",
                 alreadyFailed ? ALREADY_FAILED_NOTICE : NOT_YET_FAILED_NOTICE,
                 notice,
                 description);
