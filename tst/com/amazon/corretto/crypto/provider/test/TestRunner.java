@@ -30,11 +30,23 @@ import com.amazon.corretto.crypto.provider.test.integration.LocalHTTPSIntegratio
 
 @SuppressWarnings({"rawtypes", "deprecation"})
 public class TestRunner {
-    private static final String BRIGHT_TEXT = (char)27 + "[1m";
-    private static final String BRIGHT_RED_TEXT = (char)27 + "[31;1m";
-    private static final String BRIGHT_GREEN_TEXT = (char)27 + "[32;1m";
-    private static final String BRIGHT_CYAN_TEXT = (char)27 + "[36;1m";
-    private static final String NORMAL_TEXT = (char)27 + "[0m";
+    /**
+     * Reads the ACCP_TEST_COLOR environment variable and if it is case-insensitive equal to "false",
+     * returns the empty string. Else, returns the proper control codes to set the color/font specified by {@code code}.
+     */
+    private static final String maybeColor(String code) {
+        final String envVarValue = System.getenv("ACCP_TEST_COLOR");
+        if ("false".equalsIgnoreCase(envVarValue)) {
+            return "";
+        }
+
+        return (char)27 + "[" + code + "m";
+    }
+    private static final String BRIGHT_TEXT = maybeColor("1");
+    private static final String BRIGHT_RED_TEXT = maybeColor("31;1");
+    private static final String BRIGHT_GREEN_TEXT = maybeColor("32;1");
+    private static final String BRIGHT_CYAN_TEXT = maybeColor("36;1");
+    private static final String NORMAL_TEXT = maybeColor("0");
     private static final String NOT_YET_FAILED_NOTICE = "  ";
     private static final String ALREADY_FAILED_NOTICE = BRIGHT_RED_TEXT + "!" + NORMAL_TEXT;
     private static final String STARTED_NOTICE = BRIGHT_TEXT +                "[STARTED]         " + NORMAL_TEXT;
