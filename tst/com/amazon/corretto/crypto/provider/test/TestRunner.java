@@ -3,8 +3,6 @@
 
 package com.amazon.corretto.crypto.provider.test;
 
-import static java.lang.String.format;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -37,6 +35,8 @@ public class TestRunner {
     private static final String BRIGHT_GREEN_TEXT = (char)27 + "[32;1m";
     private static final String BRIGHT_CYAN_TEXT = (char)27 + "[36;1m";
     private static final String NORMAL_TEXT = (char)27 + "[0m";
+    private static final String NOT_YET_FAILED_NOTICE = "  ";
+    private static final String ALREADY_FAILED_NOTICE = BRIGHT_RED_TEXT + "!" + NORMAL_TEXT;
     private static final String STARTED_NOTICE = BRIGHT_TEXT +                "[STARTED]         " + NORMAL_TEXT;
     private static final String PASSED_NOTICE = BRIGHT_GREEN_TEXT +           "[PASSED]          " + NORMAL_TEXT;
     private static final String ASSUMPTION_FAILED_NOTICE = BRIGHT_CYAN_TEXT + "[FALSE_ASSUMPTION]" + NORMAL_TEXT;
@@ -147,20 +147,20 @@ public class TestRunner {
             }
 
             final boolean failed = failureCount > 0;
-            System.out.println(format("%s Suite %s ran %d tests in %.2f seconds with %d failures. (Ignored %d)",
+            System.out.format("%s Suite %s ran %d tests in %.2f seconds with %d failures. (Ignored %d)%n",
                     failed ? FAILED_NOTICE : PASSED_NOTICE,
                     suiteName,
                     runCount,
                     runTime / 1000.0,
                     failureCount,
                     ignoreCount
-                    ));
+                    );
             if (failed) {
-                System.out.println(format("%s %s", FAILED_NOTICE,
+                System.out.format("%s %s%n", FAILED_NOTICE,
                     failures.stream()
                       .map(f -> f.toString() + "@" + getFailureLocation(f.getException()))
                       .collect(Collectors.toList())
-                    ));
+                    );
             }
 
             System.exit(failed ? -1 : 0);
@@ -174,8 +174,8 @@ public class TestRunner {
 
     private static void printSystemInfo() {
         final Runtime rt = Runtime.getRuntime();
-        System.out.println(format("System Info(Memory): %d free / %d total (max %d)",
-                rt.freeMemory(), rt.totalMemory(), rt.maxMemory()));
+        System.out.format("System Info(Memory): %d free / %d total (max %d)%n",
+                rt.freeMemory(), rt.totalMemory(), rt.maxMemory());
     }
 
     public static StackTraceElement getFailureLocation(Throwable t) {
@@ -197,6 +197,7 @@ public class TestRunner {
         private final boolean verbose_;
         private final String suiteName_;
         private boolean statusOutput_ = false;
+        private volatile boolean alreadyFailed = false;
 
         public BasicListener(final String suiteName, boolean verbose) {
             suiteName_ = suiteName;
@@ -205,7 +206,7 @@ public class TestRunner {
 
         @Override
         public void testRunStarted(Description description) throws Exception {
-            System.out.println(format("Starting test suite: %s", suiteName_));
+            System.out.format("Starting test suite: %s%n", suiteName_);
             System.out.println(description.getChildren());
         }
 
@@ -216,7 +217,7 @@ public class TestRunner {
         @Override
         public void testStarted(Description description) throws Exception {
             if (verbose_) {
-                System.out.println(format("%s %s", STARTED_NOTICE, description));
+                printNotice(STARTED_NOTICE, description);
             }
             statusOutput_ = false;
         }
@@ -224,9 +225,11 @@ public class TestRunner {
         @Override
         public void testFailure(Failure failure) throws Exception {
             final Throwable exception = failure.getException();
-            System.out.println(format("%s %s @ %s", FAILED_NOTICE, failure, getFailureLocation(exception)));
-              // Don't print out traces for Assert.* failures which throw subclasses of AssertionError.
-              // Just for thrown exceptions
+            alreadyFailed = true;
+            printNotice(FAILED_NOTICE, failure + " @ " + getFailureLocation(exception));
+
+            // Don't print out traces for Assert.* failures which throw subclasses of AssertionError.
+            // Just for thrown exceptions
             if (AssertionError.class.equals(exception.getClass()) ||
                     !(exception instanceof AssertionError)) {
                   System.out.println(failure.getTrace());
@@ -237,7 +240,7 @@ public class TestRunner {
         @Override
         public void testFinished(Description description) throws Exception {
             if (!statusOutput_) {
-                System.out.println(format("%s %s", PASSED_NOTICE, description));
+                printNotice(PASSED_NOTICE, description);
                 statusOutput_ = true;
             }
         }
@@ -246,16 +249,22 @@ public class TestRunner {
         public void testAssumptionFailure(Failure failure) {
             assumedCount_.incrementAndGet();
             if (!statusOutput_) {
-                System.out.println(format("%s %s", ASSUMPTION_FAILED_NOTICE, failure));
+                printNotice(ASSUMPTION_FAILED_NOTICE, failure);
                 statusOutput_ = true;
             }
         }
 
         @Override
         public void testIgnored(Description description) throws Exception {
-            System.out.println(format("%s %s", IGNORED_NOTICE, description));
+            printNotice(IGNORED_NOTICE, description);
             statusOutput_ = true;
         }       
-        
+
+        private void printNotice(final String notice, final Object description) {
+            System.out.format("%s%s %s%n",
+                alreadyFailed ? ALREADY_FAILED_NOTICE : NOT_YET_FAILED_NOTICE,
+                notice,
+                description);
+        }
     }
 }

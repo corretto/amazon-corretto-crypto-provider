@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.2 (Unreleased)
+### Maintenance
+* Add prefix to test output lines indicating if suite will fail.
+
 ## 1.1.1
 
 ### Patches
