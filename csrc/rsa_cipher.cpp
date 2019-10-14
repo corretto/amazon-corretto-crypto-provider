@@ -12,26 +12,6 @@
 
 using namespace AmazonCorrettoCryptoProvider;
 
-namespace {
-
-BIGNUM *opt_jarr2bn(raii_env &env, jbyteArray array) {
-    BIGNUM *ret = NULL;
-    if (array) {
-        ret = BN_new();
-
-        try {
-            jarr2bn(env, array, ret);
-        } catch (...) {
-            BN_clear_free(ret);
-            throw;
-        }
-    }
-
-    return ret;
-}
-
-} // anonymous namespace
-
 /*
  * Class:     com_amazon_corretto_crypto_provider_RsaCipher
  * Method:    releaseNativeKey
@@ -70,49 +50,52 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_RsaCipher_cipher
 
 )
 {
-
+    
     try {
         raii_env env(pEnv);
 
         RSA_auto backing; // Used for auto-cleanup
         RSA* r = (RSA *) backing;
-        BIGNUM *bn_n;
-        BIGNUM *bn_e;
-        BIGNUM *bn_d;
-        BIGNUM *bn_p;
-        BIGNUM *bn_q;
-        BIGNUM *bn_dmp1;
-        BIGNUM *bn_dmq1;
-        BIGNUM *bn_iqmp;
         switch (handleMode) {
         case com_amazon_corretto_crypto_provider_RsaCipher_HANDLE_USAGE_IGNORE: // fallthrough
         case com_amazon_corretto_crypto_provider_RsaCipher_HANDLE_USAGE_CREATE:
-            bn_n = opt_jarr2bn(env, n);
-            bn_e = opt_jarr2bn(env, e);
-            bn_d = opt_jarr2bn(env, d);
-            bn_p = opt_jarr2bn(env, p);
-            bn_q = opt_jarr2bn(env, q);
-            bn_dmp1 = opt_jarr2bn(env, dmp1);
-            bn_dmq1 = opt_jarr2bn(env, dmq1);
-            bn_iqmp = opt_jarr2bn(env, iqmp);
+        {
+            // When used with a set0 method, memory ownership transfers to the receiving object.
+            // Thus, after successful ownership transfer, we release ownership of the BIGNUMs.
+            // Once the RSA key owns them, since it is is an RSA_auto class, it cleans itself
+            // up if it remains on the stack.
+            BigNumObj bn_n = BigNumObj::fromJavaArray(env, n);
+            BigNumObj bn_e = BigNumObj::fromJavaArray(env, e);
+            BigNumObj bn_d = BigNumObj::fromJavaArray(env, d);
+            BigNumObj bn_p = BigNumObj::fromJavaArray(env, p);
+            BigNumObj bn_q = BigNumObj::fromJavaArray(env, q);
+            BigNumObj bn_dmp1 = BigNumObj::fromJavaArray(env, dmp1);
+            BigNumObj bn_dmq1 = BigNumObj::fromJavaArray(env, dmq1);
+            BigNumObj bn_iqmp = BigNumObj::fromJavaArray(env, iqmp);
 
-            if (!bn_e) {
-                bn_e = BN_new();
-            }
-            if (!bn_d) {
-                bn_d = BN_new();
-            }
             if (!RSA_set0_key(r, bn_n, bn_e, bn_d)) {
                 throw_openssl(EX_RUNTIME_CRYPTO, "Unable to set key parameters");
+            } else {
+                bn_n.releaseOwnership();
+                bn_e.releaseOwnership();
+                bn_d.releaseOwnership();
             }
 
             if (p && q && !RSA_set0_factors(r, bn_p, bn_q)) {
                 throw_openssl(EX_RUNTIME_CRYPTO, "Unable to set key factors");
+            } else {
+                bn_p.releaseOwnership();
+                bn_q.releaseOwnership();
             }
 
             if (dmp1 && dmq1 && iqmp && !RSA_set0_crt_params(r, bn_dmp1, bn_dmq1, bn_iqmp)) {
                 throw_openssl(EX_RUNTIME_CRYPTO, "Unable to set key crt_params");
+            } else {
+                bn_dmp1.releaseOwnership();
+                bn_dmq1.releaseOwnership();
+                bn_iqmp.releaseOwnership();
             }
+
             // If it is a private key, we check it for consistency, if possible and requested
             if (checkPrivateKey && d != NULL && p != NULL && q != NULL) {
                 if (RSA_check_key(r) != 1) {
@@ -132,6 +115,7 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_RsaCipher_cipher
                 RSA_blinding_off(r);
             }
             break;
+        }
         case com_amazon_corretto_crypto_provider_RsaCipher_HANDLE_USAGE_USE:
             jlong tmpPtr;
             env->GetLongArrayRegion(keyHandle, 0, 1, &tmpPtr);
