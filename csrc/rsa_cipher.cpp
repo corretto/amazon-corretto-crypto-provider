@@ -62,7 +62,7 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_RsaCipher_cipher
         {
             // When used with a set0 method, memory ownership transfers to the receiving object.
             // Thus, after successful ownership transfer, we release ownership of the BIGNUMs.
-            // Once the RSA key owns them, since it is is an RSA_auto class, it cleans itself
+            // Once the RSA key owns them, since it is an RSA_auto class, it cleans itself
             // up if it remains on the stack.
             BigNumObj bn_n = BigNumObj::fromJavaArray(env, n);
             BigNumObj bn_e = BigNumObj::fromJavaArray(env, e);
