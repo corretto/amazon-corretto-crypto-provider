@@ -12,26 +12,6 @@
 
 using namespace AmazonCorrettoCryptoProvider;
 
-namespace {
-
-BIGNUM *opt_jarr2bn(raii_env &env, jbyteArray array) {
-    BIGNUM *ret = NULL;
-    if (array) {
-        ret = BN_new();
-
-        try {
-            jarr2bn(env, array, ret);
-        } catch (...) {
-            BN_clear_free(ret);
-            throw;
-        }
-    }
-
-    return ret;
-}
-
-} // anonymous namespace
-
 /*
  * Class:     com_amazon_corretto_crypto_provider_RsaCipher
  * Method:    releaseNativeKey
@@ -70,7 +50,7 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_RsaCipher_cipher
 
 )
 {
-
+    
     try {
         raii_env env(pEnv);
 
@@ -79,14 +59,42 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_RsaCipher_cipher
         switch (handleMode) {
         case com_amazon_corretto_crypto_provider_RsaCipher_HANDLE_USAGE_IGNORE: // fallthrough
         case com_amazon_corretto_crypto_provider_RsaCipher_HANDLE_USAGE_CREATE:
-            r->n = opt_jarr2bn(env, n);
-            r->e = opt_jarr2bn(env, e);
-            r->d = opt_jarr2bn(env, d);
-            r->p = opt_jarr2bn(env, p);
-            r->q = opt_jarr2bn(env, q);
-            r->dmp1 = opt_jarr2bn(env, dmp1);
-            r->dmq1 = opt_jarr2bn(env, dmq1);
-            r->iqmp = opt_jarr2bn(env, iqmp);
+        {
+            // When used with a set0 method, memory ownership transfers to the receiving object.
+            // Thus, after successful ownership transfer, we release ownership of the BIGNUMs.
+            // Once the RSA key owns them, since it is an RSA_auto class, it cleans itself
+            // up if it remains on the stack.
+            BigNumObj bn_n = BigNumObj::fromJavaArray(env, n);
+            BigNumObj bn_e = BigNumObj::fromJavaArray(env, e);
+            BigNumObj bn_d = BigNumObj::fromJavaArray(env, d);
+            BigNumObj bn_p = BigNumObj::fromJavaArray(env, p);
+            BigNumObj bn_q = BigNumObj::fromJavaArray(env, q);
+            BigNumObj bn_dmp1 = BigNumObj::fromJavaArray(env, dmp1);
+            BigNumObj bn_dmq1 = BigNumObj::fromJavaArray(env, dmq1);
+            BigNumObj bn_iqmp = BigNumObj::fromJavaArray(env, iqmp);
+
+            if (!RSA_set0_key(r, bn_n, bn_e, bn_d)) {
+                throw_openssl(EX_RUNTIME_CRYPTO, "Unable to set key parameters");
+            } else {
+                bn_n.releaseOwnership();
+                bn_e.releaseOwnership();
+                bn_d.releaseOwnership();
+            }
+
+            if (p && q && !RSA_set0_factors(r, bn_p, bn_q)) {
+                throw_openssl(EX_RUNTIME_CRYPTO, "Unable to set key factors");
+            } else {
+                bn_p.releaseOwnership();
+                bn_q.releaseOwnership();
+            }
+
+            if (dmp1 && dmq1 && iqmp && !RSA_set0_crt_params(r, bn_dmp1, bn_dmq1, bn_iqmp)) {
+                throw_openssl(EX_RUNTIME_CRYPTO, "Unable to set key crt_params");
+            } else {
+                bn_dmp1.releaseOwnership();
+                bn_dmq1.releaseOwnership();
+                bn_iqmp.releaseOwnership();
+            }
 
             // If it is a private key, we check it for consistency, if possible and requested
             if (checkPrivateKey && d != NULL && p != NULL && q != NULL) {
@@ -107,6 +115,7 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_RsaCipher_cipher
                 RSA_blinding_off(r);
             }
             break;
+        }
         case com_amazon_corretto_crypto_provider_RsaCipher_HANDLE_USAGE_USE:
             jlong tmpPtr;
             env->GetLongArrayRegion(keyHandle, 0, 1, &tmpPtr);
@@ -154,23 +163,7 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_RsaCipher_cipher
             }
 
             if (len < 0) {
-                unsigned long errCode = drainOpensslErrors();
-                char errBuf[120];
-                ERR_error_string_n(errCode, errBuf, sizeof(errBuf));
-
-                // Ensure the buffer is null-terminated even if the message is truncated.
-                errBuf[sizeof(errBuf)-1] = 0;
-
-                if (errCode == ERR_PACK(ERR_LIB_RSA, RSA_F_RSA_EAY_PUBLIC_ENCRYPT, RSA_R_DATA_TOO_LARGE_FOR_MODULUS)
-                  || errCode == ERR_PACK(ERR_LIB_RSA, RSA_F_RSA_EAY_PRIVATE_DECRYPT, RSA_R_DATA_TOO_LARGE_FOR_MODULUS)
-                  || errCode == ERR_PACK(ERR_LIB_RSA, RSA_F_RSA_PADDING_CHECK_PKCS1_TYPE_2, RSA_R_PKCS_DECODING_ERROR)
-                  || errCode == ERR_PACK(ERR_LIB_RSA, RSA_F_RSA_EAY_PRIVATE_DECRYPT, RSA_R_PADDING_CHECK_FAILED)
-                  || errCode == ERR_PACK(ERR_LIB_RSA, RSA_F_RSA_EAY_PUBLIC_DECRYPT, RSA_R_PADDING_CHECK_FAILED)
-                  || errCode == ERR_PACK(ERR_LIB_RSA, RSA_F_RSA_PADDING_CHECK_PKCS1_OAEP, RSA_R_OAEP_DECODING_ERROR)) {
-                    throw_java_ex(EX_BADPADDING, errBuf);
-                } else {
-                    throw_java_ex(EX_RUNTIME_CRYPTO, errBuf);
-                }
+                throw_openssl(EX_BADPADDING, "Unknown error");
             }
         }
         if (handleMode == com_amazon_corretto_crypto_provider_RsaCipher_HANDLE_USAGE_CREATE) {

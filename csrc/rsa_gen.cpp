@@ -42,13 +42,25 @@ JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_RsaGen_generate(
             throw_openssl("Key failed consistency check");
         }
 
-        bn2jarr(env, modulusOut, r->n);
-        bn2jarr(env, privExpOut, r->d);
-        bn2jarr(env, primePOut, r->p);
-        bn2jarr(env, primeQOut, r->q);
-        bn2jarr(env, dmPOut, r->dmp1);
-        bn2jarr(env, dmQOut, r->dmq1);
-        bn2jarr(env, coefOut, r->iqmp);
+        const BIGNUM *n;
+        const BIGNUM *e;
+        const BIGNUM *d;
+        const BIGNUM *p;
+        const BIGNUM *q;
+        const BIGNUM *dmp1;
+        const BIGNUM *dmq1;
+        const BIGNUM *iqmp;
+        RSA_get0_key(r, &n, &e, &d);
+        RSA_get0_factors(r, &p, &q);
+        RSA_get0_crt_params(r, &dmp1, &dmq1, &iqmp);
+
+        bn2jarr(env, modulusOut, n);
+        bn2jarr(env, privExpOut, d);
+        bn2jarr(env, primePOut, p);
+        bn2jarr(env, primeQOut, q);
+        bn2jarr(env, dmPOut, dmp1);
+        bn2jarr(env, dmQOut, dmq1);
+        bn2jarr(env, coefOut, iqmp);
     } catch (java_ex &ex) {
         ex.throw_to_java(pEnv);
     }

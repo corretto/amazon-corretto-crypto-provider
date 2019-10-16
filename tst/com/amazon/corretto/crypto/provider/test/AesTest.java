@@ -724,31 +724,6 @@ public class AesTest {
     }
 
     @Test
-    public void testFinalizer() throws Throwable {
-        sneakyInvoke(SPI_CLASS, "configureLeakTracking", true);
-
-        System.gc();
-        System.gc();
-
-        spinAssertEquals(0, this::getOutstandingInstanceCount);
-
-        Cipher c = Cipher.getInstance(ALGO_NAME, PROVIDER_AMAZON);
-        c.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, new byte[128]), rnd);
-
-        c.update(new byte[16]);
-
-        spinAssertEquals(1, this::getOutstandingInstanceCount);
-
-        c = null;
-
-        System.gc();
-
-        spinAssertEquals(0, this::getOutstandingInstanceCount);
-
-        sneakyInvoke(SPI_CLASS, "configureLeakTracking", false);
-    }
-
-    @Test
     public void testShortArrays() throws Throwable {
         Cipher c = Cipher.getInstance(ALGO_NAME, PROVIDER_AMAZON);
         c.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(128, new byte[12]), rnd);
@@ -865,14 +840,6 @@ public class AesTest {
         assertFalse((boolean) sneakyGetField(spi, "contextInitialized"));
         assertNotNull(sneakyGetField(spi, "context"));
         assertArrayEquals(plaintext2, c.doFinal(ciphertext2));
-    }
-
-    private long getOutstandingInstanceCount() {
-      try {
-          return (Long) sneakyInvoke(SPI_CLASS, "getOutstandingInstanceCount");
-      } catch (final Throwable ex) {
-          throw new RuntimeException(ex); 
-      }
     }
 
     private void spinAssertEquals(long expected, LongSupplier actual) throws InterruptedException {

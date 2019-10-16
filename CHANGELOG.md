@@ -1,6 +1,10 @@
 # Changelog
 
-## 1.1.2 (Unreleased)
+## 1.2.0
+
+### Improvements
+* Now uses [OpenSSL 1.1.1.d](https://www.openssl.org/source/openssl-1.1.1d.tar.gz)
+
 ### Maintenance
 * Add prefix to test output lines indicating if suite will fail.
 * Now colored output from tests can be disabled by setting the environment variable `ACCP_TEST_COLOR` to `false`

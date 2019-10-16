@@ -155,7 +155,7 @@ aes_256_drbg::aes_256_drbg(const SecureBuffer<uint8_t, DRBG_SEED_SIZE>& seed) no
 
 aes_256_drbg::~aes_256_drbg() noexcept {
     if (ctxNeedsCleanup) {
-        EVP_CIPHER_CTX_cleanup(&ctx);
+        EVP_CIPHER_CTX_free(ctx);
     }
     if (fake_entropy) {
         delete[] fake_entropy;
@@ -165,15 +165,15 @@ aes_256_drbg::~aes_256_drbg() noexcept {
 void aes_256_drbg::initialize(const SecureBuffer<uint8_t, DRBG_SEED_SIZE>& seed) noexcept {
     static const uint8_t zero_key[DRBG_KEY_SIZE] = { 0 };
 
-    EVP_CIPHER_CTX_init(&ctx);
-    if (unlikely(!EVP_EncryptInit_ex(&ctx, EVP_aes_256_ecb(), NULL, zero_key, NULL))) {
+    ctx = EVP_CIPHER_CTX_new();
+    if (unlikely(!EVP_EncryptInit_ex(ctx, EVP_aes_256_ecb(), NULL, zero_key, NULL))) {
         return; // failed, we'll leave it uninitialized
     }
 
     ctxNeedsCleanup = true;
 
     if (unlikely(!update(seed))) {
-        EVP_CIPHER_CTX_cleanup(&ctx);
+        EVP_CIPHER_CTX_free(ctx);
         ctxNeedsCleanup = false;
         return; // leave uninitialized
     }
@@ -186,7 +186,7 @@ void aes_256_drbg::initialize(const SecureBuffer<uint8_t, DRBG_SEED_SIZE>& seed)
         ) {
             // CPU claimed to have rdseed support but failed to generate entropy;
             // bail out.
-            EVP_CIPHER_CTX_cleanup(&ctx);
+            EVP_CIPHER_CTX_free(ctx);
             ctxNeedsCleanup = false;
             return; // leave uninitialized
         }
@@ -217,7 +217,7 @@ bool aes_256_drbg::update(const SecureBuffer<uint8_t, DRBG_SEED_SIZE>& seed) noe
     }
     fast_xor(temp, seed, DRBG_SEED_SIZE);
 
-    if (unlikely(!EVP_EncryptInit_ex(&ctx, EVP_aes_256_ecb(), NULL, temp, NULL))) {
+    if (unlikely(!EVP_EncryptInit_ex(ctx, EVP_aes_256_ecb(), NULL, temp, NULL))) {
         return false;
     }
     memcpy(v, temp + DRBG_KEY_SIZE, DRBG_BLOCK_SIZE);
@@ -259,7 +259,7 @@ bool aes_256_drbg::internalGenerateBytes(uint8_t* buf, int len) noexcept {
     while (generated < len) {
         incrementCtr();
         int outLen;
-        if (unlikely(!EVP_EncryptUpdate(&ctx, block, &outLen, v, DRBG_BLOCK_SIZE))) {
+        if (unlikely(!EVP_EncryptUpdate(ctx, block, &outLen, v, DRBG_BLOCK_SIZE))) {
             return false;
         }
         int to_write = std::min(outLen, len - generated);

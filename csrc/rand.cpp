@@ -18,9 +18,9 @@ using namespace AmazonCorrettoCryptoProvider;
 
 namespace {
 
-static void seed(const void *buf, int num);
+static int seed(const void *buf, int num);
 static int bytes(unsigned char *buf, int num);
-static void add(const void *buf, int num, double entropy);
+static int add(const void *buf, int num, double entropy);
 static int pseudorand(unsigned char *buf, int num);
 static void cleanup();
 static int status();
@@ -65,14 +65,14 @@ int bytes(unsigned char *buf, int num) {
     }
 }
 
-void add(const void *buf, int num, double entropy) {
-    seed(buf, num);
+int add(const void *buf, int num, double entropy) {
+    return seed(buf, num);
 }
 
-void seed(const void *buf, int num) {
+int seed(const void *buf, int num) {
     pthread_lock_auto lock(&drbg_lock);
     if (!drbg || !healthy) {
-        return;
+        return 0;
     }
 
     SecureBuffer<uint8_t, DRBG_SEED_SIZE> seed;
@@ -82,11 +82,12 @@ void seed(const void *buf, int num) {
         memcpy(seed.buf, start, len);
         if (!drbg->reseed(seed)) {
             healthy = false;
-            return;
+            return 0;
         }
         start += len;
         num -= len;
     }
+    return 1;
 }
 
 int status() {

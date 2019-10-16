@@ -71,6 +71,20 @@ class BigNumObj {
             return m_pBN;
         }
 
+        void releaseOwnership() {
+            m_pBN = NULL;
+        }
+
+        static BigNumObj fromJavaArray(raii_env &env, jbyteArray array) {
+            BigNumObj result;
+
+            if (array) {
+                result.ensure_init();
+                jarr2bn(env, array, result.m_pBN);
+            }
+            return result;
+        }
+
 #ifdef HAVE_CPP11
         BigNumObj(const BigNumObj &) = delete;
         BigNumObj &operator=(const BigNumObj &) = delete;
