@@ -144,7 +144,7 @@ bool rng_rdseed(uint64_t *out) {
 
     bool success;
     __asm__ __volatile__(
-	ASM_RDSEED_RCX
+        ASM_RDSEED_RCX
         "setc %%al\n" // rax = 1 if success, 0 if fail
         : "=c" (*out), "=a" (success)
         : "c" (0), "a" (0)
