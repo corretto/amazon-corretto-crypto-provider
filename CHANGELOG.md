@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.1 (Unreleased)
+
+### Patches
+* Detects stuck AMD Ryzen RDRAND and correctly treats as an error
+
 ## 1.2.0
 
 ### Improvements

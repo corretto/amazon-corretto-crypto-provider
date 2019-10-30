@@ -27,11 +27,24 @@ using namespace AmazonCorrettoCryptoProvider;
 
 namespace AmazonCorrettoCryptoProvider {
 
+// Some inline machine-code which cannot always be represented
+// by standard inline assembly mnemonics.
+
+// rdrand %rcx
+#define ASM_RDRAND_RCX ".byte 0x48, 0x0f, 0xc7, 0xf1\n"
+// rdseed %rcx
+#define ASM_RDSEED_RCX ".byte 0x48, 0x0f, 0xc7, 0xf9\n"
+// PAUSE instruction. REP NOP
+#define ASM_REP_NOP ".byte 0xf3, 0x90\n"
+
+// We reuse these same macros for the test results
+// of our RNGs stored in rng_tested
 #define CPUID_PROBE_DONE (1 << 0)
 #define CPUID_HAS_RDRAND (1 << 1)
 #define CPUID_HAS_RDSEED (1 << 2)
 
 volatile static uint32_t cpuid_info = 0;
+volatile static uint32_t rng_tested = 0;
 
 static inline int getCpuid(
         unsigned int level,
@@ -111,13 +124,37 @@ bool rng_rdrand(uint64_t *out) {
 
     bool success = 0;
     __asm__ __volatile__(
-        ".byte 0x48, 0x0f, 0xc7, 0xf1\n" // RDRAND %rcx
+        ASM_RDRAND_RCX
         "setc %%al\n" // rax = 1 if success, 0 if fail
         : "=c" (*out), "=a" (success)
         : "c" (0), "a" (0)
         : "cc" // clobbers condition codes
     );
 
+    // Some AMD CPUs will find that RDRAND "sticks" on all 1s but still reports success.
+    // If we encounter this suspicious value (a 1/2^64 chance) we'll generate a second
+    // value and compare it to the first. If they are equal (indicating it is stuck) then
+    // we'll return an error. Else, we'll return the first value.
+    // This reduces the risk of a false positive to 1/2^128 (negligible) and avoids biasing
+    // the results at all as all 1s can still be returned by a valid RNG.
+    // We also check for 0 as some old/non-standard systems may use that as an error value.
+
+    if (likely(success)) {
+      if (unlikely(*out == UINT64_MAX || *out == 0)) {
+	uint64_t tmp;
+	__asm__ __volatile__(
+            ASM_RDRAND_RCX
+	    "setc %%al\n" // rax = 1 if success, 0 if fail
+	    : "=c" (tmp), "=a" (success)
+	    : "c" (0), "a" (0)
+	    : "cc" // clobbers condition codes
+        );
+	if (tmp == *out) {
+	  *out = 0;
+	  success = 0;
+	}
+      }
+    }
     return success;
 }
 
@@ -126,7 +163,9 @@ bool rng_rdseed(uint64_t *out) {
         return (*hook_rdseed)(out);
     }
 
-    if (unlikely(!supportsRdSeed())) {
+    // We don't call supportsRdSeed() here to avoid circular dependencies
+    // during RNG testing.
+    if (unlikely(!(get_cpuinfo() & CPUID_HAS_RDSEED))) {
         // We'll allow rdseed_fallback to poll rdrand instead
         *out = 0;
         return false;
@@ -134,7 +173,7 @@ bool rng_rdseed(uint64_t *out) {
 
     bool success;
     __asm__ __volatile__(
-        ".byte 0x48, 0x0f, 0xc7, 0xf9\n" // RDSEED %rcx
+	ASM_RDSEED_RCX
         "setc %%al\n" // rax = 1 if success, 0 if fail
         : "=c" (*out), "=a" (success)
         : "c" (0), "a" (0)
@@ -154,7 +193,7 @@ void pause_and_decrement(int &counter) {
     //
     // Unfortunately our ancient compilers don't like the PAUSE instruction - even when entered
     // as "rep nop", so we need to use raw machine code here as well.
-        ".byte 0xf3, 0x90\n" // PAUSE instruction (REP NOP)
+        ASM_REP_NOP // PAUSE instruction
         "dec %0"   // decrement retry counter
         // prevent loop unrolling by hiding the loop decrement from the compiler
         : "+r" (counter)
@@ -332,12 +371,37 @@ fail:
 
 // C++ Exported methods:
 
+void testRngs() COLD NOINLINE;
+void testRngs() {
+  uint32_t result = CPUID_PROBE_DONE;
+  uint64_t scratch = 0; // No need to actually read this
+
+  if (rng_rdrand(&scratch)) {
+    result |= CPUID_HAS_RDRAND;
+  }
+
+  if (rng_rdseed(&scratch)) {
+    result |= CPUID_HAS_RDSEED;
+  }
+  rng_tested = result;
+}
+
+uint32_t get_rng_tests() {
+  uint32_t info = rng_tested;
+
+  if (unlikely(!info)) {
+    testRngs();
+    info = rng_tested;
+  }
+  return info;
+}
+
 bool supportsRdRand() {
-  return !!(get_cpuinfo() & CPUID_HAS_RDRAND);
+  return !!(get_cpuinfo() & CPUID_HAS_RDRAND) && !!(get_rng_tests() & CPUID_HAS_RDRAND);
 }
 
 bool supportsRdSeed() {
-  return !!(get_cpuinfo() & CPUID_HAS_RDSEED);
+  return !!(get_cpuinfo() & CPUID_HAS_RDSEED) && !!(get_rng_tests() & CPUID_HAS_RDSEED);
 }
 
 bool rdseed(unsigned char *buf, int len) {
