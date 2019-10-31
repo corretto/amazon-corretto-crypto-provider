@@ -292,7 +292,7 @@ bool rng_retry_rdrand(uint64_t *dest) {
             // negligible (1/2^63). Finally, adding processor specific logic would greatly
             // increase the complexity and would cause us to "miss" any unknown processors with
             // similar bugs.
-            if (unlikely(*dest != UINT64_MAX || *dest != 0)) {
+            if (likely(*dest != UINT64_MAX && *dest != 0)) {
                 return true;
             }
         }
