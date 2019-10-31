@@ -278,30 +278,26 @@ out:
 
 bool rng_retry_rdrand(uint64_t *dest) {
     int tries = 10;
-        uint64_t oldValue = 13; // Must not be initialized to 0 or UINT64_MAX. Anything else is fine.
-    do {
-      if (likely(rng_rdrand(dest))) {
-        // Some AMD CPUs will find that RDRAND "sticks" on all 1s but still reports success.
-        // If we encounter this suspicious value (a 1/2^64 chance) we'll generate a second
-        // value and compare it to the first. If they are equal (indicating it is stuck) then
-        // we'll return an error. Else, we'll return the first value.
-        // This reduces the risk of a false positive to 1/2^128 (negligible) and avoids biasing
-        // the results at all as all 1s can still be returned by a valid RNG.
-        // We also check for 0 as some old/non-standard systems may use that as an error value.
 
-        if (*dest == UINT64_MAX || *dest == 0) {
-          if (*dest == oldValue) {
-            // We've gotten the same suspicious value twice in a row. We're likely stuck
-            return false;
-          } else {
-            // This is the first time we've seen this suspicious value. Save it and loop again.
-            oldValue = *dest;
-          }
-        } else {
-          return true;
-	}
-      }
-      pause_and_decrement(tries);
+    do {
+        if (likely(rng_rdrand(dest))) {
+            // Some AMD CPUs will find that RDRAND "sticks" on all 1s but still reports success.
+            // Some other very old CPUs use all 0s as an error condition while still reporting success.
+            // If we encounter either of these suspicious values (a 1/2^63 chance) we'll treat them as
+            // a failure and generate a new value.
+            //
+            // In the future we could add CPUID checks to detect processors with these known bugs,
+            // however it does not appear worth it. The entropy loss is negligible and the
+            // corresponding likelihood that a healthy CPU generates either of these values is also
+            // negligible (1/2^63). Finally, adding processor specific logic would greatly
+            // increase the complexity and would cause us to "miss" any unknown processors with
+            // similar bugs.
+            if (unlikely(*dest != UINT64_MAX || *dest != 0)) {
+                return true;
+            }
+        }
+
+        pause_and_decrement(tries);
     } while(tries);
 
     return false;

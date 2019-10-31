@@ -251,6 +251,7 @@ int main() {
     RUNTEST(when_rdrand_broken_rdseed_works_eventually);
     RUNTEST(when_rdseed_broken_rdrand_reduction_used);
     RUNTEST(when_rdrand_stuck_failure_returned);
+
     return success ? 0 : 1;
 }
 
