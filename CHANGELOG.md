@@ -1,9 +1,12 @@
 # Changelog
 
-## 1.2.0
+## 1.2.0 (Unreleased)
 
 ### Improvements
 * Now uses [OpenSSL 1.1.1.d](https://www.openssl.org/source/openssl-1.1.1d.tar.gz)
+
+### Patches
+* Detects stuck AMD Ryzen RDRAND and correctly treats as an error
 
 ### Maintenance
 * Add prefix to test output lines indicating if suite will fail.

@@ -27,6 +27,16 @@ using namespace AmazonCorrettoCryptoProvider;
 
 namespace AmazonCorrettoCryptoProvider {
 
+// Some inline machine-code which cannot always be represented
+// by standard inline assembly mnemonics.
+
+// rdrand %rcx
+#define ASM_RDRAND_RCX ".byte 0x48, 0x0f, 0xc7, 0xf1\n"
+// rdseed %rcx
+#define ASM_RDSEED_RCX ".byte 0x48, 0x0f, 0xc7, 0xf9\n"
+// PAUSE instruction. REP NOP
+#define ASM_REP_NOP ".byte 0xf3, 0x90\n"
+
 #define CPUID_PROBE_DONE (1 << 0)
 #define CPUID_HAS_RDRAND (1 << 1)
 #define CPUID_HAS_RDSEED (1 << 2)
@@ -111,7 +121,7 @@ bool rng_rdrand(uint64_t *out) {
 
     bool success = 0;
     __asm__ __volatile__(
-        ".byte 0x48, 0x0f, 0xc7, 0xf1\n" // RDRAND %rcx
+        ASM_RDRAND_RCX
         "setc %%al\n" // rax = 1 if success, 0 if fail
         : "=c" (*out), "=a" (success)
         : "c" (0), "a" (0)
@@ -134,7 +144,7 @@ bool rng_rdseed(uint64_t *out) {
 
     bool success;
     __asm__ __volatile__(
-        ".byte 0x48, 0x0f, 0xc7, 0xf9\n" // RDSEED %rcx
+        ASM_RDSEED_RCX
         "setc %%al\n" // rax = 1 if success, 0 if fail
         : "=c" (*out), "=a" (success)
         : "c" (0), "a" (0)
@@ -154,7 +164,7 @@ void pause_and_decrement(int &counter) {
     //
     // Unfortunately our ancient compilers don't like the PAUSE instruction - even when entered
     // as "rep nop", so we need to use raw machine code here as well.
-        ".byte 0xf3, 0x90\n" // PAUSE instruction (REP NOP)
+        ASM_REP_NOP // PAUSE instruction
         "dec %0"   // decrement retry counter
         // prevent loop unrolling by hiding the loop decrement from the compiler
         : "+r" (counter)
@@ -271,7 +281,20 @@ bool rng_retry_rdrand(uint64_t *dest) {
 
     do {
         if (likely(rng_rdrand(dest))) {
-            return true;
+            // Some AMD CPUs will find that RDRAND "sticks" on all 1s but still reports success.
+            // Some other very old CPUs use all 0s as an error condition while still reporting success.
+            // If we encounter either of these suspicious values (a 1/2^63 chance) we'll treat them as
+            // a failure and generate a new value.
+            //
+            // In the future we could add CPUID checks to detect processors with these known bugs,
+            // however it does not appear worth it. The entropy loss is negligible and the
+            // corresponding likelihood that a healthy CPU generates either of these values is also
+            // negligible (1/2^63). Finally, adding processor specific logic would greatly
+            // increase the complexity and would cause us to "miss" any unknown processors with
+            // similar bugs.
+            if (likely(*dest != UINT64_MAX && *dest != 0)) {
+                return true;
+            }
         }
 
         pause_and_decrement(tries);
