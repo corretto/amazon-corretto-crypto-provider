@@ -265,13 +265,17 @@ add_custom_command(
 add_custom_target(accp-jar-source DEPENDS ${ACCP_JAR_SOURCE})
 
 if(ENABLE_NATIVE_TEST_HOOKS)
+  if (CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
     add_executable(test_rdrand EXCLUDE_FROM_ALL
         csrc/test_rdrand.cpp
     )
-    add_executable(test_keyutils EXCLUDE_FROM_ALL
+
+    target_link_libraries(test_rdrand amazonCorrettoCryptoProvider)
+  endif ()
+
+  add_executable(test_keyutils EXCLUDE_FROM_ALL
         csrc/test_keyutils.cpp
     )
-    target_link_libraries(test_rdrand amazonCorrettoCryptoProvider)
     target_link_libraries(test_keyutils amazonCorrettoCryptoProvider)
 endif()
 
@@ -655,7 +659,7 @@ add_custom_target(check-install-via-properties-with-debug
         -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
         -Dtest.data.dir=${TEST_DATA_DIR}
         -Djava.security.properties=${ORIG_SRCROOT}/etc/amazon-corretto-crypto-provider.security
-	-Djava.security.debug=all
+        -Djava.security.debug=all
         ${TEST_JAVA_ARGS}
         com.amazon.corretto.crypto.provider.test.SecurityPropertyTester
 
@@ -665,13 +669,16 @@ add_custom_target(check
     DEPENDS check-recursive-init check-install-via-properties check-install-via-properties-with-debug check-junit)
 
 if(ENABLE_NATIVE_TEST_HOOKS)
-    add_custom_target(check-rdrand
-        COMMAND $<TARGET_FILE:test_rdrand>
-    )
+    if (CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+      add_custom_target(check-rdrand
+            COMMAND $<TARGET_FILE:test_rdrand>
+        )
+      add_dependencies(check check-rdrand)
+    endif()
     add_custom_target(check-keyutils
         COMMAND $<TARGET_FILE:test_keyutils>
     )
-    add_dependencies(check check-rdrand check-keyutils)
+    add_dependencies(check check-keyutils)
 endif()
 
 add_custom_target(coverage
@@ -689,7 +696,7 @@ add_custom_target(coverage
 add_custom_target(check-integration-extra-checks
     COMMAND ${TEST_JAVA_EXECUTABLE} -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
         -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
-	-Dcom.amazon.corretto.crypto.provider.extrachecks=ALL
+        -Dcom.amazon.corretto.crypto.provider.extrachecks=ALL
         ${TEST_JAVA_ARGS}
         com.amazon.corretto.crypto.provider.test.TestRunner --suite integration
 
@@ -715,6 +722,8 @@ add_custom_target(run-benchmark
     DEPENDS accp-jar tests-jar)
 
 set_target_properties(run-benchmark PROPERTIES EXCLUDE_FROM_ALL 1)
+
+if (CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
 
 add_custom_target(run-dieharder
     COMMAND ${TEST_JAVA_EXECUTABLE} -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
@@ -813,6 +822,6 @@ add_custom_target(check-dieharder-threads
     COMMAND ! grep rdseed /proc/cpuinfo || grep PASSED dieharder-threads-results-rdseed-tail.txt
 
     DEPENDS run-dieharder-threads-tail run-dieharder-threads-rdrand-tail run-dieharder-threads-rdseed-tail run-dieharder-threads)
-
+endif() # End of Dieharder targets
 # Do this at the end, after we finish all our feature tests, or it'll be missing flags
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/csrc/config.h.in ${JNI_HEADER_DIR}/config.h)

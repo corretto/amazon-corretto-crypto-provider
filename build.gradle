@@ -59,6 +59,10 @@ task buildOpenSsl {
     outputs.file("${buildDir}/openssl/bin/lib/libcrypto.a")
     dependsOn getOpensslSrc
     doLast {
+        // Remove this once the patch is incorporated into an official OpenSSL release
+        ant.patch(patchfile: "${projectDir}/arm.patch",
+            dir: "${buildDir}/openssl/src",
+            strip: 1)
         exec {
             workingDir "${buildDir}/openssl/src"
             commandLine './config', '-fPIC', '-ffunction-sections', '-fdata-sections', "--prefix=${buildDir}/openssl/bin", 'no-autoload-config', 'no-capieng', 'no-cms', 'no-comp', 'no-ct', 'no-dgram', 'no-devcryptoeng', 'no-gost', 'no-hw-padlock', 'no-nextprotoneg', 'no-ocsp', 'no-psk', 'no-rfc3779', 'no-shared', 'no-sock', 'no-srp', 'no-srtp', 'threads', 'no-ts',  "no-bf", "no-cast", "no-md2", "no-rc2", "no-rc4", "no-rc5", "no-srp", 'no-comp', 'no-hw', 'no-mdc2'

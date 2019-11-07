@@ -75,11 +75,13 @@ This library is compatible with:
 * OpenJDK 8 or newer (This includes [Amazon Corretto](https://aws.amazon.com/corretto/))
 * OracleJDK 8 or newer
 * Linux x86_64
+* Linux ARM64/aarch64 **(EXPERIMENTAL)**
 
 If ACCP is used/installed on a system it does not support, it will disable itself and the JVM will behave as if ACCP weren't installed at all.
 
-## Future Compatibility (Soon)
-* ARM64
+ARM64/aarch64 support is currently experimental and not distributed via Maven.
+If you want to experiment with ACCP on aarch64 platforms you will need to build it yourself as described later in this document.
+
 
 # Using the provider
 ## Installation
