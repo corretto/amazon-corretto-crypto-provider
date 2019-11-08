@@ -166,12 +166,7 @@ class EcGen extends KeyPairGeneratorSpi {
     public void initialize(final int keysize, final SecureRandom random)
             throws InvalidParameterException {
         try {
-            final String curveName;
-            if (keysize == 192 || keysize == 256) {
-                curveName = "secp" + keysize + "k1";
-            } else {
-                curveName = "secp" + keysize + "r1";
-            }
+            final String curveName = "secp" + keysize + "r1";
             initialize(new ECGenParameterSpec(curveName), random);
         } catch (final InvalidAlgorithmParameterException ex) {
             throw new InvalidParameterException(ex.getMessage());

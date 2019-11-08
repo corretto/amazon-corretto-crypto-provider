@@ -7,6 +7,9 @@
 
 ### Patches
 * Detects stuck AMD Ryzen RDRAND and correctly treats as an error
+* `KeyPairGenerator` for "EC" keys when initialized with a `int` always uses "secp*r1" curves now.
+  This matches the behavior of SunEC.
+  **This changes the curves selected for 192 and 256 from secp192k1 to secp192r1/P-192 and secp256k1 to secp256r1/P-256 respectively.**
 
 ### Maintenance
 * Add prefix to test output lines indicating if suite will fail.
