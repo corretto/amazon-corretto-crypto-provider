@@ -4,13 +4,12 @@
 package com.amazon.corretto.crypto.provider.test;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import java.math.BigInteger;
 import java.security.GeneralSecurityException;
 import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidParameterException;
 import java.security.Key;
 import java.security.KeyFactory;
 import java.security.KeyPair;
@@ -42,6 +41,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class EcGenTest {
+    public static final int[] KNOWN_SIZES = {192, 224, 256, 384, 521};
     public static final String[][] KNOWN_CURVES = new String[][] {
             // Prime Curves
             new String[]{"secp112r1", "1.3.132.0.6"},
@@ -168,6 +168,28 @@ public class EcGenTest {
                 assertEquals("Private key survives encoding", nativePair.getPrivate(), bouncedKey);
             }
         }
+    }
+
+    @Test
+    public void knownSizes() throws GeneralSecurityException {
+        TestUtil.assumeMinimumVersion("1.2.0", nativeGen.getProvider());
+        for (int keysize : KNOWN_SIZES) {
+            nativeGen.initialize(keysize);
+            jceGen.initialize(keysize);
+
+            final KeyPair nativePair = nativeGen.generateKeyPair();
+            final KeyPair jcePair = jceGen.generateKeyPair();
+
+            final ECParameterSpec jceParams = ((ECPublicKey) jcePair.getPublic()).getParams();
+            final ECParameterSpec nativeParams = ((ECPublicKey) nativePair.getPublic()).getParams();
+            assertECEquals(Integer.toString(keysize), jceParams, nativeParams);
+        }
+    }
+
+    @Test
+    public void unknownSize() throws GeneralSecurityException {
+        TestUtil.assertThrows(InvalidParameterException.class,
+                () -> nativeGen.initialize(13));
     }
 
     @Test
