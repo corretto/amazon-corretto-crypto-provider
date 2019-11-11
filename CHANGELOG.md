@@ -7,20 +7,20 @@
 
 ### Patches
 * Detects stuck AMD Ryzen RDRAND and correctly treats as an error [PR #67](https://github.com/corretto/amazon-corretto-crypto-provider/pull/67)
-* `KeyPairGenerator` for "EC" keys when initialized with a `int` always uses "secp*r1" curves now.
+* When initialized with an `int`,`KeyPairGenerator` for "EC" keys now always uses "secp*r1" curves.
   This matches the behavior of SunEC.
-  **This changes the curves selected for 192 and 256 from secp192k1 to secp192r1/P-192 and secp256k1 to secp256r1/P-256 respectively.**
+  **This changes the curves selected for 192 from secp192k1 to secp192r1/P-192, and curves selected for 256 from secp256k1 to secp256r1/P-256.**
   [PR #68](https://github.com/corretto/amazon-corretto-crypto-provider/pull/68)
 
 ### Maintenance
-* Add prefix to test output lines indicating if suite will fail. [PR #63](https://github.com/corretto/amazon-corretto-crypto-provider/pull/63)
-* Now colored output from tests can be disabled by setting the environment variable `ACCP_TEST_COLOR` to `false` [PR #64](https://github.com/corretto/amazon-corretto-crypto-provider/pull/64)
+* Lines output by tests now contain a prefix indicating if suite will fail. [PR #63](https://github.com/corretto/amazon-corretto-crypto-provider/pull/63)
+* You can disable colored test output by setting the `ACCP_TEST_COLOR` environment variable to `false` [PR #64](https://github.com/corretto/amazon-corretto-crypto-provider/pull/64)
 
 ## 1.1.1
 
 ### Patches
 * `amazon-corretto-crypto-provider.security` updated to work on both JDK8 and JDK9+ [PR #49](https://github.com/corretto/amazon-corretto-crypto-provider/pull/49)
-* Improve performance of single-byte handling in message digests. [PR #53](https://github.com/corretto/amazon-corretto-crypto-provider/pull/53) and [PR #54](https://github.com/corretto/amazon-corretto-crypto-provider/pull/54)
+* Improved performance of single-byte handling in message digests. [PR #53](https://github.com/corretto/amazon-corretto-crypto-provider/pull/53) and [PR #54](https://github.com/corretto/amazon-corretto-crypto-provider/pull/54)
 
 ### Maintenance
 * Support using a different JDK for testing via the `TEST_JAVA_HOME` JVM property [PR #50](https://github.com/corretto/amazon-corretto-crypto-provider/pull/50)
