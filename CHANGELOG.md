@@ -13,7 +13,7 @@
   [PR #68](https://github.com/corretto/amazon-corretto-crypto-provider/pull/68)
 
 ### Maintenance
-* Lines output by tests now contain a prefix indicating if suite will fail. [PR #63](https://github.com/corretto/amazon-corretto-crypto-provider/pull/63)
+* The test output now contains a prefix indication whether the suite will fail. [PR #63](https://github.com/corretto/amazon-corretto-crypto-provider/pull/63)
 * You can disable colored test output by setting the `ACCP_TEST_COLOR` environment variable to `false` [PR #64](https://github.com/corretto/amazon-corretto-crypto-provider/pull/64)
 
 ## 1.1.1
