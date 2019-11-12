@@ -10,6 +10,7 @@
 
 #undef NDEBUG
 
+#include "env.h"
 #include "rdrand.h"
 #include "config.h"
 #include <stdlib.h>
@@ -37,6 +38,16 @@ bool rng_alternating(uint64_t *out) {
     }
 
     *out = counter;
+    return true;
+}
+
+bool rng_stuck_zero(uint64_t *out) {
+    *out = 0;
+    return true;
+}
+
+bool rng_stuck_ff(uint64_t *out) {
+    *out = UINT64_MAX;
     return true;
 }
 
@@ -196,6 +207,25 @@ void when_rdseed_broken_rdrand_reduction_used() {
     TEST_ASSERT(!memcmp(expected, buf, sizeof(buf)));
 }
 
+void when_rdrand_stuck_failure_returned() {
+    static const uint8_t expected[32] = { 0 };
+    static uint8_t buf[32];
+
+    hook_rdrand = rng_stuck_zero;
+
+    memset(buf, 1, sizeof(buf));
+
+    TEST_ASSERT(!rdrand(buf, sizeof(buf)));
+    TEST_ASSERT(!memcmp(expected, buf, sizeof(buf)));
+
+    memset(buf, 1, sizeof(buf));
+
+    hook_rdrand = rng_stuck_ff;
+
+    TEST_ASSERT(!rdrand(buf, sizeof(buf)));
+    TEST_ASSERT(!memcmp(expected, buf, sizeof(buf)));
+}
+
 } // anon namespace
 
 #define RUNTEST(name) do { \
@@ -220,6 +250,7 @@ int main() {
     RUNTEST(when_rng_fails_late_buffer_is_still_cleared);
     RUNTEST(when_rdrand_broken_rdseed_works_eventually);
     RUNTEST(when_rdseed_broken_rdrand_reduction_used);
+    RUNTEST(when_rdrand_stuck_failure_returned);
 
     return success ? 0 : 1;
 }

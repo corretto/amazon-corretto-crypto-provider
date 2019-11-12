@@ -4,6 +4,7 @@
 package com.amazon.corretto.crypto.provider.test;
 
 import static java.lang.String.format;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.assumeMinimumVersion;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyConstruct;
 import static org.junit.Assert.*;
@@ -15,9 +16,11 @@ import java.util.Arrays;
 
 import org.junit.Test;
 
+import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import com.amazon.corretto.crypto.provider.InputBuffer;
 
 public class InputBufferTest {
+    private static final AmazonCorrettoCryptoProvider PROVIDER = AmazonCorrettoCryptoProvider.INSTANCE; // used for version checks
 
     @SuppressWarnings("unchecked")
     private <T, S> InputBuffer<T, S> getBuffer(int capacity) {
@@ -30,8 +33,9 @@ public class InputBufferTest {
 
     @Test
     public void requiresPositiveCapacity() throws Throwable {
-        assertThrows(IllegalArgumentException.class, () -> sneakyConstruct(InputBuffer.class.getName(), Integer.valueOf(0)));
         assertThrows(IllegalArgumentException.class, () -> sneakyConstruct(InputBuffer.class.getName(), Integer.valueOf(-1)));
+        assumeMinimumVersion("1.1.1", AmazonCorrettoCryptoProvider.INSTANCE);
+        assertThrows(IllegalArgumentException.class, () -> sneakyConstruct(InputBuffer.class.getName(), Integer.valueOf(0)));
     }
 
     @Test
@@ -74,6 +78,7 @@ public class InputBufferTest {
 
     @Test
     public void singleByteUpdates() {
+        assumeMinimumVersion("1.1.1", AmazonCorrettoCryptoProvider.INSTANCE);
         byte[] expected = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
         final ByteBuffer result = ByteBuffer.allocate(2);
         // In all cases, the byte being processed should be exactly one byte and one byte behind.

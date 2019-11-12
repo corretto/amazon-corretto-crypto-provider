@@ -23,6 +23,10 @@
 #include <openssl/err.h>
 #endif
 
+#ifndef UINT64_MAX
+#define UINT64_MAX (~((uint64_t) 0))
+#endif
+
 namespace AmazonCorrettoCryptoProvider {
     void capture_trace(std::vector<void *> &trace) COLD;
     void format_trace(std::ostringstream &, const std::vector<void *> &trace) COLD;

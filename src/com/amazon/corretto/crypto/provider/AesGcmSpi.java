@@ -191,12 +191,6 @@ final class AesGcmSpi extends CipherSpi {
      */
     private static native void releaseContext(long ptr);
 
-    // Exposed for testing
-    static native void configureLeakTracking(boolean enable);
-    static native long getOutstandingInstanceCount();
-
-
-
     private static final int BLOCK_SIZE = 128 / 8;
 
     private NativeResource context = null;

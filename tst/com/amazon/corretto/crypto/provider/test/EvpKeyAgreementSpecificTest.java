@@ -32,27 +32,25 @@ public class EvpKeyAgreementSpecificTest {
     private static final Class<?> SPI_CLASS;
     private static final int EC_TYPE = 408;
     private static final int DH_TYPE = 28;
-    private final KeyPair EC_KEYPAIR;
-    private final KeyPair DH_KEYPAIR;
+    private static final KeyPair EC_KEYPAIR;
+    private static final KeyPair DH_KEYPAIR;
 
     static {
       try {
           SPI_CLASS = Class.forName("com.amazon.corretto.crypto.provider.EvpKeyAgreement");
-      } catch (final ClassNotFoundException ex) {
+
+          // Force loading of native library
+          KeyAgreement.getInstance("ECDH", AmazonCorrettoCryptoProvider.INSTANCE);
+
+          KeyPairGenerator gen = KeyPairGenerator.getInstance("EC");
+          gen.initialize(new ECGenParameterSpec("NIST P-224"));
+          EC_KEYPAIR = gen.generateKeyPair();
+          gen = KeyPairGenerator.getInstance("DH");
+          gen.initialize(1024);
+          DH_KEYPAIR = gen.generateKeyPair();
+      } catch (final Exception ex) {
           throw new AssertionError(ex);
       }
-    }
-
-    public EvpKeyAgreementSpecificTest() throws GeneralSecurityException {
-        // Force loading of native library
-        KeyAgreement.getInstance("ECDH", AmazonCorrettoCryptoProvider.INSTANCE);
-
-        KeyPairGenerator gen = KeyPairGenerator.getInstance("EC");
-        gen.initialize(new ECGenParameterSpec("NIST P-224"));
-        EC_KEYPAIR = gen.generateKeyPair();
-        gen = KeyPairGenerator.getInstance("DH");
-        gen.initialize(1024);
-        DH_KEYPAIR = gen.generateKeyPair();
     }
 
     @Test

@@ -7,7 +7,7 @@ plugins {
 }
 
 group = 'software.amazon.cryptools'
-version = '1.1.1'
+version = '1.2.0'
 
 configurations {
     jacocoAgent
@@ -42,7 +42,7 @@ task getOpensslSrc {
         mkdir "${buildDir}/openssl/bin"
         exec {
             workingDir "${buildDir}/openssl"
-            commandLine 'wget', 'https://www.openssl.org/source/openssl-1.0.2r.tar.gz'
+            commandLine 'wget', 'https://www.openssl.org/source/openssl-1.1.1d.tar.gz'
         }
         exec {
             workingDir "${buildDir}/openssl"
@@ -50,7 +50,7 @@ task getOpensslSrc {
         }
         exec {
             workingDir "${buildDir}/openssl/src"
-            commandLine 'tar', '-xzv', '-C', "${buildDir}/openssl/src", '--strip-components=1', '-f', "${buildDir}/openssl/openssl-1.0.2r.tar.gz"
+            commandLine 'tar', '-xzv', '-C', "${buildDir}/openssl/src", '--strip-components=1', '-f', "${buildDir}/openssl/openssl-1.1.1d.tar.gz"
         }
     }
 }
@@ -61,7 +61,7 @@ task buildOpenSsl {
     doLast {
         exec {
             workingDir "${buildDir}/openssl/src"
-            commandLine './config', '-fPIC', '-ffunction-sections', '-fdata-sections', "--prefix=${buildDir}/openssl/bin", "threads", "no-zlib", "no-shared", "no-bf", "no-cast", "no-md2", "no-rc2", "no-rc4", "no-rc5", "no-jpake", "no-krb5", "no-ripemd", "no-srp", 'no-comp', 'no-hw', 'no-mdc2'
+            commandLine './config', '-fPIC', '-ffunction-sections', '-fdata-sections', "--prefix=${buildDir}/openssl/bin", 'no-autoload-config', 'no-capieng', 'no-cms', 'no-comp', 'no-ct', 'no-dgram', 'no-devcryptoeng', 'no-gost', 'no-hw-padlock', 'no-nextprotoneg', 'no-ocsp', 'no-psk', 'no-rfc3779', 'no-shared', 'no-sock', 'no-srp', 'no-srtp', 'threads', 'no-ts',  "no-bf", "no-cast", "no-md2", "no-rc2", "no-rc4", "no-rc5", "no-srp", 'no-comp', 'no-hw', 'no-mdc2'
         }
         exec {
             workingDir "${buildDir}/openssl/src"
@@ -339,7 +339,7 @@ if (project.hasProperty('mavenUser') && project.hasProperty('jcecertAlias')) {
         }
         repositories {
             maven {
-                url = 'https://oss.sonatype.org/service/local/staging/deploy/maven2/'
+                url = 'https://aws.oss.sonatype.org/service/local/staging/deploy/maven2/'
                 credentials {
                     username mavenUser
                     password mavenPassword

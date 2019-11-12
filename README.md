@@ -1,5 +1,5 @@
 # Amazon Corretto Crypto Provider
-The Amazon Corretto Crypto Provider (ACCP) is a collection of high-performance cryptographic implementations exposed via the standard [JCA/JCE](https://docs.oracle.com/en/java/javase/11/security/java-cryptography-architecture-jca-reference-guide.html) interfaces. This means that it can be used as a drop in replacement for many different Java applications. Currently algorithms are primarily backed by OpenSSL's implementations but this may change in the future.
+The Amazon Corretto Crypto Provider (ACCP) is a collection of high-performance cryptographic implementations exposed via the standard [JCA/JCE](https://docs.oracle.com/en/java/javase/11/security/java-cryptography-architecture-jca-reference-guide.html) interfaces. This means that it can be used as a drop in replacement for many different Java applications. Currently algorithms are primarily backed by OpenSSL's implementations (1.1.1d) but this may change in the future.
 
 ## Build Status
 Please be aware that "Overkill" tests are known to be flakey
@@ -76,9 +76,17 @@ If ACCP is used/installed on a system it does not support, it will disable itsel
 
 # Using the provider
 ## Installation
+Installing via Maven or Gradle is the easiest way to get ACCP and ensure you
+will always have the most recent version. We strongly recommend you always pull
+in the latest version for best performance and bug-fixes.
+
+Whether you're using Maven, Gradle, or some other build system that also pulls
+packages from Maven Central, it's important to specify `linux-x86_64` as the
+classifier. You'll get an empty package otherwise.
+
 ### Maven
-Installing via Maven is the easiest way and will also ensure you have the most recent version.
-We strongly recommend you always pull in the latest version for best performance and bug-fixes.
+Add the following to your `pom.xml` or wherever you configure your Maven dependencies.
+
 ```xml
 <dependency>
   <groupId>software.amazon.cryptools</groupId>
@@ -86,6 +94,17 @@ We strongly recommend you always pull in the latest version for best performance
   <version>LATEST</version>
   <classifier>linux-x86_64</classifier>
 </dependency>
+```
+
+### Gradle
+Add the following to your `build.gradle` file. If you already have a
+`dependencies` block in your `build.gradle`, you can add the ACCP line to your
+existing block. 
+
+```groovy
+dependencies {
+    implementation 'software.amazon.cryptools:AmazonCorrettoCryptoProvider:1.+:linux-x86_64'
+}
 ```
 
 ### Manual

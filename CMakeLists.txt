@@ -31,6 +31,9 @@ endif()
 find_package(JNI REQUIRED)
 include(FindOpenSSL)
 
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
+
 set(BUILD_CLASSPATH "" CACHE STRING "Classpath to JARs to be included at build time")
 set(TEST_CLASSPATH "" CACHE STRING "Classpath to be included at test build and test execution time")
 set(SIGNED_JAR "" CACHE STRING "Path to a pre-signed JAR file, to be used instead of compiling the java source")
@@ -505,6 +508,9 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DPROVIDER_VERSION_STRING=${PROVIDER_VER
 string(STRIP "${PROBED_LINKED_FLAGS}" PROBED_LINKED_FLAGS)
 MESSAGE(STATUS "probed flags ${PROBED_LINKED_FLAGS}")
 target_link_libraries(amazonCorrettoCryptoProvider ${PROBED_LINKED_FLAGS})
+
+# Add pthread support
+target_link_libraries(amazonCorrettoCryptoProvider Threads::Threads)
 
 ## Tests
 add_jar(
