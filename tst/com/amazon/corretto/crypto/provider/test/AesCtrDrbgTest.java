@@ -197,8 +197,8 @@ public class AesCtrDrbgTest {
         final Constructor<AesCtrDrbg> testConstructor = getTestConstructor();
         int tests = 0;
 
-        try (final Scanner in = new Scanner(
-                AmazonCorrettoCryptoProvider.class.getResourceAsStream("/test-data/ctr-drbg.txt"), StandardCharsets.US_ASCII.name())) {
+        try (final Scanner in = new Scanner(TestUtil.sneakyGetTestData("ctr-drbg.txt"), 
+                                            StandardCharsets.US_ASCII.name())) {
             while (in.hasNext()) {
                 tests++;
                 final int bytesGenerated = in.nextInt() / 8;

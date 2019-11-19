@@ -88,8 +88,8 @@ public class HmacTest {
 
     @Test
     public void knownValue() throws Throwable {
-        try (final Scanner in = new Scanner(
-                AmazonCorrettoCryptoProvider.class.getResourceAsStream("/test-data/hmac.txt"), StandardCharsets.US_ASCII.name())) {
+        try (final Scanner in = new Scanner(TestUtil.sneakyGetTestData("hmac.txt"), 
+                                            StandardCharsets.US_ASCII.name())) {
             while (in.hasNext()) {
                 final String type = in.next();
                 SecretKey key = new SecretKeySpec(Hex.decodeHex(in.next().toCharArray()), "HMAC");
