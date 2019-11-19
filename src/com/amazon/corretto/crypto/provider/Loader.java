@@ -28,7 +28,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 final class Loader {
-    private static final String RESOURCE_PATH = "com/amazon/corretto/crypto/provider/";
     private static final String PROPERTY_BASE = "com.amazon.corretto.crypto.provider.";
     private static final String LIBRARY_NAME = "amazonCorrettoCryptoProvider";
     private static final Pattern TEST_FILENAME_PATTERN = Pattern.compile("[-a-zA-Z0-9]+(\\.[a-zA-Z0-9]+)*");
@@ -44,18 +43,18 @@ final class Loader {
     static final String PROVIDER_VERSION_STR;
 
     /**
-     * Returns an InputStream associated with {@code fileName} contained in the "/test-data/" directory of the jar
-     * containing this class file.
+     * Returns an InputStream associated with {@code fileName} contained in the "testdata" subdirectory, relative
+     * to the location of this class file within the jar/jmod.
      */
     static InputStream getTestData(String fileName) {
         if (!TEST_FILENAME_PATTERN.matcher(fileName).matches()) {
             throw new IllegalArgumentException("Invalid filename: " + fileName);
         }
         final InputStream result = AccessController.doPrivileged(
-                (PrivilegedAction<InputStream>) () -> Loader.class.getResourceAsStream("/test-data/" + fileName)
+                (PrivilegedAction<InputStream>) () -> Loader.class.getResourceAsStream("testdata/" + fileName)
         );
         if (result == null) {
-            throw new AssertionError("Unable to load test data from file /test-data/" + fileName);
+            throw new AssertionError("Unable to load test data from file testdata/" + fileName);
         }
         return result;
     }
@@ -86,7 +85,7 @@ final class Loader {
 
         try {
             versionStr = AccessController.doPrivileged((PrivilegedExceptionAction<String>) () -> {
-                try (InputStream is = Loader.class.getClassLoader().getResourceAsStream(RESOURCE_PATH + "version.properties")) {
+                try (InputStream is = Loader.class.getResourceAsStream("version.properties")) {
                     Properties p = new Properties();
                     p.load(is);
                     return p.getProperty("versionStr");
@@ -114,8 +113,7 @@ final class Loader {
                     final String suffix = libraryName.substring(index, libraryName.length());
 
                     final Path libPath = createTmpFile(prefix, suffix);
-                    libraryName = RESOURCE_PATH + libraryName;
-                    try (final InputStream is = Loader.class.getClassLoader().getResourceAsStream(libraryName);
+                    try (final InputStream is = Loader.class.getResourceAsStream(libraryName);
                          final OutputStream os = Files.newOutputStream(libPath, StandardOpenOption.CREATE,
                                  StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING)) {
                         final byte[] buffer = new byte[16 * 1024];
