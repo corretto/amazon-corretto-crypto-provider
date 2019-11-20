@@ -1,8 +1,7 @@
 package com.amazon.corretto.crypto.provider;
 
 import java.util.Arrays;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.atomic.AtomicIntegerArray;
+import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
  * Caches instances of {@code byte[]} for re-use.
@@ -11,18 +10,23 @@ import java.util.concurrent.atomic.AtomicIntegerArray;
  * By default this is 256MB.
  */
 class ArrayCache {
-    private static final int CACHE_SIZE = Integer.parseInt(Loader.getProperty("arrayCacheSize", "512"));
+    private static final int STEP_SIZE = 17;
+    private static final int CACHE_SIZE = Integer.parseInt(Loader.getProperty("arrayCacheSize", "128"));
+    private static final int CACHE_STEP_LIMIT = Integer.parseInt(Loader.getProperty("arrayCacheStepLimit", "64"));
     private static final int MAX_ARRAY_SIZE = 1024;
+    private static final ThreadLocal<Integer> START_INDEX = new ThreadLocal<Integer>() {
+        @Override
+        protected Integer initialValue() {
+            return Long.hashCode(Thread.currentThread().getId()) % CACHE_SIZE;
+        }
+    };
     @SuppressWarnings({"unchecked", "rawtypes"})
-    private static final ConcurrentLinkedQueue<byte[]>[] QUEUES =
-            (ConcurrentLinkedQueue<byte[]>[]) new ConcurrentLinkedQueue[MAX_ARRAY_SIZE + 1];
-    private static AtomicIntegerArray QUEUE_SIZES = new AtomicIntegerArray(QUEUES.length);
-
-    private static AtomicIntegerArray TMP = new AtomicIntegerArray(QUEUES.length);
+    private static final AtomicReferenceArray<byte[]>[] QUEUES =
+            (AtomicReferenceArray<byte[]>[]) new AtomicReferenceArray[MAX_ARRAY_SIZE + 1];
 
     static {
         for (int x = 1; x < QUEUES.length; x++) {
-            QUEUES[x] = new ConcurrentLinkedQueue<>();
+            QUEUES[x] = new AtomicReferenceArray<>(CACHE_SIZE);
         }
     }
 
@@ -33,31 +37,37 @@ class ArrayCache {
         if (length > MAX_ARRAY_SIZE) {
             return new byte[length];
         }
-        final ConcurrentLinkedQueue<byte[]> queue = QUEUES[length];
+        int startIndex = START_INDEX.get();
 
-        final byte[] result = queue.poll();
-        if (result == null) {
-            // The cache is empty
-            return new byte[length];
+        final AtomicReferenceArray<byte[]> queue = QUEUES[length];
+        for (int x = 0; x < CACHE_STEP_LIMIT; x++) {
+            final byte[] candidate = queue.getAndSet(startIndex, null);
+            if (candidate != null) {
+                logItem(String.format("Retrieved array of size %d, after %d steps%n", length, x), false);
+                START_INDEX.set(startIndex);
+                return candidate;
+            }
+            startIndex = (STEP_SIZE + startIndex) % CACHE_SIZE;
         }
 
-        // Decrement our counter
-        QUEUE_SIZES.decrementAndGet(length);
-
-        // Return the cached item
-        return result;
+        // Nothing found, create a new one and return
+        return new byte[length];
     }
 
     public static byte[] clone(final byte[] array) {
+        if (array.length == 0) {
+            return Utils.EMPTY_ARRAY;
+        }
         final byte[] result = getArray(array.length);
         if (result != null) {
-            System.arraycopy(array, 0, result, 0, array.length);
+            System.arraycopy(array, 0, array, 0, array.length);
             return result;
         } else {
             return array.clone();
         }
     }
 
+//    @SuppressWarnings("deprecation")
     public static void offerArray(final byte[] array) {
         final int length = array.length;
         if (length == 0) {
@@ -68,21 +78,33 @@ class ArrayCache {
             return;
         }
 
-        final ConcurrentLinkedQueue<byte[]> queue = QUEUES[length];
+        int startIndex = START_INDEX.get();
 
-        if (QUEUE_SIZES.get(length) > CACHE_SIZE) {
-            // We have enough already, so drop it
-            return;
+        final AtomicReferenceArray<byte[]> queue = QUEUES[length];
+        for (int x = 0; x < CACHE_STEP_LIMIT; x++) {
+            // TODO: Verify that this is the correct method
+            if (queue.compareAndSet(startIndex, null, array)) {
+                STACK_TRACE.set(new AssertionError());
+                logItem(String.format("Offered array of size %d, after %d steps%n", length, x), false);
+                Arrays.fill(array, (byte) 0);
+                START_INDEX.set(startIndex);
+                return;
+            }
+            startIndex = (STEP_SIZE - startIndex) % CACHE_SIZE;
+            if (startIndex < 0) {
+                startIndex += CACHE_SIZE;
+            }
         }
+    }
 
-        // Wipe any potentially sensitive data
-        Arrays.fill(array, (byte) 0);
-
-        // Increment our count
-        // Yes, in a highly contested case we may end up with more than the max. That's okay.
-        QUEUE_SIZES.incrementAndGet(length);
-
-        // Save the array for reuse
-        queue.add(array);
+    private static final ThreadLocal<Throwable> STACK_TRACE = new ThreadLocal<>();
+    public static synchronized void logItem(String msg, boolean quit) {
+        System.err.print(Thread.currentThread().getName() + " >> " +  msg);
+        if (quit) {
+            if (STACK_TRACE.get() != null) {
+                STACK_TRACE.get().printStackTrace();;
+            }
+            System.exit(-1);
+        }
     }
 }

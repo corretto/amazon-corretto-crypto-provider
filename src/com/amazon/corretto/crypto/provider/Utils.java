@@ -191,11 +191,14 @@ final class Utils {
 
     private static void assertArrayEquals(String message, byte[] expected, byte[] actual) {
         if (!Arrays.equals(expected, actual)) {
-            throw new AssertionError("Arrays do not match: " + message);
+            ArrayCache.logItem(message + "\n" + Arrays.toString(expected) + "\n" + Arrays.toString(actual) + "\n", true);
+//            System.exit(-1);
+//            throw new AssertionError("Arrays do not match: " + message);
         }
     }
 
     public static void testMac(Mac mac, SecretKey key, byte[] message, byte[] expected) throws GeneralSecurityException {
+        ArrayCache.logItem("Message length: " + message.length + "\n", false);
         mac.init(key);
         final int[] lengths = new int[] { 1, 3, 4, 7, 8, 16, 32, 48, 64, 128, 256 };
         final String alg = mac.getAlgorithm();
