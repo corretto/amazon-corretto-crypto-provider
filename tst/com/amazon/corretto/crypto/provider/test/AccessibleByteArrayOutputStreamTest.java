@@ -60,7 +60,10 @@ public class AccessibleByteArrayOutputStreamTest {
         instance.write(expected);
         assertArrayEquals(expected, sneakyInvoke(instance, "getDataBuffer"));
         sneakyInvoke(instance, "reset");
-        assertEquals(0, ((byte[]) sneakyInvoke(instance, "getDataBuffer"))[0] );
+        byte[] internal = sneakyInvoke(instance, "getDataBuffer");
+        if (internal.length != 0) {
+            assertEquals(0, internal[0]);
+        }
         instance.write(expected);
         assertArrayEquals(expected, sneakyInvoke(instance, "getDataBuffer"));
     }
