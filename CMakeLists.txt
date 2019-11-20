@@ -106,6 +106,7 @@ set(ACCP_SRC
         src/com/amazon/corretto/crypto/provider/AccessibleByteArrayOutputStream.java
         src/com/amazon/corretto/crypto/provider/AesCtrDrbg.java
         src/com/amazon/corretto/crypto/provider/AesGcmSpi.java
+        src/com/amazon/corretto/crypto/provider/ArrayCache.java
         src/com/amazon/corretto/crypto/provider/EcGen.java
         src/com/amazon/corretto/crypto/provider/EvpKeyAgreement.java
         src/com/amazon/corretto/crypto/provider/EvpKeyType.java

@@ -40,6 +40,9 @@ public final class TemplateHashSpi extends MessageDigestSpi implements Cloneable
         HASH_SIZE = getHashSize();
     }
 
+    private static byte[] cloneInitialContext() {
+        return ArrayCache.clone(INITIAL_CONTEXT);
+    }
     /**
      * Single-shot digest routine - digests the given byte array and immediately returns the result
      * @param digest Output buffer - must have at least getHashSize() bytes
@@ -112,7 +115,8 @@ public final class TemplateHashSpi extends MessageDigestSpi implements Cloneable
         Loader.checkNativeLibraryAvailability();
 
         this.buffer = new InputBuffer<byte[], byte[]>(1024)
-            .withInitialStateSupplier(INITIAL_CONTEXT::clone)
+            .withInitialStateSupplier(TemplateHashSpi::cloneInitialContext)
+            .withStateResetter(ArrayCache::offerArray)
             .withUpdater(TemplateHashSpi::synchronizedUpdateContextByteArray)
             .withUpdater(TemplateHashSpi::synchronizedUpdateNativeByteBuffer)
             .withDoFinal((context) -> {

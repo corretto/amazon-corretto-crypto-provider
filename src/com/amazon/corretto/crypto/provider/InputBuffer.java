@@ -232,7 +232,7 @@ public class InputBuffer<T, S> implements Cloneable {
         if (state != null) {
             stateResetter.accept(state);
         }
-        state = stateSupplier.get();
+        state = null;
         /*@ set bytesReceived = 0;
           @ set bytesProcessed = 0;
           @ set bufferState = ((bufferState == BufferState.Uninitialized)
