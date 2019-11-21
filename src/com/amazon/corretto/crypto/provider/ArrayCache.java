@@ -7,19 +7,19 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  * Caches instances of {@code byte[]} for re-use.
  *
  * The maximum data cached is {@code arrayCacheSize * 512}KB.
- * By default this is 256MB.
+ * By default this is 63.5MB
  */
 class ArrayCache {
-    private static final int STEP_SIZE = 17;
-    private static final int CACHE_SIZE = Integer.parseInt(Loader.getProperty("arrayCacheSize", "128"));
+    // This should be a prime number.
+    private static final int CACHE_SIZE = Integer.parseInt(Loader.getProperty("arrayCacheSize", "127"));
     private static final int CACHE_STEP_LIMIT = Integer.parseInt(Loader.getProperty("arrayCacheStepLimit", "16"));
     private static final int MAX_ARRAY_SIZE = 1024;
-    private static final ThreadLocal<Integer> START_INDEX = new ThreadLocal<Integer>() {
-        @Override
-        protected Integer initialValue() {
-            return Long.hashCode(Thread.currentThread().getId()) % CACHE_SIZE;
-        }
-    };
+
+    private static Integer getStepSize() {
+        return Long.hashCode(Thread.currentThread().getId()) % CACHE_SIZE;
+    }
+    private static final ThreadLocal<Integer> START_INDEX = ThreadLocal.withInitial(ArrayCache::getStepSize);
+
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static final AtomicReferenceArray<byte[]>[] QUEUES =
             (AtomicReferenceArray<byte[]>[]) new AtomicReferenceArray[MAX_ARRAY_SIZE + 1];
@@ -37,6 +37,7 @@ class ArrayCache {
         if (length > MAX_ARRAY_SIZE) {
             return new byte[length];
         }
+        final int stepSize = getStepSize();
         int startIndex = START_INDEX.get();
 
         final AtomicReferenceArray<byte[]> queue = QUEUES[length];
@@ -46,7 +47,7 @@ class ArrayCache {
                 START_INDEX.set(startIndex);
                 return candidate;
             }
-            startIndex = (STEP_SIZE + startIndex) % CACHE_SIZE;
+            startIndex = (stepSize + startIndex) % CACHE_SIZE;
         }
 
         // Nothing found, create a new one and return
@@ -77,6 +78,7 @@ class ArrayCache {
             return;
         }
 
+        final int stepSize = getStepSize();
         int startIndex = START_INDEX.get();
 
         Arrays.fill(array, (byte) 0); // This must come before we potentially store it
@@ -87,7 +89,7 @@ class ArrayCache {
                 START_INDEX.set(startIndex);
                 return;
             }
-            startIndex = (STEP_SIZE - startIndex) % CACHE_SIZE;
+            startIndex = (stepSize - startIndex) % CACHE_SIZE;
             if (startIndex < 0) {
                 startIndex += CACHE_SIZE;
             }
