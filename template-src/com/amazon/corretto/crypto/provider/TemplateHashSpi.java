@@ -41,7 +41,7 @@ public final class TemplateHashSpi extends MessageDigestSpi implements Cloneable
     }
 
     private static byte[] cloneInitialContext() {
-        return ArrayCache.clone(INITIAL_CONTEXT);
+        return ArrayCache.INSTANCE.clone(INITIAL_CONTEXT);
     }
     /**
      * Single-shot digest routine - digests the given byte array and immediately returns the result
@@ -116,7 +116,7 @@ public final class TemplateHashSpi extends MessageDigestSpi implements Cloneable
 
         this.buffer = new InputBuffer<byte[], byte[]>(1024)
             .withInitialStateSupplier(TemplateHashSpi::cloneInitialContext)
-            .withStateResetter(ArrayCache::offerArray)
+            .withStateResetter(ArrayCache.INSTANCE::offerArray)
             .withUpdater(TemplateHashSpi::synchronizedUpdateContextByteArray)
             .withUpdater(TemplateHashSpi::synchronizedUpdateNativeByteBuffer)
             .withDoFinal((context) -> {

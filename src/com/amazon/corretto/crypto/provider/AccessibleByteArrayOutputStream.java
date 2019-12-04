@@ -5,7 +5,6 @@ package com.amazon.corretto.crypto.provider;
 
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 
 // Note: Please consult the "How to Read JML" readme to understand the JML annotations
 // in this file (contained in //@ or /*@ @*/ comments).
@@ -51,7 +50,7 @@ class AccessibleByteArrayOutputStream extends OutputStream implements Cloneable 
         if (capacity < 0 || capacity > limit) {
             throw new IllegalArgumentException("Capacity must be non-negative and less than limit");
         }
-        buf = capacity == 0 ? Utils.EMPTY_ARRAY : ArrayCache.getArray(capacity);
+        buf = ArrayCache.INSTANCE.getArray(capacity);
         this.limit = limit;
         count = 0;
     }
@@ -144,7 +143,7 @@ class AccessibleByteArrayOutputStream extends OutputStream implements Cloneable 
     //@   ensures count == 0;
     //@   // ensures (\forall int i; 0 <= i && i < \old(count); buf[i] == 0);
     void reset() {
-        ArrayCache.offerArray(buf);
+        ArrayCache.INSTANCE.offerArray(buf);
         buf = Utils.EMPTY_ARRAY;
         count = 0;
     }
@@ -205,9 +204,9 @@ class AccessibleByteArrayOutputStream extends OutputStream implements Cloneable 
         
         //@ use lemma_can_be_doubled(buf.length);
         final int predictedSize = Math.min(limit, buf.length << 1);
-        final byte[] tmp = ArrayCache.getArray(Math.max(predictedSize, newCapacity));
+        final byte[] tmp = ArrayCache.INSTANCE.getArray(Math.max(predictedSize, newCapacity));
         System.arraycopy(buf, 0, tmp, 0, buf.length);
-        ArrayCache.offerArray(buf);
+        ArrayCache.INSTANCE.offerArray(buf);
         buf = tmp;
     }
 }
