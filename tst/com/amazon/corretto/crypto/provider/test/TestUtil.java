@@ -193,7 +193,7 @@ public class TestUtil {
         return new FileInputStream(new File(TEST_DIR, fileName));
     }
 
-    public static Object sneakyGetField(final Object object, final String fieldName) {
+    public static <T> T sneakyGetField(final Object object, final String fieldName) {
         Field field;
         Object instance;
 
@@ -208,7 +208,7 @@ public class TestUtil {
         field.setAccessible(true);
 
         try {
-            return field.get(instance);
+            return (T) field.get(instance);
         } catch (IllegalAccessException e) {
             throw new RuntimeException(e);
         }

@@ -1,3 +1,6 @@
+// Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 package com.amazon.corretto.crypto.provider;
 
 import java.util.Arrays;
@@ -9,7 +12,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  * or referenced after being passed to {@link #offerArray(byte[])}.</em>
  *
  * <p>With the <em>exception of zero-length-arrays</em> this acts equivalently to creating and discarding new arrays each-time.
- * A single zero-length array is used for all calls. This is safe provided you don't use it for locking or other
+ * Zero-length arrays may be deduped. This is safe provided you don't use it for locking or other
  * identity equality operations.</p>
  *
  * <p>The current implementation of this is a lock-free concurrent data-structure based on a number of instances of
@@ -49,7 +52,7 @@ class ArrayCache {
         public final int stepSize;
         public int location;
 
-        public ThreadState() {
+        private ThreadState() {
             // These numbers do not need to be securely random
             final ThreadLocalRandom insecureRandom = ThreadLocalRandom.current();
             stepSize = insecureRandom.nextInt(1, CACHE_SIZE); // Avoid 0 case
@@ -64,7 +67,7 @@ class ArrayCache {
     private final AtomicReferenceArray<byte[]>[] caches;
 
     @SuppressWarnings({"unchecked", "rawtypes"})
-    ArrayCache(int cacheSize, int cacheStepLimit, int maxArraySize) {
+    private ArrayCache(int cacheSize, int cacheStepLimit, int maxArraySize) {
         this.cacheSize = cacheSize;
         this.cacheStepLimit = cacheStepLimit;
         this.maxArraySize = maxArraySize;
@@ -83,7 +86,7 @@ class ArrayCache {
      * @param length size of the array to return
      * @return array
      */
-    public byte[] getArray(int length) {
+    byte[] getArray(int length) {
         if (length == 0) {
             return Utils.EMPTY_ARRAY;
         }
@@ -117,19 +120,14 @@ class ArrayCache {
      * @param array to be cloned
      * @return clone
      */
-    public byte[] clone(final byte[] array) {
+    byte[] clone(final byte[] array) {
         if (array.length == 0) {
-            return Utils.EMPTY_ARRAY;
+            return array;
         }
         final byte[] result = getArray(array.length);
-        if (result != null) {
-            System.arraycopy(array, 0, result, 0, array.length);
-            return result;
-        } else {
-            return array.clone();
-        }
+        System.arraycopy(array, 0, result, 0, array.length);
+        return result;
     }
-
 
     /**
      * Offers {@code array} for re-use by the cache.
@@ -141,7 +139,7 @@ class ArrayCache {
     // AtomicReferenceArray.weakCompareAndSet has the correct behavior and is present in Java 8.
     // Java9+ deprecates it in favor of weakCompareAndSetPlain (to avoid naming confusion).
     @SuppressWarnings("deprecation")
-    public void offerArray(final byte[] array) {
+    void offerArray(final byte[] array) {
         final int length = array.length;
         if (length == 0) {
             return;

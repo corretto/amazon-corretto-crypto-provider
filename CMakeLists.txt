@@ -521,6 +521,7 @@ add_jar(
         tst/com/amazon/corretto/crypto/provider/test/AESGenerativeTest.java
         tst/com/amazon/corretto/crypto/provider/test/AesCtrDrbgTest.java
         tst/com/amazon/corretto/crypto/provider/test/AesTest.java
+        tst/com/amazon/corretto/crypto/provider/test/ArrayCacheTest.java
         tst/com/amazon/corretto/crypto/provider/test/EcGenTest.java
         tst/com/amazon/corretto/crypto/provider/test/EvpKeyAgreementTest.java
         tst/com/amazon/corretto/crypto/provider/test/EvpKeyAgreementSpecificTest.java
