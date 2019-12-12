@@ -11,25 +11,17 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.nio.charset.StandardCharsets;
-import java.security.GeneralSecurityException;
-import java.security.InvalidAlgorithmParameterException;
-import java.security.InvalidKeyException;
-import java.security.Key;
-import java.security.KeyFactory;
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
-import java.security.PrivateKey;
-import java.security.PublicKey;
-import java.security.Signature;
-import java.security.SignatureException;
+import java.security.*;
 import java.security.interfaces.RSAPrivateKey;
-import java.security.spec.ECGenParameterSpec;
-import java.security.spec.PSSParameterSpec;
-import java.security.spec.RSAKeyGenParameterSpec;
-import java.security.spec.RSAPrivateKeySpec;
+import java.security.spec.*;
+import java.util.Base64;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.junit.Assert;
 import org.junit.Test;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
@@ -312,6 +304,108 @@ public class EvpSignatureSpecificTest {
             c.doFinal(new byte[32]);
         } catch (final AEADBadTagException ex) {
             // expected
+        }
+    }
+
+    /**
+     * This test iterates over every implemented algorithm and ensures that it is compatible with the
+     * equivalent BouncyCastle implementation. It doesn't check negative cases as the more detailed tests
+     * cover that for algorithm families.
+     */
+    @Test
+    public void simpleCorrectnessAllAlgorithms() throws Throwable {
+        final Pattern namePattern = Pattern.compile("(SHA(\\d+)|NONE)with([A-Z]+)(inP1363Format)?");
+        final Set<Provider.Service> services = AmazonCorrettoCryptoProvider.INSTANCE.getServices();
+        final byte[] message = {1, 2, 3, 4, 5, 6, 7, 8};
+        for (Provider.Service service : services) {
+            if (!service.getType().equals("Signature")) {
+                continue;
+            }
+            final String algorithm = service.getAlgorithm();
+            String bcAlgorithm = algorithm;
+            AlgorithmParameterSpec keyGenSpec = null;
+            String keyGenAlgorithm = null;
+            final Matcher m = namePattern.matcher(algorithm);
+
+            if (!m.matches()) {
+                Assert.fail("Unexpected algorithm name: " + algorithm);
+            }
+
+            final String shaLength = m.group(2);
+            final String base = m.group(3);
+            final String ieeeFormat = m.group(4);
+
+            int ffSize = 0; // Finite field size used with RSA and DSA
+            switch (m.group(1)) {
+                case "SHA1":
+                case "SHA224":
+                case "SHA256":
+                    ffSize = 2048;
+                    break;
+                case "SHA384":
+                    ffSize = 3072;
+                    break;
+                case "SHA512":
+                case "NONE":
+                    ffSize = 4096;
+                    break;
+                default:
+                    Assert.fail("Unexpected algorithm name: " + algorithm);
+            }
+            if ("ECDSA".equals(base)) {
+                keyGenAlgorithm = "EC";
+                if (null == shaLength || "1".equals(shaLength) || "512".equals(shaLength)) {
+                    keyGenSpec = new ECGenParameterSpec("NIST P-521");
+                } else {
+                    keyGenSpec = new ECGenParameterSpec("NIST P-" + shaLength);
+                }
+
+                if (ieeeFormat != null) {
+                    bcAlgorithm = bcAlgorithm.replace("withECDSAinP1363Format", "withPLAIN-ECDSA");
+                }
+            } else {
+                keyGenAlgorithm = base;
+                if (base.equals("DSA")) {
+                    ffSize = Math.min(ffSize, 3072);
+                }
+            }
+
+            final KeyPairGenerator kg = KeyPairGenerator.getInstance(keyGenAlgorithm);
+            if (keyGenSpec != null) {
+                kg.initialize(keyGenSpec);
+            } else {
+                kg.initialize(ffSize);
+            }
+            final KeyPair pair = kg.generateKeyPair();
+
+            final Signature nativeSig = Signature.getInstance(algorithm, AmazonCorrettoCryptoProvider.INSTANCE);
+            final Signature bcSig = Signature.getInstance(bcAlgorithm, TestUtil.BC_PROVIDER);
+
+            try {
+                // Generate with native and verify with BC
+                nativeSig.initSign(pair.getPrivate());
+                bcSig.initVerify(pair.getPublic());
+                nativeSig.update(message);
+                bcSig.update(message);
+                byte[] signature = nativeSig.sign();
+                assertTrue("Native->BC: " + algorithm, bcSig.verify(signature));
+
+                // Generate with BC and verify with native
+                nativeSig.initVerify(pair.getPublic());
+                bcSig.initSign(pair.getPrivate());
+                nativeSig.update(message);
+                bcSig.update(message);
+                signature = bcSig.sign();
+                if (algorithm.equals("SHA224withECDSAinP1363Format")) {
+                    System.out.println(Base64.getEncoder().encodeToString(signature));
+                    Object spi = TestUtil.sneakyGetField(nativeSig, "sigSpi");
+                    System.out.println(Base64.getEncoder().encodeToString(TestUtil.sneakyInvoke(spi, "maybeConvertSignatureToVerify", signature)));
+
+                }
+                assertTrue("BC->Native: " + algorithm, nativeSig.verify(signature));
+            } catch (SignatureException ex) {
+                throw new AssertionError(algorithm, ex);
+            }
         }
     }
 

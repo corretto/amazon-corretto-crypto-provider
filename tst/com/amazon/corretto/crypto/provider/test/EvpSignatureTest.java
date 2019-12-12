@@ -5,7 +5,6 @@ package com.amazon.corretto.crypto.provider.test;
 
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
 
-import static java.lang.String.format;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -26,16 +25,9 @@ import java.security.interfaces.DSAKey;
 import java.security.interfaces.ECKey;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.RSAKeyGenParameterSpec;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.BiFunction;
 
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -48,7 +40,6 @@ import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 @RunWith(Parameterized.class)
 public class EvpSignatureTest {
     private static final Provider NATIVE_PROVIDER = AmazonCorrettoCryptoProvider.INSTANCE;
-    private static final BouncyCastleProvider BC_PROVIDER = new BouncyCastleProvider();
     private static final int[] LENGTHS = new int[] { 1, 3, 4, 7, 8, 16, 32, 48, 64, 128, 256, 1024, 1536, 2049 };
     private static final List<String> BASES = Arrays.asList("DSA", "RSA", "ECDSA");
     private static final List<String> HASHES = Arrays.asList("NONE", "SHA1", "SHA224", "SHA256", "SHA384", "SHA512");
@@ -63,7 +54,7 @@ public class EvpSignatureTest {
             tmpMap.put("RSA", kg.generateKeyPair());
 
             kg = KeyPairGenerator.getInstance("EC");
-            kg.initialize(new ECGenParameterSpec("NIST P-384"));
+            kg.initialize(new ECGenParameterSpec("NIST P-521"));
             tmpMap.put("ECDSA", kg.generateKeyPair());
 
             kg = KeyPairGenerator.getInstance("DSA");
@@ -76,7 +67,7 @@ public class EvpSignatureTest {
         }
     }
 
-    @Parameters(name = "{1}with{0} message_ length {2}. Read-only: {3}, Sliced: {4}")
+    @Parameters(name = "{1} message_ length {2}. Read-only: {3}, Sliced: {4}")
     public static Collection<Object[]> data() {
         final List<Object[]> result = new ArrayList<>();
         for (final String base : BASES) {
@@ -102,10 +93,18 @@ public class EvpSignatureTest {
                 }
 
                 for (final int length : lengths) {
-                    result.add(new Object[] { base, hash, length, false, false });
-                    result.add(new Object[] { base, hash, length, true, false });
-                    result.add(new Object[] { base, hash, length, false, true });
-                    result.add(new Object[] { base, hash, length, true, true });
+                    String algorithm = String.format("%swith%s", hash, base);
+                    result.add(new Object[] { base, algorithm, length, false, false });
+                    result.add(new Object[] { base, algorithm, length, true, false });
+                    result.add(new Object[] { base, algorithm, length, false, true });
+                    result.add(new Object[] { base, algorithm, length, true, true });
+                    if (base.equals("ECDSA") && !hash.equals("NONE")) {
+                        algorithm = algorithm + "inP1363Format";
+                        result.add(new Object[] { base, algorithm, length, false, false });
+                        result.add(new Object[] { base, algorithm, length, true, false });
+                        result.add(new Object[] { base, algorithm, length, false, true });
+                        result.add(new Object[] { base, algorithm, length, true, true });
+                    }
                 }
             }
         }
@@ -113,7 +112,6 @@ public class EvpSignatureTest {
     }
 
     private final String base_;
-    private final String hash_;
     private final String algorithm_;
     private final boolean readOnly_;
     private final boolean slice_;
@@ -126,9 +124,8 @@ public class EvpSignatureTest {
     private Signature jceVerifier_;
     private byte[] goodSignature_;
 
-    public EvpSignatureTest(final String base, final String hash, final int length, boolean readOnly, boolean slice) throws GeneralSecurityException {
+    public EvpSignatureTest(final String base, final String algorithm, final int length, boolean readOnly, boolean slice) throws GeneralSecurityException {
         base_ = base;
-        hash_ = hash;
         readOnly_ = readOnly;
         slice_ = slice;
         length_ = length;
@@ -138,7 +135,7 @@ public class EvpSignatureTest {
         } else {
             keyPair_ = KEY_PAIRS.get(base_);
         }
-        algorithm_ = format("%swith%s", hash_, base_);
+        algorithm_ = algorithm;
     }
 
     @Before
@@ -178,7 +175,9 @@ public class EvpSignatureTest {
     }
 
     private Signature getJceSigner() throws NoSuchAlgorithmException {
-        return Signature.getInstance(algorithm_, BC_PROVIDER);
+        // BouncyCastle uses a different naming scheme for P1363 schemes
+        String bcName = algorithm_.replace("withECDSAinP1363Format", "withPLAIN-ECDSA");
+        return Signature.getInstance(bcName, TestUtil.BC_PROVIDER);
     }
 
     private void assumeNonByteBufferTestApplicable() {
@@ -380,6 +379,20 @@ public class EvpSignatureTest {
     }
 
     @Test
+    public void verifySignatureInLargerArray() throws SignatureException {
+        assumeNonByteBufferTestApplicable();
+        final int offset = 7;
+        final int length = goodSignature_.length;
+        final byte[] paddedSignature = new byte[3 * offset + length];
+        // Ensure the padding isn't just 0s which might not trigger exceptions
+        Arrays.fill(paddedSignature, (byte) 0x20);
+        System.arraycopy(goodSignature_, 0, paddedSignature, offset, length);
+
+        verifier_.update(message_);
+        assertTrue(verifier_.verify(paddedSignature, offset, length));
+    }
+
+    @Test
     public void verifySingleByteBufferWrap() throws GeneralSecurityException {
         testSingleByteBuffer(false, applyParameters(ByteBuffer.wrap(message_)));
     }
@@ -428,6 +441,7 @@ public class EvpSignatureTest {
         // JCA/JCE standards require that we try to throw an exception if the underlying signature is "corrupt" and not
         // just invalid.
         assumeFalse(algorithm_.contains("RSA")); // Does not apply to RSA algorithms
+        assumeFalse(algorithm_.contains("inP1363Format")); // Does not apply to this format
         byte[] badSignature = goodSignature_.clone();
         for (int x = 0; x < badSignature.length; x++) {
             badSignature[x] ^= 0x5c; // Arbitrary value to twiddle the bits

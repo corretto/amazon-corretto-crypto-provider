@@ -7,6 +7,7 @@ import java.nio.ByteBuffer;
 import java.security.SignatureException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.util.Arrays;
 
 class EvpSignature extends EvpSignatureBase {
     /** The number a times a key must be reused prior to keeping it in native memory rather than freeing it each time. **/
@@ -482,7 +483,7 @@ class EvpSignature extends EvpSignatureBase {
     protected synchronized byte[] engineSign() throws SignatureException {
         ensureInitialized(true);
         try {
-            return signingBuffer.doFinal();
+            return maybeConvertSignatureToReturn(signingBuffer.doFinal());
         } finally {
             engineReset();
         }
@@ -521,18 +522,31 @@ class EvpSignature extends EvpSignatureBase {
     }
 
     @Override
-    protected synchronized boolean engineVerify(final byte[] sigBytes, final int off, final int len)
+    protected synchronized boolean engineVerify(byte[] sigBytes, int off, int len)
             throws SignatureException {
         ensureInitialized(false);
+        byte[] tempSig = maybeConvertSignatureToVerify(sigBytes, off, len);
+        final byte[] finalSigBytes;
+        final int finalOff;
+        final int finalLen;
+        if (tempSig != null) {
+            finalSigBytes = tempSig;
+            finalOff = 0;
+            finalLen = finalSigBytes.length;
+        } else {
+            finalSigBytes = sigBytes;
+            finalOff = off;
+            finalLen = len;
+        }
         try {
             return verifyingBuffer
                 .withDoFinal((ignored) -> {
                     final boolean result;
                     if (keyUsageCount_ > KEY_REUSE_THRESHOLD) {
-                      result = ctx_.use(c -> verifyFinish(c, sigBytes, off, len, true));
+                      result = ctx_.use(c -> verifyFinish(c, finalSigBytes, finalOff, finalLen, true));
                     } else {
                       try {
-                        result = verifyFinish(ctx_.take(), sigBytes, off, len, false);
+                        result = verifyFinish(ctx_.take(), finalSigBytes, finalOff, finalLen, false);
                       } finally {
                         ctx_ = null;
                       }
@@ -545,12 +559,12 @@ class EvpSignature extends EvpSignatureBase {
                   if (ctx_ != null) {
                     result = ctx_.use(c -> verify(keyDer_, new long[]{c}, keyType_.nativeValue,
                             digestName_, paddingType_, null, 0,
-                            src, offset, length, sigBytes, off, len));
+                            src, offset, length, finalSigBytes, finalOff, finalLen));
                   } else {
                     final long[] handle = keyUsageCount_ > KEY_REUSE_THRESHOLD ? new long[1] : null;
                     result = verify(keyDer_, handle, keyType_.nativeValue,
                         digestName_, paddingType_, null, 0,
-                        src, offset, length, sigBytes, off, len);
+                        src, offset, length, finalSigBytes, finalOff, finalLen);
                     if (handle != null) {
                       ctx_ = new EvpContext(handle[0]);
                     }
