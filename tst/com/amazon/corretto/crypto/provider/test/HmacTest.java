@@ -85,6 +85,7 @@ public class HmacTest {
     private void testMac(Mac mac, SecretKey key, byte[] message, byte[] expected) throws Throwable {
         sneakyInvoke(UTILS_CLASS, "testMac", mac, key, message, expected);
     }
+
     @Test
     public void knownValue() throws Throwable {
         try (final Scanner in = new Scanner(
@@ -365,6 +366,48 @@ public class HmacTest {
             assertThrows(InvalidKeyException.class, () -> mac.init(pubKey));
             assertThrows(InvalidKeyException.class, () -> mac.init(badFormat));
             assertThrows(InvalidKeyException.class, () -> mac.init(nullEncoding));
+        }
+    }
+
+    @Test
+    public void supportsCloneable() throws Exception {
+        TestUtil.assumeMinimumVersion("1.3.0", NATIVE_PROVIDER);
+        final byte[] prefix = new byte[123]; // Arbitrary odd size
+        for (int x = 0; x < prefix.length; x++) {
+            prefix[x] = (byte) (x & 0xFF);
+        }
+
+        final byte[] suffix1 = new byte[prefix.length];
+        final byte[] suffix2 = new byte[prefix.length];
+        for (int x = 0; x < suffix1.length; x++) {
+            // Just ensure these values are different from other patterns
+            suffix1[x] = (byte) ((x & 0xFF) ^ 0x13);
+            suffix2[x] = (byte) ((x & 0xFF) ^ 0xC7);
+        }
+
+        final SecretKeySpec key = new SecretKeySpec(new byte[4096], "Generic");
+        for (final String algorithm : SUPPORTED_HMACS) {
+            final Mac mac = Mac.getInstance(algorithm, NATIVE_PROVIDER);
+
+            mac.init(key);
+            final byte[] prefixExpectedMac = mac.doFinal(prefix);
+            mac.update(prefix);
+            final byte[] msg1ExpectedMac = mac.doFinal(suffix1);
+            mac.update(prefix);
+            final byte[] msg2ExpectedMac = mac.doFinal(suffix2);
+
+            mac.update(prefix, 0, prefix.length);
+            final Mac prefixClone = (Mac) mac.clone();
+            final Mac msg1Clone = (Mac) mac.clone();
+            final Mac msg2Clone = (Mac) msg1Clone.clone();
+
+            msg1Clone.update(suffix1);
+            msg2Clone.update(suffix2);
+
+            // Purposefully checking the prefix (shortest) one last
+            assertArrayEquals(algorithm + " msg1", msg1ExpectedMac, msg1Clone.doFinal());
+            assertArrayEquals(algorithm + " msg2", msg2ExpectedMac, msg2Clone.doFinal());
+            assertArrayEquals(algorithm + " prefix", prefixExpectedMac, prefixClone.doFinal());
         }
     }
 

@@ -632,7 +632,7 @@ public class InputBuffer<T, S> implements Cloneable {
     //@ pure
     @Override
     protected Object clone() throws CloneNotSupportedException {
-        if (!stateCloner.isPresent()) {
+        if (state != null && !stateCloner.isPresent()) {
             throw new CloneNotSupportedException("No stateCloner configured");
         }
         @SuppressWarnings("unchecked")

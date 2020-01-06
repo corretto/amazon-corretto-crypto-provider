@@ -27,7 +27,7 @@ import javax.crypto.spec.SecretKeySpec;
 
 import com.amazon.corretto.crypto.provider.AesCtrDrbg.SPI;
 
-public class TemplateHmacSpi extends MacSpi {
+public class TemplateHmacSpi extends MacSpi implements Cloneable {
     private static final String MAC_NAME = "Hmac@@@SHORT_HASH_NAME@@@";
     private static final int HASH_SIZE;
     private static final int BLOCK_SIZE;
@@ -215,11 +215,23 @@ public class TemplateHmacSpi extends MacSpi {
         public void reset() {
             System.arraycopy(INITIAL_CONTEXT, 0, ctx, 0, INITIAL_CONTEXT.length);
         }
+
+        /*
+         * We aren't bothering with clone() because this is a very simple object with lots of final fields.
+         */
+        public State copy() {
+            State result = new State();
+            System.arraycopy(normalKey, 0, result.normalKey, 0, normalKey.length);
+            System.arraycopy(ctx, 0, result.ctx, 0, ctx.length);
+            result.initialized = initialized;
+            return result;
+        }
     }
 
+    // None of these fields are final so that we can clone them.
     private byte[] oneByteArray = null;
-    private final State baseState = new State();
-    private final InputBuffer<byte[], Void> buffer;
+    private State baseState = new State();
+    private InputBuffer<byte[], Void> buffer;
 
 
     public TemplateHmacSpi() {
@@ -230,39 +242,55 @@ public class TemplateHmacSpi extends MacSpi {
         if (!inSelfTest) {
             SELF_TEST.assertSelfTestPassed();
         }
-        buffer = new InputBuffer<byte[], Void>(1024)
-                .withInitialUpdater((src, offset, length) -> {
-                    assertInitialized();
-                    synchronizedUpdateCtxArray(baseState.ctx, baseState.normalKey, src, offset, length);
-                    return null;
-                    })
-                .withInitialUpdater((src) -> {
-                    assertInitialized();
-                    synchronizedUpdateCtxBuffer(baseState.ctx, baseState.normalKey, src);
-                    return null;
-                    })
-                .withUpdater((ignored, src, offset, length) -> {
-                    assertInitialized();
-                    synchronizedUpdateCtxArray(baseState.ctx, null, src, offset, length);
-                    })
-                .withUpdater((ignored, src) -> {
-                    assertInitialized();
-                    synchronizedUpdateCtxBuffer(baseState.ctx, null, src);
-                    })
-                .withDoFinal((ignored) -> {
-                    assertInitialized();
-                    final byte[] result = new byte[HASH_SIZE];
-                    synchronizedDoFinal(baseState.ctx, baseState.normalKey, result);
-                    baseState.reset();
-                    return result;
-                })
-                .withSinglePass((src, offset, length) -> {
-                    assertInitialized();
-                    final byte[] result = new byte[HASH_SIZE];
-                    fastHmac(baseState.normalKey, src, offset, length, result);
-                    baseState.reset();
-                    return result;
-                });
+        buffer = setLambdas(new InputBuffer<byte[], Void>(1024));
+    }
+
+    private InputBuffer<byte[], Void> setLambdas(InputBuffer<byte[], Void> buffer) {
+        return buffer.withInitialUpdater((src, offset, length) -> {
+            assertInitialized();
+            synchronizedUpdateCtxArray(baseState.ctx, baseState.normalKey, src, offset, length);
+            return null;
+        })
+        .withInitialUpdater((src) -> {
+             assertInitialized();
+             synchronizedUpdateCtxBuffer(baseState.ctx, baseState.normalKey, src);
+             return null;
+        })
+        .withUpdater((ignored, src, offset, length) -> {
+            assertInitialized();
+            synchronizedUpdateCtxArray(baseState.ctx, null, src, offset, length);
+        })
+        .withUpdater((ignored, src) -> {
+            assertInitialized();
+            synchronizedUpdateCtxBuffer(baseState.ctx, null, src);
+        })
+        .withDoFinal((ignored) -> {
+            assertInitialized();
+            final byte[] result = new byte[HASH_SIZE];
+            synchronizedDoFinal(baseState.ctx, baseState.normalKey, result);
+            baseState.reset();
+            return result;
+        })
+        .withSinglePass((src, offset, length) -> {
+            assertInitialized();
+            final byte[] result = new byte[HASH_SIZE];
+            fastHmac(baseState.normalKey, src, offset, length, result);
+            baseState.reset();
+            return result;
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public Object clone() throws CloneNotSupportedException {
+        TemplateHmacSpi clonedObject = (TemplateHmacSpi) super.clone();
+        clonedObject.oneByteArray = null; // This is lazily created if needed
+
+        clonedObject.baseState = clonedObject.baseState.copy(); // It's easier not to boostrap from clone in this case
+        clonedObject.buffer = (InputBuffer<byte[], Void>) clonedObject.buffer.clone();
+        clonedObject.setLambdas(clonedObject.buffer);
+
+        return clonedObject;
     }
 
     private void assertInitialized() {
