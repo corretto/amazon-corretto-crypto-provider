@@ -7,7 +7,6 @@ import java.nio.ByteBuffer;
 import java.security.SignatureException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
-import java.util.Arrays;
 
 class EvpSignature extends EvpSignatureBase {
     /** The number a times a key must be reused prior to keeping it in native memory rather than freeing it each time. **/

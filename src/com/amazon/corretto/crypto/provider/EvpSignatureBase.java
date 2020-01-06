@@ -14,7 +14,6 @@ import java.security.PublicKey;
 import java.security.SignatureException;
 import java.security.SignatureSpi;
 import java.security.interfaces.ECKey;
-import java.security.interfaces.ECPublicKey;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
@@ -23,6 +22,8 @@ import java.util.Arrays;
 import java.util.Base64;
 
 abstract class EvpSignatureBase extends SignatureSpi {
+    // Package visible so main Provider can use it
+    static final String P1363_FORMAT_SUFFIX = "inP1363Format";
     protected static final int RSA_PKCS1_PADDING = 1;
     protected final EvpKeyType keyType_;
     protected final int paddingType_;
@@ -169,14 +170,14 @@ abstract class EvpSignatureBase extends SignatureSpi {
      * Converts and returns the modified signature to verify <em>only if necessary</em> and returns {@code null} otherwise.
      * If {@code null} is returned then the passed in parameters should be used for later verification.
      * Otherwise, the entire returned array should be used.
-     * This method has a somewhat odd API since we want to avoid unneccessary array copies/allocations and it is an
+     * This method has a somewhat odd API since we want to avoid unnecessary array copies/allocations and it is an
      * internal API anyway.
      *
      * @return the converted signature or {@code null} if no conversion is necessary
      * @throws SignatureException if the signature is badly malformed
      */
     protected byte[] maybeConvertSignatureToVerify(byte[] signature, int offset, int length) throws SignatureException {
-        if (algorithmName_ != null && algorithmName_.endsWith("withECDSAinP1363Format")) {
+        if (algorithmName_ != null && algorithmName_.endsWith(P1363_FORMAT_SUFFIX)) {
             final ECKey ecKey = (ECKey) key_;
             final int numLen = (ecKey.getParams().getOrder().bitLength() + 7) / 8;
             return ieeeP1363toAsn1(signature, offset, length, numLen);
@@ -190,7 +191,7 @@ abstract class EvpSignatureBase extends SignatureSpi {
      * <em>This methods may throw {@link AssertionError} on invalid input so should only be given trusted inputs.</em>.
      */
     protected byte[] maybeConvertSignatureToReturn(byte[] signature) throws SignatureException {
-        if (algorithmName_ != null && algorithmName_.endsWith("withECDSAinP1363Format")) {
+        if (algorithmName_ != null && algorithmName_.endsWith(P1363_FORMAT_SUFFIX)) {
             final ECKey ecKey = (ECKey) key_;
             final int numLen = (ecKey.getParams().getOrder().bitLength() + 7) / 8;
             return asn1ToiIeeeP1363(signature, numLen);

@@ -97,10 +97,10 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
         for (final String base : bases) {
             for (final String hash : hashes) {
                 final String algorithm = format("%swith%s", hash, base);
-                final String className = String.format("EvpSignature$%s", algorithm);
+                final String className = format("EvpSignature$%s", algorithm);
                 addService("Signature", algorithm, className);
                 if (base.equals("ECDSA")) {
-                    addService("Signature", algorithm + "inP1363Format", className);
+                    addService("Signature", algorithm + EvpSignatureBase.P1363_FORMAT_SUFFIX, className);
                 }
             }
         }
