@@ -11,10 +11,24 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.nio.charset.StandardCharsets;
-import java.security.*;
+import java.security.GeneralSecurityException;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
+import java.security.Key;
+import java.security.KeyFactory;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.PrivateKey;
+import java.security.Provider;
+import java.security.PublicKey;
+import java.security.Signature;
+import java.security.SignatureException;
 import java.security.interfaces.RSAPrivateKey;
-import java.security.spec.*;
-import java.util.Base64;
+import java.security.spec.AlgorithmParameterSpec;
+import java.security.spec.ECGenParameterSpec;
+import java.security.spec.PSSParameterSpec;
+import java.security.spec.RSAKeyGenParameterSpec;
+import java.security.spec.RSAPrivateKeySpec;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -23,8 +37,6 @@ import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.Assert;
 import org.junit.Test;
-
-import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 
 import javax.crypto.AEADBadTagException;
 import javax.crypto.Cipher;
@@ -396,12 +408,6 @@ public class EvpSignatureSpecificTest {
                 nativeSig.update(message);
                 bcSig.update(message);
                 signature = bcSig.sign();
-                if (algorithm.equals("SHA224withECDSAinP1363Format")) {
-                    System.out.println(Base64.getEncoder().encodeToString(signature));
-                    Object spi = TestUtil.sneakyGetField(nativeSig, "sigSpi");
-                    System.out.println(Base64.getEncoder().encodeToString(TestUtil.sneakyInvoke(spi, "maybeConvertSignatureToVerify", signature)));
-
-                }
                 assertTrue("BC->Native: " + algorithm, nativeSig.verify(signature));
             } catch (SignatureException ex) {
                 throw new AssertionError(algorithm, ex);
