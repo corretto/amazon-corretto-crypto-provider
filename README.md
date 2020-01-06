@@ -45,10 +45,15 @@ Signature algorithms:
 * SHA384withDSA
 * NONEwithECDSA
 * SHA1withECDSA
+* SHA1withECDSAinP1363Format
 * SHA224withECDSA
+* SHA224withECDSAinP1363Format
 * SHA256withECDSA
+* SHA256withECDSAinP1363Format
 * SHA384withECDSA
+* SHA384withECDSAinP1363Format
 * SHA512withECDSA
+* SHA512withECDSAinP1363Format
 
 KeyPairGenerator algorithms:
 * EC
