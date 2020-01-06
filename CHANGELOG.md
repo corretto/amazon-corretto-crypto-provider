@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.0
+
+### Improvements (Unreleased)
+* Now allows cloning of `Mac` objects. [PR #78](https://github.com/corretto/amazon-corretto-crypto-provider/pull/78)
+
 ## 1.2.0
 
 ### Improvements
