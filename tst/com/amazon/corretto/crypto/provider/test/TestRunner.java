@@ -246,6 +246,10 @@ public class TestRunner {
                     !(exception instanceof AssertionError)) {
                   System.out.println(failure.getTrace());
               }
+            if (exception instanceof OutOfMemoryError) {
+                // just rethrow this
+                throw (OutOfMemoryError) exception;
+            }
               statusOutput_ = true;
         }
 

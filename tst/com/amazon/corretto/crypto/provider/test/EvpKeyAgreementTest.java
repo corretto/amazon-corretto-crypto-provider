@@ -35,6 +35,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Function;
 
 import javax.crypto.KeyAgreement;
 import javax.crypto.SecretKey;
@@ -71,21 +72,21 @@ public class EvpKeyAgreementTest {
     // to catch rarer edge-cases.
     private KeyPair[] pairs;
     private byte[][][] rawSecrets;
-    private List<? extends PublicKey> invalidKeys;
+    private Function<PublicKey, List<? extends PublicKey>> invalidKeyCreator;
     private final Provider nativeProvider;
     private final Provider jceProvider;
     private KeyAgreement nativeAgreement;
     private KeyAgreement jceAgreement;
 
     public EvpKeyAgreementTest(final String algorithm, final String displayName, final KeyPairGenerator keyGen,
-            final Provider nativeProvider, final Provider jceProvider,
-            final List<? extends PublicKey> invalidKeys) throws GeneralSecurityException {
+                               final Provider nativeProvider, final Provider jceProvider,
+                               final Function<PublicKey, List<? extends PublicKey>> invalidKeyCreator) {
         this.algorithm = algorithm;
         this.displayName = displayName;
         this.keyGen = keyGen;
-        this.invalidKeys = invalidKeys;
         this.nativeProvider = nativeProvider;
         this.jceProvider = jceProvider;
+        this.invalidKeyCreator = invalidKeyCreator;
     }
 
     @Parameters(name = "{1}")
@@ -142,45 +143,57 @@ public class EvpKeyAgreementTest {
         jceAgreement = null;
         pairs = null;
         rawSecrets = null;
-        invalidKeys = null;
         keyGen = null;
+        invalidKeyCreator = null;
     }
 
     private static Object[] buildDhParameters(final int keySize) throws GeneralSecurityException {
         final KeyPairGenerator generator = KeyPairGenerator.getInstance("DH");
         generator.initialize(keySize);
-        final DHPublicKey pubKey = (DHPublicKey) generator.generateKeyPair().getPublic();
-        final List<DHPublicKey> badKeys = new ArrayList<>();
-        badKeys.addAll(buildWeakDhKeys(pubKey));
-        badKeys.add(buildDhKeyWithRandomParams(keySize));
+        final Function<PublicKey, List<DHPublicKey>> createBadDhKeys = (pubKey) -> {
+            try {
+                final List<DHPublicKey> badKeys = new ArrayList<>(buildWeakDhKeys((DHPublicKey) pubKey));
+                badKeys.add(buildDhKeyWithRandomParams(keySize));
+                return badKeys;
+            } catch (final GeneralSecurityException ex) {
+                throw new AssertionError(ex);
+            }
+        };
         return new Object[] {
                 "DH",
                 "DH(" + keySize + ")",
                 generator,
                 AmazonCorrettoCryptoProvider.INSTANCE,
                 BC_PROV,
-                badKeys
+                createBadDhKeys
             };
 
     }
 
     private static Object[] buildEcdhParameters(final AlgorithmParameterSpec genSpec, final String name)
-            throws GeneralSecurityException, IOException {
+            throws GeneralSecurityException {
         final KeyPairGenerator generator = KeyPairGenerator.getInstance("EC", AmazonCorrettoCryptoProvider.INSTANCE);
         generator.initialize(genSpec);
-        final KeyPair pair = generator.generateKeyPair();
-        final ECPublicKey pubKey = (ECPublicKey) pair.getPublic();
+        final Function<PublicKey, List<ECPublicKey>> createAllBadEcdhKeys = (pubKey) -> {
+            try {
+                final ECPublicKey ecPubKey = (ECPublicKey) pubKey;
+                return Arrays.asList(
+                        buildKeyAtInfinity(ecPubKey),
+                        buildKeyOffCurve(ecPubKey),
+                        buildKeyOnWrongCurve(ecPubKey),
+                        buildKeyOnWrongField(ecPubKey));
+            } catch (IOException | GeneralSecurityException ex) {
+                throw new AssertionError(ex);
+            }
+        };
+
         return new Object[] {
                 "ECDH",
                 "ECDH(" + name + ")",
                 generator,
                 AmazonCorrettoCryptoProvider.INSTANCE,
                 BC_PROV,
-                Arrays.asList(
-                        buildKeyAtInfinity(pubKey),
-                        buildKeyOffCurve(pubKey),
-                        buildKeyOnWrongCurve(pubKey),
-                        buildKeyOnWrongField(pubKey))
+                createAllBadEcdhKeys
             };
     }
 
@@ -211,8 +224,7 @@ public class EvpKeyAgreementTest {
     static ECPublicKey buildKeyOffCurve(final ECPublicKey goodKey) throws GeneralSecurityException {
         final KeyFactory factory = KeyFactory.getInstance("EC");
         final ECPoint w = new ECPoint(goodKey.getW().getAffineX().add(BigInteger.ONE), goodKey.getW().getAffineY());
-        final ECPublicKey badKey = (ECPublicKey) factory.generatePublic(new ECPublicKeySpec(w, goodKey.getParams()));
-        return badKey;
+        return (ECPublicKey) factory.generatePublic(new ECPublicKeySpec(w, goodKey.getParams()));
     }
 
     static ECPublicKey buildKeyAtInfinity(final ECPublicKey goodKey) throws IOException {
@@ -222,8 +234,7 @@ public class EvpKeyAgreementTest {
         // This should consist of two elements, algorithm and the actual key
         assertEquals("Unexpected ASN.1 encoding", 2, seq.size());
         // The key itself is just a byte encoding of the point
-        DERBitString point = (DERBitString) seq.getObjectAt(1);
-        point = new DERBitString(new byte[1]); // a one byte zero array is the point at infinity
+        DERBitString point = new DERBitString(new byte[1]); // a one byte zero array is the point at infinity
         seq = new DERSequence(new ASN1Encodable[] { seq.getObjectAt(0), point });
         return new FakeEcPublicKey(seq.getEncoded("DER"), goodKey.getParams(), ECPoint.POINT_INFINITY);
     }
@@ -257,7 +268,7 @@ public class EvpKeyAgreementTest {
         }
     }
 
-    public static ECPublicKey buildKeyOnWrongField(final ECPublicKey goodKey) throws GeneralSecurityException {
+    private static ECPublicKey buildKeyOnWrongField(final ECPublicKey goodKey) throws GeneralSecurityException {
         final KeyPairGenerator generator = KeyPairGenerator.getInstance("EC");
         final EllipticCurve curve = goodKey.getParams().getCurve();
         if (curve.getField() instanceof ECFieldFp) {
@@ -270,7 +281,7 @@ public class EvpKeyAgreementTest {
     }
 
     @Test
-    public void jceCompatability() throws GeneralSecurityException {
+    public void jceCompatability() {
         assertForAllPairs((pub, priv, expected) -> {
             nativeAgreement.init(priv);
             assertNull(nativeAgreement.doPhase(pub, true));
@@ -279,7 +290,7 @@ public class EvpKeyAgreementTest {
     }
 
     @Test
-    public void tlsMasterSecret() throws GeneralSecurityException {
+    public void tlsMasterSecret() {
         // For TLS suppport we /must/ support this algorithm
         assertForAllPairs((pub, priv, ignored) -> {
             nativeAgreement.init(priv);
@@ -377,7 +388,7 @@ public class EvpKeyAgreementTest {
     @Test
     public void rejectsInvalidKeys() throws GeneralSecurityException {
         nativeAgreement.init(pairs[0].getPrivate());
-        for (final PublicKey key : invalidKeys) {
+        for (final PublicKey key : invalidKeyCreator.apply(pairs[0].getPublic())) {
             assertThrows(InvalidKeyException.class, () -> nativeAgreement.doPhase(key, true));
         }
 
@@ -399,7 +410,7 @@ public class EvpKeyAgreementTest {
 
         assertThrows(IllegalStateException.class, "KeyAgreement has not been initialized",
                 () -> agree.doPhase(pairs[0].getPublic(), true));
-        assertThrows(IllegalStateException.class, "KeyAgreement has not been initialized", () -> agree.generateSecret());
+        assertThrows(IllegalStateException.class, "KeyAgreement has not been initialized", agree::generateSecret);
 
         assertThrows(InvalidKeyException.class,
                 () -> agree.init(new SecretKeySpec("YellowSubmarine".getBytes(StandardCharsets.UTF_8), "AES")));
@@ -416,7 +427,7 @@ public class EvpKeyAgreementTest {
             assertThrows(IllegalStateException.class, "Only single phase agreement is supported",
                     () -> agree.doPhase(pairs[0].getPublic(), false));
         }
-        assertThrows(IllegalStateException.class, "KeyAgreement has not been completed", () -> agree.generateSecret());
+        assertThrows(IllegalStateException.class, "KeyAgreement has not been completed", agree::generateSecret);
 
         assertThrows(InvalidKeyException.class,
                 () -> agree.doPhase(new SecretKeySpec("YellowSubmarine".getBytes(StandardCharsets.UTF_8), "AES"), true));

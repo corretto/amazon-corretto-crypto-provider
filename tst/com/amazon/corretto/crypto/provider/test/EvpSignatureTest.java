@@ -124,7 +124,7 @@ public class EvpSignatureTest {
     private Signature jceVerifier_;
     private byte[] goodSignature_;
 
-    public EvpSignatureTest(final String base, final String algorithm, final int length, boolean readOnly, boolean slice) throws GeneralSecurityException {
+    public EvpSignatureTest(final String base, final String algorithm, final int length, boolean readOnly, boolean slice) {
         base_ = base;
         readOnly_ = readOnly;
         slice_ = slice;
