@@ -97,7 +97,11 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
         for (final String base : bases) {
             for (final String hash : hashes) {
                 final String algorithm = format("%swith%s", hash, base);
-                addService("Signature", algorithm, String.format("EvpSignature$%s", algorithm));
+                final String className = format("EvpSignature$%s", algorithm);
+                addService("Signature", algorithm, className);
+                if (base.equals("ECDSA")) {
+                    addService("Signature", algorithm + EvpSignatureBase.P1363_FORMAT_SUFFIX, className);
+                }
             }
         }
 
@@ -121,6 +125,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
     private class ACCPService extends Service {
         private final MethodHandle ctor;
+        private final MethodHandle algorithmSetter;
 
         // @GuardedBy("this") // Restore once replacement for JSR-305 available
         private boolean failMessagePrinted = false;
@@ -148,9 +153,22 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
                         .bindTo(AmazonCorrettoCryptoProvider.this);
                 }
                 ctor = tmpCtor;
+
+                MethodHandle tmpAlgSetter = null;
+                final MethodType setterSignature = MethodType.methodType(void.class, String.class);
+                try {
+                    tmpAlgSetter = LOOKUP.findVirtual(klass, "setAlgorithmName", setterSignature);
+                } catch (final NoSuchMethodException ex) {
+                    if (type.equals("Signature")) {
+                        throw ex;
+                    }
+                    // Just ignore this
+                }
+                algorithmSetter = tmpAlgSetter;
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
+
         }
 
         @Override public Object newInstance(final Object constructorParameter) throws NoSuchAlgorithmException {
@@ -165,7 +183,11 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
             }
 
             try {
-                return (Object) ctor.invokeExact();
+                Object result = (Object) ctor.invokeExact();
+                if (algorithmSetter != null) {
+                    algorithmSetter.invoke(result, getAlgorithm());
+                }
+                return result;
             } catch (RuntimeException | Error e) {
                 throw e;
             } catch (Throwable t) {
