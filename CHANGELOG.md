@@ -6,6 +6,9 @@
 * Now supports ECDSA signatures in IEEE P1363 Format. (Also known as "raw" or "plain".) [PR #75](https://github.com/corretto/amazon-corretto-crypto-provider/pull/75)
 * Now allows cloning of `Mac` objects. [PR #78](https://github.com/corretto/amazon-corretto-crypto-provider/pull/78)
 
+### Maintenance
+* You can disable parallel execution of tests by setting the `ACCP_TEST_PARALLEL` environment variable to `false` 
+
 ## 1.2.0
 
 ### Improvements
