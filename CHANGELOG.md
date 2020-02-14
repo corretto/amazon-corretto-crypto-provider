@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.1 (Unreleased)
+
+### Maintenance
+* Add timestamping to signed jars.
+
 ## 1.3.0
 
 ### Improvements
