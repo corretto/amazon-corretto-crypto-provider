@@ -3,13 +3,13 @@
 
 package com.amazon.corretto.crypto.provider;
 
+import static com.amazon.corretto.crypto.provider.Loader.RESOURCE_JANITOR;
+
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
 
 class NativeResource {
-    private static final Janitor RESOURCE_JANITOR = new Janitor();
-
     /**
      * For tests. Makes a best-effort attempt to awaken any sleeping cleaner threads.
      */
