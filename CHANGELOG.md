@@ -4,6 +4,7 @@
 
 ### Maintenance
 * Add timestamping to signed jars.
+* Create the `Janitor` in the `Loader` so that it gets a more logical and consistent `ThreadGroup`.
 
 ## 1.3.0
 
