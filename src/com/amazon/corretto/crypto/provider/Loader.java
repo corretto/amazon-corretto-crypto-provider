@@ -165,10 +165,15 @@ final class Loader {
         } else {
             LOG.log(Level.CONFIG, "Unable to load native library", error);
         }
+
+        // Finally start up a cleaning thread if necessary
+        RESOURCE_JANITOR = new Janitor();
     }
 
     static final boolean IS_AVAILABLE;
     static final Throwable LOADING_ERROR;
+
+    static final Janitor RESOURCE_JANITOR;
 
     static void load() {
         // no-op - but we run the static block as a side effect

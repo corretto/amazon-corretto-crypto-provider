@@ -128,7 +128,8 @@ task build(overwrite:true) {
                 jar: "${buildDir}/cmake/AmazonCorrettoCryptoProvider.jar",
                 destDir: "${buildDir}/lib",
                 storepass: jcecertPassword,
-                keystore: "${project.gradle.gradleUserHomeDir}/${jcecertJks}"
+                keystore: "${project.gradle.gradleUserHomeDir}/${jcecertJks}",
+                tsaurl: "http://timestamp.digicert.com"
             )
         } else {
             copy {
