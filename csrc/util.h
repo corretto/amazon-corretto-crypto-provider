@@ -82,7 +82,7 @@ public:
         group = EC_GROUP_new_by_curve_name(nid);
     }
     ~EC_GROUP_auto() {
-        EC_GROUP_clear_free(group);
+        EC_GROUP_free(group);
     }
     operator EC_GROUP*() {return group; }
     operator const EC_GROUP*() const { return group; }
