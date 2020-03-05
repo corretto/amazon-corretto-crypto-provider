@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.1
+
+### Maintenance
+* Add timestamping to signed jars. [PR #85](https://github.com/corretto/amazon-corretto-crypto-provider/pull/85)
+* Create the `Janitor` in the `Loader` so that it gets a more logical and consistent `ThreadGroup`. [PR #87](https://github.com/corretto/amazon-corretto-crypto-provider/pull/87)
+* Signed with new JCE signing certificate
+
 ## 1.3.0
 
 ### Improvements
