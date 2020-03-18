@@ -69,7 +69,7 @@ task buildOpenSsl {
         }
         exec {
             workingDir "${buildDir}/openssl/src"
-            commandLine 'make'
+            commandLine 'make', '-j', Runtime.runtime.availableProcessors()
         }
         exec {
             workingDir "${buildDir}/openssl/src"
@@ -114,7 +114,7 @@ task build_objects(type: Exec) {
     dependsOn executeCmake
     workingDir "${buildDir}/cmake"
 
-    commandLine 'make', 'accp-jar'
+    commandLine 'make', '-j', Runtime.runtime.availableProcessors(), 'accp-jar'
 }
 
 task build(overwrite:true) {
