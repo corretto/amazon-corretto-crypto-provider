@@ -32,7 +32,7 @@ EVP_PKEY* der2EvpPrivateKey(const unsigned char* der, const int derLen, const bo
   EVP_PKEY* result = EVP_PKCS82PKEY(pkcs8Key);
   PKCS8_PRIV_KEY_INFO_free(pkcs8Key);
   if (!result) {
-    throw_java_ex(javaExceptionClass, "Unable to convert PKCS8_PRIV_KEY_INFO to EVP_PKEY");
+    throw_openssl(javaExceptionClass, "Unable to convert PKCS8_PRIV_KEY_INFO to EVP_PKEY");
   }
 
   if (checkPrivateKey && !checkKey(result)) {
