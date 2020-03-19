@@ -25,6 +25,7 @@ import java.util.Arrays;
 public class TestUtil {
     public static final BouncyCastleProvider BC_PROVIDER = new BouncyCastleProvider();
     private static final File TEST_DIR = new File(System.getProperty("test.data.dir", "."));
+
     
     public static void assertThrows(Class<? extends Throwable> expected, ThrowingRunnable callable) {
         try {
@@ -137,6 +138,16 @@ public class TestUtil {
             }
         }
         throw new Error("Can't find match for method");
+    }
+
+    public static InputStream sneakyGetTestData(String fileName) {
+        try {
+            Class<?> klass = ClassLoader.getSystemClassLoader().loadClass(
+                "com.amazon.corretto.crypto.provider.Loader");
+            return (InputStream) sneakyInvoke(klass, "getTestData", fileName);
+        } catch (Throwable e) {
+            throw new Error(e);
+        }
     }
 
     public static boolean argsCompatible(final Class<?>[] parameterTypes, final Object[] args) {

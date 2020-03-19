@@ -5,6 +5,7 @@ package com.amazon.corretto.crypto.provider.test;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -119,8 +120,8 @@ public class TestRunner {
         } else {
             printSystemInfo();
             final String suiteName = args[1];
-            final Class[] parallel_classes = SUITES_PARALLEL.get(suiteName);
-            final Class[] serial_classes = SUITES_SERIAL.get(suiteName);
+            Class[] parallel_classes = SUITES_PARALLEL.get(suiteName);
+            Class[] serial_classes = SUITES_SERIAL.get(suiteName);
             if (parallel_classes == null && serial_classes == null) {
                 Set<String> suiteNames = new HashSet<>();
                 suiteNames.addAll(SUITES_SERIAL.keySet());
@@ -138,6 +139,22 @@ public class TestRunner {
             final JUnitCore core = new JUnitCore();
             core.addListener(new BasicListener(suiteName, false));
 
+            if ("false".equalsIgnoreCase(System.getenv("ACCP_TEST_PARALLEL"))) {
+                System.out.println("Disabling parallel testing");
+                // Some systems really don't like parallel tests
+                if (parallel_classes != null) {
+                    if (serial_classes == null) {
+                        serial_classes = parallel_classes;
+                        parallel_classes = null;
+                    } else {
+                        Class[] tmp = Arrays.copyOf(parallel_classes, parallel_classes.length + serial_classes.length);
+                        System.arraycopy(serial_classes, 0, tmp, parallel_classes.length, serial_classes.length);
+                        serial_classes = tmp;
+                        parallel_classes = null;
+                    }
+                }
+
+            }
             // TODO: Capture STDOUT/STDERR to nicely bundle output with tests
             // TODO: Capture start and end of each class for bundling and summary
             if (parallel_classes != null) {

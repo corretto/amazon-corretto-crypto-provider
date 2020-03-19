@@ -258,7 +258,7 @@ add_custom_command(
     OUTPUT ${ACCP_JAR_SOURCE}
     COMMAND ${Java_JAR_EXECUTABLE} cf ${ACCP_JAR_SOURCE} -C ${CMAKE_CURRENT_SOURCE_DIR}/src .
     COMMAND ${Java_JAR_EXECUTABLE} uf ${ACCP_JAR_SOURCE} -C ${CMAKE_CURRENT_SOURCE_DIR} csrc
-    COMMAND ${Java_JAR_EXECUTABLE} uf ${ACCP_JAR_SOURCE} -C ${CMAKE_CURRENT_SOURCE_DIR}/extra-jar-files test-data
+    COMMAND ${Java_JAR_EXECUTABLE} uf ${ACCP_JAR_SOURCE} -C ${CMAKE_CURRENT_SOURCE_DIR}/extra-jar-files com/amazon/corretto/crypto/provider/testdata
     COMMAND ${Java_JAR_EXECUTABLE} uf ${ACCP_JAR_SOURCE} -C ${CMAKE_CURRENT_BINARY_DIR}/generated-java/ .
     DEPENDS ${GENERATED_JAVA_SRC}
 )
