@@ -657,9 +657,12 @@ add_custom_target(check-install-via-properties-with-debug
 
     DEPENDS accp-jar tests-jar)
 
+add_executable(test_keyutils csrc/test_keyutils.cpp)
+target_link_libraries(test_keyutils amazonCorrettoCryptoProvider)
+add_custom_target(check-keyutils COMMAND $<TARGET_FILE:test_keyutils>)
 
 add_custom_target(check
-    DEPENDS check-recursive-init check-install-via-properties check-install-via-properties-with-debug check-junit)
+    DEPENDS check-keyutils check-recursive-init check-install-via-properties check-install-via-properties-with-debug check-junit)
 
 if(ENABLE_RNG_TEST_HOOKS)
     add_custom_target(check-rdrand
