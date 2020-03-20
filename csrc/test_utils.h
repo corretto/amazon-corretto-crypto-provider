@@ -1,4 +1,4 @@
-// Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #ifndef TEST_UTILS_H
@@ -29,7 +29,6 @@ do { \
     if (errorFound) { \
         FAIL(); \
     } \
-    if(success) {      fprintf (stderr, " ----------  success\n");} else {      fprintf (stderr, " ----------  fail\n");} \
     return success ? 0 : 1; \
   } while(0)
 
