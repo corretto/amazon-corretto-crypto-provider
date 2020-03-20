@@ -12,7 +12,7 @@
 
 #define DEFAULT_RETRY_COUNT 100
 
-#ifdef ENABLE_RNG_TEST_HOOKS
+#ifdef ENABLE_NATIVE_TEST_HOOKS
 extern "C" {
     bool (*hook_rdrand)(uint64_t *out) = NULL;
     bool (*hook_rdseed)(uint64_t *out) = NULL;
