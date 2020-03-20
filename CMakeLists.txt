@@ -38,7 +38,7 @@ set(BUILD_CLASSPATH "" CACHE STRING "Classpath to JARs to be included at build t
 set(TEST_CLASSPATH "" CACHE STRING "Classpath to be included at test build and test execution time")
 set(SIGNED_JAR "" CACHE STRING "Path to a pre-signed JAR file, to be used instead of compiling the java source")
 set(DIEHARDER_EXECUTABLE "dieharder" CACHE STRING "Path to the dieharder executable")
-set(ENABLE_RNG_TEST_HOOKS NO CACHE BOOL "Enable debugging hooks in the RNG. Disable for production use.")
+set(ENABLE_NATIVE_TEST_HOOKS NO CACHE BOOL "Enable debugging hooks in the RNG. Disable for production use.")
 set(FORCE_DISABLE_RDRAND NO CACHE BOOL "Force CPUID detection of rdrand support to fail. For testing purposes.")
 set(TEST_DATA_DIR ${PROJECT_SOURCE_DIR}/test-data/ CACHE STRING "Path to directory containing test data")
 set(ORIG_SRCROOT ${PROJECT_SOURCE_DIR} CACHE STRING "Path to root of original package")
@@ -264,11 +264,15 @@ add_custom_command(
 
 add_custom_target(accp-jar-source DEPENDS ${ACCP_JAR_SOURCE})
 
-if(ENABLE_RNG_TEST_HOOKS)
+if(ENABLE_NATIVE_TEST_HOOKS)
     add_executable(test_rdrand EXCLUDE_FROM_ALL
         csrc/test_rdrand.cpp
     )
+    add_executable(test_keyutils EXCLUDE_FROM_ALL
+        csrc/test_keyutils.cpp
+    )
     target_link_libraries(test_rdrand amazonCorrettoCryptoProvider)
+    target_link_libraries(test_keyutils amazonCorrettoCryptoProvider)
 endif()
 
 #### Start of feature tests
@@ -442,7 +446,7 @@ macro(CHECK_LINKER_FLAG_SUPPORT var flags)
 endmacro(CHECK_LINKER_FLAG_SUPPORT)
 
 # When test hooks are enabled we need to expose a bunch of internal symbols for the tests to poke at.
-if(NOT ENABLE_RNG_TEST_HOOKS)
+if(NOT ENABLE_NATIVE_TEST_HOOKS)
 # This version script attempts to hide the openssl symbols (and any other
 # internal symbols) from the exports table.
     CHECK_LINKER_FLAG_SUPPORT(USE_VERSION_SCRIPT "-Wl,--version-script -Wl,${CMAKE_CURRENT_SOURCE_DIR}/final-link.version")
@@ -657,18 +661,17 @@ add_custom_target(check-install-via-properties-with-debug
 
     DEPENDS accp-jar tests-jar)
 
-add_executable(test_keyutils csrc/test_keyutils.cpp)
-target_link_libraries(test_keyutils amazonCorrettoCryptoProvider)
-add_custom_target(check-keyutils COMMAND $<TARGET_FILE:test_keyutils>)
-
 add_custom_target(check
-    DEPENDS check-keyutils check-recursive-init check-install-via-properties check-install-via-properties-with-debug check-junit)
+    DEPENDS check-recursive-init check-install-via-properties check-install-via-properties-with-debug check-junit)
 
-if(ENABLE_RNG_TEST_HOOKS)
+if(ENABLE_NATIVE_TEST_HOOKS)
     add_custom_target(check-rdrand
         COMMAND $<TARGET_FILE:test_rdrand>
     )
-    add_dependencies(check check-rdrand)
+    add_custom_target(check-keyutils
+        COMMAND $<TARGET_FILE:test_keyutils>
+    )
+    add_dependencies(check check-rdrand check-keyutils)
 endif()
 
 add_custom_target(coverage
