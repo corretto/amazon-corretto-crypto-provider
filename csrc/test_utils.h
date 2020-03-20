@@ -4,6 +4,8 @@
 #ifndef TEST_UTILS_H
 #define TEST_UTILS_H 1
 
+#include <openssl/err.h>
+
 bool test_succeeded = true;
 bool success = true;
 
@@ -14,6 +16,20 @@ bool success = true;
 
 #define END_TEST() \
 do { \
+    bool errorFound = false; \
+    const char* file; \
+    int line; \
+    unsigned long unhandledError = ERR_get_error_line(&file, &line); \
+    while (unhandledError) { \
+        errorFound = true; \
+        std::cerr << "Found unhandled openssl error: " << formatOpensslError(unhandledError, "NO_TEXT"); \
+        std::cerr << " @ " << file << ":" << line << std::endl; \
+        unhandledError = ERR_get_error_line(&file, &line); \
+    } \
+    if (errorFound) { \
+        FAIL(); \
+    } \
+    if(success) {      fprintf (stderr, " ----------  success\n");} else {      fprintf (stderr, " ----------  fail\n");} \
     return success ? 0 : 1; \
   } while(0)
 
@@ -34,6 +50,12 @@ do { \
         test_succeeded = false; \
         printf("Failed assertion at %s:%d: %s\n", __FILE__, __LINE__, #x); \
     } \
+} while (0)
+
+#define FAIL() do { \
+    test_succeeded = false; \
+    success = false; \
+    printf("Failed assertion at %s:%d\n", __FILE__, __LINE__); \
 } while (0)
 
 #endif //TEST_UTILS_H

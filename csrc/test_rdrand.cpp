@@ -12,12 +12,10 @@
 
 #include "env.h"
 #include "rdrand.h"
-#include "config.h"
 #include "test_utils.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <assert.h>
 
 using namespace AmazonCorrettoCryptoProvider;
 
