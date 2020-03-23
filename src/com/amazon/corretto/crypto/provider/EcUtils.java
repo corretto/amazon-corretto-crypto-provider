@@ -141,16 +141,8 @@ final class EcUtils {
     }
 
     static final class ECInfo {
-        private final ThreadLocal<NativeGroup> group = new ThreadLocal<NativeGroup>() {
-          @Override
-          protected NativeGroup initialValue() {
-              if (nid != 0) {
-                  return new NativeGroup(buildGroup(nid));
-              } else {
-                  return null;
-              }
-          }
-        };
+        private final ThreadLocal<NativeGroup> group;
+
         final String name;
         final ECParameterSpec spec;
         final int nid;
@@ -160,6 +152,14 @@ final class EcUtils {
             this.name = name;
             this.spec = spec;
             this.nid = nid;
+
+            this.group = ThreadLocal.withInitial( () -> {
+              if (nid != 0) {
+                  return new NativeGroup(buildGroup(nid));
+              } else {
+                  return null;
+              }
+            });
         }
 
         @Override

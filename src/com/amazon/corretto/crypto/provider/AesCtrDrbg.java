@@ -98,12 +98,7 @@ public class AesCtrDrbg extends SecureRandom {
             return sb.toString();
         }
 
-        private static final ThreadLocal<NativeDrgbState> state_ = new ThreadLocal<NativeDrgbState>() {
-            @Override
-            protected NativeDrgbState initialValue() {
-                return new NativeDrgbState(instantiate(null, null));
-            }
-        };
+        private static final ThreadLocal<NativeDrgbState> state_ = ThreadLocal.withInitial( () ->  new NativeDrgbState(instantiate(null, null)) );
 
         private final NativeDrgbState testState_;
 

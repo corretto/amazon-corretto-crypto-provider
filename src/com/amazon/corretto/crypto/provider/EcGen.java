@@ -30,14 +30,8 @@ import com.amazon.corretto.crypto.provider.EcUtils.NativeGroup;
 class EcGen extends KeyPairGeneratorSpi {
     private static final ECGenParameterSpec DEFAULT_SPEC = new ECGenParameterSpec("secp384r1");
     private static final ConcurrentHashMap<ECInfo, ThreadLocal<NativeParams>> PARAM_CACHE = new ConcurrentHashMap<>();
-    private static final Function<ECInfo, ThreadLocal<NativeParams>> CACHE_LOADER = t -> {
-            return new ThreadLocal<EcGen.NativeParams>() {
-                @Override
-                protected NativeParams initialValue() {
-                    return new NativeParams(buildEcParams(t.nid));
-                }
-            };
-    };
+    private static final Function<ECInfo, ThreadLocal<NativeParams>> CACHE_LOADER = t ->
+        ThreadLocal.withInitial( () -> new NativeParams(buildEcParams(t.nid)) );
 
     private static native long buildEcParams(int nid);
     private static native void freeEcParams(long ptr);

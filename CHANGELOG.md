@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.2 (Unreleased)
+
+### Patch
+* Stop using custom instances of ThreadLocal to improve memory management under custom classloaders. [PR #94](https://github.com/corretto/amazon-corretto-crypto-provider/pull/94)
+
 ## 1.3.1
 
 ### Maintenance
