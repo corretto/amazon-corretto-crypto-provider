@@ -1,4 +1,4 @@
-// Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.amazon.corretto.crypto.provider.test;
@@ -20,13 +20,10 @@ import javax.crypto.spec.SecretKeySpec;
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 
 public class AESBench {
-    private static final SecureRandom rnd = new SecureRandom();
-
     public static void main(String[] args) throws Throwable {
         Security.addProvider(AmazonCorrettoCryptoProvider.INSTANCE);
 
-        byte[] rawKey = new byte[16];
-        rnd.nextBytes(rawKey);
+        byte[] rawKey = TestUtil.getRandomBytes(16);
         SecretKeySpec key = new SecretKeySpec(rawKey, "AES");
         Cipher jce = Cipher.getInstance("AES/GCM/NoPadding");
         Cipher amzn = Cipher.getInstance("AES/GCM/NoPadding", "AmazonCorrettoCryptoProvider");
@@ -38,8 +35,7 @@ public class AESBench {
         bench(jce, key);
         bench(amzn, key);
 
-        rawKey = new byte[32];
-        rnd.nextBytes(rawKey);
+        rawKey = TestUtil.getRandomBytes(32);
         key = new SecretKeySpec(rawKey, "AES");
         bench(jce, key);
         bench(amzn, key);
@@ -58,15 +54,13 @@ public class AESBench {
 
     private static void runBench(Cipher cipher, Key key, int seconds, int size) throws InvalidKeyException,
         InvalidAlgorithmParameterException, IllegalBlockSizeException, BadPaddingException {
-        byte[] iv = new byte[12];
-        rnd.nextBytes(iv);
+        byte[] iv = TestUtil.getRandomBytes(12);
 
         NumberFormat fmt = NumberFormat.getIntegerInstance();
         fmt.setGroupingUsed(true);
 
         byte[] ciphertext = new byte[0];
-        byte[] data = new byte[size];
-        rnd.nextBytes(data);
+        byte[] data = TestUtil.getRandomBytes(size);
         long encCycles = 0;
 
         long startTime = System.nanoTime();

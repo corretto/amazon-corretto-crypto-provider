@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.2 (Unreleased)
+
+### Maintenance
+* Test code reuses instances of `SecureRandom` for better efficiency on platforms with slow entropy. [PR #96](https://github.com/corretto/amazon-corretto-crypto-provider/pull/96)
+
 ## 1.3.1
 
 ### Maintenance

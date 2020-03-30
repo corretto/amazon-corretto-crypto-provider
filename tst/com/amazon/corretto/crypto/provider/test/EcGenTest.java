@@ -1,4 +1,4 @@
-// Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.amazon.corretto.crypto.provider.test;
@@ -272,7 +272,7 @@ public class EcGenTest {
 
     @Test
     public void threadStorm() throws Throwable {
-        final byte[] rngSeed = SecureRandom.getSeed(20);
+        final byte[] rngSeed = TestUtil.getRandomBytes(20);
         System.out.println("RNG Seed: " + Arrays.toString(rngSeed));
         final SecureRandom rng = SecureRandom.getInstance("SHA1PRNG");
         rng.setSeed(rngSeed);
