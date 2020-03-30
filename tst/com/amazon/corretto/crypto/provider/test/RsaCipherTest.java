@@ -1,4 +1,4 @@
-// Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.amazon.corretto.crypto.provider.test;
@@ -45,7 +45,6 @@ import org.junit.Test;
 import com.amazon.corretto.crypto.provider.ExtraCheck;
 
 public class RsaCipherTest {
-    private static final SecureRandom RND = new SecureRandom();
     private static final String OAEP_PADDING = "RSA/ECB/OAEPWithSHA-1AndMGF1Padding";
     private static final String PKCS1_PADDING = "RSA/ECB/Pkcs1Padding";
     private static final String NO_PADDING = "RSA/ECB/NoPadding";
@@ -583,8 +582,7 @@ public class RsaCipherTest {
 
     @Test
     public void pkcs1WrapAes() throws GeneralSecurityException {
-        final byte[] rawKey = new byte[32];
-        RND.nextBytes(rawKey);
+        final byte[] rawKey = TestUtil.getRandomBytes(32);
         final SecretKeySpec original = new SecretKeySpec(rawKey, "AES");
         final Cipher wrap = Cipher.getInstance(PKCS1_PADDING, NATIVE_PROVIDER);
         final Cipher unwrap = Cipher.getInstance(PKCS1_PADDING, NATIVE_PROVIDER);
@@ -598,8 +596,7 @@ public class RsaCipherTest {
 
     @Test
     public void jce2nativePkcs1WrapAes() throws GeneralSecurityException {
-        final byte[] rawKey = new byte[32];
-        RND.nextBytes(rawKey);
+        final byte[] rawKey = TestUtil.getRandomBytes(32);
         final SecretKeySpec original = new SecretKeySpec(rawKey, "AES");
         final Cipher jceC = Cipher.getInstance(PKCS1_PADDING);
         final Cipher nativeC = Cipher.getInstance(PKCS1_PADDING, NATIVE_PROVIDER);
@@ -613,8 +610,7 @@ public class RsaCipherTest {
 
     @Test
     public void native2JcePkcs1WrapAes() throws GeneralSecurityException {
-        final byte[] rawKey = new byte[32];
-        RND.nextBytes(rawKey);
+        final byte[] rawKey = TestUtil.getRandomBytes(32);
         final SecretKeySpec original = new SecretKeySpec(rawKey, "AES");
         final Cipher jceC = Cipher.getInstance(PKCS1_PADDING);
         final Cipher nativeC = Cipher.getInstance(PKCS1_PADDING, NATIVE_PROVIDER);
@@ -628,8 +624,7 @@ public class RsaCipherTest {
 
     @Test
     public void oaepWrapAes() throws GeneralSecurityException {
-        final byte[] rawKey = new byte[32];
-        RND.nextBytes(rawKey);
+        final byte[] rawKey = TestUtil.getRandomBytes(32);
         final SecretKeySpec original = new SecretKeySpec(rawKey, "AES");
         final Cipher wrap = Cipher.getInstance(OAEP_PADDING, NATIVE_PROVIDER);
         final Cipher unwrap = Cipher.getInstance(OAEP_PADDING, NATIVE_PROVIDER);
@@ -643,8 +638,7 @@ public class RsaCipherTest {
 
     @Test
     public void jce2nativeOaepWrapAes() throws GeneralSecurityException {
-        final byte[] rawKey = new byte[32];
-        RND.nextBytes(rawKey);
+        final byte[] rawKey = TestUtil.getRandomBytes(32);
         final SecretKeySpec original = new SecretKeySpec(rawKey, "AES");
         final Cipher jceC = Cipher.getInstance(OAEP_PADDING);
         final Cipher nativeC = Cipher.getInstance(OAEP_PADDING, NATIVE_PROVIDER);
@@ -658,8 +652,7 @@ public class RsaCipherTest {
 
     @Test
     public void native2JceOaepWrapAes() throws GeneralSecurityException {
-        final byte[] rawKey = new byte[32];
-        RND.nextBytes(rawKey);
+        final byte[] rawKey = TestUtil.getRandomBytes(32);
         final SecretKeySpec original = new SecretKeySpec(rawKey, "AES");
         final Cipher jceC = Cipher.getInstance(OAEP_PADDING);
         final Cipher nativeC = Cipher.getInstance(OAEP_PADDING, NATIVE_PROVIDER);
@@ -820,7 +813,7 @@ public class RsaCipherTest {
 
     @Test
     public void threadStorm() throws Throwable {
-        final byte[] rngSeed = SecureRandom.getSeed(20);
+        final byte[] rngSeed = TestUtil.getRandomBytes(20);
         System.out.println("RNG Seed: " + Arrays.toString(rngSeed));
         final SecureRandom rng = SecureRandom.getInstance("SHA1PRNG");
         rng.setSeed(rngSeed);

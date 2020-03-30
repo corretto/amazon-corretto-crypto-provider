@@ -1,4 +1,4 @@
-// Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.amazon.corretto.crypto.provider.test;
@@ -51,7 +51,6 @@ import org.junit.Test;
 
 public class AesTest {
     private static final Class<?> SPI_CLASS;
-    private static final SecureRandom rnd = new SecureRandom();
     private static final byte[] PLAINTEXT = "Hello world. Good night moon.".getBytes(StandardCharsets.UTF_8);
     private static final String ALGO_NAME = "AES/GCM/NoPadding";
     private static final String PROVIDER_SUN = "SunJCE";
@@ -73,11 +72,9 @@ public class AesTest {
     public void setup() throws Throwable {
         Security.addProvider(AmazonCorrettoCryptoProvider.INSTANCE);
 
-        byte[] foo = new byte[16];
-        rnd.nextBytes(foo);
+        byte[] foo = TestUtil.getRandomBytes(16);
         key = new SecretKeySpec(foo, "AES");
-        nonce = new byte[12];
-        rnd.nextBytes(nonce);
+        nonce = TestUtil.getRandomBytes(12);
         jceC = Cipher.getInstance(ALGO_NAME);
         amznC = Cipher.getInstance(ALGO_NAME, AmazonCorrettoCryptoProvider.INSTANCE);
     }
@@ -200,7 +197,7 @@ public class AesTest {
     }
 
     @Test
-    public void large_overlap_encrypt() throws Exception {
+    public void large_overlap_encrypt() {
         // modes:
         //   0 = use doFinal on byte arrays;
         //   1 = use update then doFinal on byte arrays;
@@ -297,6 +294,8 @@ public class AesTest {
 
     @Test
     public void edge_badParameters() throws Throwable {
+        final SecureRandom rnd = TestUtil.MISC_SECURE_RANDOM.get();
+
         assertThrows(
                 InvalidAlgorithmParameterException.class,
                 () -> sneakyInvoke(getSpiInstance(), "engineInit", 9999, key, new GCMParameterSpec(128, randomIV()), rnd));
@@ -374,24 +373,25 @@ public class AesTest {
       Object spi = getSpiInstance();
 
         sneakyInvoke(spi, "engineInit", Cipher.DECRYPT_MODE, key,
-                new GCMParameterSpec(12 * 8, new byte[16]), new SecureRandom());
+                new GCMParameterSpec(12 * 8, new byte[16]), TestUtil.MISC_SECURE_RANDOM.get());
 
         assertEquals(12345 - 12, sneakyInvoke_int(spi, "engineGetOutputSize", 12345));
     }
 
     @Test
     public void test_getOutputSize_encrypt() throws Throwable {
-      Object spi = getSpiInstance();
+        final SecureRandom rnd = TestUtil.MISC_SECURE_RANDOM.get();
+        Object spi = getSpiInstance();
 
         sneakyInvoke(spi, "engineInit", Cipher.ENCRYPT_MODE, key,
-                new GCMParameterSpec(16 * 8, randomIV()), new SecureRandom());
+                new GCMParameterSpec(16 * 8, randomIV()), rnd);
 
         // Allows room for the final tag
         assertEquals(12345 + 16, sneakyInvoke_int(spi, "engineGetOutputSize", 12345));
 
         // Allows room for a partial buffered block
         sneakyInvoke(spi, "engineInit", Cipher.ENCRYPT_MODE, key,
-                new GCMParameterSpec(12 * 8, randomIV()), new SecureRandom());
+                new GCMParameterSpec(12 * 8, randomIV()), rnd);
         assertEquals(12345 + 15, sneakyInvoke_int(spi, "engineGetOutputSize", 12345));
     }
 
@@ -402,19 +402,20 @@ public class AesTest {
 
         ThreadLocalRandom.current().nextBytes(iv);
 
-        sneakyInvoke(spi, "engineInit", Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(16 * 8, iv), new SecureRandom());
+        sneakyInvoke(spi, "engineInit", Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(16 * 8, iv), TestUtil.MISC_SECURE_RANDOM.get());
 
         assertArrayEquals(iv, sneakyInvoke(spi, "engineGetIV"));
     }
 
     @Test
     public void test_getParameters() throws Throwable {
-      Object spi = getSpiInstance();
+        final SecureRandom rnd = TestUtil.MISC_SECURE_RANDOM.get();
+        Object spi = getSpiInstance();
         byte[] iv = new byte[16];
         ThreadLocalRandom.current().nextBytes(iv);
 
         GCMParameterSpec spec = new GCMParameterSpec(12 * 8, iv);
-        sneakyInvoke(spi, "engineInit", Cipher.ENCRYPT_MODE, key, spec, new SecureRandom());
+        sneakyInvoke(spi, "engineInit", Cipher.ENCRYPT_MODE, key, spec, rnd);
 
         AlgorithmParameters parameters = sneakyInvoke(spi, "engineGetParameters");
         GCMParameterSpec actualSpec = parameters.getParameterSpec(GCMParameterSpec.class);
@@ -424,7 +425,7 @@ public class AesTest {
         assumeMinimumVersion("1.0", AmazonCorrettoCryptoProvider.INSTANCE);
         ThreadLocalRandom.current().nextBytes(iv);
         IvParameterSpec ivSpec = new IvParameterSpec(iv);
-        sneakyInvoke(spi, "engineInit", Cipher.ENCRYPT_MODE, key, ivSpec, new SecureRandom());
+        sneakyInvoke(spi, "engineInit", Cipher.ENCRYPT_MODE, key, ivSpec, rnd);
 
         parameters = sneakyInvoke(spi, "engineGetParameters");
         actualSpec = parameters.getParameterSpec(GCMParameterSpec.class);
@@ -469,113 +470,117 @@ public class AesTest {
 
     @Test
     public void test_bufferOverflows() throws Throwable {
-      Object spi = getSpiInstance();
+        final SecureRandom rnd = TestUtil.MISC_SECURE_RANDOM.get();
+
+        Object spi = getSpiInstance();
         sneakyInvoke(spi, "engineInit", Cipher.ENCRYPT_MODE, key,
-                new GCMParameterSpec(128, randomIV()), new SecureRandom());
+                new GCMParameterSpec(128, randomIV()), rnd);
 
         // Bad output arrays on doFinal
         sneakyInvoke(spi, "engineInit", Cipher.ENCRYPT_MODE, key,
-                new GCMParameterSpec(128, randomIV()), new SecureRandom());
+                new GCMParameterSpec(128, randomIV()), rnd);
         assertThrows(ShortBufferException.class,
                 () -> sneakyInvoke(spi, "engineDoFinal", new byte[1], 0, 1, new byte[0], 0));
 
         sneakyInvoke(spi, "engineInit", Cipher.ENCRYPT_MODE, key,
-                new GCMParameterSpec(128, randomIV()), new SecureRandom());
+                new GCMParameterSpec(128, randomIV()), rnd);
         assertThrows(ShortBufferException.class,
                 () -> sneakyInvoke(spi, "engineDoFinal", new byte[1], 0, 1, new byte[256], 255));
 
         sneakyInvoke(spi, "engineInit", Cipher.ENCRYPT_MODE, key,
-                new GCMParameterSpec(128, randomIV()), new SecureRandom());
+                new GCMParameterSpec(128, randomIV()), rnd);
         assertThrows(ArrayIndexOutOfBoundsException.class,
                 () -> sneakyInvoke(spi, "engineDoFinal", new byte[1], 0, 1, new byte[256], -1));
 
         sneakyInvoke(spi, "engineInit", Cipher.ENCRYPT_MODE, key,
-                new GCMParameterSpec(128, randomIV()), new SecureRandom());
+                new GCMParameterSpec(128, randomIV()), rnd);
         assertThrows(ShortBufferException.class,
                 () -> sneakyInvoke(spi, "engineDoFinal", new byte[1024], 0, 1024, new byte[256], 0));
 
         sneakyInvoke(spi, "engineInit", Cipher.ENCRYPT_MODE, key,
-                new GCMParameterSpec(128, randomIV()), new SecureRandom());
+                new GCMParameterSpec(128, randomIV()), rnd);
         assertThrows(ShortBufferException.class,
                 () -> sneakyInvoke(spi, "engineDoFinal", ByteBuffer.allocate(1024), ByteBuffer.allocate(0)));
 
         // Bad input arrays on doFinal
         sneakyInvoke(spi, "engineInit", Cipher.ENCRYPT_MODE, key,
-                new GCMParameterSpec(128, randomIV()), new SecureRandom());
+                new GCMParameterSpec(128, randomIV()), rnd);
         assertThrows(ArrayIndexOutOfBoundsException.class,
                 () -> sneakyInvoke(spi, "engineDoFinal", new byte[1], 0, 2, new byte[256], 0));
         sneakyInvoke(spi, "engineInit", Cipher.ENCRYPT_MODE, key,
-                new GCMParameterSpec(128, randomIV()), new SecureRandom());
+                new GCMParameterSpec(128, randomIV()), rnd);
         assertThrows(ArrayIndexOutOfBoundsException.class,
                 () -> sneakyInvoke(spi, "engineDoFinal", new byte[1], -1, 1, new byte[256], 0));
         // Integer overflow
         sneakyInvoke(spi, "engineInit", Cipher.ENCRYPT_MODE, key,
-                new GCMParameterSpec(128, randomIV()), new SecureRandom());
+                new GCMParameterSpec(128, randomIV()), rnd);
         assertThrows(ArrayIndexOutOfBoundsException.class,
                 () -> sneakyInvoke(spi, "engineDoFinal", new byte[256], 0xFFFFFFF0, 0x20, new byte[256], 0));
 
         // Short output arrays on update()
         sneakyInvoke(spi, "engineInit", Cipher.ENCRYPT_MODE, key,
-                new GCMParameterSpec(128, randomIV()), new SecureRandom());
+                new GCMParameterSpec(128, randomIV()), rnd);
         assertThrows(ShortBufferException.class,
                 () -> sneakyInvoke(spi, "engineUpdate", new byte[16], 0, 16, new byte[15], 0));
 
         sneakyInvoke(spi, "engineInit", Cipher.ENCRYPT_MODE, key,
-                new GCMParameterSpec(128, randomIV()), new SecureRandom());
+                new GCMParameterSpec(128, randomIV()), rnd);
         assertThrows(ShortBufferException.class,
                 () -> sneakyInvoke(spi, "engineUpdate", new byte[16], 0, 16, new byte[32], 16));
 
         sneakyInvoke(spi, "engineInit", Cipher.ENCRYPT_MODE, key,
-                new GCMParameterSpec(128, randomIV()), new SecureRandom());
+                new GCMParameterSpec(128, randomIV()), rnd);
         assertThrows(ArrayIndexOutOfBoundsException.class,
                 () -> sneakyInvoke(spi, "engineUpdate", new byte[16], 0, 16, new byte[32], -1));
 
         sneakyInvoke(spi, "engineInit", Cipher.ENCRYPT_MODE, key,
-                new GCMParameterSpec(128, randomIV()), new SecureRandom());
+                new GCMParameterSpec(128, randomIV()), rnd);
         assertThrows(ShortBufferException.class,
                 () -> sneakyInvoke(spi, "engineUpdate", new byte[1024], 0, 1024, new byte[32], 0));
         sneakyInvoke(spi, "engineInit", Cipher.ENCRYPT_MODE, key,
-                new GCMParameterSpec(128, randomIV()), new SecureRandom());
+                new GCMParameterSpec(128, randomIV()), rnd);
         assertThrows(ShortBufferException.class,
                 () -> sneakyInvoke(spi, "engineUpdate", ByteBuffer.allocate(1024), ByteBuffer.allocate(0)));
 
         // Input array issues on update()
         sneakyInvoke(spi, "engineInit", Cipher.ENCRYPT_MODE, key,
-                new GCMParameterSpec(128, randomIV()), new SecureRandom());
+                new GCMParameterSpec(128, randomIV()), rnd);
         assertThrows(ArrayIndexOutOfBoundsException.class,
                 () -> sneakyInvoke(spi, "engineUpdate", new byte[16], 0, 17, new byte[1024], 0));
 
         sneakyInvoke(spi, "engineInit", Cipher.ENCRYPT_MODE, key,
-                new GCMParameterSpec(128, randomIV()), new SecureRandom());
+                new GCMParameterSpec(128, randomIV()), rnd);
         assertThrows(ArrayIndexOutOfBoundsException.class,
                 () -> sneakyInvoke(spi, "engineUpdate", new byte[16], 0, -1, new byte[1024], 0));
 
         // Integer overflow
         sneakyInvoke(spi, "engineInit", Cipher.ENCRYPT_MODE, key,
-                new GCMParameterSpec(128, randomIV()), new SecureRandom());
+                new GCMParameterSpec(128, randomIV()), rnd);
         assertThrows(ArrayIndexOutOfBoundsException.class,
                 () -> sneakyInvoke(spi, "engineUpdate", new byte[16], 0xFFFFFFF0, 0x20, new byte[1024], 0));
 
         // AAD buffer issues
         sneakyInvoke(spi, "engineInit", Cipher.ENCRYPT_MODE, key,
-                new GCMParameterSpec(128, randomIV()), new SecureRandom());
+                new GCMParameterSpec(128, randomIV()), rnd);
         assertThrows(ArrayIndexOutOfBoundsException.class,
                 () -> sneakyInvoke(spi, "engineUpdateAAD", new byte[16], 0, 17));
 
         sneakyInvoke(spi, "engineInit", Cipher.ENCRYPT_MODE, key,
-                new GCMParameterSpec(128, randomIV()), new SecureRandom());
+                new GCMParameterSpec(128, randomIV()), rnd);
         assertThrows(ArrayIndexOutOfBoundsException.class,
                 () -> sneakyInvoke(spi, "engineUpdateAAD", new byte[16], 0, -1));
 
         sneakyInvoke(spi, "engineInit", Cipher.ENCRYPT_MODE, key,
-                new GCMParameterSpec(128, randomIV()), new SecureRandom());
+                new GCMParameterSpec(128, randomIV()), rnd);
         assertThrows(ArrayIndexOutOfBoundsException.class,
                 () -> sneakyInvoke(spi, "engineUpdateAAD", new byte[16], 0xFFFFFFF0, 0x20));
     }
 
     @Test
     public void whenIVReused_throws() throws Throwable {
-      Object spi = getSpiInstance();
+        final SecureRandom rnd = TestUtil.MISC_SECURE_RANDOM.get();
+
+        Object spi = getSpiInstance();
         sneakyInvoke(spi, "engineInit", Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, new byte[16]), rnd);
 
         assertThrows(
@@ -589,6 +594,8 @@ public class AesTest {
         // COMPATIBILITY: SunJCE accepts updateAAD after update(), despite updateAAD being
         // documented as throwing
         // IllegalStateException when called after update(). We implement the javadoc'd behavior.
+        final SecureRandom rnd = TestUtil.MISC_SECURE_RANDOM.get();
+
 
         Cipher c = Cipher.getInstance(ALGO_NAME, PROVIDER_AMAZON);
         c.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, new byte[16]), rnd);
@@ -600,6 +607,8 @@ public class AesTest {
 
     @Test
     public void testBadAEADTagException() throws Throwable {
+        final SecureRandom rnd = TestUtil.MISC_SECURE_RANDOM.get();
+
         Cipher c = Cipher.getInstance(ALGO_NAME, PROVIDER_SUN);
         GCMParameterSpec algorithmParameterSpec = new GCMParameterSpec(128, randomIV());
         c.init(Cipher.ENCRYPT_MODE, key, algorithmParameterSpec, rnd);
@@ -619,6 +628,8 @@ public class AesTest {
 
     @Test
     public void whenCipherReusedWithoutReinit_throwsIVReuseException() throws Throwable {
+        final SecureRandom rnd = TestUtil.MISC_SECURE_RANDOM.get();
+
         Cipher c = Cipher.getInstance(ALGO_NAME, PROVIDER_AMAZON);
         c.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, randomIV()), rnd);
         c.doFinal();
@@ -627,6 +638,8 @@ public class AesTest {
 
     @Test
     public void whenDecryptModeReused_noException() throws Throwable {
+        final SecureRandom rnd = TestUtil.MISC_SECURE_RANDOM.get();
+
         Cipher c = Cipher.getInstance(ALGO_NAME, PROVIDER_SUN);
         c.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, randomIV()), rnd);
 
@@ -645,12 +658,16 @@ public class AesTest {
 
     @Test
     public void testLargeIVs() throws Throwable {
+        final SecureRandom rnd = TestUtil.MISC_SECURE_RANDOM.get();
+
         Cipher c = Cipher.getInstance(ALGO_NAME, PROVIDER_AMAZON);
         c.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, new byte[1024 * 1024]), rnd);
     }
 
     @Test
     public void testLargeAAD_decrypt() throws Throwable {
+        final SecureRandom rnd = TestUtil.MISC_SECURE_RANDOM.get();
+
         Cipher c = Cipher.getInstance(ALGO_NAME, PROVIDER_SUN);
         byte[] aad = new byte[1024 * 1024]; // new byte[1024*1024];
         byte[] data = new byte[1024 * 1024];
@@ -680,6 +697,8 @@ public class AesTest {
 
     @Test
     public void testLargeAAD_encrypt() throws Throwable {
+        final SecureRandom rnd = TestUtil.MISC_SECURE_RANDOM.get();
+
         Cipher c = Cipher.getInstance(ALGO_NAME, PROVIDER_AMAZON);
         byte[] aad = new byte[1024 * 1024]; // new byte[1024*1024];
         byte[] data = new byte[1024 * 1024];
@@ -725,6 +744,8 @@ public class AesTest {
 
     @Test
     public void testShortArrays() throws Throwable {
+        final SecureRandom rnd = TestUtil.MISC_SECURE_RANDOM.get();
+
         Cipher c = Cipher.getInstance(ALGO_NAME, PROVIDER_AMAZON);
         c.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(128, new byte[12]), rnd);
 
@@ -842,47 +863,13 @@ public class AesTest {
         assertArrayEquals(plaintext2, c.doFinal(ciphertext2));
     }
 
-    private void spinAssertEquals(long expected, LongSupplier actual) throws InterruptedException {
-        long maxCount = 10;
-
-        while (maxCount > 0) {
-            long actualValue = actual.getAsLong();
-
-            if (actualValue == expected) {
-                return;
-            }
-
-            maxCount--;
-
-            try {
-                System.gc();
-                Thread.sleep(50);
-                sneakyInvokeExplicit(
-                        getClass().getClassLoader().loadClass("com.amazon.corretto.crypto.provider.NativeResource"),
-                        "wakeCleaner",
-                null // static invocation
-                );
-                Thread.sleep(50);
-            } catch (Throwable t) {
-                throw new RuntimeException(t);
-            }
-
-
-        }
-
-        assertEquals(expected, actual.getAsLong());
-    }
-
     private byte[] randomIV() {
-        byte[] iv = new byte[16];
-        rnd.nextBytes(iv);
-
-        return iv;
+        return TestUtil.getRandomBytes(16);
     }
 
     @Test
     public void threadStorm() throws GeneralSecurityException, InterruptedException {
-        final byte[] rngSeed = SecureRandom.getSeed(20);
+        final byte[] rngSeed = TestUtil.getRandomBytes(20);
         System.out.println("RNG Seed: " + Arrays.toString(rngSeed));
         final SecureRandom rng = SecureRandom.getInstance("SHA1PRNG");
         rng.setSeed(rngSeed);
@@ -961,8 +948,7 @@ public class AesTest {
             for (int x = 0; x < iterations_; x++) {
                 try {
                     final SecretKey key = keys_.get(rnd_.nextInt(keys_.size()));
-                    final byte[] iv = new byte[12];
-                    rnd.nextBytes(iv);
+                    final byte[] iv = TestUtil.getRandomBytes(12);
                     final GCMParameterSpec spec = new GCMParameterSpec(128, iv);
                     enc_.init(Cipher.ENCRYPT_MODE, key, spec);
                     dec_.init(Cipher.DECRYPT_MODE, key, spec);
