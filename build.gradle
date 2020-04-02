@@ -42,7 +42,7 @@ task getOpensslSrc {
         mkdir "${buildDir}/openssl/bin"
         exec {
             workingDir "${buildDir}/openssl"
-            commandLine 'wget', 'https://www.openssl.org/source/openssl-1.1.1d.tar.gz'
+            commandLine 'wget', 'https://www.openssl.org/source/openssl-1.1.1f.tar.gz'
         }
         exec {
             workingDir "${buildDir}/openssl"
@@ -50,7 +50,7 @@ task getOpensslSrc {
         }
         exec {
             workingDir "${buildDir}/openssl/src"
-            commandLine 'tar', '-xzv', '-C', "${buildDir}/openssl/src", '--strip-components=1', '-f', "${buildDir}/openssl/openssl-1.1.1d.tar.gz"
+            commandLine 'tar', '-xzv', '-C', "${buildDir}/openssl/src", '--strip-components=1', '-f', "${buildDir}/openssl/openssl-1.1.1f.tar.gz"
         }
     }
 }
