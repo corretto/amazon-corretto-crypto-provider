@@ -70,18 +70,17 @@ SecureRandom algorithms:
 * NIST800-90A/AES-CTR-256 (Used as the default and only enabled if your CPU supports RDRAND)
 
 
-# Compatibility
-This library is compatible with:
-* OpenJDK 8 or newer (This includes [Amazon Corretto](https://aws.amazon.com/corretto/))
-* OracleJDK 8 or newer
-* Linux x86_64
-* Linux ARM64/aarch64 **(EXPERIMENTAL)**
+# Compatibility & Requirements
+ACCP has the following requirements:
+* JDK8 or newer (This includes both OracleJDK and [Amazon Corretto](https://aws.amazon.com/corretto/))
+* 64-bit Linux running on x86_64 (also known as x64 or AMD64)
 
 If ACCP is used/installed on a system it does not support, it will disable itself and the JVM will behave as if ACCP weren't installed at all.
 
-ARM64/aarch64 support is currently experimental and not distributed via Maven.
+**Experimental** support for aarch64 (64-bit ARM) Linux systems was added in version 1.4.0.
+(This is as an alternative to fully supported 64-bit Linux on x86_64.)
+aarch64 support is still **experimental** and is not yet distributed via Maven.
 If you want to experiment with ACCP on aarch64 platforms you will need to build it yourself as described later in this document.
-
 
 # Using the provider
 ## Installation
