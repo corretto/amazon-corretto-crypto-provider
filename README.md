@@ -94,12 +94,14 @@ classifier. You'll get an empty package otherwise.
 
 ### Maven
 Add the following to your `pom.xml` or wherever you configure your Maven dependencies.
+This will instruct it to use the most recent 1.x version of ACCP.
+For more information, please see [VERSIONING.rst](https://github.com/corretto/amazon-corretto-crypto-provider/blob/develop/VERSIONING.rst).
 
 ```xml
 <dependency>
   <groupId>software.amazon.cryptools</groupId>
   <artifactId>AmazonCorrettoCryptoProvider</artifactId>
-  <version>LATEST</version>
+  <version>[1.0,2.0)</version>
   <classifier>linux-x86_64</classifier>
 </dependency>
 ```
@@ -108,6 +110,8 @@ Add the following to your `pom.xml` or wherever you configure your Maven depende
 Add the following to your `build.gradle` file. If you already have a
 `dependencies` block in your `build.gradle`, you can add the ACCP line to your
 existing block. 
+This will instruct it to use the most recent 1.x version of ACCP.
+For more information, please see [VERSIONING.rst](https://github.com/corretto/amazon-corretto-crypto-provider/blob/develop/VERSIONING.rst).
 
 ```groovy
 dependencies {
