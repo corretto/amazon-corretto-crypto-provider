@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.4.0 (Unreleased)
+## 1.4.0
 
 ### Improvements
 * Now uses [OpenSSL 1.1.1f](https://www.openssl.org/source/openssl-1.1.1f.tar.gz). [PR #97](https://github.com/corretto/amazon-corretto-crypto-provider/pull/97)
