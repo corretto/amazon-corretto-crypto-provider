@@ -1,4 +1,4 @@
-// Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #ifndef RDRAND_H
@@ -20,7 +20,7 @@ bool supportsRdSeed();
 
 }
 
-#ifdef ENABLE_RNG_TEST_HOOKS
+#ifdef ENABLE_NATIVE_TEST_HOOKS
 extern "C" {
     extern bool (*hook_rdrand)(uint64_t *out);
     extern bool (*hook_rdseed)(uint64_t *out);

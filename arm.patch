@@ -1,0 +1,73 @@
+This patch file was written by szelei.t@gmail.com and released by him under an MIT license at 
+https://github.com/openssl/openssl/issues/10842#issuecomment-608287665
+
+--- a/crypto/sha/asm/sha1-armv8.pl	2020-01-10 15:51:40.284641928 +0100
++++ b/crypto/sha/asm/sha1-armv8.pl	2020-01-10 15:52:46.924618409 +0100
+@@ -329,7 +329,7 @@
+ #endif
+ .asciz	"SHA1 block transform for ARMv8, CRYPTOGAMS by <appro\@openssl.org>"
+ .align	2
+-.comm	OPENSSL_armcap_P,4,4
++.hidden	OPENSSL_armcap_P
+ ___
+ }}}
+ 
+--- a/crypto/sha/asm/sha512-armv8.pl	2019-09-10 15:13:07.000000000 +0200
++++ b/crypto/sha/asm/sha512-armv8.pl	2020-01-10 16:03:59.641110272 +0100
+@@ -842,7 +842,7 @@
+ 
+ $code.=<<___;
+ #ifndef	__KERNEL__
+-.comm	OPENSSL_armcap_P,4,4
++.hidden	OPENSSL_armcap_P
+ #endif
+ ___
+ 
+--- a/crypto/poly1305/asm/poly1305-armv8.pl	2019-09-10 15:13:07.000000000 +0200
++++ b/crypto/poly1305/asm/poly1305-armv8.pl	2020-01-13 09:11:50.915315471 +0100
+@@ -93,9 +93,9 @@
+ 
+ 	tst	w17,#ARMV7_NEON
+ 
+-	adr	$d0,poly1305_blocks
++	adr	$d0,.Lpoly1305_blocks
+ 	adr	$r0,poly1305_blocks_neon
+-	adr	$d1,poly1305_emit
++	adr	$d1,.Lpoly1305_emit
+ 	adr	$r1,poly1305_emit_neon
+ 
+ 	csel	$d0,$d0,$r0,eq
+@@ -115,6 +115,7 @@
+ .type	poly1305_blocks,%function
+ .align	5
+ poly1305_blocks:
++.Lpoly1305_blocks:
+ 	ands	$len,$len,#-16
+ 	b.eq	.Lno_data
+ 
+@@ -179,6 +180,7 @@
+ .type	poly1305_emit,%function
+ .align	5
+ poly1305_emit:
++.Lpoly1305_emit:
+ 	ldp	$h0,$h1,[$ctx]		// load hash base 2^64
+ 	ldr	$h2,[$ctx,#16]
+ 	ldp	$t0,$t1,[$nonce]	// load nonce
+@@ -288,7 +290,7 @@
+ 	ldr	$is_base2_26,[$ctx,#24]
+ 	cmp	$len,#128
+ 	b.hs	.Lblocks_neon
+-	cbz	$is_base2_26,poly1305_blocks
++	cbz	$is_base2_26,.Lpoly1305_blocks
+ 
+ .Lblocks_neon:
+ 	.inst	0xd503233f		// paciasp
+@@ -869,7 +871,7 @@
+ .align	5
+ poly1305_emit_neon:
+ 	ldr	$is_base2_26,[$ctx,#24]
+-	cbz	$is_base2_26,poly1305_emit
++	cbz	$is_base2_26,.Lpoly1305_emit
+ 
+ 	ldp	w10,w11,[$ctx]		// load hash value base 2^26
+ 	ldp	w12,w13,[$ctx,#8]

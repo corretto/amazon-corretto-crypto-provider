@@ -1,5 +1,7 @@
 # Amazon Corretto Crypto Provider
-The Amazon Corretto Crypto Provider (ACCP) is a collection of high-performance cryptographic implementations exposed via the standard [JCA/JCE](https://docs.oracle.com/en/java/javase/11/security/java-cryptography-architecture-jca-reference-guide.html) interfaces. This means that it can be used as a drop in replacement for many different Java applications. Currently algorithms are primarily backed by OpenSSL's implementations (1.1.1d) but this may change in the future.
+The Amazon Corretto Crypto Provider (ACCP) is a collection of high-performance cryptographic implementations exposed via the standard [JCA/JCE](https://docs.oracle.com/en/java/javase/11/security/java-cryptography-architecture-jca-reference-guide.html) interfaces.
+This means that it can be used as a drop in replacement for many different Java applications.
+Currently algorithms are primarily backed by OpenSSL's implementations (1.1.1f as of ACCP 1.4.0) but this may change in the future.
 
 ## Build Status
 Please be aware that "Overkill" tests are known to be flakey
@@ -68,16 +70,17 @@ SecureRandom algorithms:
 * NIST800-90A/AES-CTR-256 (Used as the default and only enabled if your CPU supports RDRAND)
 
 
-# Compatibility
-This library is compatible with:
-* OpenJDK 8 or newer (This includes [Amazon Corretto](https://aws.amazon.com/corretto/))
-* OracleJDK 8 or newer
-* Linux x86_64
+# Compatibility & Requirements
+ACCP has the following requirements:
+* JDK8 or newer (This includes both OracleJDK and [Amazon Corretto](https://aws.amazon.com/corretto/))
+* 64-bit Linux running on x86_64 (also known as x64 or AMD64)
 
 If ACCP is used/installed on a system it does not support, it will disable itself and the JVM will behave as if ACCP weren't installed at all.
 
-## Future Compatibility (Soon)
-* ARM64
+**Experimental** support for aarch64 (64-bit ARM) Linux systems was added in version 1.4.0.
+(This is as an alternative to fully supported 64-bit Linux on x86_64.)
+aarch64 support is still **experimental** and is not yet distributed via Maven.
+If you want to experiment with ACCP on aarch64 platforms you will need to build it yourself as described later in this document.
 
 # Using the provider
 ## Installation
@@ -91,12 +94,14 @@ classifier. You'll get an empty package otherwise.
 
 ### Maven
 Add the following to your `pom.xml` or wherever you configure your Maven dependencies.
+This will instruct it to use the most recent 1.x version of ACCP.
+For more information, please see [VERSIONING.rst](https://github.com/corretto/amazon-corretto-crypto-provider/blob/develop/VERSIONING.rst).
 
 ```xml
 <dependency>
   <groupId>software.amazon.cryptools</groupId>
   <artifactId>AmazonCorrettoCryptoProvider</artifactId>
-  <version>LATEST</version>
+  <version>[1.0,2.0)</version>
   <classifier>linux-x86_64</classifier>
 </dependency>
 ```
@@ -105,6 +110,8 @@ Add the following to your `pom.xml` or wherever you configure your Maven depende
 Add the following to your `build.gradle` file. If you already have a
 `dependencies` block in your `build.gradle`, you can add the ACCP line to your
 existing block. 
+This will instruct it to use the most recent 1.x version of ACCP.
+For more information, please see [VERSIONING.rst](https://github.com/corretto/amazon-corretto-crypto-provider/blob/develop/VERSIONING.rst).
 
 ```groovy
 dependencies {

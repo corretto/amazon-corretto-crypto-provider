@@ -1,4 +1,4 @@
-// Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 /*
@@ -12,11 +12,10 @@
 
 #include "env.h"
 #include "rdrand.h"
-#include "config.h"
+#include "test_utils.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <assert.h>
 
 using namespace AmazonCorrettoCryptoProvider;
 
@@ -50,15 +49,6 @@ bool rng_stuck_ff(uint64_t *out) {
     *out = UINT64_MAX;
     return true;
 }
-
-bool test_succeeded = true;
-
-#define TEST_ASSERT(x) do { \
-    if (!(x)) { \
-        test_succeeded = false; \
-        printf("Failed assertion at %s:%d: %s\n", __FILE__, __LINE__, #x); \
-    } \
-} while (0)
 
 void when_rng_flaky_retry_works() {
     static const uint8_t expected1[] = {
@@ -228,30 +218,21 @@ void when_rdrand_stuck_failure_returned() {
 
 } // anon namespace
 
-#define RUNTEST(name) do { \
+#define RUN_RD_RAND_TEST(name) do { \
     hook_rdrand = hook_rdseed = NULL; \
-    printf("Running test %s... ", #name); \
-    test_succeeded = true; \
-    name(); \
-    if (test_succeeded) { \
-        printf("ok\n"); \
-    } else {\
-        printf("FAILED test %s\n", #name); \
-        success = false; \
-    } \
+    RUNTEST(name); \
 } while (0)
 
-
 int main() {
-    bool success = true;
+    BEGIN_TEST();
 
-    RUNTEST(when_rng_flaky_retry_works);
-    RUNTEST(when_rng_dead_failure_returned);
-    RUNTEST(when_rng_fails_late_buffer_is_still_cleared);
-    RUNTEST(when_rdrand_broken_rdseed_works_eventually);
-    RUNTEST(when_rdseed_broken_rdrand_reduction_used);
-    RUNTEST(when_rdrand_stuck_failure_returned);
+    RUN_RD_RAND_TEST(when_rng_flaky_retry_works);
+    RUN_RD_RAND_TEST(when_rng_dead_failure_returned);
+    RUN_RD_RAND_TEST(when_rng_fails_late_buffer_is_still_cleared);
+    RUN_RD_RAND_TEST(when_rdrand_broken_rdseed_works_eventually);
+    RUN_RD_RAND_TEST(when_rdseed_broken_rdrand_reduction_used);
+    RUN_RD_RAND_TEST(when_rdrand_stuck_failure_returned);
 
-    return success ? 0 : 1;
+    END_TEST();
 }
 

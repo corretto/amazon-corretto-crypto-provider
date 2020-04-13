@@ -1,4 +1,4 @@
-// Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.amazon.corretto.crypto.provider.test;
@@ -17,15 +17,37 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
+import java.security.SecureRandom;
 import java.security.Security;
 import java.util.Arrays;
 
 @SuppressWarnings("unchecked")
 public class TestUtil {
     public static final BouncyCastleProvider BC_PROVIDER = new BouncyCastleProvider();
+    /**
+     * Thread local instances of SecureRandom with no further guarantees about implementation or security.
+     *
+     * These are only used for testing purposes and are configured specifically for speed rather than security.
+     */
+    public static final ThreadLocal<SecureRandom> MISC_SECURE_RANDOM = ThreadLocal.withInitial(
+            () -> {
+                try {
+                    // We need something non-blocking and very fast which doesn't depend on our own implementation.
+                    return SecureRandom.getInstance("SHA1PRNG");
+                } catch (final NoSuchAlgorithmException ex) {
+                    throw new AssertionError(ex);
+                }
+            });
+
     private static final File TEST_DIR = new File(System.getProperty("test.data.dir", "."));
 
+    public static byte[] getRandomBytes(int length) {
+        final byte[] result = new byte[length];
+        MISC_SECURE_RANDOM.get().nextBytes(result);
+        return result;
+    }
     
     public static void assertThrows(Class<? extends Throwable> expected, ThrowingRunnable callable) {
         try {

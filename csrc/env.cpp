@@ -1,4 +1,4 @@
-// Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #include "env.h"
@@ -10,6 +10,7 @@
 #include <execinfo.h>
 #include <dlfcn.h>
 #include <cxxabi.h>
+#include <inttypes.h>
 #endif
 
 #include <sstream>
@@ -50,7 +51,7 @@ void format_trace(std::ostringstream &accum, const std::vector<void *> &trace) {
         Dl_info info;
         if (!dladdr(trace[i], &info)) {
             // If we couldn't find a symbol, just print the offset and move on.
-            snprintf(buf, sizeof(buf), "%-35s 0x%016llx\n", "???", (uint64_t)trace[i]);
+            snprintf(buf, sizeof(buf), "%-35s 0x%016" PRIx64 "\n", "???", (uint64_t)trace[i]);
             accum << buf;
             continue;
         }
@@ -63,7 +64,7 @@ void format_trace(std::ostringstream &accum, const std::vector<void *> &trace) {
             image_name = last_slash + 1;
         }
 
-        snprintf(buf, sizeof(buf), "%-35s 0x%016llx ", image_name, (uint64_t)trace[i]);
+        snprintf(buf, sizeof(buf), "%-35s 0x%016" PRIx64 " ", image_name, (uint64_t)trace[i]);
         accum << buf;
 
         // Try to demangle the symbol name
@@ -93,7 +94,8 @@ void format_trace(std::ostringstream &accum, const std::vector<void *> &trace) {
         }
 
         // finally tack on the offset from the start of the function
-        snprintf(buf, sizeof(buf), " + %llu\n", (uint64_t)trace[i] - (uint64_t)info.dli_saddr);
+        uint64_t offset = (uint64_t)trace[i] - (uint64_t)info.dli_saddr;
+        snprintf(buf, sizeof(buf), " + %" PRIu64 "\n", offset);
         accum << buf;
     }
 

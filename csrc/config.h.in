@@ -1,4 +1,4 @@
-// Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #ifndef CONFIG_H
@@ -15,7 +15,7 @@
 #cmakedefine HAVE_IS_TRIVIALLY_DESTRUCTABLE
 #cmakedefine HAVE_NULLPTR
 #cmakedefine HAVE_NOEXCEPT
-#cmakedefine ENABLE_RNG_TEST_HOOKS
+#cmakedefine ENABLE_NATIVE_TEST_HOOKS
 #cmakedefine FORCE_DISABLE_RDRAND
 
 #ifdef HAVE_GETENTROPY_IN_SYSRANDOM

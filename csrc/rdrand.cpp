@@ -1,4 +1,4 @@
-// Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #include "config.h"
@@ -9,10 +9,11 @@
 #include "rdrand.h"
 #include "keyutils.h"
 #include <openssl/evp.h>
+#include <unistd.h>
 
 #define DEFAULT_RETRY_COUNT 100
 
-#ifdef ENABLE_RNG_TEST_HOOKS
+#ifdef ENABLE_NATIVE_TEST_HOOKS
 extern "C" {
     bool (*hook_rdrand)(uint64_t *out) = NULL;
     bool (*hook_rdseed)(uint64_t *out) = NULL;
@@ -114,12 +115,15 @@ uint32_t get_cpuinfo() {
   return info;
 }
 
+
 bool rng_rdrand(uint64_t *out) {
     if (unlikely(hook_rdrand)) {
         return (*hook_rdrand)(out);
     }
 
     bool success = 0;
+
+#if defined(__x86_64__)
     __asm__ __volatile__(
         ASM_RDRAND_RCX
         "setc %%al\n" // rax = 1 if success, 0 if fail
@@ -127,7 +131,7 @@ bool rng_rdrand(uint64_t *out) {
         : "c" (0), "a" (0)
         : "cc" // clobbers condition codes
     );
-
+#endif
     return success;
 }
 
@@ -142,7 +146,9 @@ bool rng_rdseed(uint64_t *out) {
         return false;
     }
 
-    bool success;
+    bool success = 0;
+
+#if defined(__x86_64__)
     __asm__ __volatile__(
         ASM_RDSEED_RCX
         "setc %%al\n" // rax = 1 if success, 0 if fail
@@ -150,13 +156,15 @@ bool rng_rdseed(uint64_t *out) {
         : "c" (0), "a" (0)
         : "cc" // clobbers condition codes
     );
-
+#endif
     return success;
 }
 
 namespace {
 
 void pause_and_decrement(int &counter) {
+#if defined(__x86_64__)
+
     __asm__ __volatile__(
     // Intel recommends putting the PAUSE instruction (REP NOP) between rdrand/rdseed polls
     // c.f. https://software.intel.com/en-us/articles/intel-digital-random-number-generator-drng-software-implementation-guide
@@ -171,6 +179,9 @@ void pause_and_decrement(int &counter) {
         :
         : "cc"
     );
+#else
+    counter--;
+#endif
 }
 
 bool rdseed_fallback(uint64_t *dest) COLD NOINLINE;
@@ -324,6 +335,7 @@ bool rng_retry_rdseed(uint64_t *dest) {
 bool rd_into_buf(bool (*rng)(uint64_t *), unsigned char *buf, int len) {
     unsigned char *original_buf = buf;
     int original_len = len;
+#if defined(__i386__) || defined(__x86_64__)
 
     while (len >= 8) {
         if (unlikely(!rng(reinterpret_cast<uint64_t *>(buf)))) {
@@ -343,7 +355,9 @@ bool rd_into_buf(bool (*rng)(uint64_t *), unsigned char *buf, int len) {
         memcpy(buf, &remain, len);
         secureZero(&remain, 0);
     }
-
+#else
+    goto fail;
+#endif
     return true;
 fail:
     // Wipe the buffer to make sure it's obvious if something is ignoring the return value
@@ -356,7 +370,11 @@ fail:
 // C++ Exported methods:
 
 bool supportsRdRand() {
+#if defined(__i386__) || defined(__x86_64__)
   return !!(get_cpuinfo() & CPUID_HAS_RDRAND);
+#else
+  return 0;
+#endif
 }
 
 bool supportsRdSeed() {

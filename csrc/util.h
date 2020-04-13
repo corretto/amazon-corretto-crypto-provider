@@ -1,4 +1,4 @@
-// Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #ifndef UTIL_H
@@ -122,23 +122,11 @@ class pthread_lock_auto {
 };
 
 #if  __BYTE_ORDER == __LITTLE_ENDIAN
-#define hostToBigEndian64(x) swapEndian(x)
-#define bigEndianToHost64(x) swapEndian(x)
+#define hostToBigEndian64(x) __builtin_bswap64(x)
+#define bigEndianToHost64(x) __builtin_bswap64(x)
 #else
 #define hostToBigEndian64(x) (x)
 #define bigEndianToHost64(x) (x)
-#endif
-
-
-#if defined(__x86_64__)
-static inline uint64_t swapEndian(uint64_t val) {
-  uint64_t result = val;
-  __asm__(
-        "bswap %0"
-	: "+r"(result)
-  );
-  return result;
-}
 #endif
 
 static inline void* fast_xor(void* dest, const void* src, int len) {
