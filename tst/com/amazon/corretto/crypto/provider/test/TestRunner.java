@@ -6,6 +6,7 @@ package com.amazon.corretto.crypto.provider.test;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -222,10 +223,10 @@ public class TestRunner {
     }
 
     public static class BasicListener extends RunListener {
+        private final ConcurrentHashMap<Description, Boolean> hasOutput = new ConcurrentHashMap<>();
         private final AtomicInteger assumedCount_ = new AtomicInteger(0);
         private final boolean verbose_;
         private final String suiteName_;
-        private boolean statusOutput_ = false;
         private volatile boolean alreadyFailed = false;
 
         public BasicListener(final String suiteName, boolean verbose) {
@@ -248,7 +249,7 @@ public class TestRunner {
             if (verbose_) {
                 printNotice(STARTED_NOTICE, description);
             }
-            statusOutput_ = false;
+            hasOutput.remove(description);
         }
 
         @Override
@@ -263,30 +264,29 @@ public class TestRunner {
                     !(exception instanceof AssertionError)) {
                   System.out.println(failure.getTrace());
               }
-              statusOutput_ = true;
+              hasOutput.put(failure.getDescription(), true);
         }
 
         @Override
         public void testFinished(Description description) throws Exception {
-            if (!statusOutput_) {
+            if (!hasOutput.contains(description)) {
                 printNotice(PASSED_NOTICE, description);
-                statusOutput_ = true;
             }
         }
 
         @Override
         public void testAssumptionFailure(Failure failure) {
             assumedCount_.incrementAndGet();
-            if (!statusOutput_) {
+            if (!hasOutput.contains(failure.getDescription())) {
                 printNotice(ASSUMPTION_FAILED_NOTICE, failure);
-                statusOutput_ = true;
+                hasOutput.put(failure.getDescription(), true);
             }
         }
 
         @Override
         public void testIgnored(Description description) throws Exception {
             printNotice(IGNORED_NOTICE, description);
-            statusOutput_ = true;
+            hasOutput.put(description, true);
         }       
 
         private void printNotice(final String notice, final Object description) {

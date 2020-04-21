@@ -4,6 +4,9 @@
 ### Improvements
 * Now uses [OpenSSL 1.1.1g](https://www.openssl.org/source/openssl-1.1.1g.tar.gz). [PR #108](https://github.com/corretto/amazon-corretto-crypto-provider/pull/108)
 
+### Maintenance
+* Fix to threading issue in `TestRunner` causing some successful tests to not be logged. [PR #109](https://github.com/corretto/amazon-corretto-crypto-provider/pull/109)
+
 ## 1.4.0
 
 ### Improvements
