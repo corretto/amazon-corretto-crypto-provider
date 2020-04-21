@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.0 (Unreleased)
+### Improvements
+* Now uses [OpenSSL 1.1.1g](https://www.openssl.org/source/openssl-1.1.1g.tar.gz). [PR #108](https://github.com/corretto/amazon-corretto-crypto-provider/pull/108)
+
 ## 1.4.0
 
 ### Improvements
@@ -23,7 +27,7 @@
 * Now allows cloning of `Mac` objects. [PR #78](https://github.com/corretto/amazon-corretto-crypto-provider/pull/78)
 
 ### Maintenance
-* You can disable parallel execution of tests by setting the `ACCP_TEST_PARALLEL` environment variable to `false` 
+* You can disable parallel execution of tests by setting the `ACCP_TEST_PARALLEL` environment variable to `false`
 
 ## 1.2.0
 
