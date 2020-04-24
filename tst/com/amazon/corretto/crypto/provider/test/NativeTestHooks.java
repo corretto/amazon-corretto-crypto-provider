@@ -4,6 +4,9 @@
 package com.amazon.corretto.crypto.provider.test;
 
 import org.junit.Assume;
+import org.junit.jupiter.api.extension.ConditionEvaluationResult;
+import org.junit.jupiter.api.extension.ExecutionCondition;
+import org.junit.jupiter.api.extension.ExtensionContext;
 
 /**
  * Hooks for {@link NativeTest}
@@ -30,6 +33,17 @@ public class NativeTestHooks {
             return true;
         } catch (final Throwable t) {
             return false;
+        }
+    }
+
+    public static class RequireHooks implements ExecutionCondition {
+        private static final ConditionEvaluationResult ENABLED = ConditionEvaluationResult.enabled("Hooks present");
+        private static final ConditionEvaluationResult DISABLED = ConditionEvaluationResult.disabled("Hooks missing");
+        private static final boolean hasHooks = hasNativeHooks();
+
+        @Override
+        public ConditionEvaluationResult evaluateExecutionCondition(ExtensionContext context) {
+            return hasHooks ? ENABLED : DISABLED;
         }
     }
 }
