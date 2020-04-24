@@ -4,6 +4,9 @@
 ### Improvements
 * Now uses [OpenSSL 1.1.1g](https://www.openssl.org/source/openssl-1.1.1g.tar.gz). [PR #108](https://github.com/corretto/amazon-corretto-crypto-provider/pull/108)
 
+### Maintenance
+* Upgrade tests to JUnit5. [PR #111](https://github.com/corretto/amazon-corretto-crypto-provider/pull/111)
+
 ## 1.4.0
 
 ### Improvements

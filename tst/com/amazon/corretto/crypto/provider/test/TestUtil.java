@@ -83,7 +83,7 @@ public class TestUtil {
     // the signed JAR, so we need to use reflection to cross the package boundary here.
     public static void disableByteBufferReflection() {
         try {
-            Class<?> klass = ClassLoader.getSystemClassLoader().loadClass(
+            Class<?> klass = Class.forName(
                     "com.amazon.corretto.crypto.provider.ReflectiveTools");
             Method m = klass.getDeclaredMethod("disableByteBufferReflection");
             m.setAccessible(true);
@@ -96,7 +96,7 @@ public class TestUtil {
 
     public static void enableByteBufferReflection() {
         try {
-            Class<?> klass = ClassLoader.getSystemClassLoader().loadClass(
+            Class<?> klass = Class.forName(
                     "com.amazon.corretto.crypto.provider.ReflectiveTools");
             Method m = klass.getDeclaredMethod("enableByteBufferReflection");
             m.setAccessible(true);
@@ -164,7 +164,7 @@ public class TestUtil {
 
     public static InputStream sneakyGetTestData(String fileName) {
         try {
-            Class<?> klass = ClassLoader.getSystemClassLoader().loadClass(
+            Class<?> klass = Class.forName(
                 "com.amazon.corretto.crypto.provider.Loader");
             return (InputStream) sneakyInvoke(klass, "getTestData", fileName);
         } catch (Throwable e) {
