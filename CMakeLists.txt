@@ -119,7 +119,6 @@ set(ACCP_SRC
         src/com/amazon/corretto/crypto/provider/Loader.java
         src/com/amazon/corretto/crypto/provider/AmazonCorrettoCryptoProvider.java
         src/com/amazon/corretto/crypto/provider/NativeResource.java
-        src/com/amazon/corretto/crypto/provider/PrivilegedTestHooks.java
         src/com/amazon/corretto/crypto/provider/ReflectiveTools.java
         src/com/amazon/corretto/crypto/provider/RsaCipher.java
         src/com/amazon/corretto/crypto/provider/RsaGen.java
@@ -542,7 +541,6 @@ add_jar(
         tst/com/amazon/corretto/crypto/provider/test/NativeTestHooks.java
         tst/com/amazon/corretto/crypto/provider/test/NativeTest.java
         tst/com/amazon/corretto/crypto/provider/test/RecursiveInitializationTest.java
-        tst/com/amazon/corretto/crypto/provider/test/RdrandTest.java
         tst/com/amazon/corretto/crypto/provider/test/RsaCipherTest.java
         tst/com/amazon/corretto/crypto/provider/test/RsaGenTest.java
         tst/com/amazon/corretto/crypto/provider/test/SecurityPropertyTester.java
