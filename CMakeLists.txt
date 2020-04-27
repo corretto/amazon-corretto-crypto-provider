@@ -609,6 +609,7 @@ endif()
 add_custom_target(check-junit
     COMMAND ${TEST_JAVA_EXECUTABLE}
         ${TEST_RUNNER_ARGUMENTS}
+        --reports-dir=unit-tests
         --select-package=com.amazon.corretto.crypto.provider.test
         --exclude-package=com.amazon.corretto.crypto.provider.test.integration
         --exclude-classname=com.amazon.corretto.crypto.provider.test.SecurityManagerTest
@@ -723,6 +724,7 @@ set_target_properties(check-integration-extra-checks PROPERTIES EXCLUDE_FROM_ALL
 add_custom_target(check-integration
     COMMAND ${TEST_JAVA_EXECUTABLE}
         ${TEST_RUNNER_ARGUMENTS}
+        --reports-dir=integration-tests
         --select-package=com.amazon.corretto.crypto.provider.test.integration
 
     DEPENDS accp-jar tests-jar)
