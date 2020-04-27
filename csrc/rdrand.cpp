@@ -423,20 +423,8 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_test_NativeT
     }
 }
 
-JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_PrivilegedTestHooks_set_1rng_1success_1pattern
-  (JNIEnv *, jclass, jlong pattern)
-{
-    return false;
-}
-
 JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_test_NativeTestHooks_hasRdseed
   (JNIEnv *, jclass)
 {
     return supportsRdSeed();
-}
-
-JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_PrivilegedTestHooks_break_1rdseed
-  (JNIEnv *, jclass)
-{
-    return false;
 }

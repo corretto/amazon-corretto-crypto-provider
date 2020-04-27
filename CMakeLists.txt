@@ -119,7 +119,6 @@ set(ACCP_SRC
         src/com/amazon/corretto/crypto/provider/Loader.java
         src/com/amazon/corretto/crypto/provider/AmazonCorrettoCryptoProvider.java
         src/com/amazon/corretto/crypto/provider/NativeResource.java
-        src/com/amazon/corretto/crypto/provider/PrivilegedTestHooks.java
         src/com/amazon/corretto/crypto/provider/ReflectiveTools.java
         src/com/amazon/corretto/crypto/provider/RsaCipher.java
         src/com/amazon/corretto/crypto/provider/RsaGen.java
@@ -542,7 +541,6 @@ add_jar(
         tst/com/amazon/corretto/crypto/provider/test/NativeTestHooks.java
         tst/com/amazon/corretto/crypto/provider/test/NativeTest.java
         tst/com/amazon/corretto/crypto/provider/test/RecursiveInitializationTest.java
-        tst/com/amazon/corretto/crypto/provider/test/RdrandTest.java
         tst/com/amazon/corretto/crypto/provider/test/RsaCipherTest.java
         tst/com/amazon/corretto/crypto/provider/test/RsaGenTest.java
         tst/com/amazon/corretto/crypto/provider/test/SecurityPropertyTester.java
@@ -568,7 +566,6 @@ add_jar(
         tst/com/amazon/corretto/crypto/provider/test/AESBench.java
         tst/com/amazon/corretto/crypto/provider/test/Benchmark.java
         tst/com/amazon/corretto/crypto/provider/coverage/ReportGenerator.java
-        tst/com/amazon/corretto/crypto/provider/test/TestRunner.java
         tst/com/amazon/corretto/crypto/provider/test/RspTestEntry.java
         tst/com/amazon/corretto/crypto/provider/test/SecureRandomGenerator.java
 
@@ -589,31 +586,52 @@ add_custom_command(
 add_custom_target(tests-jar DEPENDS ${TESTS_JAR})
 set_property(TARGET tests-jar PROPERTY JAR_FILE ${TESTS_JAR})
 
+set(TEST_RUNNER_ARGUMENTS
+    -javaagent:${JACOCO_AGENT_JAR}=destfile=coverage/jacoco.exec,classdumpdir=coverage/classes
+    -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
+    -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
+    -Dtest.data.dir=${TEST_DATA_DIR}
+    -Djunit.jupiter.testinstance.lifecycle.default=per_class
+    -XX:+HeapDumpOnOutOfMemoryError
+    ${TEST_JAVA_ARGS}
+    -jar ${TEST_RUNNER_JAR}
+    -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
+    --details=verbose
+    --details-theme=ascii
+    --fail-if-no-tests
+)
+
+if("$ENV{ACCP_TEST_COLOR}" STREQUAL "false")
+    set(TEST_RUNNER_ARGUMENTS ${TEST_RUNNER_ARGUMENTS} --disable-ansi-colors)
+endif()
+
 ## Note: We can't use the 'test' target as it's reserved by cmake's own test subsystem.
 add_custom_target(check-junit
     COMMAND ${TEST_JAVA_EXECUTABLE}
-        -javaagent:${JACOCO_AGENT_JAR}=destfile=coverage/jacoco.exec,classdumpdir=coverage/classes
-        -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
-        -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
-        -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
-        -Dtest.data.dir=${TEST_DATA_DIR}
-        -XX:+HeapDumpOnOutOfMemoryError
-        ${TEST_JAVA_ARGS}
-        com.amazon.corretto.crypto.provider.test.TestRunner --suite unit
+        ${TEST_RUNNER_ARGUMENTS}
+        --reports-dir=unit-tests
+        --select-package=com.amazon.corretto.crypto.provider.test
+        --exclude-package=com.amazon.corretto.crypto.provider.test.integration
+        --exclude-classname=com.amazon.corretto.crypto.provider.test.SecurityManagerTest
+
+    DEPENDS accp-jar tests-jar)
+
+add_custom_target(check-junit-SecurityManager
+    COMMAND ${TEST_JAVA_EXECUTABLE}
+        ${TEST_RUNNER_ARGUMENTS}
+        --select-class=com.amazon.corretto.crypto.provider.test.AesTest # Force loading ciphers
+        --select-class=com.amazon.corretto.crypto.provider.test.SHA1Test # Force loading digests
+        --select-class=com.amazon.corretto.crypto.provider.test.SecurityManagerTest
 
     DEPENDS accp-jar tests-jar)
 
 add_custom_target(check-junit-extra-checks
     COMMAND ${TEST_JAVA_EXECUTABLE}
-        -javaagent:${JACOCO_AGENT_JAR}=destfile=coverage/jacoco.exec,classdumpdir=coverage/classes
-        -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
-        -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
-        -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
-        -Dtest.data.dir=${TEST_DATA_DIR}
         -Dcom.amazon.corretto.crypto.provider.extrachecks=ALL
-        -XX:+HeapDumpOnOutOfMemoryError
-        ${TEST_JAVA_ARGS}
-        com.amazon.corretto.crypto.provider.test.TestRunner --suite unit
+        ${TEST_RUNNER_ARGUMENTS}
+        --select-package=com.amazon.corretto.crypto.provider.test
+        --exclude-package=com.amazon.corretto.crypto.provider.test.integration
+        --exclude-classname=com.amazon.corretto.crypto.provider.test.SecurityManagerTest
 
     DEPENDS accp-jar tests-jar)
 
@@ -666,7 +684,7 @@ add_custom_target(check-install-via-properties-with-debug
     DEPENDS accp-jar tests-jar)
 
 add_custom_target(check
-    DEPENDS check-recursive-init check-install-via-properties check-install-via-properties-with-debug check-junit)
+    DEPENDS check-recursive-init check-install-via-properties check-install-via-properties-with-debug check-junit check-junit-SecurityManager)
 
 if(ENABLE_NATIVE_TEST_HOOKS)
     if (CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
@@ -694,21 +712,20 @@ add_custom_target(coverage
     DEPENDS check)
 
 add_custom_target(check-integration-extra-checks
-    COMMAND ${TEST_JAVA_EXECUTABLE} -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
-        -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
+    COMMAND ${TEST_JAVA_EXECUTABLE}
         -Dcom.amazon.corretto.crypto.provider.extrachecks=ALL
-        ${TEST_JAVA_ARGS}
-        com.amazon.corretto.crypto.provider.test.TestRunner --suite integration
+        ${TEST_RUNNER_ARGUMENTS}
+        --select-package=com.amazon.corretto.crypto.provider.test.integration
 
     DEPENDS accp-jar tests-jar)
 
 set_target_properties(check-integration-extra-checks PROPERTIES EXCLUDE_FROM_ALL 1)
 
 add_custom_target(check-integration
-    COMMAND ${TEST_JAVA_EXECUTABLE} -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
-        -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
-        ${TEST_JAVA_ARGS}
-        com.amazon.corretto.crypto.provider.test.TestRunner --suite integration
+    COMMAND ${TEST_JAVA_EXECUTABLE}
+        ${TEST_RUNNER_ARGUMENTS}
+        --reports-dir=integration-tests
+        --select-package=com.amazon.corretto.crypto.provider.test.integration
 
     DEPENDS accp-jar tests-jar)
 

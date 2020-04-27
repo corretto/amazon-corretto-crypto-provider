@@ -3,7 +3,10 @@
 
 package com.amazon.corretto.crypto.provider.test;
 
-import org.junit.Assume;
+import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
+import org.junit.jupiter.api.extension.ConditionEvaluationResult;
+import org.junit.jupiter.api.extension.ExecutionCondition;
+import org.junit.jupiter.api.extension.ExtensionContext;
 
 /**
  * Hooks for {@link NativeTest}
@@ -26,10 +29,24 @@ public class NativeTestHooks {
 
     public static boolean hasNativeHooks() {
         try {
+            // Force loading library
+            if (AmazonCorrettoCryptoProvider.INSTANCE.getLoadingError() != null) {
+                return false;
+            }
             NativeTestHooks.hasRdseed();
             return true;
         } catch (final Throwable t) {
             return false;
+        }
+    }
+
+    public static class RequireHooks implements ExecutionCondition {
+        private static final ConditionEvaluationResult ENABLED = ConditionEvaluationResult.enabled("Hooks present");
+        private static final ConditionEvaluationResult DISABLED = ConditionEvaluationResult.disabled("Hooks missing");
+
+        @Override
+        public ConditionEvaluationResult evaluateExecutionCondition(ExtensionContext context) {
+            return hasNativeHooks() ? ENABLED : DISABLED;
         }
     }
 }
