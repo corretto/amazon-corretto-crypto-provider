@@ -4,6 +4,7 @@
 package com.amazon.corretto.crypto.provider.test;
 
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.versionCompare;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -200,12 +201,15 @@ public class EvpSignatureTest {
                     MASTER_PARAMS_LIST.add(new TestParams(base, algorithm, length, true, false, currentPair));
                     MASTER_PARAMS_LIST.add(new TestParams(base, algorithm, length, false, true, currentPair));
                     MASTER_PARAMS_LIST.add(new TestParams(base, algorithm, length, true, true, currentPair));
-                    if (base.equals("ECDSA") && !hash.equals("NONE")) {
-                        algorithm = algorithm + "inP1363Format";
-                        MASTER_PARAMS_LIST.add(new TestParams(base, algorithm, length, false, false, currentPair));
-                        MASTER_PARAMS_LIST.add(new TestParams(base, algorithm, length, true, false, currentPair));
-                        MASTER_PARAMS_LIST.add(new TestParams(base, algorithm, length, false, true, currentPair));
-                        MASTER_PARAMS_LIST.add(new TestParams(base, algorithm, length, true, true, currentPair));
+                    // These new algorithms were only added in 1.3.0
+                    if (versionCompare("1.3.0", NATIVE_PROVIDER) <= 0) {
+                        if (base.equals("ECDSA") && !hash.equals("NONE")) {
+                            algorithm = algorithm + "inP1363Format";
+                            MASTER_PARAMS_LIST.add(new TestParams(base, algorithm, length, false, false, currentPair));
+                            MASTER_PARAMS_LIST.add(new TestParams(base, algorithm, length, true, false, currentPair));
+                            MASTER_PARAMS_LIST.add(new TestParams(base, algorithm, length, false, true, currentPair));
+                            MASTER_PARAMS_LIST.add(new TestParams(base, algorithm, length, true, true, currentPair));
+                        }
                     }
                 }
             }

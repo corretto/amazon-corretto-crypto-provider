@@ -7,6 +7,8 @@
 ### Maintenance
 * Upgrade tests to JUnit5. [PR #111](https://github.com/corretto/amazon-corretto-crypto-provider/pull/111)
 * Upgrade BouncyCastle test dependency 1.65. [PR #110](https://github.com/corretto/amazon-corretto-crypto-provider/pull/110)
+* Add version gating to P1363 Format tests. [PR #112](https://github.com/corretto/amazon-corretto-crypto-provider/pull/112)
+* Re-add support for very old x86_64 build-chains. [PR #112](https://github.com/corretto/amazon-corretto-crypto-provider/pull/112)
 
 ## 1.4.0
 ### Improvements
