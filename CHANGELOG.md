@@ -1,6 +1,43 @@
 # Changelog
 
 ## 1.5.0 (Unreleased)
+### Breaking Change Warning
+In accordance with our [versioning policy](https://github.com/corretto/amazon-corretto-crypto-provider/blob/master/VERSIONING.rst),
+we post warnings of upcoming changes which may cause compatibility issues.
+As always, we expect that these changes will not impact the vast majority of consumers and can be picked up automatically provided you have good unit and integration changes.
+
+Starting in ACCP vesion 1.6.0, EC key pair generation will throw an `InvalidParameterException` if initialized to a keysize not on the following list.
+For these explicit sizes (only), the behavior will remain unchanged with ACCP selecting the corresponding "secp*r1" curve
+(which, in these cases, is also the corresponding NIST Prime Curve).
+
+**Supported keysize values:**
+* 192
+* 224
+* 256
+* 384
+* 521
+
+This means that the following code will start failing.
+```java
+KeyPairGenerator kg = KeyPairGenerator.getInstance("EC");
+kg.initialize(160); // Throws an InvalidParameterException
+```
+
+We are making this change because the "SunEC" provider does not document its curve selection process for sizes other than those listed above and does not promise that the curve selected will remain consistent.
+With no consistency guarantees, it is not possible for developers to use
+[KeyPairGenerator.initialize(int keysize)](https://docs.oracle.com/javase/8/docs/api/java/security/KeyPairGenerator.html#initialize-int-)
+safely (regardless of whether ACCP is used or not).
+
+**We strongly recommend using**
+**[KeyPairGenerator.initialize(AlgorithmParameterSpec params)](https://docs.oracle.com/javase/8/docs/api/java/security/KeyPairGenerator.html#initialize-java.security.spec.AlgorithmParameterSpec-)**
+**with**
+**[ECGenParameterSpec](https://docs.oracle.com/javase/8/docs/api/java/security/spec/ECGenParameterSpec.html)**
+**to generate EC keys.**
+
+From versions 1.2.0 through 1.5.0, ACCP *always* selects the corresponding "secp*r1" curve.
+For the explicit sizes listed above this matches the SunEC behavior.
+For other sizes, there are no documented guarantees of the SunEC behavior.
+
 ### Improvements
 * Now uses [OpenSSL 1.1.1g](https://www.openssl.org/source/openssl-1.1.1g.tar.gz). [PR #108](https://github.com/corretto/amazon-corretto-crypto-provider/pull/108)
 * Adds support for running a single test from the command line with the following syntax: [PR #113](https://github.com/corretto/amazon-corretto-crypto-provider/pull/113)

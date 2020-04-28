@@ -167,6 +167,29 @@ class EcGen extends KeyPairGeneratorSpi {
             throws InvalidParameterException {
         try {
             final String curveName = "secp" + keysize + "r1";
+            // Explicitly list default curves
+            // Mapping from OpenJDK
+            // TODO: Uncomment following code at version 1.6.0
+//            final String curveName;
+//            switch (keysize) {
+//                case 192:
+//                    curveName = "secp192r1"; // NIST P-192
+//                    break;
+//                case 224:
+//                    curveName = "secp224r1"; // NIST P-224
+//                    break;
+//                case 256:
+//                    curveName = "secp256r1"; // NIST P-256
+//                    break;
+//                case 384:
+//                    curveName = "secp384r1"; // NIST P-384
+//                    break;
+//                case 521:
+//                    curveName = "secp521r1"; // NIST P-521
+//                    break;
+//                default:
+//                    throw new InvalidParameterException("No default NIST prime curve for keysize " + keysize);
+//            }
             initialize(new ECGenParameterSpec(curveName), random);
         } catch (final InvalidAlgorithmParameterException ex) {
             throw new InvalidParameterException(ex.getMessage());
