@@ -4,6 +4,18 @@
 ### Improvements
 * Now uses [OpenSSL 1.1.1g](https://www.openssl.org/source/openssl-1.1.1g.tar.gz). [PR #108](https://github.com/corretto/amazon-corretto-crypto-provider/pull/108)
 
+### Patches
+* When initialized with an `int`,`KeyPairGenerator` for "EC" keys now only accepts the following explicit values.
+  For these values it will always select the corresponding NIST Prime Curve.
+  This change removes possible disagreeing behavior between ACCP and SunEC.
+  Previously, ACCP would _always_ select the corresponding "secp*r1" curve while SunEC would use undefined behavior to select the curves for any key sizes _not_ on the following list.
+  **This changes behavior for keysize values  *other* than the following to throwing an `InvalidParameterException`.**
+  * 192
+  * 224
+  * 256
+  * 384
+  * 521
+
 ### Maintenance
 * Upgrade tests to JUnit5. [PR #111](https://github.com/corretto/amazon-corretto-crypto-provider/pull/111)
 * Upgrade BouncyCastle test dependency 1.65. [PR #110](https://github.com/corretto/amazon-corretto-crypto-provider/pull/110)
