@@ -10,6 +10,7 @@
   This change removes possible disagreeing behavior between ACCP and SunEC.
   Previously, ACCP would _always_ select the corresponding "secp*r1" curve while SunEC would use undefined behavior to select the curves for any key sizes _not_ on the following list.
   **This changes behavior for keysize values  *other* than the following to throwing an `InvalidParameterException`.**
+  [PR #114](https://github.com/corretto/amazon-corretto-crypto-provider/pull/114)
   * 192
   * 224
   * 256
