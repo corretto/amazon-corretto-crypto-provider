@@ -117,6 +117,10 @@ task executeCmake(type: Exec) {
         args '-DTEST_JAVA_HOME=' + System.properties['TEST_JAVA_HOME']
     }
 
+    if (System.properties['SINGLE_TEST'] != null) {
+        args '-DSINGLE_TEST=' + System.properties['SINGLE_TEST']
+
+    }
     args projectDir
 }
 
@@ -203,6 +207,12 @@ task test(type: Exec) {
     commandLine 'make', 'check'
 }
 
+task single_test(type: Exec) {
+    dependsOn executeCmake
+    workingDir "${buildDir}/cmake"
+    commandLine 'make', 'check-junit-single'
+}
+
 task test_integration(type: Exec) {
     dependsOn executeCmake
     workingDir "${buildDir}/cmake"
@@ -254,6 +264,12 @@ task coverage_cmake(type: Exec) {
     args '-DCMAKE_BUILD_TYPE=Coverage', '-DCOVERAGE=ON', '-DENABLE_NATIVE_TEST_HOOKS=ON'
     args '-DPROVIDER_VERSION_STRING=' + version, projectDir
     args "-DTEST_RUNNER_JAR=${configurations.testRunner.singleFile}"
+
+    if (System.properties['SINGLE_TEST'] != null) {
+        args '-DSINGLE_TEST=' + System.properties['SINGLE_TEST']
+
+    }
+
 }
 
 task coverage_exec(type: Exec) {
