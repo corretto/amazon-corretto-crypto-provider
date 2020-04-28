@@ -4,9 +4,10 @@
 package com.amazon.corretto.crypto.provider.test;
 
 import static com.amazon.corretto.crypto.provider.test.TestUtil.versionCompare;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -22,7 +23,6 @@ import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
-import java.security.Security;
 import java.util.Arrays;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
@@ -37,9 +37,17 @@ import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
-import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
-import org.junit.After;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.junit.jupiter.api.parallel.ResourceAccessMode;
+import org.junit.jupiter.api.parallel.ResourceLock;
+
+@ExtendWith(TestResultLogger.class)
+@Execution(ExecutionMode.CONCURRENT)
+@ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
 
 public class AESGenerativeTest {
     private static final int[] KEY_SIZES = new int[] {128, 192, 256};
@@ -51,12 +59,8 @@ public class AESGenerativeTest {
     Cipher jceCipherEncrypt, jceCipherDecrypt;
     Cipher amzCipherEncrypt, amzCipherDecrypt;
 
-    public AESGenerativeTest() throws Exception {
-        Security.addProvider(AmazonCorrettoCryptoProvider.INSTANCE);
-    }
 
-
-    @After
+    @AfterEach
     public void teardown() {
         jceCipherEncrypt = null;
         jceCipherDecrypt = null;
@@ -109,7 +113,7 @@ public class AESGenerativeTest {
             // For speed, we'll try to get a native copy, but we don't require it
             KeyPairGenerator kg;
             try {
-                kg = KeyPairGenerator.getInstance("RSA", "AmazonCorrettoCryptoProvider");
+                kg = KeyPairGenerator.getInstance("RSA", NATIVE_PROVIDER);
             } catch (final Exception ex) {
                 kg = KeyPairGenerator.getInstance("RSA");
             }
@@ -162,8 +166,8 @@ public class AESGenerativeTest {
                 // Allocate new cipher objects
                 jceCipherEncrypt = Cipher.getInstance(algorithm, "SunJCE");
                 jceCipherDecrypt = Cipher.getInstance(algorithm, "SunJCE");
-                amzCipherEncrypt = Cipher.getInstance(algorithm, "AmazonCorrettoCryptoProvider");
-                amzCipherDecrypt = Cipher.getInstance(algorithm, "AmazonCorrettoCryptoProvider");
+                amzCipherEncrypt = Cipher.getInstance(algorithm, NATIVE_PROVIDER);
+                amzCipherDecrypt = Cipher.getInstance(algorithm, NATIVE_PROVIDER);
             } // fall through to init
             case 1: {
                 // Re-init existing ciphers

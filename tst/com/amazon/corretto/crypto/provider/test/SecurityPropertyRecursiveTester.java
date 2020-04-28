@@ -8,7 +8,7 @@ import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import java.security.Provider;
 import java.security.Security;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * This is a special stand-alone test case which asserts that NativeJCEBindings is installed as the highers priority provider

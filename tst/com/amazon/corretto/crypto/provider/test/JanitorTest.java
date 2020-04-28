@@ -3,17 +3,16 @@
 
 package com.amazon.corretto.crypto.provider.test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadLocalRandom;
@@ -21,10 +20,18 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.junit.jupiter.api.parallel.ResourceAccessMode;
+import org.junit.jupiter.api.parallel.ResourceLock;
 
+@ExtendWith(TestResultLogger.class)
+@Execution(ExecutionMode.SAME_THREAD)
+@ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ_WRITE)
 public class JanitorTest {
     private static final Constructor<?> ctor_Janitor;
     private static final Method m_register;
@@ -54,20 +61,15 @@ public class JanitorTest {
     private Object referent;
     private ThreadGroup threadGroup;
 
-    public JanitorTest() throws Exception {
+    @BeforeEach
+    public void setUp() {
         threadGroup = new ThreadGroup("Cleaner thread group");
     }
 
-    @Before
-    public void setUp() throws Exception {
-        assertFalse("Cleaners running at startup", isCleanerRunning());
-    }
-
-    @After
-    public void tearDown() throws Exception {
+    @AfterEach
+    public void cleanup() throws Exception {
         referent = null;
 
-        // Wait for any stray janitors to clean up
         eventually("tearDown: Janitors stopped", () -> !isCleanerRunning());
         threadGroup = null;
     }
@@ -316,7 +318,7 @@ public class JanitorTest {
 
         eventually("Cleaner shut down", () -> !isCleanerRunning());
 
-        assertFalse("Saw duplicate cleanups on the same mess", sawExtraCleanup.get());
+        assertFalse(sawExtraCleanup.get(), "Saw duplicate cleanups on the same mess");
     }
 
     @Test
@@ -382,13 +384,13 @@ public class JanitorTest {
 
     void never(String description, Supplier<Boolean> predicate) throws InterruptedException {
         // Make sure it's false before any GCs happen too - otherwise we can miss bugs in the test suite itself.
-        assertFalse(description, predicate.get());
+        assertFalse(predicate.get(), description);
 
         for (int i = 0; i < 3; i++) {
             System.gc();
             wake();
             Thread.sleep(100);
-            assertFalse(description, predicate.get());
+            assertFalse(predicate.get(), description);
         }
     }
 

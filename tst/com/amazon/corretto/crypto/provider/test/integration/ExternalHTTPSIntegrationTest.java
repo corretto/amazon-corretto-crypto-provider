@@ -4,8 +4,8 @@
 package com.amazon.corretto.crypto.provider.test.integration;
 
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assumeMinimumVersion;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import javax.crypto.Cipher;
 import javax.net.ssl.HttpsURLConnection;
@@ -16,17 +16,21 @@ import java.security.Security;
 import java.util.ArrayList;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
+import com.amazon.corretto.crypto.provider.test.TestResultLogger;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import org.junit.AfterClass;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * This test confirms that loading AmazonCorrettoCryptoProvider, with or without BouncyCastle, does not break our ability to
  * connect to various public HTTPS servers.
  */
-@RunWith(Parameterized.class)
+@ExtendWith(TestResultLogger.class)
+@Execution(ExecutionMode.SAME_THREAD)
 public class ExternalHTTPSIntegrationTest {
     private static final String[] URLS = new String[] {
             "https://good.sca1a.amazontrust.com/",
@@ -49,7 +53,6 @@ public class ExternalHTTPSIntegrationTest {
             "https://rsa8192.badssl.com/"
     };
 
-    @Parameterized.Parameters(name="HTTPS integration test: URL={1} BCEnabled={0}")
     public static Object[][] data() {
         ArrayList<Object[]> cases = new ArrayList<>();
 
@@ -60,24 +63,17 @@ public class ExternalHTTPSIntegrationTest {
         }
 
         return cases.toArray(new Object[0][]);
-    }
+   }
 
-    // Previously we had some compatibility issues when both our provider and BouncyCastle were installed simultaneously,
-    // so make sure to test this scenario as well
-    @Parameterized.Parameter(0)
-    public boolean useBouncyCastle;
-
-    @Parameterized.Parameter(1)
-    public String url;
-
-    @AfterClass
+    @AfterAll
     public static void teardown() {
         resetProviders();
     }
 
-    @Test
-    public void testHTTPSConnectivity() throws Exception {
-        URL url = new URL(this.url);
+    @ParameterizedTest(name="HTTPS integration test: URL={1} BCEnabled={0}")
+    @MethodSource("data")
+    public void testHTTPSConnectivity(boolean useBouncyCastle, String urlStr) throws Exception {
+        URL url = new URL(urlStr);
 
         resetProviders();
 
@@ -95,7 +91,7 @@ public class ExternalHTTPSIntegrationTest {
             // There is a bug in versions of BouncyCastle prior to 1.61 related to PSS signatures in TLS with Java 11.
             // Thus, if our URL is "https://example.com" and BouncyCastle is enabled with an old version, then we skip
             // this test to avoid failures unrelated to ACCP.
-            if ("https://example.com".equals(this.url)) {
+            if ("https://example.com".equals(urlStr)) {
                 assumeMinimumVersion("1.62", bcProv);
             }
             Security.insertProviderAt(bcProv, 2);
@@ -112,8 +108,8 @@ public class ExternalHTTPSIntegrationTest {
             connection.connect();
             // We don't actually care what the response code is. Just receiving it means that we successfully
             // negotiated a TLS session and are now speaking HTTP with the underlying server.
-            assertTrue("Retrieved non-sensical response code: " + connection.getResponseCode(),
-                       connection.getResponseCode() > 0);
+            assertTrue(connection.getResponseCode() > 0,
+                    "Retrieved non-sensical response code: " + connection.getResponseCode());
         } finally {
             try {
                 connection.getInputStream().close();

@@ -6,8 +6,8 @@ package com.amazon.corretto.crypto.provider.test.integration;
 import static com.amazon.corretto.crypto.provider.test.integration.HTTPSTestParameters.SIGNATURE_METHODS_TO_TEST;
 import static com.amazon.corretto.crypto.provider.test.integration.HTTPSTestParameters.SUPER_SECURE_PASSWORD;
 import static java.util.Collections.singletonList;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import javax.crypto.Cipher;
 import javax.net.ssl.HttpsURLConnection;
@@ -31,18 +31,21 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import com.amazon.corretto.crypto.provider.test.TestResultLogger;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.junit.jupiter.params.ParameterizedTest;
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
+import org.junit.jupiter.params.provider.MethodSource;
 
-@RunWith(Parameterized.class)
+@ExtendWith(TestResultLogger.class)
+@Execution(ExecutionMode.SAME_THREAD)
 public class LocalHTTPSIntegrationTest {
     private static Set<String> allCipherSuites;
 
@@ -65,7 +68,6 @@ public class LocalHTTPSIntegrationTest {
         Security.removeProvider("BC");
     }
 
-    @Parameterized.Parameters(name = "ServerAACPEnabled({0}) BCEnabled({1}) Suite({2}) SignatureType({3}) KeyBits({4})")
     public static Object[][] data() throws Exception {
         List<Object[]> params = new ArrayList<>();
 
@@ -124,19 +126,20 @@ public class LocalHTTPSIntegrationTest {
         return params.toArray(new Object[0][]);
     }
 
-    private boolean serverAACPEnabled;
-    private boolean bcEnabled;
-    private String suite;
-    private String signatureType;
-    private int keyBits;
-    private int port;
-
-    private TrustManagerFactory trustManagerFactory;
-
+    private static TrustManagerFactory trustManagerFactory;
     private static TestHTTPSServer withAACP, withoutAACP;
 
-    @BeforeClass
+    @BeforeAll
     public static void launchServer() throws Exception {
+        // Do this before setting up providers, as loading BC early in the provider chain (even without AACP) breaks
+        // KeyStore.
+        KeyStore keyStore = KeyStore.getInstance("JKS");
+        try (InputStream is = TestHTTPSServer.class.getResourceAsStream("test_CA.jks")) {
+            keyStore.load(is, SUPER_SECURE_PASSWORD);
+        }
+        trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+        trustManagerFactory.init(keyStore);
+
         withoutAACP = TestHTTPSServer.launch(false);
         try {
             withAACP = TestHTTPSServer.launch(true);
@@ -146,21 +149,13 @@ public class LocalHTTPSIntegrationTest {
         }
     }
 
-    @AfterClass
+    @AfterAll
     public static void shutdown() {
         withoutAACP.kill();
         withAACP.kill();
     }
 
-    public LocalHTTPSIntegrationTest(boolean serverAACPEnabled, boolean bcEnabled, String suite, String signatureType, int keyBits) {
-        this.serverAACPEnabled = serverAACPEnabled;
-        this.bcEnabled = bcEnabled;
-        this.suite = suite;
-        this.signatureType = signatureType;
-        this.keyBits = keyBits;
-    }
-
-    @Before
+    @BeforeEach
     public void setup() throws Exception {
         resetProviders();
 
@@ -168,35 +163,26 @@ public class LocalHTTPSIntegrationTest {
             fail("Server died");
         }
 
-        // Do this before setting up providers, as loading BC early in the provider chain (even without AACP) breaks
-        // KeyStore.
-        KeyStore keyStore = KeyStore.getInstance("JKS");
-        try (InputStream is = TestHTTPSServer.class.getResourceAsStream("test_CA.jks")) {
-            keyStore.load(is, SUPER_SECURE_PASSWORD);
-        }
-
-        trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-        trustManagerFactory.init(keyStore);
-
         Security.insertProviderAt(AmazonCorrettoCryptoProvider.INSTANCE, 1);
-
-        if (bcEnabled) {
-            Security.insertProviderAt(new BouncyCastleProvider(), 2);
-        }
-
-        port = serverAACPEnabled ? withAACP.getPort() : withoutAACP.getPort();
 
         Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
         assertEquals(AmazonCorrettoCryptoProvider.INSTANCE, c.getProvider());
     }
 
-    @After
+    @AfterEach
     public void cleanup() throws Exception {
         resetProviders();
     }
 
-    @Test
-    public void test() throws Exception {
+    @ParameterizedTest(name = "ServerAACPEnabled({0}) BCEnabled({1}) Suite({2}) SignatureType({3}) KeyBits({4})")
+    @MethodSource("data")
+    public void test(boolean serverAACPEnabled, boolean bcEnabled, String suite, String signatureType, int keyBits) throws Exception {
+        if (bcEnabled) {
+            Security.insertProviderAt(new BouncyCastleProvider(), 2);
+        }
+
+        int port = serverAACPEnabled ? withAACP.getPort() : withoutAACP.getPort();
+
         HttpsURLConnection conn = (HttpsURLConnection) new URL("https://127.0.0.1:" + port).openConnection();
         // this has the side effect of disabling the default SNI logic
         // c.f. http://stackoverflow.com/a/36343704

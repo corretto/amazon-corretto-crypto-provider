@@ -3,7 +3,8 @@
 
 package com.amazon.corretto.crypto.provider.test;
 
-import static org.junit.Assert.assertEquals;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
@@ -14,14 +15,23 @@ import java.security.Security;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.junit.jupiter.api.parallel.ResourceAccessMode;
+import org.junit.jupiter.api.parallel.ResourceLock;
 
+@ExtendWith(TestResultLogger.class)
+@Execution(ExecutionMode.SAME_THREAD)
+@ResourceLock(value = TestUtil.RESOURCE_PROVIDER, mode = ResourceAccessMode.READ_WRITE)
+@ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ_WRITE)
 public class SecurityManagerTest {
     private AtomicReference<Thread> threadToDeny = new AtomicReference<>(null);
 
-    @Before
+    @BeforeEach
     public void priv_setUp() throws Exception {
         // JCE requires permissions to do some initialization work (e.g. reading jurisdictional permissions). Let this
         // init happen by doing some dummy cipher work with the built-in JCE providers first.
@@ -34,7 +44,7 @@ public class SecurityManagerTest {
         System.setSecurityManager(new OneThreadSecurityManager(threadToDeny));
     }
 
-    @After
+    @AfterEach
     public void priv_tearDown() throws Exception {
         threadToDeny.set(null);
 
@@ -44,12 +54,21 @@ public class SecurityManagerTest {
         threadToDeny = null;
     }
 
-    @Test(expected = SecurityException.class)
+    private static final class CallExpectedToFail implements ThrowingRunnable {
+
+        @Override
+        public void run() throws Throwable {
+            Object.class.getDeclaredMethod("clone").setAccessible(true);
+        }
+    }
+
+    @Test
     public void sanityCheck_securityManager_doesDeny() throws Exception {
         try {
+            CallExpectedToFail call = new CallExpectedToFail();
             threadToDeny.set(Thread.currentThread());
 
-            Object.class.getDeclaredMethod("clone").setAccessible(true);
+            assertThrows(SecurityException.class, call);
         } finally {
             threadToDeny.set(null);
         }

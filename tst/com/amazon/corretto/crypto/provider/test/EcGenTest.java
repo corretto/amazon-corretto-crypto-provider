@@ -16,7 +16,6 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
-import java.security.Security;
 import java.security.Signature;
 import java.security.interfaces.ECPublicKey;
 import java.security.spec.ECFieldFp;
@@ -30,16 +29,22 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import org.bouncycastle.asn1.ASN1Encodable;
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.ASN1Sequence;
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.junit.jupiter.api.parallel.ResourceAccessMode;
+import org.junit.jupiter.api.parallel.ResourceLock;
 
+@ExtendWith(TestResultLogger.class)
+@Execution(ExecutionMode.CONCURRENT)
+@ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
 public class EcGenTest {
     public static final int[] KNOWN_SIZES = {192, 224, 256, 384, 521};
     public static final String[][] KNOWN_CURVES = new String[][] {
@@ -114,14 +119,9 @@ public class EcGenTest {
     private KeyPairGenerator nativeGen;
     private KeyPairGenerator jceGen;
 
-    @BeforeClass
-    public static void setUpBeforeClass() throws Exception {
-        Security.addProvider(AmazonCorrettoCryptoProvider.INSTANCE);
-    }
-
     @Before
     public void setup() throws GeneralSecurityException {
-        nativeGen = KeyPairGenerator.getInstance("EC", "AmazonCorrettoCryptoProvider");
+        nativeGen = KeyPairGenerator.getInstance("EC", TestUtil.NATIVE_PROVIDER);
         jceGen = KeyPairGenerator.getInstance("EC", "SunEC");
     }
 

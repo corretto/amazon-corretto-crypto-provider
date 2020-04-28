@@ -3,6 +3,7 @@
 
 package com.amazon.corretto.crypto.provider.test;
 
+import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -44,7 +45,6 @@ import javax.crypto.spec.DHPublicKeySpec;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
-import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import org.bouncycastle.asn1.ASN1Encodable;
 import org.bouncycastle.asn1.ASN1Sequence;
 import org.bouncycastle.asn1.DERBitString;
@@ -53,9 +53,17 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.junit.jupiter.api.parallel.ResourceAccessMode;
+import org.junit.jupiter.api.parallel.ResourceLock;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
+@ExtendWith(TestResultLogger.class)
+@Execution(ExecutionMode.SAME_THREAD) // Parameters are shared
+@ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
 public class EvpKeyAgreementTest {
     private static final BouncyCastleProvider BC_PROV = new BouncyCastleProvider();
     private static final int PAIR_COUNT = 25;
@@ -157,7 +165,7 @@ public class EvpKeyAgreementTest {
                 "DH",
                 "DH(" + keySize + ")",
                 generator,
-                AmazonCorrettoCryptoProvider.INSTANCE,
+                NATIVE_PROVIDER,
                 BC_PROV,
                 badKeys
         );
@@ -166,7 +174,7 @@ public class EvpKeyAgreementTest {
 
     private static TestParams buildEcdhParameters(final AlgorithmParameterSpec genSpec, final String name)
             throws GeneralSecurityException, IOException {
-        final KeyPairGenerator generator = KeyPairGenerator.getInstance("EC", AmazonCorrettoCryptoProvider.INSTANCE);
+        final KeyPairGenerator generator = KeyPairGenerator.getInstance("EC", NATIVE_PROVIDER);
         generator.initialize(genSpec);
         final KeyPair pair = generator.generateKeyPair();
         final ECPublicKey pubKey = (ECPublicKey) pair.getPublic();
@@ -174,7 +182,7 @@ public class EvpKeyAgreementTest {
                 "ECDH",
                 "ECDH(" + name + ")",
                 generator,
-                AmazonCorrettoCryptoProvider.INSTANCE,
+                NATIVE_PROVIDER,
                 BC_PROV,
                 Arrays.asList(
                         buildKeyAtInfinity(pubKey),

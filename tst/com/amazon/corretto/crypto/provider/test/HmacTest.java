@@ -3,10 +3,11 @@
 
 package com.amazon.corretto.crypto.provider.test;
 
+import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyInvoke;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -35,13 +36,21 @@ import javax.crypto.spec.SecretKeySpec;
 
 import com.amazon.corretto.crypto.provider.*;
 import org.apache.commons.codec.binary.Hex;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
-import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.junit.jupiter.api.parallel.ResourceAccessMode;
+import org.junit.jupiter.api.parallel.ResourceLock;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
+@ExtendWith(TestResultLogger.class)
+@Execution(ExecutionMode.CONCURRENT)
+@ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
 public class HmacTest {
   private static final Class<?> UTILS_CLASS;
-    private static final AmazonCorrettoCryptoProvider NATIVE_PROVIDER = AmazonCorrettoCryptoProvider.INSTANCE;
     private static final List<String> SUPPORTED_HMACS;
 
     static {
@@ -59,10 +68,15 @@ public class HmacTest {
         }
     }
 
-    @Test(expected = IllegalStateException.class)
+    private static List<String> supportedHmacs() {
+        return SUPPORTED_HMACS;
+    }
+
+    @Test
     public void requireInitialization() throws GeneralSecurityException {
         final Mac hmac = Mac.getInstance("HmacSHA256", NATIVE_PROVIDER);
-        hmac.update("This should fail".getBytes(StandardCharsets.US_ASCII));
+        assertThrows(IllegalStateException.class, () ->
+            hmac.update("This should fail".getBytes(StandardCharsets.US_ASCII)));
     }
 
     // The algorithm on the key must be ignored for compatibility with existing JCE implementations
@@ -74,12 +88,13 @@ public class HmacTest {
         hmac.init(key);
     }
 
-    @Test(expected = InvalidAlgorithmParameterException.class)
+    @Test
     public void badParams() throws GeneralSecurityException {
         final Mac hmac = Mac.getInstance("HmacSHA256", NATIVE_PROVIDER);
         final SecretKeySpec key = new SecretKeySpec(
                 "YellowSubmarine".getBytes(StandardCharsets.US_ASCII), "HmacSHA256");
-        hmac.init(key, new IvParameterSpec(new byte[16]));
+        assertThrows(InvalidAlgorithmParameterException.class, () ->
+            hmac.init(key, new IvParameterSpec(new byte[16])));
     }
 
     private void testMac(Mac mac, SecretKey key, byte[] message, byte[] expected) throws Throwable {
@@ -113,58 +128,57 @@ public class HmacTest {
         }
     }
 
-    @Test
+    @ParameterizedTest
+    @MethodSource("supportedHmacs")
     // Suppress redundant cast warnings; they're redundant in java 9 but not java 8
     @SuppressWarnings({"cast", "RedundantCast"})
-    public void emptyHmac() throws Exception {
+    public void emptyHmac(String algorithm) throws Exception {
         final SecretKeySpec key = new SecretKeySpec(
                 "YellowSubmarine".getBytes(StandardCharsets.US_ASCII), "Generic");
-        for (final String algorithm : SUPPORTED_HMACS) {
-            final Mac jceMac = Mac.getInstance(algorithm, "SunJCE");
-            jceMac.init(key);
-            final byte[] expected = jceMac.doFinal();
+        final Mac jceMac = Mac.getInstance(algorithm, "SunJCE");
+        jceMac.init(key);
+        final byte[] expected = jceMac.doFinal();
 
-            Mac nativeMac = Mac.getInstance(algorithm, NATIVE_PROVIDER);
-            nativeMac.init(key);
-            assertArrayEquals(algorithm, expected, nativeMac.doFinal());
+        Mac nativeMac = Mac.getInstance(algorithm, NATIVE_PROVIDER);
+        nativeMac.init(key);
+        assertArrayEquals(expected, nativeMac.doFinal());
 
-            nativeMac = Mac.getInstance(algorithm, NATIVE_PROVIDER);
-            nativeMac.init(key);
-            nativeMac.update(new byte[0]);
-            assertArrayEquals(algorithm, expected, nativeMac.doFinal());
+        nativeMac = Mac.getInstance(algorithm, NATIVE_PROVIDER);
+        nativeMac.init(key);
+        nativeMac.update(new byte[0]);
+        assertArrayEquals(expected, nativeMac.doFinal());
 
-            nativeMac = Mac.getInstance(algorithm, NATIVE_PROVIDER);
-            nativeMac.init(key);
-            nativeMac.update((ByteBuffer) ByteBuffer.allocateDirect(4).limit(0));
-            assertArrayEquals(algorithm, expected, nativeMac.doFinal());
-        }
+        nativeMac = Mac.getInstance(algorithm, NATIVE_PROVIDER);
+        nativeMac.init(key);
+        nativeMac.update((ByteBuffer) ByteBuffer.allocateDirect(4).limit(0));
+        assertArrayEquals(expected, nativeMac.doFinal());
     }
 
     // These tests purposefully uses large enough data to bypass our internal buffering logic and force
     // multiple calls to the native layer.
-    @Test
-    public void largeArrayMsgs() throws Exception {
+    @ParameterizedTest
+    @MethodSource("supportedHmacs")
+    public void largeArrayMsgs(String algorithm) throws Exception {
         final byte[] msg = new byte[256];
         for (int x = 0; x < msg.length; x++) {
             msg[x] = (byte) x;
         }
         final SecretKeySpec key = new SecretKeySpec(
                 "YellowSubmarine".getBytes(StandardCharsets.US_ASCII), "Generic");
-        for (final String algorithm : SUPPORTED_HMACS) {
-            final Mac nativeMac = Mac.getInstance(algorithm, NATIVE_PROVIDER);
-            final Mac jceMac = Mac.getInstance(algorithm, "SunJCE");
-            nativeMac.init(key);
-            jceMac.init(key);
-            for (int x = 0; x < 41; x++) {
-                nativeMac.update(msg);
-                jceMac.update(msg);
-            }
-            assertArrayEquals(algorithm, jceMac.doFinal(), nativeMac.doFinal());
+        final Mac nativeMac = Mac.getInstance(algorithm, NATIVE_PROVIDER);
+        final Mac jceMac = Mac.getInstance(algorithm, "SunJCE");
+        nativeMac.init(key);
+        jceMac.init(key);
+        for (int x = 0; x < 41; x++) {
+            nativeMac.update(msg);
+            jceMac.update(msg);
         }
+        assertArrayEquals(jceMac.doFinal(), nativeMac.doFinal());
     }
 
-    @Test
-    public void largeBufferMsgs() throws Exception {
+    @ParameterizedTest
+    @MethodSource("supportedHmacs")
+    public void largeBufferMsgs(String algorithm) throws Exception {
         final ByteBuffer msg = ByteBuffer.allocate(256);
         for (int x = 0; x < msg.capacity(); x++) {
             msg.put((byte) x);
@@ -172,21 +186,20 @@ public class HmacTest {
         msg.flip();
         final SecretKeySpec key = new SecretKeySpec(
                 "YellowSubmarine".getBytes(StandardCharsets.US_ASCII), "Generic");
-        for (final String algorithm : SUPPORTED_HMACS) {
         final Mac nativeMac = Mac.getInstance(algorithm, NATIVE_PROVIDER);
-            final Mac jceMac = Mac.getInstance(algorithm, "SunJCE");
-            nativeMac.init(key);
-            jceMac.init(key);
-            for (int x = 0; x < 41; x++) {
-                nativeMac.update(msg.duplicate());
-                jceMac.update(msg.duplicate());
-            }
-            assertArrayEquals(algorithm, jceMac.doFinal(), nativeMac.doFinal());
+        final Mac jceMac = Mac.getInstance(algorithm, "SunJCE");
+        nativeMac.init(key);
+        jceMac.init(key);
+        for (int x = 0; x < 41; x++) {
+            nativeMac.update(msg.duplicate());
+            jceMac.update(msg.duplicate());
         }
+        assertArrayEquals(jceMac.doFinal(), nativeMac.doFinal());
     }
 
-    @Test
-    public void largeDirectBufferMsgs() throws Exception {
+    @ParameterizedTest
+    @MethodSource("supportedHmacs")
+    public void largeDirectBufferMsgs(String algorithm) throws Exception {
         final ByteBuffer msg = ByteBuffer.allocateDirect(256);
         for (int x = 0; x < msg.capacity(); x++) {
             msg.put((byte) x);
@@ -194,42 +207,40 @@ public class HmacTest {
         msg.flip();
         final SecretKeySpec key = new SecretKeySpec(
                 "YellowSubmarine".getBytes(StandardCharsets.US_ASCII), "Generic");
-        for (final String algorithm : SUPPORTED_HMACS) {
-            final Mac nativeMac = Mac.getInstance(algorithm, NATIVE_PROVIDER);
-            final Mac jceMac = Mac.getInstance(algorithm, "SunJCE");
-            nativeMac.init(key);
-            jceMac.init(key);
-            for (int x = 0; x < 41; x++) {
-                nativeMac.update(msg.duplicate());
-                jceMac.update(msg.duplicate());
-            }
-            assertArrayEquals(algorithm, jceMac.doFinal(), nativeMac.doFinal());
+        final Mac nativeMac = Mac.getInstance(algorithm, NATIVE_PROVIDER);
+        final Mac jceMac = Mac.getInstance(algorithm, "SunJCE");
+        nativeMac.init(key);
+        jceMac.init(key);
+        for (int x = 0; x < 41; x++) {
+            nativeMac.update(msg.duplicate());
+            jceMac.update(msg.duplicate());
         }
+        assertArrayEquals(jceMac.doFinal(), nativeMac.doFinal());
     }
 
-    @Test
-    public void largeChunkArrayMsgs() throws Exception {
+    @ParameterizedTest
+    @MethodSource("supportedHmacs")
+    public void largeChunkArrayMsgs(String algorithm) throws Exception {
         final byte[] msg = new byte[4096];
         for (int x = 0; x < msg.length; x++) {
             msg[x] = (byte) x;
         }
         final SecretKeySpec key = new SecretKeySpec(
                 "YellowSubmarine".getBytes(StandardCharsets.US_ASCII), "Generic");
-        for (final String algorithm : SUPPORTED_HMACS) {
-            final Mac nativeMac = Mac.getInstance(algorithm, NATIVE_PROVIDER);
-            final Mac jceMac = Mac.getInstance(algorithm, "SunJCE");
-            nativeMac.init(key);
-            jceMac.init(key);
-            for (int x = 0; x < 41; x++) {
-                nativeMac.update(msg);
-                jceMac.update(msg);
-            }
-            assertArrayEquals(algorithm, jceMac.doFinal(), nativeMac.doFinal());
+        final Mac nativeMac = Mac.getInstance(algorithm, NATIVE_PROVIDER);
+        final Mac jceMac = Mac.getInstance(algorithm, "SunJCE");
+        nativeMac.init(key);
+        jceMac.init(key);
+        for (int x = 0; x < 41; x++) {
+            nativeMac.update(msg);
+            jceMac.update(msg);
         }
+        assertArrayEquals(jceMac.doFinal(), nativeMac.doFinal());
     }
 
-    @Test
-    public void largeChunkBufferMsgs() throws Exception {
+    @ParameterizedTest
+    @MethodSource("supportedHmacs")
+    public void largeChunkBufferMsgs(String algorithm) throws Exception {
         final ByteBuffer msg = ByteBuffer.allocate(4096);
         for (int x = 0; x < msg.capacity(); x++) {
             msg.put((byte) x);
@@ -237,21 +248,20 @@ public class HmacTest {
         msg.flip();
         final SecretKeySpec key = new SecretKeySpec(
                 "YellowSubmarine".getBytes(StandardCharsets.US_ASCII), "Generic");
-        for (final String algorithm : SUPPORTED_HMACS) {
-            final Mac nativeMac = Mac.getInstance(algorithm, NATIVE_PROVIDER);
-            final Mac jceMac = Mac.getInstance(algorithm, "SunJCE");
-            nativeMac.init(key);
-            jceMac.init(key);
-            for (int x = 0; x < 41; x++) {
-                nativeMac.update(msg.duplicate());
-                jceMac.update(msg.duplicate());
-            }
-            assertArrayEquals(algorithm, jceMac.doFinal(), nativeMac.doFinal());
+        final Mac nativeMac = Mac.getInstance(algorithm, NATIVE_PROVIDER);
+        final Mac jceMac = Mac.getInstance(algorithm, "SunJCE");
+        nativeMac.init(key);
+        jceMac.init(key);
+        for (int x = 0; x < 41; x++) {
+            nativeMac.update(msg.duplicate());
+            jceMac.update(msg.duplicate());
         }
+        assertArrayEquals(jceMac.doFinal(), nativeMac.doFinal());
     }
 
-    @Test
-    public void largeChunkDirectBufferMsgs() throws Exception {
+    @ParameterizedTest
+    @MethodSource("supportedHmacs")
+    public void largeChunkDirectBufferMsgs(String algorithm) throws Exception {
         final ByteBuffer msg = ByteBuffer.allocateDirect(4096);
         for (int x = 0; x < msg.capacity(); x++) {
             msg.put((byte) x);
@@ -259,17 +269,15 @@ public class HmacTest {
         msg.flip();
         final SecretKeySpec key = new SecretKeySpec(
                 "YellowSubmarine".getBytes(StandardCharsets.US_ASCII), "Generic");
-        for (final String algorithm : SUPPORTED_HMACS) {
-            final Mac nativeMac = Mac.getInstance(algorithm, NATIVE_PROVIDER);
-            final Mac jceMac = Mac.getInstance(algorithm, "SunJCE");
-            nativeMac.init(key);
-            jceMac.init(key);
-            for (int x = 0; x < 41; x++) {
-                nativeMac.update(msg.duplicate());
-                jceMac.update(msg.duplicate());
-            }
-            assertArrayEquals(algorithm, jceMac.doFinal(), nativeMac.doFinal());
+        final Mac nativeMac = Mac.getInstance(algorithm, NATIVE_PROVIDER);
+        final Mac jceMac = Mac.getInstance(algorithm, "SunJCE");
+        nativeMac.init(key);
+        jceMac.init(key);
+        for (int x = 0; x < 41; x++) {
+            nativeMac.update(msg.duplicate());
+            jceMac.update(msg.duplicate());
         }
+        assertArrayEquals(jceMac.doFinal(), nativeMac.doFinal());
     }
 
     @Test
@@ -304,8 +312,9 @@ public class HmacTest {
         }
     }
 
-    @Test
-    public void largeKeys() throws Throwable {
+    @ParameterizedTest
+    @MethodSource("supportedHmacs")
+    public void largeKeys(String algorithm) throws Throwable {
         // This tests keys large enough to require normalization
         final ByteBuffer msg = ByteBuffer.allocateDirect(4096);
         for (int x = 0; x < msg.capacity(); x++) {
@@ -313,17 +322,15 @@ public class HmacTest {
         }
         msg.flip();
         final SecretKeySpec key = new SecretKeySpec(new byte[4096], "Generic");
-        for (final String algorithm : SUPPORTED_HMACS) {
-            final Mac nativeMac = Mac.getInstance(algorithm, NATIVE_PROVIDER);
-            final Mac jceMac = Mac.getInstance(algorithm, "SunJCE");
-            nativeMac.init(key);
-            jceMac.init(key);
-            for (int x = 0; x < 41; x++) {
-                nativeMac.update(msg.duplicate());
-                jceMac.update(msg.duplicate());
-            }
-            assertArrayEquals(algorithm, jceMac.doFinal(), nativeMac.doFinal());
+        final Mac nativeMac = Mac.getInstance(algorithm, NATIVE_PROVIDER);
+        final Mac jceMac = Mac.getInstance(algorithm, "SunJCE");
+        nativeMac.init(key);
+        jceMac.init(key);
+        for (int x = 0; x < 41; x++) {
+            nativeMac.update(msg.duplicate());
+            jceMac.update(msg.duplicate());
         }
+        assertArrayEquals(jceMac.doFinal(), nativeMac.doFinal());
     }
 
     @SuppressWarnings("serial")
@@ -405,9 +412,9 @@ public class HmacTest {
             msg2Clone.update(suffix2);
 
             // Purposefully checking the prefix (shortest) one last
-            assertArrayEquals(algorithm + " msg1", msg1ExpectedMac, msg1Clone.doFinal());
-            assertArrayEquals(algorithm + " msg2", msg2ExpectedMac, msg2Clone.doFinal());
-            assertArrayEquals(algorithm + " prefix", prefixExpectedMac, prefixClone.doFinal());
+            assertArrayEquals(msg1ExpectedMac, msg1Clone.doFinal(), algorithm + " msg1");
+            assertArrayEquals(msg2ExpectedMac, msg2Clone.doFinal(), algorithm + " msg2");
+            assertArrayEquals(prefixExpectedMac, prefixClone.doFinal(), algorithm + " prefix");
         }
     }
 

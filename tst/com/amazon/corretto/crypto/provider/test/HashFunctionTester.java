@@ -5,9 +5,9 @@ package com.amazon.corretto.crypto.provider.test;
 
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyInvoke;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
@@ -152,7 +152,7 @@ public class HashFunctionTester {
 
     private MessageDigest getAmazonInstance() {
         try {
-            return MessageDigest.getInstance(algorithm, "AmazonCorrettoCryptoProvider");
+            return MessageDigest.getInstance(algorithm, TestUtil.NATIVE_PROVIDER);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
