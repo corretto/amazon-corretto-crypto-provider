@@ -53,6 +53,7 @@ if (NOT DEFINED TEST_JAVA_HOME)
 else()
   set(TEST_JAVA_EXECUTABLE ${TEST_JAVA_HOME}/bin/java)
 endif()
+
 # Translate from the java colon-delimited paths to cmake ';' delimited lists
 string(REPLACE ":" ";" BUILD_CLASSPATH_LIST "${BUILD_CLASSPATH}")
 string(REPLACE ":" ";" TEST_CLASSPATH_LIST "${TEST_CLASSPATH}")
@@ -615,6 +616,15 @@ add_custom_target(check-junit
         --exclude-classname=com.amazon.corretto.crypto.provider.test.SecurityManagerTest
 
     DEPENDS accp-jar tests-jar)
+
+if (DEFINED SINGLE_TEST)
+    add_custom_target(check-junit-single
+        COMMAND ${TEST_JAVA_EXECUTABLE}
+            ${TEST_RUNNER_ARGUMENTS}
+            --select-class=${SINGLE_TEST}
+
+        DEPENDS accp-jar tests-jar)
+endif() # SINGLE_TEST
 
 add_custom_target(check-junit-SecurityManager
     COMMAND ${TEST_JAVA_EXECUTABLE}

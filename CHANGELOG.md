@@ -3,6 +3,13 @@
 ## 1.5.0 (Unreleased)
 ### Improvements
 * Now uses [OpenSSL 1.1.1g](https://www.openssl.org/source/openssl-1.1.1g.tar.gz). [PR #108](https://github.com/corretto/amazon-corretto-crypto-provider/pull/108)
+* Adds support for running a single test from the command line with the following syntax: [PR #113](https://github.com/corretto/amazon-corretto-crypto-provider/pull/113)
+
+  `./gradlew single_test -DSINGLE_TEST=<Fully Qualified Classname>`
+
+  For example: `./gradlew single_test -DSINGLE_TEST=com.amazon.corretto.crypto.provider.test.EcGenTest`
+
+  You may need to do a clean build when changing tests.
 
 ### Maintenance
 * Upgrade tests to JUnit5. [PR #111](https://github.com/corretto/amazon-corretto-crypto-provider/pull/111)
