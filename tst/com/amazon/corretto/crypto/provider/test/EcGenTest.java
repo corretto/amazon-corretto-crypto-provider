@@ -3,6 +3,7 @@
 
 package com.amazon.corretto.crypto.provider.test;
 
+import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -124,7 +125,7 @@ public class EcGenTest {
 
     @BeforeEach
     public void setup() throws GeneralSecurityException {
-        nativeGen = KeyPairGenerator.getInstance("EC", TestUtil.NATIVE_PROVIDER);
+        nativeGen = KeyPairGenerator.getInstance("EC", NATIVE_PROVIDER);
         jceGen = KeyPairGenerator.getInstance("EC", "SunEC");
 
     }
@@ -137,7 +138,7 @@ public class EcGenTest {
         jceGen = null;
     }
 
-    private String[][] knownCurveParams() {
+    private static String[][] knownCurveParams() {
         return KNOWN_CURVES;
     }
 
@@ -285,7 +286,7 @@ public class EcGenTest {
 
         final KeyPairGenerator[] generators = new KeyPairGenerator[generatorCount];
         for (int x = 0; x < generatorCount; x++) {
-            generators[x] = KeyPairGenerator.getInstance("EC", "AmazonCorrettoCryptoProvider");
+            generators[x] = KeyPairGenerator.getInstance("EC", NATIVE_PROVIDER);
             final int curveIdx = rng.nextInt(KNOWN_CURVES.length);
             generators[x].initialize(new ECGenParameterSpec(KNOWN_CURVES[curveIdx][0]));
         }
