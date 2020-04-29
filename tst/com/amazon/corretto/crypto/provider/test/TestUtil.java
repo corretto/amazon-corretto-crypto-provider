@@ -27,6 +27,11 @@ import java.util.Arrays;
 public class TestUtil {
     public static final String RESOURCE_REFLECTION = "REFLECTIVE_TOOLS";
     public static final String RESOURCE_PROVIDER = "JCE_PROVIDER";
+    /**
+     * Pseudo-resource used by ACCP tests to enforce that certain tests run by themselves.
+     * All tests should takea "READ" lock on this resource.
+     * Tests which require exclusive control should take a "READ_WRITE" lock.
+     */
     public static final String RESOURCE_GLOBAL = "GLOBAL_TEST_LOCK";
     public static final BouncyCastleProvider BC_PROVIDER = new BouncyCastleProvider();
     public static final Provider NATIVE_PROVIDER = AmazonCorrettoCryptoProvider.INSTANCE;

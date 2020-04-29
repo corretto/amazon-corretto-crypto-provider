@@ -54,8 +54,8 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 
 @ExtendWith(TestResultLogger.class)
 @Execution(ExecutionMode.SAME_THREAD)
-@ResourceLock(value = TestUtil.RESOURCE_REFLECTION, mode = ResourceAccessMode.READ)
-@ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
+@ResourceLock(value = TestUtil.RESOURCE_REFLECTION)
+@ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ_WRITE)
 public class AesTest {
     private static final Class<?> SPI_CLASS;
     private static final byte[] PLAINTEXT = "Hello world. Good night moon.".getBytes(StandardCharsets.UTF_8);

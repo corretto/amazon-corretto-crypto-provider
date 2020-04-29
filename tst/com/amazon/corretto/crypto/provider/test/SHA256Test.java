@@ -22,7 +22,7 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 @ExtendWith(TestResultLogger.class)
 @Execution(ExecutionMode.SAME_THREAD)
 @ResourceLock(value = TestUtil.RESOURCE_REFLECTION)
-@ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
+@ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ_WRITE)
 public class SHA256Test {
 
     private static final String SHA_256 = "SHA-256";
