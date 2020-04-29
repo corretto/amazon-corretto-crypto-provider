@@ -7,18 +7,27 @@ import static java.lang.String.format;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assumeMinimumVersion;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyConstruct;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import com.amazon.corretto.crypto.provider.InputBuffer;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.junit.jupiter.api.parallel.ResourceAccessMode;
+import org.junit.jupiter.api.parallel.ResourceLock;
 
+@ExtendWith(TestResultLogger.class)
+@Execution(ExecutionMode.CONCURRENT)
+@ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
 public class InputBufferTest {
     private static final AmazonCorrettoCryptoProvider PROVIDER = AmazonCorrettoCryptoProvider.INSTANCE; // used for version checks
 
@@ -49,30 +58,30 @@ public class InputBufferTest {
               .withUpdater((ctx, src, offset, length) -> ctx.put(src, offset, length))
               .withDoFinal(ByteBuffer::array);
 
-        assertEquals("Initial state", 0, result.position());
+        assertEquals(0, result.position(), "Initial state");
         buffer.update(expected, 0, 1);
-        assertEquals("Buffering first chunk", 0, result.position());
+        assertEquals(0, result.position(), "Buffering first chunk");
         buffer.update(expected, 1, 3);
-        assertEquals("Buffering first chunk", 0, result.position());
+        assertEquals(0, result.position(), "Buffering first chunk");
         
         buffer.update(expected, 4, 4);
-        assertEquals("Buffering second chunk", 4, result.position());
+        assertEquals(4, result.position(), "Buffering second chunk");
 
         buffer.update(ByteBuffer.wrap(expected, 8, 3));
-        assertEquals("Buffering third chunk", 8, result.position());
+        assertEquals(8, result.position(), "Buffering third chunk");
 
         ByteBuffer direct = ByteBuffer.allocateDirect(5);
         direct.put(expected, 11, 5);
         direct.flip();
         buffer.update(direct);
-        assertEquals("All but last byte written", 16, result.position());
+        assertEquals(16, result.position(), "All but last byte written");
         
         direct.position(2);
         direct.put(expected[16]);
         direct.limit(3);
         direct.position(2);
         buffer.update(direct);
-        assertEquals("Prior to doFinal", 16, result.position());
+        assertEquals(16, result.position(), "Prior to doFinal");
         assertArrayEquals(expected, buffer.doFinal());
     }
 
@@ -91,19 +100,19 @@ public class InputBufferTest {
         for (int x = 0; x < expected.length; x++) {
             buffer.update(expected[x]);
             if (x == 0) {
-                assertEquals("First byte buffered", 0, result.position());
+                assertEquals(0, result.position(), "First byte buffered");
             } else {
-                assertEquals(format("Position %d flushed buffer", x), 1, result.position());
+                assertEquals(1, result.position(), format("Position %d flushed buffer", x));
                 result.flip();
-                assertEquals(format("Position %d flushed correct value", x), expected[x - 1], result.get());
+                assertEquals(expected[x - 1], result.get(), format("Position %d flushed correct value", x));
                 result.clear();
             }
         }
 
         buffer.doFinal();
-        assertEquals("doFinal flushed buffer", 1, result.position());
+        assertEquals(1, result.position(), "doFinal flushed buffer");
         result.flip();
-        assertEquals("doFinal flushed correct value", expected[expected.length - 1], result.get());
+        assertEquals(expected[expected.length - 1], result.get(), "doFinal flushed correct value");
         result.clear();
     }
 
@@ -186,22 +195,22 @@ public class InputBufferTest {
         buffer1.update(expected, 0, expected.length);
 
         byte[] buff1Result = buffer1.doFinal();
-        assertEquals("Buff 1 result length", expected.length * 4, buff1Result.length);
+        assertEquals(expected.length * 4, buff1Result.length, "Buff 1 result length");
         int idx = 0;
-        assertArrayEquals("Buff 1 first quarter", expected, Arrays.copyOfRange(buff1Result, idx, idx + expected.length));
+        assertArrayEquals(expected, Arrays.copyOfRange(buff1Result, idx, idx + expected.length), "Buff 1 first quarter");
         idx += expected.length;
-        assertArrayEquals("Buff 1 second quarter", expected, Arrays.copyOfRange(buff1Result, idx, idx + expected.length));
+        assertArrayEquals(expected, Arrays.copyOfRange(buff1Result, idx, idx + expected.length), "Buff 1 second quarter");
         idx += expected.length;
-        assertArrayEquals("Buff 1 third quarter", expected, Arrays.copyOfRange(buff1Result, idx, idx + expected.length));
+        assertArrayEquals(expected, Arrays.copyOfRange(buff1Result, idx, idx + expected.length), "Buff 1 third quarter");
         idx += expected.length;
-        assertArrayEquals("Buff 1 forth quarter", expected, Arrays.copyOfRange(buff1Result, idx, idx + expected.length));
+        assertArrayEquals( expected, Arrays.copyOfRange(buff1Result, idx, idx + expected.length), "Buff 1 forth quarter");
 
         byte[] buff2Result = buffer2.doFinal();
         idx = 0;
-        assertEquals("Buff 2 result length", expected.length * 2, buff2Result.length);
-        assertArrayEquals("Buff 2 first half", expected, Arrays.copyOfRange(buff2Result, idx, idx + expected.length));
+        assertEquals(expected.length * 2, buff2Result.length, "Buff 2 result length");
+        assertArrayEquals(expected, Arrays.copyOfRange(buff2Result, idx, idx + expected.length), "Buff 2 first half");
         idx += expected.length;
-        assertArrayEquals("Buff 2 second half", expected, Arrays.copyOfRange(buff2Result, idx, idx + expected.length));
+        assertArrayEquals(expected, Arrays.copyOfRange(buff2Result, idx, idx + expected.length), "Buff 2 second half");
     }
 
     @Test

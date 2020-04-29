@@ -3,32 +3,32 @@
 
 package com.amazon.corretto.crypto.provider.test;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
-import java.security.Security;
 import java.util.zip.GZIPInputStream;
 
 import org.apache.commons.codec.binary.Hex;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.junit.jupiter.api.parallel.ResourceAccessMode;
+import org.junit.jupiter.api.parallel.ResourceLock;
 
-import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
-
+@ExtendWith(TestResultLogger.class)
+@Execution(ExecutionMode.SAME_THREAD)
+@ResourceLock(value = TestUtil.RESOURCE_REFLECTION)
+@ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ_WRITE)
 public class SHA256Test {
 
     private static final String SHA_256 = "SHA-256";
 
-    @Before
-    public void setUp() throws Exception {
-        Security.addProvider(AmazonCorrettoCryptoProvider.INSTANCE);
-    }
-
     private MessageDigest getDigest() throws Exception {
-        return MessageDigest.getInstance(SHA_256, "AmazonCorrettoCryptoProvider");
+        return MessageDigest.getInstance(SHA_256, TestUtil.NATIVE_PROVIDER);
     }
 
     @Test

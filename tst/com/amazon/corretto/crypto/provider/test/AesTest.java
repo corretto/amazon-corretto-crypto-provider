@@ -4,18 +4,16 @@
 package com.amazon.corretto.crypto.provider.test;
 
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assumeMinimumVersion;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyConstruct;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyGetField;
-import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyInvoke;
-import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyInvokeExplicit;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyInvoke_int;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import java.io.ByteArrayOutputStream;
 import java.math.BigInteger;
@@ -32,7 +30,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.function.LongSupplier;
 
 import javax.crypto.AEADBadTagException;
 import javax.crypto.Cipher;
@@ -45,10 +42,20 @@ import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.junit.jupiter.api.parallel.ResourceAccessMode;
+import org.junit.jupiter.api.parallel.ResourceLock;
 
+@ExtendWith(TestResultLogger.class)
+@Execution(ExecutionMode.SAME_THREAD)
+@ResourceLock(value = TestUtil.RESOURCE_REFLECTION)
+@ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ_WRITE)
 public class AesTest {
     private static final Class<?> SPI_CLASS;
     private static final byte[] PLAINTEXT = "Hello world. Good night moon.".getBytes(StandardCharsets.UTF_8);
@@ -68,10 +75,13 @@ public class AesTest {
       }
     }
 
-    @Before
-    public void setup() throws Throwable {
+    @BeforeAll
+    public static void setupProvider() {
         Security.addProvider(AmazonCorrettoCryptoProvider.INSTANCE);
-
+    }
+    
+    @BeforeEach
+    public void setup() throws Throwable {
         byte[] foo = TestUtil.getRandomBytes(16);
         key = new SecretKeySpec(foo, "AES");
         nonce = TestUtil.getRandomBytes(12);
@@ -79,7 +89,7 @@ public class AesTest {
         amznC = Cipher.getInstance(ALGO_NAME, AmazonCorrettoCryptoProvider.INSTANCE);
     }
 
-    @After
+    @AfterEach
     public void teardown() {
         // It is unclear if JUnit always properly releases references to classes and thus we may have memory leaks
         // if we do not properly null our references
@@ -270,9 +280,10 @@ public class AesTest {
 
     }
 
-    @Test(expected = NoSuchAlgorithmException.class)
+    @Test
     public void edge_badSetMode() throws Throwable {
-        sneakyInvoke(getSpiInstance(), "engineSetMode", "ECB");
+        assertThrows(NoSuchAlgorithmException.class, () ->
+            sneakyInvoke(getSpiInstance(), "engineSetMode", "ECB"));
     }
 
     @Test
@@ -281,9 +292,10 @@ public class AesTest {
         sneakyInvoke(getSpiInstance(), "engineSetMode", "gcm");
     }
 
-    @Test(expected = NoSuchPaddingException.class)
+    @Test
     public void edge_badSetPadding() throws Throwable {
-        sneakyInvoke(getSpiInstance(), "engineSetPadding", "PKCS5Padding");
+        assertThrows(NoSuchPaddingException.class, () ->
+            sneakyInvoke(getSpiInstance(), "engineSetPadding", "PKCS5Padding"));
     }
 
     @Test
@@ -589,7 +601,7 @@ public class AesTest {
                         new GCMParameterSpec(128, new byte[16]), rnd));
     }
 
-    @Test(expected = IllegalStateException.class)
+    @Test
     public void whenAADTagSetAfterInit_throws() throws Throwable {
         // COMPATIBILITY: SunJCE accepts updateAAD after update(), despite updateAAD being
         // documented as throwing
@@ -602,7 +614,7 @@ public class AesTest {
 
         c.update(new byte[1]);
 
-        c.updateAAD(new byte[1]);
+        assertThrows(IllegalStateException.class, () ->  c.updateAAD(new byte[1]));
     }
 
     @Test
@@ -651,9 +663,10 @@ public class AesTest {
         d.doFinal(data);
     }
 
-    @Test(expected = IllegalStateException.class)
+    @Test
     public void whenDoFinalWithoutInit_throwsCorrectException() throws Throwable {
-        sneakyInvoke(getSpiInstance(), "engineDoFinal", new byte[0], 0, 0, new byte[16], 0);
+        assertThrows(IllegalStateException.class, () ->
+            sneakyInvoke(getSpiInstance(), "engineDoFinal", new byte[0], 0, 0, new byte[16], 0));
     }
 
     @Test
@@ -789,7 +802,7 @@ public class AesTest {
         Cipher c = Cipher.getInstance(ALGO_NAME, PROVIDER_AMAZON);
         final Object spi = sneakyGetField(c, "spi");
         final int keyReuseThreshold = (int) sneakyGetField(spi.getClass(), "KEY_REUSE_THRESHOLD");
-        assertEquals("Test must be re-written for KEY_REUSE_THRESHOLD != 1", 1, keyReuseThreshold);
+        assertEquals(1, keyReuseThreshold, "Test must be re-written for KEY_REUSE_THRESHOLD != 1");
 
         GCMParameterSpec spec1 = new GCMParameterSpec(128, randomIV());
         GCMParameterSpec spec2 = new GCMParameterSpec(128, randomIV());

@@ -6,13 +6,13 @@ package com.amazon.corretto.crypto.provider.test;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyGetField;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyGetInternalClass;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyInvoke;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotSame;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import java.io.IOException;
 import java.lang.reflect.Constructor;
@@ -28,27 +28,35 @@ import java.util.Scanner;
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import org.apache.commons.codec.DecoderException;
 import org.apache.commons.codec.binary.Hex;
-import org.junit.After;
-import org.junit.Assume;
 import org.junit.AssumptionViolatedException;
-import org.junit.Before;
-import org.junit.Test;
 
 import com.amazon.corretto.crypto.provider.AesCtrDrbg;
 import com.amazon.corretto.crypto.provider.SelfTestResult;
 import com.amazon.corretto.crypto.provider.SelfTestStatus;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.junit.jupiter.api.parallel.ResourceAccessMode;
+import org.junit.jupiter.api.parallel.ResourceLock;
 
+@ExtendWith(TestResultLogger.class)
+@Execution(ExecutionMode.CONCURRENT)
+@ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
 public class AesCtrDrbgTest {
     private AesCtrDrbg rnd;
 
-    @Before
+    @BeforeEach
     public void setup() {
-        Assume.assumeTrue("RDRand must be supported", AmazonCorrettoCryptoProvider.isRdRandSupported());
+        Assumptions.assumeTrue(AmazonCorrettoCryptoProvider.isRdRandSupported(), "RDRand must be supported");
 
         rnd = new AesCtrDrbg();
     }
 
-    @After
+    @AfterEach
     public void teardown() {
         rnd = null;
     }
@@ -78,7 +86,7 @@ public class AesCtrDrbgTest {
         Object params = instantiation.invoke(null, 256, PR_AND_RESEED, new byte[1]);
 
         try {
-            getInstance.invoke(null, "NIST800-90A/AES-CTR-256", params, AmazonCorrettoCryptoProvider.INSTANCE);
+            getInstance.invoke(null, "NIST800-90A/AES-CTR-256", params, TestUtil.NATIVE_PROVIDER);
             fail("Expected exception");
         } catch (InvocationTargetException e) {
             assertTrue(e.getCause() instanceof NoSuchAlgorithmException);
@@ -101,8 +109,8 @@ public class AesCtrDrbgTest {
                 }
             }
             for (int x = 0; x < size; x++) {
-                assertTrue("Check array size " + size + " position " + x + " is equal to zero",
-                        0 != checkArr[x]);
+                assertTrue(0 != checkArr[x],
+                        "Check array size " + size + " position " + x + " is equal to zero");
             }
         }
     }
@@ -122,8 +130,8 @@ public class AesCtrDrbgTest {
                 }
             }
             for (int x = 0; x < size; x++) {
-                assertTrue("Check array size " + size + " position " + x + " is equal to zero",
-                        0 != checkArr[x]);
+                assertTrue(0 != checkArr[x],
+                        "Check array size " + size + " position " + x + " is equal to zero");
             }
         }
     }
@@ -210,7 +218,7 @@ public class AesCtrDrbgTest {
                 final byte[] output = new byte[bytesGenerated];
                 drbg.nextBytes(output);
                 drbg.nextBytes(output);
-                assertArrayEquals("Line " + tests, expected, output);
+                assertArrayEquals(expected, output, "Line " + tests);
             }
 
         } finally {
@@ -239,40 +247,40 @@ public class AesCtrDrbgTest {
       final Object stateThread1_SelfTest2 = getNativeState(testConstructor.newInstance(new byte[128], seed));
       final Object stateThread1_4 = getNativeState(new AesCtrDrbg());
 
-      assertSame("SecureRandom on same thread should use same state",
-          stateThread1_1, stateThread1_2);
-      assertSame("SecureRandom on same thread should use same state",
-          stateThread1_1, stateThread1_3);
-      assertSame("SecureRandom on same thread should use same state",
-          stateThread1_1, stateThread1_4);
-      assertNotSame("SecureRandom on same thread should not use test state",
-          stateThread1_1, stateThread1_SelfTest1);
-      assertNotSame("SecureRandom on same thread should not use test state",
-          stateThread1_1, stateThread1_SelfTest2);
-      assertNotSame("SecureRandom test states should be different",
-          stateThread1_SelfTest1, stateThread1_SelfTest2);
+      assertSame(stateThread1_1,
+              stateThread1_2, "SecureRandom on same thread should use same state");
+      assertSame(stateThread1_1,
+              stateThread1_3, "SecureRandom on same thread should use same state");
+      assertSame(stateThread1_1,
+              stateThread1_4, "SecureRandom on same thread should use same state");
+      assertNotSame(stateThread1_1,
+              stateThread1_SelfTest1, "SecureRandom on same thread should not use test state");
+      assertNotSame(stateThread1_1,
+              stateThread1_SelfTest2, "SecureRandom on same thread should not use test state");
+      assertNotSame(stateThread1_SelfTest1,
+              stateThread1_SelfTest2, "SecureRandom test states should be different");
 
       final TestThreadLocalThread t = new TestThreadLocalThread();
       t.start();
       t.join();
 
-      assertSame("SecureRandom on same thread should use same state",
-          t.stateThread2_1, t.stateThread2_2);
-      assertSame("SecureRandom on same thread should use same state",
-          t.stateThread2_1, t.stateThread2_3);
-      assertSame("SecureRandom on same thread should use same state",
-          t.stateThread2_1, t.stateThread2_4);
-      assertNotSame("SecureRandom on same thread should not use test state",
-          t.stateThread2_1, t.stateThread2_SelfTest1);
-      assertNotSame("SecureRandom on same thread should not use test state",
-          t.stateThread2_1, t.stateThread2_SelfTest2);
-      assertNotSame("SecureRandom test states should be different",
-          t.stateThread2_SelfTest1, t.stateThread2_SelfTest2);
+      assertSame(t.stateThread2_1,
+              t.stateThread2_2, "SecureRandom on same thread should use same state");
+      assertSame(t.stateThread2_1,
+              t.stateThread2_3, "SecureRandom on same thread should use same state");
+      assertSame(t.stateThread2_1,
+              t.stateThread2_4, "SecureRandom on same thread should use same state");
+      assertNotSame(t.stateThread2_1,
+              t.stateThread2_SelfTest1, "SecureRandom on same thread should not use test state");
+      assertNotSame(t.stateThread2_1,
+              t.stateThread2_SelfTest2, "SecureRandom on same thread should not use test state");
+      assertNotSame(t.stateThread2_SelfTest1,
+              t.stateThread2_SelfTest2, "SecureRandom test states should be different");
 
-      assertNotSame("SecureRandom states on different threads should be different",
-          stateThread1_1, t.stateThread2_1);
-      assertNotSame("SecureRandom states on different threads should be different",
-          stateThread1_SelfTest1, t.stateThread2_SelfTest1);
+      assertNotSame(stateThread1_1,
+              t.stateThread2_1, "SecureRandom states on different threads should be different");
+      assertNotSame(stateThread1_SelfTest1,
+              t.stateThread2_SelfTest1, "SecureRandom states on different threads should be different");
     }
 
     final static class TestThreadLocalThread extends Thread {

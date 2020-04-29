@@ -3,12 +3,12 @@
 
 package com.amazon.corretto.crypto.provider.test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
 import static com.amazon.corretto.crypto.provider.test.TestUtil.argsCompatible;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyInvoke;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
@@ -18,13 +18,21 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import com.amazon.corretto.crypto.provider.SelfTestFailureException;
 import com.amazon.corretto.crypto.provider.SelfTestResult;
 import com.amazon.corretto.crypto.provider.SelfTestStatus;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.junit.jupiter.api.parallel.ResourceAccessMode;
+import org.junit.jupiter.api.parallel.ResourceLock;
 
 @SuppressWarnings("rawtypes")
+@ExtendWith(TestResultLogger.class)
+@Execution(ExecutionMode.CONCURRENT)
+@ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
 public class SelfTestSuiteTest {
     /* SelfTestSuite is not a public API, so we don't want to make it public. However, we can't put this test in the
      * same package, because if we do and try to run the test with a signed JAR, the tests will fail due to a signer
@@ -230,23 +238,24 @@ public class SelfTestSuiteTest {
         assertEquals(1, testRunCounter.get());
     }
 
-    @Test(expected = IllegalArgumentException.class)
+    @Test
     public void whenDuplicateTestsPresent_addSelfTestFails() throws Throwable {
         Object suite = newInstance(CLASS_SELF_TEST_SUITE);
 
         sneakyInvoke(suite, "addSelfTest",
                newInstance(CLASS_SELF_TEST, "ALGO 1", (Supplier)() -> newInstance(CLASS_RESULT, PASSED))
         );
-        sneakyInvoke(suite, "addSelfTest",
+        assertThrows(IllegalArgumentException.class, () ->
+            sneakyInvoke(suite, "addSelfTest",
                newInstance(CLASS_SELF_TEST, "ALGO 1", (Supplier)() -> newInstance(CLASS_RESULT, PASSED))
-        );
+            ));
     }
 
-    @Test(expected = IllegalStateException.class)
+    @Test
     public void whenNoTestsPresent_testRunThrows() throws Throwable {
         Object suite = newInstance(CLASS_SELF_TEST_SUITE);
 
-        sneakyInvoke(suite, "runTests");
+        assertThrows(IllegalStateException.class, () -> sneakyInvoke(suite, "runTests"));
     }
 
     @Test

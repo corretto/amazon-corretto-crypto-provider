@@ -3,15 +3,14 @@
 
 package com.amazon.corretto.crypto.provider.test;
 
+import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyInvokeExplicit;
-
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import java.util.Arrays;
-import java.security.GeneralSecurityException;
 import java.security.InvalidKeyException;
 import java.security.Key;
 import java.security.KeyPair;
@@ -21,13 +20,20 @@ import java.security.spec.ECGenParameterSpec;
 
 import javax.crypto.KeyAgreement;
 
-import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.junit.jupiter.api.parallel.ResourceAccessMode;
+import org.junit.jupiter.api.parallel.ResourceLock;
 
 /**
  * This class contains non-parameterized tests to cover
  * specific cases.
  **/
+@ExtendWith(TestResultLogger.class)
+@Execution(ExecutionMode.CONCURRENT)
+@ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
 public class EvpKeyAgreementSpecificTest {
     private static final Class<?> SPI_CLASS;
     private static final int EC_TYPE = 408;
@@ -40,7 +46,7 @@ public class EvpKeyAgreementSpecificTest {
           SPI_CLASS = Class.forName("com.amazon.corretto.crypto.provider.EvpKeyAgreement");
 
           // Force loading of native library
-          KeyAgreement.getInstance("ECDH", AmazonCorrettoCryptoProvider.INSTANCE);
+          KeyAgreement.getInstance("ECDH", NATIVE_PROVIDER);
 
           KeyPairGenerator gen = KeyPairGenerator.getInstance("EC");
           gen.initialize(new ECGenParameterSpec("NIST P-224"));
@@ -54,7 +60,7 @@ public class EvpKeyAgreementSpecificTest {
     }
 
     @Test
-    public void wrongKeyTypes() throws Throwable {
+    public void wrongKeyTypes() {
         assertThrows(InvalidKeyException.class, () -> agree(
             EC_KEYPAIR.getPrivate().getEncoded(),
             DH_KEYPAIR.getPublic().getEncoded(),
@@ -68,7 +74,7 @@ public class EvpKeyAgreementSpecificTest {
     }
 
     @Test
-    public void paramMismatch() throws Throwable {
+    public void paramMismatch() {
         assertThrows(InvalidKeyException.class, () -> agree(
             EC_KEYPAIR.getPrivate().getEncoded(),
             EvpKeyAgreementTest.buildKeyOnWrongCurve((ECPublicKey) EC_KEYPAIR.getPublic()).getEncoded(),
@@ -82,7 +88,7 @@ public class EvpKeyAgreementSpecificTest {
     }
 
     @Test
-    public void invalidDerEncodings() throws Throwable {
+    public void invalidDerEncodings() {
         byte[] privKey = EC_KEYPAIR.getPrivate().getEncoded();
         byte[] pubKey = EC_KEYPAIR.getPublic().getEncoded();
 
@@ -109,7 +115,7 @@ public class EvpKeyAgreementSpecificTest {
     }
 
     @Test
-    public void evilEcKeys() throws Throwable {
+    public void evilEcKeys() {
         byte[] privKey = EC_KEYPAIR.getPrivate().getEncoded();
         assertThrows(InvalidKeyException.class, () -> agree(
             privKey,
@@ -134,9 +140,9 @@ public class EvpKeyAgreementSpecificTest {
         final KeyPair bob = kg.generateKeyPair();
         final KeyPair carol = kg.generateKeyPair();
 
-        final KeyAgreement aNativeKA = KeyAgreement.getInstance("DH", AmazonCorrettoCryptoProvider.INSTANCE);
-        final KeyAgreement bNativeKA = KeyAgreement.getInstance("DH", AmazonCorrettoCryptoProvider.INSTANCE);
-        final KeyAgreement cNativeKA = KeyAgreement.getInstance("DH", AmazonCorrettoCryptoProvider.INSTANCE);
+        final KeyAgreement aNativeKA = KeyAgreement.getInstance("DH", NATIVE_PROVIDER);
+        final KeyAgreement bNativeKA = KeyAgreement.getInstance("DH", NATIVE_PROVIDER);
+        final KeyAgreement cNativeKA = KeyAgreement.getInstance("DH", NATIVE_PROVIDER);
 
         final KeyAgreement aSunKA = KeyAgreement.getInstance("DH", "SunJCE");
         final KeyAgreement bSunKA = KeyAgreement.getInstance("DH", "SunJCE");
@@ -177,24 +183,24 @@ public class EvpKeyAgreementSpecificTest {
         // Get the results and ensure they match the default Java implementation
         final byte[] aliceNativeSecret = aNativeKA.generateSecret();
         final byte[] aliceSunSecret = aSunKA.generateSecret();
-        assertArrayEquals("Alice secrets", aliceSunSecret, aliceNativeSecret);
+        assertArrayEquals(aliceSunSecret, aliceNativeSecret, "Alice secrets");
 
         final byte[] bobNativeSecret = bNativeKA.generateSecret();
         final byte[] bobSunSecret = bSunKA.generateSecret();
-        assertArrayEquals("Bob secrets", bobSunSecret, bobNativeSecret);
+        assertArrayEquals(bobSunSecret, bobNativeSecret, "Bob secrets");
 
         final byte[] carolNativeSecret = cNativeKA.generateSecret();
         final byte[] carolSunSecret = cSunKA.generateSecret();
-        assertArrayEquals("Carol secrets", carolSunSecret, carolNativeSecret);
+        assertArrayEquals(carolSunSecret, carolNativeSecret, "Carol secrets");
 
         // Finally ensure that the values all match
-        assertArrayEquals("Alice and Bob", aliceNativeSecret, bobNativeSecret);
-        assertArrayEquals("Alice and Carol", aliceNativeSecret, carolNativeSecret);
+        assertArrayEquals(aliceNativeSecret, bobNativeSecret, "Alice and Bob");
+        assertArrayEquals(aliceNativeSecret, carolNativeSecret, "Alice and Carol");
     }
 
     private static void assertKeyEquals(String message, Key a, Key b) {
-        assertEquals(message, a.getFormat(), b.getFormat());
-        assertArrayEquals(message, a.getEncoded(), b.getEncoded());
+        assertEquals(a.getFormat(), b.getFormat(), message);
+        assertArrayEquals(a.getEncoded(), b.getEncoded(), message);
     }
 
     private static byte[] agree(byte[] privateKeyDer, byte[] publicKeyDer, int keyType)

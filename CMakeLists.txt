@@ -554,6 +554,7 @@ add_jar(
         tst/com/amazon/corretto/crypto/provider/test/SelfTestSuiteTest.java
         tst/com/amazon/corretto/crypto/provider/test/ServiceSelfTestMetaTest.java
         tst/com/amazon/corretto/crypto/provider/test/TestProviderInstallation.java
+        tst/com/amazon/corretto/crypto/provider/test/TestResultLogger.java
         tst/com/amazon/corretto/crypto/provider/test/TestUtil.java
         tst/com/amazon/corretto/crypto/provider/test/ThrowingRunnable.java
         tst/com/amazon/corretto/crypto/provider/test/UtilsTest.java
@@ -592,12 +593,14 @@ set(TEST_RUNNER_ARGUMENTS
     -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
     -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
     -Dtest.data.dir=${TEST_DATA_DIR}
-    -Djunit.jupiter.testinstance.lifecycle.default=per_class
+    -Djunit.jupiter.execution.parallel.enabled=true
+    -Djunit.jupiter.execution.parallel.mode.default=concurrent
+    -Djunit.jupiter.execution.parallel.mode.classes.default=concurrent
     -XX:+HeapDumpOnOutOfMemoryError
     ${TEST_JAVA_ARGS}
     -jar ${TEST_RUNNER_JAR}
     -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
-    --details=verbose
+    --details=summary
     --details-theme=ascii
     --fail-if-no-tests
 )

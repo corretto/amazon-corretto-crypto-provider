@@ -33,9 +33,14 @@ import java.util.stream.Stream;
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.parallel.ResourceAccessMode;
+import org.junit.jupiter.api.parallel.ResourceLock;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
+@ExtendWith(TestResultLogger.class)
+@ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
 public class EvpSignatureTest {
     private static final Provider NATIVE_PROVIDER = AmazonCorrettoCryptoProvider.INSTANCE;
     private static final int[] LENGTHS = new int[] { 1, 3, 4, 7, 8, 16, 32, 48, 64, 128, 256, 1024, 1536, 2049 };
@@ -87,8 +92,8 @@ public class EvpSignatureTest {
 
         @Override
         public String toString() {
-            return String.format("%s params.message length %s. Read-only: %s, Sliced: %s",
-                    base,
+            return String.format("%s length %s. Read-only: %s, Sliced: %s",
+                    algorithm,
                     length,
                     readOnly,
                     slice

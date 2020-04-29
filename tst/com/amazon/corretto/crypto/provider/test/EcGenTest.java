@@ -3,6 +3,7 @@
 
 package com.amazon.corretto.crypto.provider.test;
 
+import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -16,7 +17,6 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
-import java.security.Security;
 import java.security.Signature;
 import java.security.interfaces.ECPublicKey;
 import java.security.spec.ECFieldFp;
@@ -30,21 +30,26 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import org.bouncycastle.asn1.ASN1Encodable;
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.ASN1Sequence;
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.junit.jupiter.api.parallel.ResourceAccessMode;
+import org.junit.jupiter.api.parallel.ResourceLock;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.aggregator.ArgumentsAccessor;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
+@ExtendWith(TestResultLogger.class)
+@Execution(ExecutionMode.CONCURRENT)
+@ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
 public class EcGenTest {
     public static final String[][] KNOWN_CURVES = new String[][] {
             // Prime Curves
@@ -118,14 +123,9 @@ public class EcGenTest {
     private KeyPairGenerator nativeGen;
     private KeyPairGenerator jceGen;
 
-    @BeforeAll
-    public void setUpBeforeClass() throws Exception {
-        Security.addProvider(AmazonCorrettoCryptoProvider.INSTANCE);
-    }
-
     @BeforeEach
     public void setup() throws GeneralSecurityException {
-        nativeGen = KeyPairGenerator.getInstance("EC", "AmazonCorrettoCryptoProvider");
+        nativeGen = KeyPairGenerator.getInstance("EC", NATIVE_PROVIDER);
         jceGen = KeyPairGenerator.getInstance("EC", "SunEC");
 
     }
@@ -138,7 +138,7 @@ public class EcGenTest {
         jceGen = null;
     }
 
-    private String[][] knownCurveParams() {
+    private static String[][] knownCurveParams() {
         return KNOWN_CURVES;
     }
 
@@ -286,7 +286,7 @@ public class EcGenTest {
 
         final KeyPairGenerator[] generators = new KeyPairGenerator[generatorCount];
         for (int x = 0; x < generatorCount; x++) {
-            generators[x] = KeyPairGenerator.getInstance("EC", "AmazonCorrettoCryptoProvider");
+            generators[x] = KeyPairGenerator.getInstance("EC", NATIVE_PROVIDER);
             final int curveIdx = rng.nextInt(KNOWN_CURVES.length);
             generators[x].initialize(new ECGenParameterSpec(KNOWN_CURVES[curveIdx][0]));
         }
