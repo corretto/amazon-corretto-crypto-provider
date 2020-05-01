@@ -68,7 +68,6 @@ defaultTasks 'release'
 task getOpensslSrc(type: Copy) {
     def tarPath = project.configurations.openssl.find {it.name.startsWith("openssl-") }
     def tarFile = file(tarPath)
-    println tarFile
 
     doFirst {
         exec {
@@ -88,9 +87,8 @@ task getOpensslSrc(type: Copy) {
         ant.patch(patchfile: "${projectDir}/arm.patch",
             dir: opensslSrcPath,
             strip: 1)
+    }
 }
-}
-
 
 task buildOpenSsl {
     outputs.dir("${buildDir}/openssl/bin/")
