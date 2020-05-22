@@ -109,6 +109,17 @@ set(ACCP_SRC
         src/com/amazon/corretto/crypto/provider/AesGcmSpi.java
         src/com/amazon/corretto/crypto/provider/EcGen.java
         src/com/amazon/corretto/crypto/provider/EvpKeyAgreement.java
+        src/com/amazon/corretto/crypto/provider/EvpKey.java
+        src/com/amazon/corretto/crypto/provider/EvpDhKey.java
+        src/com/amazon/corretto/crypto/provider/EvpDhPublicKey.java
+        src/com/amazon/corretto/crypto/provider/EvpDhPrivateKey.java
+        src/com/amazon/corretto/crypto/provider/EvpEcKey.java
+        src/com/amazon/corretto/crypto/provider/EvpEcPublicKey.java
+        src/com/amazon/corretto/crypto/provider/EvpEcPrivateKey.java
+        src/com/amazon/corretto/crypto/provider/EvpRsaKey.java
+        src/com/amazon/corretto/crypto/provider/EvpRsaPublicKey.java
+        src/com/amazon/corretto/crypto/provider/EvpRsaPrivateKey.java
+        src/com/amazon/corretto/crypto/provider/EvpRsaPrivateCrtKey.java
         src/com/amazon/corretto/crypto/provider/EvpKeyType.java
         src/com/amazon/corretto/crypto/provider/EvpSignature.java
         src/com/amazon/corretto/crypto/provider/EvpSignatureBase.java
