@@ -9,6 +9,7 @@ import java.security.AlgorithmParameters;
 import java.security.GeneralSecurityException;
 import java.security.Key;
 import java.security.spec.AlgorithmParameterSpec;
+import java.util.Base64;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
@@ -20,18 +21,33 @@ abstract class EvpKey implements Key {
     protected final InternalKey internalKey;
     protected final EvpKeyType type;
     protected final boolean isPublicKey;
+    protected boolean ephemeral = false;
     
     private byte[] encoded;
 
     private static native void releaseKey(long ptr);
     private static native byte[] encodePublicKey(long ptr);
     private static native byte[] encodePrivateKey(long ptr);
-    protected static native byte[] getDerEncodedParams(long ptr);     // NOTE: i2d_KeyParams
+    protected static native byte[] getDerEncodedParams(long ptr);
 
     EvpKey(InternalKey key, EvpKeyType type, boolean isPublicKey) {
         this.internalKey = key;
         this.type = type;
         this.isPublicKey = isPublicKey;
+    }
+
+    boolean isEphemeral() {
+        return ephemeral;
+    }
+
+    void setEphemeral(boolean ephemeral) {
+        this.ephemeral = ephemeral;
+    }
+
+    void releaseEphemeral() {
+        if (ephemeral) {
+            internalKey.release();
+        }
     }
 
     /**
@@ -82,7 +98,7 @@ abstract class EvpKey implements Key {
             params.init(encoded);
             return params.getParameterSpec(paramSpec);
         } catch (final GeneralSecurityException | IOException ex) {
-            throw new RuntimeCryptoException("Unable to deserialize parameters", ex);
+            throw new RuntimeCryptoException("Unable to deserialize parameters: " + Base64.getEncoder().encodeToString(encoded), ex);
         }
     }
 

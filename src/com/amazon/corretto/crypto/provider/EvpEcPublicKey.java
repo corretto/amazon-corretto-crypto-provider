@@ -11,7 +11,7 @@ import java.security.spec.ECPoint;
 class EvpEcPublicKey extends EvpEcKey implements ECPublicKey {
     private static final long serialVersionUID = 1;
 
-    private static native byte[] getPublicPointCoords(long ptr);
+    private static native void getPublicPointCoords(long ptr, byte[] x, byte[] y);
 
     protected ECPoint w;
 
@@ -30,15 +30,10 @@ class EvpEcPublicKey extends EvpEcKey implements ECPublicKey {
                 final int fieldSizeBits = getParams().getCurve​().getField().getFieldSize();
                 final int fieldSizeBytes = (fieldSizeBits + 7) / 8;
 
-                final byte[] combinedCoords = use(EvpEcPublicKey::getPublicPointCoords);
+                final byte[] x = new byte[fieldSizeBytes];
+                final byte[] y = new byte[fieldSizeBytes];
 
-                if (combinedCoords.length != (2 * fieldSizeBytes)) {
-                    throw new RuntimeCryptoException("Unexpected result length when retrieving public key: " + combinedCoords.length);
-                }
-
-                // Offset constructor for BigInteger only exists in JDK 9+ so we need to split the array ourselves
-                final byte[] x = Arrays.copyOfRange(combinedCoords, 0, fieldSizeBytes);
-                final byte[] y = Arrays.copyOfRange(combinedCoords, fieldSizeBytes, fieldSizeBytes + fieldSizeBytes);
+                useVoid(ptr -> getPublicPointCoords(ptr, x, y));
 
                 w = new ECPoint(new BigInteger(1, x), new BigInteger(1, y));
             }

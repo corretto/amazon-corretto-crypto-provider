@@ -113,6 +113,9 @@ set(ACCP_SRC
         src/com/amazon/corretto/crypto/provider/EvpDhKey.java
         src/com/amazon/corretto/crypto/provider/EvpDhPublicKey.java
         src/com/amazon/corretto/crypto/provider/EvpDhPrivateKey.java
+        src/com/amazon/corretto/crypto/provider/EvpDsaKey.java
+        src/com/amazon/corretto/crypto/provider/EvpDsaPublicKey.java
+        src/com/amazon/corretto/crypto/provider/EvpDsaPrivateKey.java
         src/com/amazon/corretto/crypto/provider/EvpEcKey.java
         src/com/amazon/corretto/crypto/provider/EvpEcPublicKey.java
         src/com/amazon/corretto/crypto/provider/EvpEcPrivateKey.java
@@ -247,6 +250,7 @@ add_library(
         csrc/ec_utils.cpp
         csrc/env.cpp
         csrc/keyutils.cpp
+        csrc/java_evp_keys.cpp
         csrc/loader.cpp
         csrc/md5.cpp
         csrc/amazon_corretto_crypto_provider.cpp

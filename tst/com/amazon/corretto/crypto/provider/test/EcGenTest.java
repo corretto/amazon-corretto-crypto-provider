@@ -4,20 +4,14 @@
 package com.amazon.corretto.crypto.provider.test;
 
 import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigInteger;
-import java.security.GeneralSecurityException;
-import java.security.InvalidAlgorithmParameterException;
-import java.security.InvalidParameterException;
-import java.security.Key;
-import java.security.KeyFactory;
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
-import java.security.Signature;
+import java.security.*;
+import java.security.interfaces.ECKey;
+import java.security.interfaces.ECPrivateKey;
 import java.security.interfaces.ECPublicKey;
 import java.security.spec.ECFieldFp;
 import java.security.spec.ECGenParameterSpec;
@@ -28,6 +22,7 @@ import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
 
 import org.bouncycastle.asn1.ASN1Encodable;
@@ -144,14 +139,19 @@ public class EcGenTest {
 
     @ParameterizedTest
     @MethodSource("knownCurveParams")
-    public void knownCurves(ArgumentsAccessor arguments) throws GeneralSecurityException {
+    public void knownCurves(ArgumentsAccessor arguments) throws Exception {
         for (final Object name : arguments.toArray()) {
             ECGenParameterSpec spec = new ECGenParameterSpec((String) name);
             nativeGen.initialize(spec);
             KeyPair nativePair = nativeGen.generateKeyPair();
+
             jceGen.initialize(spec);
             KeyPair jcePair = jceGen.generateKeyPair();
             final ECParameterSpec jceParams = ((ECPublicKey) jcePair.getPublic()).getParams();
+            AlgorithmParameters p = AlgorithmParameters.getInstance("EC");
+            p.init(jceParams);
+            System.out.println("Good params: " + Base64.getEncoder().encodeToString(p.getEncoded()));
+
             final ECParameterSpec nativeParams = ((ECPublicKey) nativePair.getPublic()).getParams();
             assertECEquals((String) name, jceParams, nativeParams);
 
@@ -172,9 +172,10 @@ public class EcGenTest {
 
             // Check encoding/decoding
             Key bouncedKey = KEY_FACTORY.generatePublic(new X509EncodedKeySpec(nativePair.getPublic().getEncoded()));
-            assertEquals(nativePair.getPublic(), bouncedKey, "Public key survives encoding");
+            assertECEquals("Public key survives encoding", (ECPublicKey) nativePair.getPublic(), (ECPublicKey) bouncedKey);
             bouncedKey = KEY_FACTORY.generatePrivate(new PKCS8EncodedKeySpec(nativePair.getPrivate().getEncoded()));
-            assertEquals(nativePair.getPrivate(), bouncedKey, "Private key survives encoding");
+            assertECEquals("Private key survives encoding", (ECPrivateKey) nativePair.getPrivate(), (ECPrivateKey) bouncedKey);
+
         }
     }
 
@@ -316,6 +317,20 @@ public class EcGenTest {
             }
             throw ex;
         }
+    }
+
+    private static void assertECEquals(final String message, final ECPrivateKey expected,
+                                       final ECPrivateKey actual) {
+        assertArrayEquals(expected.getEncoded(), actual.getEncoded(), message);
+        assertEquals(expected.getS(), actual.getS(), message);
+        assertECEquals(message, expected.getParams(), actual.getParams());
+    }
+
+    private static void assertECEquals(final String message, final ECPublicKey expected,
+                                       final ECPublicKey actual) {
+        assertArrayEquals(expected.getEncoded(), actual.getEncoded(), message);
+        assertEquals(expected.getW(), actual.getW(), message);
+        assertECEquals(message, expected.getParams(), actual.getParams());
     }
 
     private static void assertECEquals(final String message, final ECParameterSpec expected,

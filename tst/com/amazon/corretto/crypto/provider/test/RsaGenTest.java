@@ -42,13 +42,8 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 public class RsaGenTest {
     private static final byte[] PLAINTEXT = new byte[32];
 
-    @BeforeAll
-    public static void setUp() throws Exception {
-        Security.addProvider(AmazonCorrettoCryptoProvider.INSTANCE);
-    }
-
     private KeyPairGenerator getGenerator() throws GeneralSecurityException {
-        return KeyPairGenerator.getInstance("RSA", "AmazonCorrettoCryptoProvider");
+        return KeyPairGenerator.getInstance("RSA", TestUtil.NATIVE_PROVIDER);
     }
 
     @Test
@@ -152,7 +147,7 @@ public class RsaGenTest {
 
         final KeyPairGenerator[] generators = new KeyPairGenerator[generatorCount];
         for (int x = 0; x < generatorCount; x++) {
-            generators[x] = KeyPairGenerator.getInstance("RSA", "AmazonCorrettoCryptoProvider");
+            generators[x] = KeyPairGenerator.getInstance("RSA", TestUtil.NATIVE_PROVIDER);
             generators[x].initialize(1024);
         }
 
@@ -203,8 +198,14 @@ public class RsaGenTest {
         assertEquals(priv.getPrivateExponent().mod(priv.getPrimeQ().subtract(BigInteger.ONE)), priv.getPrimeExponentQ());
         assertEquals(priv.getPrimeQ().modInverse(priv.getPrimeP()), priv.getCrtCoefficient());
 
+        final BigInteger p1 = priv.getPrimeP().subtract(BigInteger.ONE);
+        final BigInteger q1 = priv.getPrimeQ().subtract(BigInteger.ONE);
+        final BigInteger phiGCD = p1.gcd(q1);
+        final BigInteger phi = p1.multiply(q1).divide(phiGCD);
+        assertEquals(BigInteger.ONE, (priv.getPrivateExponent().multiply(priv.getPublicExponent())).mod(phi));
+
         // Actually use the key
-        final Cipher cipher = Cipher.getInstance("RSA");
+        final Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
         cipher.init(Cipher.ENCRYPT_MODE, pub);
         final byte[] ciphertext = cipher.doFinal(PLAINTEXT);
         cipher.init(Cipher.DECRYPT_MODE, priv);

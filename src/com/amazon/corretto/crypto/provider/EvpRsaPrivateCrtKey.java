@@ -37,6 +37,9 @@ class EvpRsaPrivateCrtKey extends EvpRsaPrivateKey implements RSAPrivateCrtKey {
     }
 
     protected synchronized void initBNs() {
+        if (privateExponent != null) {
+            return;
+        }
         // Everything will be no larger than the modulus.
         final BigInteger modulus = getModulus();
         final int byteLength = (modulus.bitLength() + 7) / 8;
@@ -52,12 +55,12 @@ class EvpRsaPrivateCrtKey extends EvpRsaPrivateKey implements RSAPrivateCrtKey {
         useVoid(p -> getCrtParams(p, crtCoefArr, expPArr, expQArr, primePArr, primeQArr, publicExponentArr, privateExponentArr));
 
         crtCoef = new BigInteger(1, crtCoefArr);
-        expP = new BigInteger(1, crtCoefArr);
-        expQ = new BigInteger(1, crtCoefArr);
-        primeP = new BigInteger(1, crtCoefArr);
-        primeQ = new BigInteger(1, crtCoefArr);
-        publicExponent = new BigInteger(1, crtCoefArr);
-        privateExponent = new BigInteger(1, crtCoefArr);
+        expP = new BigInteger(1, expPArr);
+        expQ = new BigInteger(1, expQArr);
+        primeP = new BigInteger(1, primePArr);
+        primeQ = new BigInteger(1, primeQArr);
+        publicExponent = new BigInteger(1, publicExponentArr);
+        privateExponent = new BigInteger(1, privateExponentArr);
     }
 
     @Override
