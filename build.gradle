@@ -454,3 +454,7 @@ task clean(overwrite: true, type: Delete) {
 task deep_clean(type: Delete) {
    delete buildDir
 }
+
+task cmake_clean(type: Delete) {
+    delete "${buildDir}/cmake"
+}
