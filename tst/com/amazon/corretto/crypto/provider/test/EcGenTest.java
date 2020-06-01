@@ -150,7 +150,6 @@ public class EcGenTest {
             final ECParameterSpec jceParams = ((ECPublicKey) jcePair.getPublic()).getParams();
             AlgorithmParameters p = AlgorithmParameters.getInstance("EC");
             p.init(jceParams);
-            System.out.println("Good params: " + Base64.getEncoder().encodeToString(p.getEncoded()));
 
             final ECParameterSpec nativeParams = ((ECPublicKey) nativePair.getPublic()).getParams();
             assertECEquals((String) name, jceParams, nativeParams);

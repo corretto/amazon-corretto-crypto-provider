@@ -123,6 +123,7 @@ set(ACCP_SRC
         src/com/amazon/corretto/crypto/provider/EvpRsaPublicKey.java
         src/com/amazon/corretto/crypto/provider/EvpRsaPrivateKey.java
         src/com/amazon/corretto/crypto/provider/EvpRsaPrivateCrtKey.java
+        src/com/amazon/corretto/crypto/provider/EvpKeyFactory.java
         src/com/amazon/corretto/crypto/provider/EvpKeyType.java
         src/com/amazon/corretto/crypto/provider/EvpSignature.java
         src/com/amazon/corretto/crypto/provider/EvpSignatureBase.java
@@ -615,7 +616,7 @@ set(TEST_RUNNER_ARGUMENTS
     ${TEST_JAVA_ARGS}
     -jar ${TEST_RUNNER_JAR}
     -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
-    --details=summary
+    --details=verbose
     --details-theme=ascii
     --fail-if-no-tests
 )
