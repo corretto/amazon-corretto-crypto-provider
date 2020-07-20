@@ -5,6 +5,7 @@ package com.amazon.corretto.crypto.provider.test;
 
 import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyGetField;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyInvokeExplicit;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -13,10 +14,13 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import java.util.Arrays;
 import java.security.InvalidKeyException;
 import java.security.Key;
+import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.interfaces.ECPublicKey;
 import java.security.spec.ECGenParameterSpec;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
 
 import javax.crypto.KeyAgreement;
 
@@ -62,13 +66,13 @@ public class EvpKeyAgreementSpecificTest {
     @Test
     public void wrongKeyTypes() {
         assertThrows(InvalidKeyException.class, () -> agree(
-            EC_KEYPAIR.getPrivate().getEncoded(),
-            DH_KEYPAIR.getPublic().getEncoded(),
+            EC_KEYPAIR.getPrivate(),
+            DH_KEYPAIR.getPublic(),
             EC_TYPE));
 
         assertThrows(InvalidKeyException.class, () -> agree(
-            DH_KEYPAIR.getPrivate().getEncoded(),
-            EC_KEYPAIR.getPublic().getEncoded(),
+            DH_KEYPAIR.getPrivate(),
+            EC_KEYPAIR.getPublic(),
             EC_TYPE));
 
     }
@@ -76,60 +80,62 @@ public class EvpKeyAgreementSpecificTest {
     @Test
     public void paramMismatch() {
         assertThrows(InvalidKeyException.class, () -> agree(
-            EC_KEYPAIR.getPrivate().getEncoded(),
-            EvpKeyAgreementTest.buildKeyOnWrongCurve((ECPublicKey) EC_KEYPAIR.getPublic()).getEncoded(),
+            EC_KEYPAIR.getPrivate(),
+            EvpKeyAgreementTest.buildKeyOnWrongCurve((ECPublicKey) EC_KEYPAIR.getPublic()),
             EC_TYPE));
 
         assertThrows(InvalidKeyException.class, () -> agree(
-            DH_KEYPAIR.getPrivate().getEncoded(),
-            EvpKeyAgreementTest.buildDhKeyWithRandomParams(1024).getEncoded(),
+            DH_KEYPAIR.getPrivate(),
+            EvpKeyAgreementTest.buildDhKeyWithRandomParams(1024),
             DH_TYPE));
 
     }
 
-    @Test
-    public void invalidDerEncodings() {
-        byte[] privKey = EC_KEYPAIR.getPrivate().getEncoded();
-        byte[] pubKey = EC_KEYPAIR.getPublic().getEncoded();
+    // TODO: Convert to key factory tests
+    // @Test
+    // public void invalidDerEncodings() {
+    //     byte[] privKey = EC_KEYPAIR.getPrivate().getEncoded();
+    //     byte[] pubKey = EC_KEYPAIR.getPublic().getEncoded();
 
-        assertThrows(InvalidKeyException.class, () -> agree(
-            new byte[0],
-            pubKey,
-            EC_TYPE));
+    //     assertThrows(InvalidKeyException.class, () -> agree(
+    //         new byte[0],
+    //         pubKey,
+    //         EC_TYPE));
 
-        assertThrows(InvalidKeyException.class, () -> agree(
-            privKey,
-            new byte[0],
-            EC_TYPE));
+    //     assertThrows(InvalidKeyException.class, () -> agree(
+    //         privKey,
+    //         new byte[0],
+    //         EC_TYPE));
 
 
-        assertThrows(InvalidKeyException.class, () -> agree(
-            Arrays.copyOf(privKey, privKey.length + 1),
-            EC_KEYPAIR.getPublic().getEncoded(),
-            EC_TYPE));
+    //     assertThrows(InvalidKeyException.class, () -> agree(
+    //         Arrays.copyOf(privKey, privKey.length + 1),
+    //         EC_KEYPAIR.getPublic().getEncoded(),
+    //         EC_TYPE));
 
-        assertThrows(InvalidKeyException.class, () -> agree(
-            privKey,
-            Arrays.copyOf(pubKey, pubKey.length + 1),
-            EC_TYPE));
-    }
+    //     assertThrows(InvalidKeyException.class, () -> agree(
+    //         privKey,
+    //         Arrays.copyOf(pubKey, pubKey.length + 1),
+    //         EC_TYPE));
+    // }
 
-    @Test
-    public void evilEcKeys() {
-        byte[] privKey = EC_KEYPAIR.getPrivate().getEncoded();
-        assertThrows(InvalidKeyException.class, () -> agree(
-            privKey,
-            EvpKeyAgreementTest.buildKeyAtInfinity(
-                (ECPublicKey) EC_KEYPAIR.getPublic()).getEncoded(),
-            EC_TYPE));
+    // TODO: Convert to key factory tests
+    // @Test
+    // public void evilEcKeys() {
+    //     byte[] privKey = EC_KEYPAIR.getPrivate().getEncoded();
+    //     assertThrows(InvalidKeyException.class, () -> agree(
+    //         privKey,
+    //         EvpKeyAgreementTest.buildKeyAtInfinity(
+    //             (ECPublicKey) EC_KEYPAIR.getPublic()).getEncoded(),
+    //         EC_TYPE));
 
-        assertThrows(InvalidKeyException.class, () -> agree(
-            privKey,
-            EvpKeyAgreementTest.buildKeyOffCurve(
-               (ECPublicKey) EC_KEYPAIR.getPublic()).getEncoded(),
-            EC_TYPE));
+    //     assertThrows(InvalidKeyException.class, () -> agree(
+    //         privKey,
+    //         EvpKeyAgreementTest.buildKeyOffCurve(
+    //            (ECPublicKey) EC_KEYPAIR.getPublic()).getEncoded(),
+    //         EC_TYPE));
 
-    }
+    // }
 
     // This test covers three-way DH
     @Test
@@ -203,9 +209,30 @@ public class EvpKeyAgreementSpecificTest {
         assertArrayEquals(a.getEncoded(), b.getEncoded(), message);
     }
 
-    private static byte[] agree(byte[] privateKeyDer, byte[] publicKeyDer, int keyType)
+    private static byte[] agree(Key privateKeyRaw, Key publicKeyRaw, int keyType)
       throws Throwable {
-        return sneakyInvokeExplicit(SPI_CLASS, "agree", null,
-            privateKeyDer, publicKeyDer, keyType, false);
+        KeyFactory kf;
+        switch (keyType) {
+            case EC_TYPE:
+                kf = KeyFactory.getInstance("EC", NATIVE_PROVIDER);
+                break;
+            case DH_TYPE:
+                kf = KeyFactory.getInstance("DH", NATIVE_PROVIDER);
+                break;
+            default:
+                throw new IllegalArgumentException();
+        }
+
+        Key privateKey = kf.translateKey(privateKeyRaw);
+        Key publicKey = kf.translateKey(publicKeyRaw);
+
+        // Horribly evil!
+        synchronized (privateKey) {
+            synchronized (publicKey) {
+                long privatePtr = (long) sneakyGetField(sneakyGetField(sneakyGetField(privateKey, "internalKey"), "cell"), "ptr");
+                long publicPtr = (long) sneakyGetField(sneakyGetField(sneakyGetField(publicKey, "internalKey"), "cell"), "ptr");
+                return sneakyInvokeExplicit(SPI_CLASS, "agree", null, privatePtr, publicPtr);
+            }
+        }
     }
 }

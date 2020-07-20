@@ -42,13 +42,13 @@ import java.security.spec.X509EncodedKeySpec;
 abstract class EvpKeyFactory extends KeyFactorySpi {
     private final EvpKeyType type;
 
-    private static native long pkcs82Evp(byte[] der, int nativeValue);
-    private static native long x5092Evp(byte[] der, int nativeValue);
+    private static native long pkcs82Evp(byte[] der, int nativeValue); // Sneaky throws InvalidKeySpecException;
+    private static native long x5092Evp(byte[] der, int nativeValue); // Sneaky throws InvalidKeySpecException;
 
     private static native long rsa2Evp(byte[] modulus, byte[] publicExponentArr, byte[] privateExponentArr, byte[] crtCoefArr, byte[] expPArr, byte[] expQArr, byte[] primePArr, byte[] primeQArr);
-    private static native long ec2Evp(byte[] s, byte[] wx, byte[] xy, byte[] params);
+    private static native long ec2Evp(byte[] s, byte[] wx, byte[] wy, byte[] params) throws InvalidKeySpecException; // DONE
     private static native long dsa2Evp(byte[] x, byte[] y, byte[] params);
-    private static native long dh2Evp(byte[] x, byte[] y, byte[] params);
+    private static native long dh2Evp(byte[] x, byte[] y, byte[] params) throws InvalidKeySpecException; // DONE
 
     protected EvpKeyFactory(EvpKeyType type) {
         this.type = type;
@@ -122,8 +122,6 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
 
     protected byte[] paramsToDer(AlgorithmParameterSpec spec) {
         try {
-            System.out.format("paramsToDer, type: %s, spec: %s%n", type, spec);
-            System.out.format("paramsToDer, jceName: %s%n", type.jceName);
             AlgorithmParameters params = AlgorithmParameters.getInstance(type.jceName);
             params.init(spec);
             return params.getEncoded();

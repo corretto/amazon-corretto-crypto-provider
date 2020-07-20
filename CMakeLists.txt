@@ -616,7 +616,7 @@ set(TEST_RUNNER_ARGUMENTS
     ${TEST_JAVA_ARGS}
     -jar ${TEST_RUNNER_JAR}
     -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
-    --details=verbose
+    --details=flat
     --details-theme=ascii
     --fail-if-no-tests
 )

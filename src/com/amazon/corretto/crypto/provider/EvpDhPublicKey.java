@@ -30,4 +30,9 @@ class EvpDhPublicKey extends EvpDhKey implements DHPublicKey {
         }
         return y;
     }
+
+    @Override
+    public String toString() {
+        return "EvpDhPublicKey: Y = " + getY() + " Params = " + getParams();
+    }
 }

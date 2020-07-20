@@ -20,6 +20,12 @@ namespace AmazonCorrettoCryptoProvider
     {
         jni_borrow borrow(env, buffer, "jarr2bn");
 
+        // Force value to be positive
+        if (borrow.data()[0] & 0x80)
+        {
+            throw_java_ex(EX_ILLEGAL_ARGUMENT, "Value must be positive");
+        }
+
         BIGNUM *rv = BN_bin2bn((const uint8_t *)borrow.data(), borrow.len(), bn);
 
         if (unlikely(!rv))

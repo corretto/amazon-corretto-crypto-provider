@@ -193,7 +193,7 @@ public class EvpKeyAgreementTest {
     }
 
     private static List<DHPublicKey> buildWeakDhKeys(final DHPublicKey goodKey) throws GeneralSecurityException {
-        final KeyFactory factory = KeyFactory.getInstance("DH");
+        final KeyFactory factory = KeyFactory.getInstance("DH", "SunJCE"); // Lets us bypass some checks in ACCP
         final List<DHPublicKey> badKeys = new ArrayList<>();
         final BigInteger p = goodKey.getParams().getP();
         final BigInteger g = goodKey.getParams().getG();

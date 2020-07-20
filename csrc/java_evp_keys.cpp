@@ -1,6 +1,8 @@
 // Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+#include <openssl/dh.h>
+#include <openssl/ec.h>
 #include <openssl/evp.h>
 #include <openssl/err.h>
 #include "generated-headers.h"
@@ -97,6 +99,156 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpKey_enc
         ex.throw_to_java(pEnv);
     }
     return result;
+}
+
+/*
+ * Class:     com_amazon_corretto_crypto_provider_EvpKeyFactory
+ * Method:    pkcs82Evp
+ * Signature: ([BI)J
+ */
+JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_pkcs82Evp(
+    JNIEnv *pEnv,
+    jclass,
+    jbyteArray pkcs8der,
+    jint nativeValue)
+{
+    try
+    {
+        raii_env env(pEnv);
+        EvpKeyContext result;
+
+        java_buffer pkcs8Buff = java_buffer::from_array(env, pkcs8der);
+        size_t derLen = pkcs8Buff.len();
+
+        {
+            jni_borrow borrow = jni_borrow(env, pkcs8Buff, "pkcs8Buff");
+            result.setKey(der2EvpPrivateKey(borrow, derLen, false, EX_INVALID_KEY_SPEC));
+            if (EVP_PKEY_base_id(result.getKey()) != nativeValue)
+            {
+                throw_java_ex(EX_INVALID_KEY_SPEC, "Incorrect key type");
+            }
+        }
+        return reinterpret_cast<jlong>(result.moveToHeap());
+    }
+    catch (java_ex &ex)
+    {
+        ex.throw_to_java(pEnv);
+        return 0;
+    }
+}
+
+/*
+ * Class:     com_amazon_corretto_crypto_provider_EvpKeyFactory
+ * Method:    x5092Evp
+ * Signature: ([BI)J
+ */
+JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_x5092Evp(
+    JNIEnv *pEnv,
+    jclass,
+    jbyteArray x509der,
+    jint nativeValue)
+{
+    try
+    {
+        raii_env env(pEnv);
+        EvpKeyContext result;
+
+        java_buffer x509Buff = java_buffer::from_array(env, x509der);
+        size_t derLen = x509Buff.len();
+
+        {
+            jni_borrow borrow = jni_borrow(env, x509Buff, "x509Buff");
+            result.setKey(der2EvpPublicKey(borrow, derLen, EX_INVALID_KEY_SPEC));
+            if (EVP_PKEY_base_id(result.getKey()) != nativeValue)
+            {
+                throw_java_ex(EX_INVALID_KEY_SPEC, "Incorrect key type");
+            }
+        }
+        return reinterpret_cast<jlong>(result.moveToHeap());
+    }
+    catch (java_ex &ex)
+    {
+        ex.throw_to_java(pEnv);
+        return 0;
+    }
+}
+
+/*
+ * Class:     com_amazon_corretto_crypto_provider_EvpKeyFactory
+ * Method:    ec2Evp
+ * Signature: ([B[B[B[B)J
+ */
+JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_ec2Evp(
+    JNIEnv *pEnv,
+    jclass,
+    jbyteArray sArr,
+    jbyteArray wxArr,
+    jbyteArray wyArr,
+    jbyteArray paramsArr)
+{
+    EC_KEY *ec = NULL;
+    try
+    {
+        raii_env env(pEnv);
+        EvpKeyContext ctx;
+
+        {
+            // Parse the parameters
+            java_buffer paramsBuff = java_buffer::from_array(env, paramsArr);
+            size_t paramsLength = paramsBuff.len();
+            jni_borrow borrow(env, paramsBuff, "params");
+
+            const unsigned char *derPtr = borrow.data();
+            const unsigned char *derMutablePtr = derPtr;
+
+            ec = d2i_ECParameters(NULL, &derMutablePtr, paramsLength);
+            if (!ec)
+            {
+                throw_openssl(EX_INVALID_KEY_SPEC, "Invalid parameters");
+            }
+            if (derPtr + paramsLength != derMutablePtr)
+            {
+                throw_openssl(EX_INVALID_KEY_SPEC, "Extra key information");
+            }
+
+            ctx.setKey(EVP_PKEY_new());
+            if (!EVP_PKEY_set1_EC_KEY(ctx.getKey(), ec))
+            {
+                throw_openssl(EX_INVALID_KEY_SPEC, "Could not convert to EVP_PKEY");
+            }
+        }
+
+        // Set the key pieces
+        {
+            if (sArr)
+            {
+                BigNumObj s = BigNumObj::fromJavaArray(env, sArr);
+                if (EC_KEY_set_private_key(ec, s) != 1)
+                {
+                    throw_openssl(EX_RUNTIME_CRYPTO, "Unable to set private key");
+                }
+            }
+
+            if (wxArr && wyArr)
+            {
+                BigNumObj wx = BigNumObj::fromJavaArray(env, wxArr);
+                BigNumObj wy = BigNumObj::fromJavaArray(env, wyArr);
+
+                if (EC_KEY_set_public_key_affine_coordinates(ec, wx, wy) != 1)
+                {
+                    throw_openssl("Unable to set affine coordinates");
+                }
+            }
+        }
+
+        return reinterpret_cast<jlong>(ctx.moveToHeap());
+    }
+    catch (java_ex &ex)
+    {
+        EC_KEY_free(ec);
+        ex.throw_to_java(pEnv);
+        return 0;
+    }
 }
 
 /*
@@ -337,5 +489,112 @@ JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_EvpRsaPrivateCrt
     catch (java_ex &ex)
     {
         ex.throw_to_java(pEnv);
+    }
+}
+
+JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_dh2Evp(
+    JNIEnv *pEnv, jclass, jbyteArray xArr, jbyteArray yArr, jbyteArray paramsDer)
+// x = Private, y = Public
+{
+    DH *dh = NULL;
+    EvpKeyContext ctx;
+    try
+    {
+        raii_env env(pEnv);
+
+        {
+            // Parse the parameters
+            java_buffer paramsBuff = java_buffer::from_array(env, paramsDer);
+            size_t paramsLength = paramsBuff.len();
+            jni_borrow borrow(env, paramsBuff, "params");
+
+            const unsigned char *derPtr = borrow.data();
+            const unsigned char *derMutablePtr = derPtr;
+
+            dh = d2i_DHparams(NULL, &derMutablePtr, paramsLength);
+            if (!dh)
+            {
+                throw_openssl(EX_INVALID_KEY_SPEC, "Invalid parameters");
+            }
+            if (derPtr + paramsLength != derMutablePtr)
+            {
+                throw_openssl(EX_INVALID_KEY_SPEC, "Extra key information");
+            }
+
+            ctx.setKey(EVP_PKEY_new());
+            if (!EVP_PKEY_set1_DH(ctx.getKey(), dh))
+            {
+                throw_openssl(EX_INVALID_KEY_SPEC, "Could not convert to EVP_PKEY");
+            }
+        }
+
+        // Set the key pieces
+        {
+
+            BigNumObj x = BigNumObj::fromJavaArray(env, xArr);
+            BigNumObj y = BigNumObj::fromJavaArray(env, yArr);
+
+            BIGNUM *xBN = NULL; // Do not FREE!
+            BIGNUM *yBN = NULL; // Do not FREE!
+            if (xArr)
+            {
+                xBN = x;
+            }
+            if (yArr)
+            {
+                yBN = y;
+            }
+            if (!DH_set0_key(dh, yBN, xBN))
+            {
+                throw_openssl(EX_RUNTIME_CRYPTO, "Error setting DH key");
+            }
+            x.releaseOwnership();
+            y.releaseOwnership();
+        }
+
+        return reinterpret_cast<jlong>(ctx.moveToHeap());
+    }
+    catch (java_ex &ex)
+    {
+        DH_free(dh);
+        ex.throw_to_java(pEnv);
+        return 0;
+    }
+}
+
+/*
+ * Class:     com_amazon_corretto_crypto_provider_EvpDhPublicKey
+ * Method:    getY
+ * Signature: (J)[B
+ */
+JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpDhPublicKey_getY(
+    JNIEnv *pEnv,
+    jclass,
+    jlong ctxP)
+{
+    try
+    {
+        raii_env env(pEnv); // Does not need to be freed
+
+        EvpKeyContext *ctx = reinterpret_cast<EvpKeyContext *>(ctxP);
+
+        DH *dh = EVP_PKEY_get0_DH(ctx->getKey()); // Does not need to be freed
+        if (!dh)
+        {
+            throw_openssl(EX_RUNTIME_CRYPTO, "Could not retrieve DH key");
+        }
+
+        const BIGNUM *y = DH_get0_pub_key(dh);
+        if (!y)
+        {
+            throw_java_ex(EX_RUNTIME_CRYPTO, "Could not retrieve Y");
+        }
+
+        return bn2jarr(env, y);
+    }
+    catch (java_ex &ex)
+    {
+        ex.throw_to_java(pEnv);
+        return 0;
     }
 }
