@@ -444,6 +444,41 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpRsaPriv
     }
 }
 
+JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpRsaPrivateCrtKey_hasCrtParams(
+    JNIEnv *pEnv,
+    jclass,
+    jlong ctxHandle)
+{
+    const RSA *r;
+    try
+    {
+        raii_env env(pEnv);
+
+        EvpKeyContext *ctx = reinterpret_cast<EvpKeyContext *>(ctxHandle);
+        CHECK_OPENSSL(r = EVP_PKEY_get0_RSA(ctx->getKey()));
+
+        const BIGNUM *dmp1;
+        const BIGNUM *dmq1;
+        const BIGNUM *iqmp;
+
+        RSA_get0_crt_params(r, &dmp1, &dmq1, &iqmp);
+        if (!dmp1 || !dmq1 || !iqmp)
+        {
+            return false;
+        }
+        if (BN_is_zero(dmp1) || BN_is_zero(dmq1) || BN_is_zero(iqmp))
+        {
+            return false;
+        }
+        return true;
+    }
+    catch (java_ex &ex)
+    {
+        ex.throw_to_java(pEnv);
+        return false;
+    }
+}
+
 // protected static native void getCrtParams(long ptr, byte[] crtCoefArr, byte[] expPArr, byte[] expQArr, byte[] primePArr, byte[] primeQArr, byte[] publicExponentArr, byte[] privateExponentArr);
 JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_EvpRsaPrivateCrtKey_getCrtParams(
     JNIEnv *pEnv,

@@ -37,6 +37,11 @@ namespace AmazonCorrettoCryptoProvider
         EVP_MD_CTX *getDigestCtx() const { return digestCtx_; }
         EVP_PKEY_CTX *getKeyCtx() const { return keyCtx_; }
         EVP_PKEY *getKey() const { return key_; }
+        EVP_PKEY *get1Key() const
+        {
+            EVP_PKEY_up_ref(key_);
+            return key_;
+        }
         EVP_PKEY **getKeyPtr() { return &key_; }
 
         // If there was an old ctx, it is freed

@@ -14,7 +14,7 @@ import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
 
-
+// TODO: Add destroyable throughout
 abstract class EvpKey implements Key {
     private static final long serialVersionUID = 1;
 
@@ -44,6 +44,7 @@ abstract class EvpKey implements Key {
         this.ephemeral = ephemeral;
     }
 
+    // TODO: Call this aggressively throughout
     void releaseEphemeral() {
         if (ephemeral) {
             internalKey.release();

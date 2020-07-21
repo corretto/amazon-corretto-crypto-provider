@@ -92,6 +92,7 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
     @Override
     protected Key engineTranslateKey(Key key) throws InvalidKeyException {
         // Caller must have already called keyNeedsConversion!
+        // TODO: Set ephemeral flag prior to return
         try {
             if (key.getFormat().equalsIgnoreCase("PKCS#8")) {
                 return engineGeneratePrivate(new PKCS8EncodedKeySpec(requireNonNullEncoding(key)));

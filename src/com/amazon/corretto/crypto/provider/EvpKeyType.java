@@ -6,6 +6,8 @@ package com.amazon.corretto.crypto.provider;
 import java.util.function.ToLongBiFunction;
 import java.security.KeyFactory;
 import java.security.NoSuchAlgorithmException;
+import java.security.InvalidKeyException;
+import java.security.Key;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.interfaces.DSAPrivateKey;
@@ -24,20 +26,15 @@ import javax.crypto.interfaces.DHPublicKey;
  * Corresponds to native constants in OpenSSL which represent keytypes.
  */
 enum EvpKeyType {
-    RSA("RSA", 6, RSAPublicKey.class, RSAPrivateKey.class),
-    DH("DH", 28, DHPublicKey.class, DHPrivateKey.class),
-    DSA("DSA", 116, DSAPublicKey.class, DSAPrivateKey.class),
-    EC("EC", 408, ECPublicKey.class, ECPrivateKey.class);
+    RSA("RSA", 6, RSAPublicKey.class, RSAPrivateKey.class), DH("DH", 28, DHPublicKey.class, DHPrivateKey.class),
+    DSA("DSA", 116, DSAPublicKey.class, DSAPrivateKey.class), EC("EC", 408, ECPublicKey.class, ECPrivateKey.class);
 
     final String jceName;
     final int nativeValue;
     final Class<? extends PublicKey> publicKeyClass;
     final Class<? extends PrivateKey> privateKeyClass;
 
-    private EvpKeyType(
-            final String jceName,
-            final int nativeValue,
-            final Class<? extends PublicKey> publicKeyClass,
+    private EvpKeyType(final String jceName, final int nativeValue, final Class<? extends PublicKey> publicKeyClass,
             final Class<? extends PrivateKey> privateKeyClass) {
         this.jceName = jceName;
         this.nativeValue = nativeValue;
@@ -53,10 +50,14 @@ enum EvpKeyType {
         }
     }
 
+    EvpKey translateKey(Key key) throws InvalidKeyException {
+        return (EvpKey) getKeyFactory().translateKey(key);
+    }
+
     PrivateKey buildPrivateKey(ToLongBiFunction<byte[], Integer> fn, PKCS8EncodedKeySpec der) {
         switch (this) {
             case RSA:
-                throw new UnsupportedOperationException("Not yet written");
+                return EvpRsaPrivateCrtKey.buildProperKey(fn.applyAsLong(der.getEncoded(), nativeValue));
             case DH:
                 return new EvpDhPrivateKey(fn.applyAsLong(der.getEncoded(), nativeValue));
             case DSA:

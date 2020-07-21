@@ -17,6 +17,17 @@ class EvpRsaPrivateCrtKey extends EvpRsaPrivateKey implements RSAPrivateCrtKey {
     protected BigInteger publicExponent;
 
     protected static native void getCrtParams(long ptr, byte[] crtCoefArr, byte[] expPArr, byte[] expQArr, byte[] primePArr, byte[] primeQArr, byte[] publicExponentArr, byte[] privateExponentArr);
+    protected static native boolean hasCrtParams(long ptr);
+
+    protected static EvpRsaPrivateKey buildProperKey(long ptr) {
+        // Instantly wrap to avoid leaking pointer in case of exception
+        // Most will be CRT keys, so we default to that
+        EvpRsaPrivateKey result = new EvpRsaPrivateCrtKey(ptr);
+        if (!result.use(EvpRsaPrivateCrtKey::hasCrtParams)) {
+            result = new EvpRsaPrivateKey(result.internalKey);
+        }
+        return result;
+    }
 
     EvpRsaPrivateCrtKey(long ptr) {
         super(new InternalKey(ptr));

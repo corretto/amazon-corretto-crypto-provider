@@ -27,11 +27,11 @@ abstract class EvpSignatureBase extends SignatureSpi {
     protected static final int RSA_PKCS1_PADDING = 1;
     protected final EvpKeyType keyType_;
     protected final int paddingType_;
-    protected Key key_ = null;
-    protected byte[] keyDer_ = null;
+    protected Key untranslatedKey_ = null;
+    protected EvpKey key_ = null;
     protected boolean signMode;
     protected int keyUsageCount_ = 0;
-    protected EvpContext ctx_ = null;
+    // protected EvpContext ctx_ = null;
     protected String algorithmName_ = null;
 
     EvpSignatureBase(
@@ -63,23 +63,17 @@ abstract class EvpSignatureBase extends SignatureSpi {
             throw new InvalidKeyException("Key must not be null");
         }
 
-        if (key_ != privateKey) {
+        if (untranslatedKey_ != privateKey) {
             if (!keyType_.jceName.equalsIgnoreCase(privateKey.getAlgorithm())) {
                 throw new InvalidKeyException();
             }
             keyUsageCount_ = 0;
-            if (ctx_ != null) {
-                ctx_.release();
-                ctx_ = null;
-            }
-            key_ = privateKey;
-            try {
-                keyDer_ = keyType_.getKeyFactory().getKeySpec(privateKey, PKCS8EncodedKeySpec.class).getEncoded();
-            } catch (final InvalidKeySpecException ex) {
-                key_ = null;
-                keyDer_ = null;
-                throw new InvalidKeyException(ex);
-            }
+            // if (ctx_ != null) {
+            //     ctx_.release();
+            //     ctx_ = null;
+            // }
+            untranslatedKey_ = privateKey;
+            key_ = keyType_.translateKey(untranslatedKey_);
         }
         signMode = true;
         engineReset();
@@ -91,24 +85,17 @@ abstract class EvpSignatureBase extends SignatureSpi {
             throw new InvalidKeyException("Key must not be null");
         }
 
-        if (key_ != publicKey) {
+        if (untranslatedKey_ != publicKey) {
             if (!keyType_.jceName.equalsIgnoreCase(publicKey.getAlgorithm())) {
                 throw new InvalidKeyException();
             }
             keyUsageCount_ = 0;
-            if (ctx_ != null) {
-                ctx_.release();
-                ctx_ = null;
-            }
-            key_ = publicKey;
-            try {
-                keyDer_ = keyType_.getKeyFactory().getKeySpec(publicKey, X509EncodedKeySpec.class).getEncoded();
-            } catch (final InvalidKeySpecException ex) {
-                key_ = null;
-                keyDer_ = null;
-                throw new InvalidKeyException(ex);
-            }
-
+            // if (ctx_ != null) {
+            //     ctx_.release();
+            //     ctx_ = null;
+            // }
+            untranslatedKey_ = publicKey;
+            key_ = keyType_.translateKey(untranslatedKey_);
         }
         signMode = false;
         engineReset();
