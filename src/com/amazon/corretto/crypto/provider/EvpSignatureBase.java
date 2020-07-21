@@ -31,7 +31,6 @@ abstract class EvpSignatureBase extends SignatureSpi {
     protected EvpKey key_ = null;
     protected boolean signMode;
     protected int keyUsageCount_ = 0;
-    // protected EvpContext ctx_ = null;
     protected String algorithmName_ = null;
 
     EvpSignatureBase(
@@ -68,11 +67,10 @@ abstract class EvpSignatureBase extends SignatureSpi {
                 throw new InvalidKeyException();
             }
             keyUsageCount_ = 0;
-            // if (ctx_ != null) {
-            //     ctx_.release();
-            //     ctx_ = null;
-            // }
             untranslatedKey_ = privateKey;
+            if (key_ != null) {
+                key_.releaseEphemeral();
+            }
             key_ = keyType_.translateKey(untranslatedKey_);
         }
         signMode = true;
@@ -90,11 +88,10 @@ abstract class EvpSignatureBase extends SignatureSpi {
                 throw new InvalidKeyException();
             }
             keyUsageCount_ = 0;
-            // if (ctx_ != null) {
-            //     ctx_.release();
-            //     ctx_ = null;
-            // }
             untranslatedKey_ = publicKey;
+            if (key_ != null) {
+                key_.releaseEphemeral();
+            }
             key_ = keyType_.translateKey(untranslatedKey_);
         }
         signMode = false;

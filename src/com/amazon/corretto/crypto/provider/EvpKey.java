@@ -13,9 +13,9 @@ import java.util.Base64;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
+import javax.security.auth.Destroyable;
 
-// TODO: Add destroyable throughout
-abstract class EvpKey implements Key {
+abstract class EvpKey implements Key, Destroyable {
     private static final long serialVersionUID = 1;
 
     protected final InternalKey internalKey;
@@ -47,7 +47,7 @@ abstract class EvpKey implements Key {
     // TODO: Call this aggressively throughout
     void releaseEphemeral() {
         if (ephemeral) {
-            internalKey.release();
+            destroy();
         }
     }
 
@@ -101,6 +101,28 @@ abstract class EvpKey implements Key {
         } catch (final GeneralSecurityException | IOException ex) {
             throw new RuntimeCryptoException("Unable to deserialize parameters: " + Base64.getEncoder().encodeToString(encoded), ex);
         }
+    }
+
+    /**
+     * This method will be called by @{link #destroy()} after calling
+     * @{code internalKey.release()}.
+     */
+    protected synchronized void destroyJavaState() {
+        // NOP
+    }
+
+    @Override
+    public boolean isDestroyed() {
+        return internalKey.isReleased();
+    }
+
+    @Override
+    public synchronized void destroy() {
+        if (isDestroyed()) {
+            throw new IllegalStateException("Already destroyed");
+        }
+        internalKey.release();
+        destroyJavaState();
     }
 
     protected static class InternalKey extends NativeResource {

@@ -66,26 +66,30 @@ class EvpKeyAgreement extends KeyAgreementSpi {
             throw new InvalidKeyException("Expected key of type " + keyType_.publicKeyClass + " not " + key.getClass());
         }
         final EvpKey publicKey = (EvpKey) keyType_.getKeyFactory().translateKey(key);
-        if (lastPhase) {
-            // We do the actual agreement here because that is where key validation and thus exceptions
-            // get thrown.
-            secret = agree(publicKey);
-            return null;
-        } else if ("DH".equals(algorithm_)) {
-            final DHParameterSpec dhParams = ((DHKey) privKey).getParams();
-            try {
-                final Key result = keyType_.getKeyFactory().generatePublic(new DHPublicKeySpec(
-                    new BigInteger(1, agree(publicKey)), // y
-                    dhParams.getP(),
-                    dhParams.getG()
-                ));
-                return result;
-            } catch (final InvalidKeySpecException ex) {
-                throw new RuntimeCryptoException(ex);
+        try {
+            if (lastPhase) {
+                // We do the actual agreement here because that is where key validation and thus exceptions
+                // get thrown.
+                secret = agree(publicKey);
+                return null;
+            } else if ("DH".equals(algorithm_)) {
+                final DHParameterSpec dhParams = ((DHKey) privKey).getParams();
+                try {
+                    final Key result = keyType_.getKeyFactory().generatePublic(new DHPublicKeySpec(
+                        new BigInteger(1, agree(publicKey)), // y
+                        dhParams.getP(),
+                        dhParams.getG()
+                    ));
+                    return result;
+                } catch (final InvalidKeySpecException ex) {
+                    throw new RuntimeCryptoException(ex);
+                }
+            } else {
+                secret = null;
+                throw new IllegalStateException("Only single phase agreement is supported");
             }
-        } else {
-            secret = null;
-            throw new IllegalStateException("Only single phase agreement is supported");
+        } finally {
+            publicKey.releaseEphemeral();
         }
     }
 
@@ -169,6 +173,9 @@ class EvpKeyAgreement extends KeyAgreementSpi {
         }
         if (!keyType_.privateKeyClass.isAssignableFrom(key.getClass())) {
             throw new InvalidKeyException("Expected key of type " + keyType_.privateKeyClass + " not " + key.getClass());
+        }
+        if (privKey != null) {
+            privKey.releaseEphemeral();
         }
         privKey = (EvpKey) keyType_.getKeyFactory().translateKey(key);
         reset();

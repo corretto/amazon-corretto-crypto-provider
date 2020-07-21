@@ -34,4 +34,10 @@ class EvpDhPrivateKey extends EvpDhKey implements DHPrivateKey {
         }
         return x;
     }
+
+    @Override
+    protected synchronized void destroyJavaState() {
+        super.destroyJavaState();
+        x = null;
+    }
 }

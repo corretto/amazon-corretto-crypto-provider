@@ -261,6 +261,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpKey_get
     jlong ctxHandle)
 {
     jbyteArray result = NULL;
+    unsigned char *der = NULL;
     try
     {
         raii_env env(pEnv);
@@ -271,7 +272,6 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpKey_get
         CHECK_OPENSSL(keyNid);
 
         int derLen = 0;
-        unsigned char *der = NULL;
 
         switch (keyNid)
         {
@@ -295,10 +295,10 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpKey_get
         }
         // This may throw, if it does we'll just keep the exception state as we return.
         env->SetByteArrayRegion(result, 0, derLen, (jbyte *)der);
-        OPENSSL_free(der); // TODO: Fix memory leak
     }
     catch (java_ex &ex)
     {
+        OPENSSL_free(der);
         ex.throw_to_java(pEnv);
     }
     return result;

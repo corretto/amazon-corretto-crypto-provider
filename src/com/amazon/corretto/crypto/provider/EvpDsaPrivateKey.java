@@ -34,4 +34,10 @@ class EvpDsaPrivateKey extends EvpDsaKey implements DSAPrivateKey {
         }
         return x;
     }
+
+    @Override
+    protected synchronized void destroyJavaState() {
+        super.destroyJavaState();
+        x = null;
+    }
 }

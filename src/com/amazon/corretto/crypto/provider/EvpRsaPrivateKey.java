@@ -31,4 +31,10 @@ class EvpRsaPrivateKey extends EvpRsaKey implements RSAPrivateKey {
 
         return privateExponent;
     }
+
+    @Override
+    protected synchronized void destroyJavaState() {
+        super.destroyJavaState();
+        privateExponent = null;
+    }
 }

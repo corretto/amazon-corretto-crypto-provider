@@ -109,4 +109,15 @@ class EvpRsaPrivateCrtKey extends EvpRsaPrivateKey implements RSAPrivateCrtKey {
         initBNs();
         return primeQ;
     }
+
+    @Override
+    protected synchronized void destroyJavaState() {
+        super.destroyJavaState();
+        crtCoef = null;
+        expP = null;
+        expQ = null;
+        primeP = null;
+        primeQ = null;
+        privateExponent = null;
+    }
 }

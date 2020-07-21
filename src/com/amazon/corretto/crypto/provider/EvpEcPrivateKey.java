@@ -35,4 +35,10 @@ class EvpEcPrivateKey extends EvpEcKey implements ECPrivateKey {
         }
         return s;
     }
+
+    @Override
+    protected synchronized void destroyJavaState() {
+        super.destroyJavaState();
+        s = null;
+    }
 }

@@ -92,18 +92,20 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
     @Override
     protected Key engineTranslateKey(Key key) throws InvalidKeyException {
         // Caller must have already called keyNeedsConversion!
-        // TODO: Set ephemeral flag prior to return
         try {
+            final EvpKey result;
             if (key.getFormat().equalsIgnoreCase("PKCS#8")) {
-                return engineGeneratePrivate(new PKCS8EncodedKeySpec(requireNonNullEncoding(key)));
+                result = (EvpKey) engineGeneratePrivate(new PKCS8EncodedKeySpec(requireNonNullEncoding(key)));
+            } else if (key.getFormat().equalsIgnoreCase("X.509")) {
+                result = (EvpKey) engineGeneratePublic(new X509EncodedKeySpec(requireNonNullEncoding(key)));
+            } else {
+                throw new InvalidKeyException("Cannot convert key of format " + key.getFormat());
             }
-            if (key.getFormat().equalsIgnoreCase("X.509")) {
-                return engineGeneratePublic(new X509EncodedKeySpec(requireNonNullEncoding(key)));
-            }
+            result.setEphemeral(true);
+            return result;
         } catch (final InvalidKeySpecException ex) {
             throw new InvalidKeyException(ex);
         }
-        throw new InvalidKeyException("Cannot convert key of format " + key.getFormat());
     }
 
     protected boolean keyNeedsConversion(Key key) throws InvalidKeyException {
