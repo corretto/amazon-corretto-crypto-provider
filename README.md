@@ -174,6 +174,11 @@ Add the following Java property to your programs command line: `-Djava.security.
 ### Modify the JVM settings
 Modify the `java.security` file provided by your JVM so that the highest priority provider is the Amazon Corretto Crypto Provider. Look at [amazon-corretto-crypto-provider.security](https://github.com/corretto/amazon-corretto-crypto-provider/blob/master/etc/amazon-corretto-crypto-provider.security) for an example of what this change will look like.
 
+### Agent
+Add the `-javaagent:AmazonCorrettoCryptoProvider.jar` argument to your Java command line, modifying the path if necessary.
+The agent runs before your application's `main` method, configuring ACCP as the crypto provider and then runs the verification steps below.
+Optionally, add the `assert` option to agent options e.g. `-javaagent:AmazonCorrettoCryptoProvider.jar=assert` to also run the assertion step.
+
 ### Verification (Optional)
 If you want to check to verify that ACCP is properly working on your system, you can do any of the following:
 1. Verify that the highest priority provider actually is ACCP:

@@ -107,6 +107,7 @@ set(ACCP_SRC
         src/com/amazon/corretto/crypto/provider/AccessibleByteArrayOutputStream.java
         src/com/amazon/corretto/crypto/provider/AesCtrDrbg.java
         src/com/amazon/corretto/crypto/provider/AesGcmSpi.java
+        src/com/amazon/corretto/crypto/provider/Agent.java
         src/com/amazon/corretto/crypto/provider/EcGen.java
         src/com/amazon/corretto/crypto/provider/EvpKeyAgreement.java
         src/com/amazon/corretto/crypto/provider/EvpKeyType.java
@@ -190,6 +191,7 @@ else()
         COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_PROPERTY:code-only-jar,JAR_FILE> ${ACCP_JAR_TMP}
         COMMAND ${CMAKE_COMMAND} -E remove_directory ${ACCP_JAR_TMP}/com/amazon/corretto/crypto/provider/test
         COMMAND ${Java_JAR_EXECUTABLE} uf ${ACCP_JAR_TMP} -C ${CMAKE_CURRENT_SOURCE_DIR}/extra-jar-files .
+        COMMAND ${Java_JAR_EXECUTABLE} ufm ${ACCP_JAR_TMP} ${CMAKE_CURRENT_SOURCE_DIR}/src/MANIFEST.MF
         COMMAND ${Java_JAR_EXECUTABLE} uf ${ACCP_JAR_TMP} -C $<TARGET_PROPERTY:module-jar,CLASSDIR> module-info.class
         COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/tmplib/com/amazon/corretto/crypto/provider/
         COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:amazonCorrettoCryptoProvider> ${CMAKE_CURRENT_BINARY_DIR}/tmplib/com/amazon/corretto/crypto/provider/

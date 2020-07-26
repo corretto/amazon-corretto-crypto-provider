@@ -1,0 +1,1 @@
+Premain-Class: com.amazon.corretto.crypto.provider.Agent
