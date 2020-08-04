@@ -82,7 +82,7 @@ class NativeResource {
          */
         // @CheckReturnValue // Restore once replacement for JSR-305 available
         @SuppressWarnings("try") // For "unused" lock variable in try-with-resources
-        public <T> T use(LongFunction<T> function) {
+        public <T, X extends Throwable> T use(MiscInterfaces.ThrowingLongFunction<T, X> function) throws X {
             try (CloseableLock lock = getLock(false)) {
                 if (released) {
                     throw new IllegalStateException("Use after free");
@@ -125,11 +125,11 @@ class NativeResource {
     }
 
     /**
-     * Calls the supplied {@link LongFunction} passing in the raw handle as a parameter and return
+     * Calls the supplied {@link MiscInterfaces.ThrowingLongFunction} passing in the raw handle as a parameter and return
      * the result.
      */
     // @CheckReturnValue // Restore once replacement for JSR-305 available
-    <T> T use(LongFunction<T> function) {
+    public <T, X extends Throwable> T use(MiscInterfaces.ThrowingLongFunction<T, X> function) throws X {
         return cell.use(function);
     }
 

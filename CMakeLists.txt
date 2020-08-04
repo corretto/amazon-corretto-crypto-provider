@@ -135,6 +135,7 @@ set(ACCP_SRC
         src/com/amazon/corretto/crypto/provider/Loader.java
         src/com/amazon/corretto/crypto/provider/AmazonCorrettoCryptoProvider.java
         src/com/amazon/corretto/crypto/provider/NativeResource.java
+        src/com/amazon/corretto/crypto/provider/MiscInterfaces.java
         src/com/amazon/corretto/crypto/provider/ReflectiveTools.java
         src/com/amazon/corretto/crypto/provider/RsaCipher.java
         src/com/amazon/corretto/crypto/provider/RsaGen.java

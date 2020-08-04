@@ -64,7 +64,7 @@ class EvpSignatureRaw extends EvpSignatureBase {
             int offset, int length);
 
     private static native boolean verifyRaw(long publicKey, int paddingType, String mgfMd, int saltLen, byte[] message,
-            int offset, int length, byte[] signature, int sigOffset, int sigLength);
+            int offset, int length, byte[] signature, int sigOffset, int sigLength) throws SignatureException;
 
     static final class NONEwithECDSA extends EvpSignatureRaw {
         NONEwithECDSA(AmazonCorrettoCryptoProvider provider) {

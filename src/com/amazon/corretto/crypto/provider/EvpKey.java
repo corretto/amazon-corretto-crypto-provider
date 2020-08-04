@@ -56,7 +56,7 @@ abstract class EvpKey implements Key, Destroyable {
      * the result.
      */
     // @CheckReturnValue // Restore once replacement for JSR-305 available
-    <T> T use(LongFunction<T> function) {
+    <T, X extends Throwable> T use(MiscInterfaces.ThrowingLongFunction<T, X> function) throws X {
         return internalKey.use(function);
     }
 

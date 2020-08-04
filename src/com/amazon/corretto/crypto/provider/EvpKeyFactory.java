@@ -42,8 +42,8 @@ import java.security.spec.X509EncodedKeySpec;
 abstract class EvpKeyFactory extends KeyFactorySpi {
     private final EvpKeyType type;
 
-    private static native long pkcs82Evp(byte[] der, int nativeValue); // Sneaky throws InvalidKeySpecException;
-    private static native long x5092Evp(byte[] der, int nativeValue); // Sneaky throws InvalidKeySpecException;
+    private static native long pkcs82Evp(byte[] der, int nativeValue) throws InvalidKeySpecException;
+    private static native long x5092Evp(byte[] der, int nativeValue) throws InvalidKeySpecException;
 
     private static native long rsa2Evp(byte[] modulus, byte[] publicExponentArr, byte[] privateExponentArr, byte[] crtCoefArr, byte[] expPArr, byte[] expQArr, byte[] primePArr, byte[] primeQArr);
     private static native long ec2Evp(byte[] s, byte[] wx, byte[] wy, byte[] params) throws InvalidKeySpecException; // DONE

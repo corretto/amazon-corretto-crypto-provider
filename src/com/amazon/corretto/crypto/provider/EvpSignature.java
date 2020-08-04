@@ -84,7 +84,7 @@ class EvpSignature extends EvpSignatureBase {
      *      href="https://www.openssl.org/docs/man1.1.0/crypto/EVP_get_digestbyname.html">EVP_get_digestbyname</a>
      */
     private static native boolean verify(long publicKey, String digestName, int paddingType,
-            String mgfMd, int saltLen, byte[] message, int offset, int length, byte[] signature, int sigOff, int sigLen);
+            String mgfMd, int saltLen, byte[] message, int offset, int length, byte[] signature, int sigOff, int sigLen) throws SignatureException;
 
     /**
      * Starts calculating a signature and returns a native pointer to the context.
@@ -299,13 +299,13 @@ class EvpSignature extends EvpSignatureBase {
      *            the length of the signatue to verify
      * @return true if the signature was verified. false if not.
      */
-    private static native boolean verifyFinish(long ctx, byte[] signature, int sigOff, int sigLen);
+    private static native boolean verifyFinish(long ctx, byte[] signature, int sigOff, int sigLen) throws SignatureException;
 
     private final AmazonCorrettoCryptoProvider provider_;
     private final String digestName_;
     private byte[] oneByteArray_ = null;
-    private final InputBuffer<byte[], EvpContext> signingBuffer;
-    private final InputBuffer<Boolean, EvpContext> verifyingBuffer;
+    private final InputBuffer<byte[], EvpContext, RuntimeException> signingBuffer;
+    private final InputBuffer<Boolean, EvpContext, SignatureException> verifyingBuffer;
 
     /**
      * Creates a new instances of this class.
@@ -326,7 +326,7 @@ class EvpSignature extends EvpSignatureBase {
         provider_ = provider;
         digestName_ = digestName;
 
-        signingBuffer = new InputBuffer<byte[], EvpContext>(1024)
+        signingBuffer = new InputBuffer<byte[], EvpContext, RuntimeException>(1024)
             .withInitialUpdater((src, offset, length) ->
                 new EvpContext(key_.use(ptr -> 
                     signStart(ptr,
@@ -353,7 +353,7 @@ class EvpSignature extends EvpSignatureBase {
                             digestName_, paddingType, null, 0,
                             src, offset, length))
             );
-        verifyingBuffer = new InputBuffer<Boolean, EvpContext>(1024)
+        verifyingBuffer = new InputBuffer<Boolean, EvpContext, SignatureException>(1024)
             .withInitialUpdater((src, offset, length) ->
                 new EvpContext(key_.use(ptr ->
                     verifyStart(ptr, digestName_,

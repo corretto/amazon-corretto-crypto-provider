@@ -54,7 +54,7 @@ enum EvpKeyType {
         return (EvpKey) getKeyFactory().translateKey(key);
     }
 
-    PrivateKey buildPrivateKey(ToLongBiFunction<byte[], Integer> fn, PKCS8EncodedKeySpec der) {
+    <X extends Throwable> PrivateKey buildPrivateKey(MiscInterfaces.ThrowingToLongBiFunction<byte[], Integer, X> fn, PKCS8EncodedKeySpec der) throws X {
         switch (this) {
             case RSA:
                 return EvpRsaPrivateCrtKey.buildProperKey(fn.applyAsLong(der.getEncoded(), nativeValue));
@@ -69,7 +69,7 @@ enum EvpKeyType {
         }
     }
 
-    PublicKey buildPublicKey(ToLongBiFunction<byte[], Integer> fn, X509EncodedKeySpec der) {
+    <X extends Throwable> PublicKey buildPublicKey(MiscInterfaces.ThrowingToLongBiFunction<byte[], Integer, X> fn, X509EncodedKeySpec der) throws X {
         switch (this) {
             case RSA:
                 return new EvpRsaPublicKey(fn.applyAsLong(der.getEncoded(), nativeValue));
