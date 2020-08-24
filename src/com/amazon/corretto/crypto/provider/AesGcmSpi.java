@@ -516,70 +516,90 @@ final class AesGcmSpi extends CipherSpi {
     protected synchronized int engineDoFinal(byte[] bytes, int offset, int length, byte[] output, int outputOffset)
         throws ShortBufferException, IllegalBlockSizeException, BadPaddingException
     {
-        if (bytes == null) bytes = EMPTY_ARRAY;
+        try {
+            if (bytes == null) bytes = EMPTY_ARRAY;
 
-        boolean overlaps = Utils.arraysOverlap(
-                bytes, offset, output, outputOffset, Math.max(length , engineGetOutputSize(length))
-        );
+            boolean overlaps = Utils.arraysOverlap(
+                    bytes, offset, output, outputOffset, Math.max(length , engineGetOutputSize(length))
+            );
 
-        if (opMode != NATIVE_MODE_ENCRYPT && opMode != NATIVE_MODE_DECRYPT) {
-            throw new IllegalStateException("Cipher not initialized");
-        }
-
-        if (outputOffset < 0) {
-            throw new ArrayIndexOutOfBoundsException("Negative output offset");
-        }
-
-        checkOutputBuffer(length, output, outputOffset);
-        checkArrayLimits(bytes, offset, length);
-
-        int resultLength = 0;
-
-        if (overlaps) {
-            // The input and output potentially overlap. We'll need to make sure we copy the input somewhere safe before
-            // proceeding too much further.
-
-            // Since we need to take care of this on engineUpdate as well, we can just delegate to engineUpdate, which
-            // will make sure to copy the buffer - on encrypt this is an explicit check, while on decrypt engineUpdate
-            // unconditionally copies to a temporary buffer.
-
-            resultLength = engineUpdate(bytes, offset, length, output, outputOffset);
-            outputOffset += resultLength;
-
-            // We processed all of the input in engineUpdate. So there's no longer an overlap to deal with.
-            length = 0;
-        }
-
-        if (opMode == NATIVE_MODE_DECRYPT) {
-            // If we have some data already, merge them into our temporary buffer.
-            if (decryptInputBuf.size() != 0) {
-                engineUpdate(bytes, offset, length);
-                bytes = decryptInputBuf.getDataBuffer();
-                offset = 0;
-                length = decryptInputBuf.size();
+            if (opMode != NATIVE_MODE_ENCRYPT && opMode != NATIVE_MODE_DECRYPT) {
+                throw new IllegalStateException("Cipher not initialized");
             }
 
-            if (length < tagLength) {
-                throw new AEADBadTagException("Input too short - need tag");
+            if (outputOffset < 0) {
+                throw new ArrayIndexOutOfBoundsException("Negative output offset");
             }
 
-            final byte[] finalBytes = bytes;
-            final int finalOffset = offset;
-            final int finalOutputOffset = outputOffset;
-            final int finalLength = length;
-            keyUsageCount++;
-            if (context != null) {
-                // We already have a context, so let's reuse it.
-                return context.use(ptr -> {
-                    return oneShotDecrypt(
-                            ptr,
-                            null,
-                            finalBytes,
-                            finalOffset,
-                            finalLength,
+            checkOutputBuffer(length, output, outputOffset);
+            checkArrayLimits(bytes, offset, length);
 
-                            output,
-                            finalOutputOffset,
+            int resultLength = 0;
+
+            if (overlaps) {
+                // The input and output potentially overlap. We'll need to make sure we copy the input somewhere safe before
+                // proceeding too much further.
+
+                // Since we need to take care of this on engineUpdate as well, we can just delegate to engineUpdate, which
+                // will make sure to copy the buffer - on encrypt this is an explicit check, while on decrypt engineUpdate
+                // unconditionally copies to a temporary buffer.
+
+                resultLength = engineUpdate(bytes, offset, length, output, outputOffset);
+                outputOffset += resultLength;
+
+                // We processed all of the input in engineUpdate. So there's no longer an overlap to deal with.
+                length = 0;
+            }
+
+            if (opMode == NATIVE_MODE_DECRYPT) {
+                // We use this temporary buffer both for our input ciphertext and our output (possibly unauthenticated) plaintext.
+                // We'll copy it to the actual output location iff decryption completes successfully.
+                engineUpdate(bytes, offset, length); // Decrypt mode never generates output for updates
+                final byte[] tempBuffer = decryptInputBuf.getDataBuffer();
+                final int tempBufferLength = decryptInputBuf.size();
+
+                if (tempBufferLength < tagLength) {
+                    throw new AEADBadTagException("Input too short - need tag");
+                }
+
+                keyUsageCount++;
+                final int outLen;
+                if (context != null) {
+                    // We already have a context, so let's reuse it.
+                    outLen = context.use(ptr -> {
+                        return oneShotDecrypt(
+                                ptr,
+                                null,
+                                tempBuffer,
+                                0,
+                                tempBufferLength,
+
+                                tempBuffer,
+                                0,
+
+                                tagLength,
+                                key,
+                                iv,
+
+                                // The cost of calling decryptAADBuf.getDataBuffer() when its buffer is empty is significant for 16-byte
+                                // decrypt operations (approximately a 7% performance hit). To avoid this, we reuse the same empty array
+                                // instead in this common-case path.
+                                decryptAADBuf.size() != 0 ? decryptAADBuf.getDataBuffer() : EMPTY_ARRAY,
+                                decryptAADBuf.size()
+                        );
+                    });
+                } else {
+                    // We don't have an existing context, however we might want to save one
+                    final long[] ptrOut = keyUsageCount > KEY_REUSE_THRESHOLD ? new long[1] : null;
+                    outLen = oneShotDecrypt(
+                            0,
+                            ptrOut,
+                            tempBuffer,
+                            0,
+                            tempBufferLength,
+
+                            tempBuffer,
+                            0,
 
                             tagLength,
                             key,
@@ -591,56 +611,51 @@ final class AesGcmSpi extends CipherSpi {
                             decryptAADBuf.size() != 0 ? decryptAADBuf.getDataBuffer() : EMPTY_ARRAY,
                             decryptAADBuf.size()
                     );
-                });
-            } else {
-                // We don't have an existing context, however we might want to save one
-                final long[] ptrOut = keyUsageCount > KEY_REUSE_THRESHOLD ? new long[1] : null;
-                final int outLen = oneShotDecrypt(
-                        0,
-                        ptrOut,
-                        bytes,
-                        offset,
-                        length,
 
-                        output,
-                        outputOffset,
-
-                        tagLength,
-                        key,
-                        iv,
-
-                        // The cost of calling decryptAADBuf.getDataBuffer() when its buffer is empty is significant for 16-byte
-                        // decrypt operations (approximately a 7% performance hit). To avoid this, we reuse the same empty array
-                        // instead in this common-case path.
-                        decryptAADBuf.size() != 0 ? decryptAADBuf.getDataBuffer() : EMPTY_ARRAY,
-                        decryptAADBuf.size()
-                );
-
-                if (ptrOut != null) {
-                    context = new NativeContext(ptrOut[0]);
+                    if (ptrOut != null) {
+                        context = new NativeContext(ptrOut[0]);
+                    }
                 }
+                // Decryption completed successfully. Copy it to the output location
+                System.arraycopy(tempBuffer, 0, output, outputOffset, outLen);
                 return outLen;
-            }
-        }
+            } // End of Decrypt mode
 
-        checkNeedReset();
+            // Start of Encrypt mode
+            checkNeedReset();
 
-        this.needReset = true;
-        final byte[] finalBytes = bytes;
-        final int finalOffset = offset;
-        final int finalOutputOffset = outputOffset;
-        final int finalLength = length;
-        if (!contextInitialized) {
-            // Context has not been initialized, meaning the user called doFinal immediately after init(). In this case
-            // we make a single native call to perform the encryption operation in one go.
+            this.needReset = true;
+            final byte[] finalBytes = bytes;
+            final int finalOffset = offset;
+            final int finalOutputOffset = outputOffset;
+            final int finalLength = length;
+            if (!contextInitialized) {
+                // Context has not been initialized, meaning the user called doFinal immediately after init(). In this case
+                // we make a single native call to perform the encryption operation in one go.
 
-            keyUsageCount++;
-            if (context != null) {
-                // Our key, but not our IV has been initialized
-                return context.use(ptr -> {
-                    return oneShotEncrypt(
-                            ptr,
-                            null,
+                keyUsageCount++;
+                if (context != null) {
+                    // Our key, but not our IV has been initialized
+                    return context.use(ptr -> {
+                        return oneShotEncrypt(
+                                ptr,
+                                null,
+                                finalBytes,
+                                finalOffset,
+                                finalLength,
+                                output,
+                                finalOutputOffset,
+                                tagLength,
+                                key,
+                                iv
+                        );
+                    });
+                } else {
+                    // We don't have an existing context, however we might want to save one
+                    final long[] ptrOut = keyUsageCount > KEY_REUSE_THRESHOLD ? new long[1] : null;
+                    final int outLen = oneShotEncrypt(
+                            0,
+                            ptrOut,
                             finalBytes,
                             finalOffset,
                             finalLength,
@@ -650,29 +665,12 @@ final class AesGcmSpi extends CipherSpi {
                             key,
                             iv
                     );
-                });
-            } else {
-                // We don't have an existing context, however we might want to save one
-                final long[] ptrOut = keyUsageCount > KEY_REUSE_THRESHOLD ? new long[1] : null;
-                final int outLen = oneShotEncrypt(
-                        0,
-                        ptrOut,
-                        finalBytes,
-                        finalOffset,
-                        finalLength,
-                        output,
-                        finalOutputOffset,
-                        tagLength,
-                        key,
-                        iv
-                );
-                if (ptrOut != null) {
-                    context = new NativeContext(ptrOut[0]);
+                    if (ptrOut != null) {
+                        context = new NativeContext(ptrOut[0]);
+                    }
+                    return outLen;
                 }
-                return outLen;
-            }
-        } else {
-            try {
+            } else {
                 // We need to make sure to add resultLength here; engineUpdate in encrypt mode produces incremental
                 // output (unlike in decrypt mode) and so we need to carry forward whatever amount of data it produced
                 // in our return value.
@@ -712,9 +710,9 @@ final class AesGcmSpi extends CipherSpi {
                     context = null;
                 }
                 return resultLength + finalOutputLen;
-            } finally {
-                stateReset();
             }
+        } finally {
+            stateReset();
         }
     }
 
