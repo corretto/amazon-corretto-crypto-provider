@@ -47,6 +47,9 @@ For other sizes, there are no documented guarantees of the SunEC behavior.
 
   You may need to do a clean build when changing tests.
 
+### Patches
+* Better handle HMAC keys with a `null` format. [PR #124](https://github.com/corretto/amazon-corretto-crypto-provider/pull/124)
+
 ### Maintenance
 * Upgrade tests to JUnit5. [PR #111](https://github.com/corretto/amazon-corretto-crypto-provider/pull/111)
 * Upgrade BouncyCastle test dependency 1.65. [PR #110](https://github.com/corretto/amazon-corretto-crypto-provider/pull/110)
