@@ -183,7 +183,7 @@ class RsaCipher extends CipherSpi {
             }
             if (mode_ == Cipher.ENCRYPT_MODE || mode_ == Cipher.WRAP_MODE) {
                 if (inputLen > keySizeBytes_ - padding_.paddingLength) {
-                    throw new BadPaddingException("Data must not be longer than "
+                    throw new IllegalBlockSizeException("Data must not be longer than "
                             + (keySizeBytes_ - padding_.paddingLength) + " bytes");
                 }
                 // We're allowed to pad NO_PADDING with zero bytes on the left.
@@ -199,7 +199,7 @@ class RsaCipher extends CipherSpi {
                 }
             } else {
                 if (inputLen > keySizeBytes_) {
-                    throw new BadPaddingException("Input length is too long.");
+                    throw new IllegalBlockSizeException("Data must not be longer than " + keySizeBytes_ + " bytes");
                 }
             }
             

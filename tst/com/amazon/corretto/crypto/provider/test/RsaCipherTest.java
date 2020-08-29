@@ -145,8 +145,8 @@ public class RsaCipherTest {
         byte[] plaintext = getPlaintext(1024 / 8 + 1);
         try {
             nativeEncrypt.doFinal(plaintext);
-            fail("Expected bad padding exception");
-        } catch (final BadPaddingException ex) {
+            fail("Expected IllegalBlockSizeException");
+        } catch (final IllegalBlockSizeException ex) {
             // expected
         }
 
@@ -164,8 +164,8 @@ public class RsaCipherTest {
         plaintext = getPlaintext(2048 / 8 + 1);
         try {
             nativeEncrypt.doFinal(plaintext);
-            fail("Expected bad padding exception");
-        } catch (final BadPaddingException ex) {
+            fail("Expected IllegalBlockSizeException");
+        } catch (final IllegalBlockSizeException ex) {
             // expected
         }
 
@@ -183,8 +183,8 @@ public class RsaCipherTest {
         plaintext = getPlaintext(4096 / 8 + 1);
         try {
             nativeEncrypt.doFinal(plaintext);
-            fail("Expected bad padding exception");
-        } catch (final BadPaddingException ex) {
+            fail("Expected IllegalBlockSizeException");
+        } catch (final IllegalBlockSizeException ex) {
             // expected
         }
 
@@ -354,8 +354,8 @@ public class RsaCipherTest {
         byte[] plaintext = getPlaintext(1024 / 8 - 10);
         try {
             nativeC.doFinal(plaintext);
-            fail("Expected bad padding exception");
-        } catch (final BadPaddingException ex) {
+            fail("Expected IllegalBlockSizeException");
+        } catch (final IllegalBlockSizeException ex) {
             // expected
         }
 
@@ -364,8 +364,8 @@ public class RsaCipherTest {
         plaintext = getPlaintext(2048 / 8 - 10);
         try {
             nativeC.doFinal(plaintext);
-            fail("Expected bad padding exception");
-        } catch (final BadPaddingException ex) {
+            fail("Expected IllegalBlockSizeException");
+        } catch (final IllegalBlockSizeException ex) {
             // expected
         }
 
@@ -374,8 +374,8 @@ public class RsaCipherTest {
         plaintext = getPlaintext(4096 / 8 - 10);
         try {
             nativeC.doFinal(plaintext);
-            fail("Expected bad padding exception");
-        } catch (final BadPaddingException ex) {
+            fail("Expected IllegalBlockSizeException");
+        } catch (final IllegalBlockSizeException ex) {
             // expected
         }
     }
@@ -418,8 +418,8 @@ public class RsaCipherTest {
         byte[] plaintext = getPlaintext(1024 / 8 - 41);
         try {
             nativeC.doFinal(plaintext);
-            fail("Expected bad padding exception");
-        } catch (final BadPaddingException ex) {
+            fail("Expected IllegalBlockSizeException");
+        } catch (final IllegalBlockSizeException ex) {
             // expected
         }
 
@@ -428,8 +428,8 @@ public class RsaCipherTest {
         plaintext = getPlaintext(2048 / 8 - 41);
         try {
             nativeC.doFinal(plaintext);
-            fail("Expected bad padding exception");
-        } catch (final BadPaddingException ex) {
+            fail("Expected IllegalBlockSizeException");
+        } catch (final IllegalBlockSizeException ex) {
             // expected
         }
 
@@ -438,8 +438,8 @@ public class RsaCipherTest {
         plaintext = getPlaintext(4096 / 8 - 41);
         try {
             nativeC.doFinal(plaintext);
-            fail("Expected bad padding exception");
-        } catch (final BadPaddingException ex) {
+            fail("Expected IllegalBlockSizeException");
+        } catch (final IllegalBlockSizeException ex) {
             // expected
         }
     }
@@ -739,35 +739,12 @@ public class RsaCipherTest {
         assertThrows(BadPaddingException.class, () -> dec.doFinal(ciphertext));
     }
 
+    // Unlike padded modes which have an upper-plaintext size defined in bytes,
+    // NoPadding has an upper-plaintext size defined numerically as the value of
+    // the modulus. So, we have a special test case for that.
     @Test
     public void slightlyOverlargePlaintextNoPadding() throws Exception {
         final Cipher enc = Cipher.getInstance(NO_PADDING, NATIVE_PROVIDER);
-        enc.init(Cipher.ENCRYPT_MODE, PAIR_2048.getPublic());
-        byte[] plaintext = ((RSAPublicKey) PAIR_2048.getPublic()).getModulus().toByteArray();
-        // Strip leading zero sign bit/byte if present
-        if (plaintext[0] == 0) {
-            plaintext = Arrays.copyOfRange(plaintext, 1, plaintext.length);
-        }
-        final byte[] tmp = plaintext;
-        assertThrows(BadPaddingException.class, () -> enc.doFinal(tmp));
-    }
-
-    @Test
-    public void slightlyOverlargePlaintextPkcs1() throws Exception {
-        final Cipher enc = Cipher.getInstance(PKCS1_PADDING, NATIVE_PROVIDER);
-        enc.init(Cipher.ENCRYPT_MODE, PAIR_2048.getPublic());
-        byte[] plaintext = ((RSAPublicKey) PAIR_2048.getPublic()).getModulus().toByteArray();
-        // Strip leading zero sign bit/byte if present
-        if (plaintext[0] == 0) {
-            plaintext = Arrays.copyOfRange(plaintext, 1, plaintext.length);
-        }
-        final byte[] tmp = plaintext;
-        assertThrows(BadPaddingException.class, () -> enc.doFinal(tmp));
-    }
-
-    @Test
-    public void slightlyOverlargePlaintextOaepSha1() throws Exception {
-        final Cipher enc = Cipher.getInstance(OAEP_PADDING, NATIVE_PROVIDER);
         enc.init(Cipher.ENCRYPT_MODE, PAIR_2048.getPublic());
         byte[] plaintext = ((RSAPublicKey) PAIR_2048.getPublic()).getModulus().toByteArray();
         // Strip leading zero sign bit/byte if present
