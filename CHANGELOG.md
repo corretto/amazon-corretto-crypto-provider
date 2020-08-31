@@ -48,6 +48,7 @@ For other sizes, there are no documented guarantees of the SunEC behavior.
   You may need to do a clean build when changing tests.
 
 ### Patches
+* Better handle HMAC keys with a `null` format. [PR #124](https://github.com/corretto/amazon-corretto-crypto-provider/pull/124)
 * Throw `IllegalBlockSizeException` when attempting RSA encryption/decryption on data larger than the keysize. [PR #122](https://github.com/corretto/amazon-corretto-crypto-provider/pull/122)
 
 ### Maintenance
