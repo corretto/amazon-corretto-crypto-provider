@@ -21,6 +21,7 @@ import javax.crypto.ShortBufferException;
 import javax.crypto.spec.SecretKeySpec;
 
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.security.AlgorithmParameters;
 import java.security.GeneralSecurityException;
 import java.security.InvalidKeyException;
@@ -910,6 +911,21 @@ public class RsaCipherTest {
         final byte[] ciphertext = encrypt.doFinal(plaintext);
         final byte[] decrypted = decrypt.doFinal(ciphertext);
         assertArrayEquals(plaintext, decrypted);
+
+        // Verify no release of data even on bad padding
+        if (!NO_PADDING.equals(padding)) {
+            final byte[] result = new byte[ciphertext.length]; // Full size
+            ciphertext[3] ^= 0x13; // Just twiddle some bits
+            assertThrows(BadPaddingException.class, () -> decrypt.doFinal(ciphertext, 0, ciphertext.length, result, 0));
+            assertArrayEquals(new byte[ciphertext.length], result);
+
+            Arrays.fill(result, (byte) 0);
+            ByteBuffer ciphertextBuff = ByteBuffer.wrap(ciphertext);
+            ByteBuffer resultBuff = ByteBuffer.wrap(result);
+            assertThrows(BadPaddingException.class, () -> decrypt.doFinal(ciphertextBuff, resultBuff));
+            assertArrayEquals(new byte[ciphertext.length], result);
+        }
+
     }
 
     private void wrapUnwrap(final Cipher wrap, final Cipher unwrap) throws InvalidKeyException,

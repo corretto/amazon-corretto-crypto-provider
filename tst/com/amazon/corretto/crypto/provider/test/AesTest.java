@@ -639,6 +639,56 @@ public class AesTest {
     }
 
     @Test
+    public void testBadAEADTagException_noRelease() throws Throwable {
+        final SecureRandom rnd = TestUtil.MISC_SECURE_RANDOM.get();
+
+        Cipher c = Cipher.getInstance(ALGO_NAME, PROVIDER_SUN);
+        GCMParameterSpec algorithmParameterSpec = new GCMParameterSpec(128, randomIV());
+        c.init(Cipher.ENCRYPT_MODE, key, algorithmParameterSpec, rnd);
+
+        byte[] plaintext = randomIV();
+        byte[] data = c.doFinal(plaintext);
+        byte[] output = new byte[plaintext.length];
+
+        for (int bit = 0; bit < data.length * 8; bit++) {
+            byte[] corruptData = data.clone();
+            corruptData[bit / 8] ^= (1 << (bit % 8));
+
+            Cipher check = Cipher.getInstance(ALGO_NAME, PROVIDER_AMAZON);
+            check.init(Cipher.DECRYPT_MODE, key, algorithmParameterSpec, rnd);
+
+            assertThrows(AEADBadTagException.class, () -> check.doFinal(corruptData, 0, corruptData.length, output, 0));
+            assertArrayEquals(new byte[plaintext.length], output);
+        }
+    }
+
+    @Test
+    public void testBadAEADTagException_noReleaseByteBuffer() throws Throwable {
+        final SecureRandom rnd = TestUtil.MISC_SECURE_RANDOM.get();
+
+        Cipher c = Cipher.getInstance(ALGO_NAME, PROVIDER_SUN);
+        GCMParameterSpec algorithmParameterSpec = new GCMParameterSpec(128, randomIV());
+        c.init(Cipher.ENCRYPT_MODE, key, algorithmParameterSpec, rnd);
+
+        byte[] plaintext = randomIV();
+        byte[] data = c.doFinal(plaintext);
+        byte[] output = new byte[plaintext.length];
+
+        for (int bit = 0; bit < data.length * 8; bit++) {
+            byte[] corruptData = data.clone();
+            corruptData[bit / 8] ^= (1 << (bit % 8));
+            ByteBuffer corruptBuff = ByteBuffer.wrap(corruptData);
+            ByteBuffer outputBuff = ByteBuffer.wrap(output);
+
+            Cipher check = Cipher.getInstance(ALGO_NAME, PROVIDER_AMAZON);
+            check.init(Cipher.DECRYPT_MODE, key, algorithmParameterSpec, rnd);
+
+            assertThrows(AEADBadTagException.class, () -> check.doFinal(corruptBuff, outputBuff));
+            assertArrayEquals(new byte[plaintext.length], output);
+        }
+    }
+
+    @Test
     public void whenCipherReusedWithoutReinit_throwsIVReuseException() throws Throwable {
         final SecureRandom rnd = TestUtil.MISC_SECURE_RANDOM.get();
 
