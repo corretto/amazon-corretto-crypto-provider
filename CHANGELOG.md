@@ -1,12 +1,12 @@
 # Changelog
 
-## 1.5.0 (Unreleased)
+## 1.5.0
 ### Breaking Change Warning
 In accordance with our [versioning policy](https://github.com/corretto/amazon-corretto-crypto-provider/blob/master/VERSIONING.rst),
 we post warnings of upcoming changes that might cause compatibility issues.
 As always, we expect that these changes will not impact the vast majority of consumers and can be picked up automatically provided you have good unit and integration changes.
 
-Starting in ACCP vesion 1.6.0, EC key pair generation will throw an `InvalidParameterException` if initialized to a keysize that is not in the following list.
+Starting in ACCP version 1.6.0, EC key pair generation will throw an `InvalidParameterException` if initialized to a keysize that is not in the following list.
 For these explicit sizes (only), ACCP behavior is unchanged. ACCP selects the the "secp*r1" curve that corresponds to the value. (For these values, its also the corresponding NIST prime curve).
 
 **Supported keysize values:**
