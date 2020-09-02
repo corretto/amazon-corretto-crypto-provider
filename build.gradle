@@ -7,76 +7,113 @@ plugins {
 }
 
 group = 'software.amazon.cryptools'
-version = '1.4.0'
+version = '1.5.0'
+
+def openssl_version = '1.1.1g'
+def opensslSrcPath = "${buildDir}/openssl/openssl-${openssl_version}"
 
 configurations {
+    openssl
     jacocoAgent
     testDep.extendsFrom(jacocoAgent)
     stagingJar
+    testRunner
 }
 
 repositories {
-    mavenCentral()
+    mavenCentral {
+        content { excludeGroup("openssl-src") }
+    }
+    // Fake Ivy Repository for current OpenSSL sources
+    ivy {
+        url 'https://www.openssl.org/source/'
+            patternLayout {
+            artifact '/[module]-[revision].[ext]'
+        }
+            metadataSources { artifact() }
+            content { includeGroup("openssl-src") }
+    }
+    // Fake Ivy Repository for old OpenSSL sources
+    ivy {
+        url 'https://www.openssl.org/source/old/1.1.1/'
+            patternLayout {
+            artifact '/[module]-[revision].[ext]'
+        }
+        metadataSources { artifact() }
+        content { includeGroup("openssl-src") }
+    }
 }
 
 dependencies {
     // Separate so we can extract the jar for the agent specifically
     jacocoAgent group: 'org.jacoco', name: 'org.jacoco.agent', version: '0.8.3', classifier: 'runtime'
 
-    testDep 'junit:junit:4.12'
-    testDep 'org.bouncycastle:bcprov-debug-jdk15on:1.61'
-    testDep 'org.bouncycastle:bcpkix-jdk15on:1.61'
+    // Separate so we can extract the jar for the runner specifically
+    testRunner group: 'org.junit.platform', name: 'junit-platform-console-standalone', version: '1.6.2'
+
+    testDep 'org.junit.jupiter:junit-jupiter:5.6.2'
+    testDep 'org.junit.vintage:junit-vintage-engine:5.6.2'
+    testDep 'org.bouncycastle:bcprov-debug-jdk15on:1.65'
+    testDep 'org.bouncycastle:bcpkix-jdk15on:1.65'
     testDep 'commons-codec:commons-codec:1.12'
     testDep 'org.hamcrest:hamcrest:2.1'
     testDep 'org.jacoco:org.jacoco.core:0.8.3'
     testDep 'org.jacoco:org.jacoco.report:0.8.3'
+
+    openssl "openssl-src:openssl:${openssl_version}@tar.gz"
 }
 
 defaultTasks 'release'
 
-task getOpensslSrc {
-    inputs.file("${projectDir}/openssl.sha256")
-    outputs.dir("${buildDir}/openssl/src")
-    doLast {
-        mkdir "${buildDir}/openssl/src"
-        mkdir "${buildDir}/openssl/bin"
+task getOpensslSrc(type: Copy) {
+    def tarPath = project.configurations.openssl.find {it.name.startsWith("openssl-") }
+    def tarFile = file(tarPath)
+
+    doFirst {
         exec {
-            workingDir "${buildDir}/openssl"
-            commandLine 'wget', 'https://www.openssl.org/source/openssl-1.1.1f.tar.gz'
-        }
-        exec {
-            workingDir "${buildDir}/openssl"
+            workingDir tarFile.parent
             commandLine 'sha256sum', '--check', "${projectDir}/openssl.sha256"
         }
-        exec {
-            workingDir "${buildDir}/openssl/src"
-            commandLine 'tar', '-xzv', '-C', "${buildDir}/openssl/src", '--strip-components=1', '-f', "${buildDir}/openssl/openssl-1.1.1f.tar.gz"
-        }
+
+        mkdir "${buildDir}/openssl/bin"
+    }
+
+    def outputDir = file("${buildDir}/openssl/")
+    from tarTree(tarFile)
+    into outputDir
+
+    doLast {
+        // Remove this once the patch is incorporated into an official OpenSSL release
+        ant.patch(patchfile: "${projectDir}/arm.patch",
+            dir: opensslSrcPath,
+            strip: 1)
     }
 }
 
 task buildOpenSsl {
-    outputs.file("${buildDir}/openssl/bin/lib/libcrypto.a")
+    outputs.dir("${buildDir}/openssl/bin/")
     dependsOn getOpensslSrc
+
     doLast {
-        // Remove this once the patch is incorporated into an official OpenSSL release
-        ant.patch(patchfile: "${projectDir}/arm.patch",
-            dir: "${buildDir}/openssl/src",
-            strip: 1)
         exec {
-            workingDir "${buildDir}/openssl/src"
-            commandLine './config', '-fPIC', '-ffunction-sections', '-fdata-sections', "--prefix=${buildDir}/openssl/bin", 'no-autoload-config', 'no-capieng', 'no-cms', 'no-comp', 'no-ct', 'no-dgram', 'no-devcryptoeng', 'no-gost', 'no-hw-padlock', 'no-nextprotoneg', 'no-ocsp', 'no-psk', 'no-rfc3779', 'no-shared', 'no-sock', 'no-srp', 'no-srtp', 'threads', 'no-ts',  "no-bf", "no-cast", "no-md2", "no-rc2", "no-rc4", "no-rc5", "no-srp", 'no-comp', 'no-hw', 'no-mdc2'
+            workingDir opensslSrcPath
+            executable './config'
+            args '-fPIC', '-ffunction-sections', '-fdata-sections', "--prefix=${buildDir}/openssl/bin"
+            args 'no-autoload-config', 'no-capieng', 'no-cms', 'no-comp', 'no-ct', 'no-dgram', 'no-devcryptoeng'
+            args 'no-gost', 'no-hw-padlock', 'no-nextprotoneg', 'no-ocsp', 'no-psk', 'no-rfc3779', 'no-shared'
+            args 'no-sock', 'no-srp', 'no-srtp', 'threads', 'no-ts',  "no-bf", "no-cast", "no-md2", "no-rc2"
+            args "no-rc4", "no-rc5", "no-srp", 'no-comp', 'no-hw', 'no-mdc2'
         }
         exec {
-            workingDir "${buildDir}/openssl/src"
+            workingDir opensslSrcPath
             commandLine 'make', 'depend'
         }
         exec {
-            workingDir "${buildDir}/openssl/src"
+            workingDir opensslSrcPath
             commandLine 'make', '-j', Runtime.runtime.availableProcessors()
         }
         exec {
-            workingDir "${buildDir}/openssl/src"
+            workingDir opensslSrcPath
             commandLine 'make', 'install_sw'
         }
     }
@@ -84,6 +121,16 @@ task buildOpenSsl {
 
 task executeCmake(type: Exec) {
     outputs.dir("${buildDir}/cmake")
+    inputs.dir("${buildDir}/openssl/bin/")
+    inputs.dir("${projectDir}/src")
+    inputs.dir("${projectDir}/tst")
+    inputs.dir("${projectDir}/csrc")
+    inputs.dir("${projectDir}/CMake")
+    inputs.dir("${projectDir}/etc")
+    inputs.dir("${projectDir}/extra-jar-files")
+    inputs.dir("${projectDir}/test-data")
+    inputs.dir("${projectDir}/template-src")
+
     dependsOn buildOpenSsl
 
     workingDir "${buildDir}/cmake"
@@ -102,6 +149,7 @@ task executeCmake(type: Exec) {
     executable 'cmake'
     args 'cmake', "-DTEST_CLASSPATH=${configurations.testDep.asPath}", "-DJACOCO_AGENT_JAR=${configurations.jacocoAgent.singleFile}"
     args "-DOPENSSL_ROOT_DIR=${buildDir}/openssl/bin", '-DCMAKE_BUILD_TYPE=Release', '-DPROVIDER_VERSION_STRING=' + version
+    args "-DTEST_RUNNER_JAR=${configurations.testRunner.singleFile}"
 
     if (prebuiltJar != null) {
        args '-DSIGNED_JAR=' + prebuiltJar
@@ -111,11 +159,17 @@ task executeCmake(type: Exec) {
         args '-DTEST_JAVA_HOME=' + System.properties['TEST_JAVA_HOME']
     }
 
+    if (System.properties['SINGLE_TEST'] != null) {
+        args '-DSINGLE_TEST=' + System.properties['SINGLE_TEST']
+
+    }
     args projectDir
 }
 
 task build_objects(type: Exec) {
     dependsOn executeCmake
+    outputs.file("${buildDir}/cmake/AmazonCorrettoCryptoProvider.jar")
+
     workingDir "${buildDir}/cmake"
 
     commandLine 'make', '-j', Runtime.runtime.availableProcessors(), 'accp-jar'
@@ -197,6 +251,12 @@ task test(type: Exec) {
     commandLine 'make', 'check'
 }
 
+task single_test(type: Exec) {
+    dependsOn executeCmake
+    workingDir "${buildDir}/cmake"
+    commandLine 'make', 'check-junit-single'
+}
+
 task test_integration(type: Exec) {
     dependsOn executeCmake
     workingDir "${buildDir}/cmake"
@@ -241,7 +301,19 @@ task coverage_cmake(type: Exec) {
         mkdir "${buildDir}/cmake-coverage"
     }
     workingDir "${buildDir}/cmake-coverage"
-    commandLine 'cmake', "-DTEST_CLASSPATH=${configurations.testDep.asPath}", "-DJACOCO_AGENT_JAR=${configurations.jacocoAgent.singleFile}", "-DOPENSSL_ROOT_DIR=${buildDir}/openssl/bin",  '-DCMAKE_BUILD_TYPE=Coverage', '-DCOVERAGE=ON', '-DENABLE_NATIVE_TEST_HOOKS=ON', '-DPROVIDER_VERSION_STRING=' + version, projectDir
+    executable 'cmake'
+    args "-DTEST_CLASSPATH=${configurations.testDep.asPath}"
+    args "-DJACOCO_AGENT_JAR=${configurations.jacocoAgent.singleFile}"
+    args "-DOPENSSL_ROOT_DIR=${buildDir}/openssl/bin"
+    args '-DCMAKE_BUILD_TYPE=Coverage', '-DCOVERAGE=ON', '-DENABLE_NATIVE_TEST_HOOKS=ON'
+    args '-DPROVIDER_VERSION_STRING=' + version, projectDir
+    args "-DTEST_RUNNER_JAR=${configurations.testRunner.singleFile}"
+
+    if (System.properties['SINGLE_TEST'] != null) {
+        args '-DSINGLE_TEST=' + System.properties['SINGLE_TEST']
+
+    }
+
 }
 
 task coverage_exec(type: Exec) {

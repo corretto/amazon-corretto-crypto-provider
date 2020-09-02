@@ -6,9 +6,9 @@ package com.amazon.corretto.crypto.provider.test;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyConstruct;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyGetInternalClass;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyInvoke;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
@@ -17,31 +17,39 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
-import org.junit.After;
-import org.junit.Assume;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import com.amazon.corretto.crypto.provider.AesCtrDrbg;
 import com.amazon.corretto.crypto.provider.HmacMD5Spi;
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import com.amazon.corretto.crypto.provider.SelfTestResult;
 import com.amazon.corretto.crypto.provider.SelfTestStatus;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.junit.jupiter.api.parallel.ResourceAccessMode;
+import org.junit.jupiter.api.parallel.ResourceLock;
 
+@ExtendWith(TestResultLogger.class)
+@Execution(ExecutionMode.SAME_THREAD)
+@ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ_WRITE)
 public class ServiceSelfTestMetaTest {
     AmazonCorrettoCryptoProvider accp;
 
-    @Before
+    @BeforeEach
     public void setUp() throws Throwable {
         // We need RDRAND support for a lot of these tests to work properly
-        Assume.assumeTrue("RDRAND is supported", AmazonCorrettoCryptoProvider.isRdRandSupported());
+        Assumptions.assumeTrue(AmazonCorrettoCryptoProvider.isRdRandSupported(), "RDRAND is supported");
 
         // AACP instances cache the self-test status within each Service, so create a new instance to clear that cache.
         // This also makes sure the native library is loaded.
         accp = new AmazonCorrettoCryptoProvider();
     }
 
-    @After
+    @AfterEach
     public void reset() throws Throwable {
         sneakyInvoke(AmazonCorrettoCryptoProvider.INSTANCE, "resetAllSelfTests");
         // It is unclear if JUnit always properly releases references to classes and thus we may have memory leaks

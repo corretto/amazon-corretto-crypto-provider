@@ -122,12 +122,33 @@ class pthread_lock_auto {
 };
 
 #if  __BYTE_ORDER == __LITTLE_ENDIAN
+#if defined(__x86_64__)
+// We need to continue supporting some old x86_64 build-chains, so we use a hand-rolled version of bswap64
+static inline uint64_t swapEndian(uint64_t val) {
+  uint64_t result = val;
+  __asm__(
+        "bswap %0"
+       : "+r"(result)
+  );
+  return result;
+}
+#define hostToBigEndian64(x) swapEndian(x)
+#define bigEndianToHost64(x) swapEndian(x)
+
+#else
+// For all other platforms (currently just aarch64), we know we are on a modern build-chain
+// and can use the build-in function. (Also, the x86_64 assembly above won't work.)
 #define hostToBigEndian64(x) __builtin_bswap64(x)
 #define bigEndianToHost64(x) __builtin_bswap64(x)
-#else
+
+#endif // Platform logic in __BYTE_ORDER == __LITTLE_ENDIAN
+
+#else // __BYTE_ORDER == __BIG_ENDIAN
+// No conversions are needed, so these methods become NOPs
 #define hostToBigEndian64(x) (x)
 #define bigEndianToHost64(x) (x)
-#endif
+#endif // BYTE_ORDER logic
+
 
 static inline void* fast_xor(void* dest, const void* src, int len) {
     int idx = 0;

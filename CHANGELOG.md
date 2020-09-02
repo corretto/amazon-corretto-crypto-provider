@@ -1,7 +1,64 @@
 # Changelog
 
-## 1.4.0
+## 1.5.0
+### Breaking Change Warning
+In accordance with our [versioning policy](https://github.com/corretto/amazon-corretto-crypto-provider/blob/master/VERSIONING.rst),
+we post warnings of upcoming changes that might cause compatibility issues.
+As always, we expect that these changes will not impact the vast majority of consumers and can be picked up automatically provided you have good unit and integration changes.
 
+Starting in ACCP version 1.6.0, EC key pair generation will throw an `InvalidParameterException` if initialized to a keysize that is not in the following list.
+For these explicit sizes (only), ACCP behavior is unchanged. ACCP selects the the "secp*r1" curve that corresponds to the value. (For these values, its also the corresponding NIST prime curve).
+
+**Supported keysize values:**
+* 192
+* 224
+* 256
+* 384
+* 521
+
+This means that the following code will start failing because it requests a keysize that is not on the list.
+```java
+KeyPairGenerator kg = KeyPairGenerator.getInstance("EC");
+kg.initialize(160); // Throws an InvalidParameterException
+```
+
+We are making this change because the "SunEC" provider does not document its curve selection process for sizes other than those listed above and does not promise that it will continue to use the same curve selection process.
+Without a consistency guarantee, developers can't use
+[KeyPairGenerator.initialize(int keysize)](https://docs.oracle.com/javase/8/docs/api/java/security/KeyPairGenerator.html#initialize-int-)
+safely (regardless of whether ACCP is used or not).
+
+**We strongly recommend using**
+**[KeyPairGenerator.initialize(AlgorithmParameterSpec params)](https://docs.oracle.com/javase/8/docs/api/java/security/KeyPairGenerator.html#initialize-java.security.spec.AlgorithmParameterSpec-)**
+**with**
+**[ECGenParameterSpec](https://docs.oracle.com/javase/8/docs/api/java/security/spec/ECGenParameterSpec.html)**
+**to generate EC keys.**
+
+From versions 1.2.0 through 1.5.0, ACCP selects the corresponding "secp*r1" curve for any keysize requested.
+For the explicit sizes listed above this matches the SunEC behavior.
+For other sizes, there are no documented guarantees of the SunEC behavior.
+
+### Improvements
+* Now uses [OpenSSL 1.1.1g](https://www.openssl.org/source/openssl-1.1.1g.tar.gz). [PR #108](https://github.com/corretto/amazon-corretto-crypto-provider/pull/108)
+* Adds support for running a single test from the command line with the following syntax: [PR #113](https://github.com/corretto/amazon-corretto-crypto-provider/pull/113)
+
+  `./gradlew single_test -DSINGLE_TEST=<Fully Qualified Classname>`
+
+  For example: `./gradlew single_test -DSINGLE_TEST=com.amazon.corretto.crypto.provider.test.EcGenTest`
+
+  You may need to do a clean build when changing tests.
+
+### Patches
+* Ensure unauthenticated plaintext is not released through either [Cipher.doFinal(byte[], int, int, byte[], int)](https://docs.oracle.com/javase/9/docs/api/javax/crypto/Cipher.html#doFinal-byte:A-int-int-byte:A-int-) or [Cipher.doFinal(ByteBuffer, ByteBuffer)](https://docs.oracle.com/javase/9/docs/api/javax/crypto/Cipher.html#doFinal-java.nio.ByteBuffer-java.nio.ByteBuffer-). [PR #123](https://github.com/corretto/amazon-corretto-crypto-provider/pull/123)
+* Better handle HMAC keys with a `null` format. [PR #124](https://github.com/corretto/amazon-corretto-crypto-provider/pull/124)
+* Throw `IllegalBlockSizeException` when attempting RSA encryption/decryption on data larger than the keysize. [PR #122](https://github.com/corretto/amazon-corretto-crypto-provider/pull/122)
+
+### Maintenance
+* Upgrade tests to JUnit5. [PR #111](https://github.com/corretto/amazon-corretto-crypto-provider/pull/111)
+* Upgrade BouncyCastle test dependency 1.65. [PR #110](https://github.com/corretto/amazon-corretto-crypto-provider/pull/110)
+* Add version gating to P1363 Format tests. [PR #112](https://github.com/corretto/amazon-corretto-crypto-provider/pull/112)
+* Re-add support for very old x86_64 build-chains. [PR #112](https://github.com/corretto/amazon-corretto-crypto-provider/pull/112)
+
+## 1.4.0
 ### Improvements
 * Now uses [OpenSSL 1.1.1f](https://www.openssl.org/source/openssl-1.1.1f.tar.gz). [PR #97](https://github.com/corretto/amazon-corretto-crypto-provider/pull/97)
 * **EXPERIMENTAL** support for aarch64 added. [PR #99](https://github.com/corretto/amazon-corretto-crypto-provider/pull/99)
@@ -23,7 +80,7 @@
 * Now allows cloning of `Mac` objects. [PR #78](https://github.com/corretto/amazon-corretto-crypto-provider/pull/78)
 
 ### Maintenance
-* You can disable parallel execution of tests by setting the `ACCP_TEST_PARALLEL` environment variable to `false` 
+* You can disable parallel execution of tests by setting the `ACCP_TEST_PARALLEL` environment variable to `false`
 
 ## 1.2.0
 

@@ -3,13 +3,15 @@
 
 package com.amazon.corretto.crypto.provider.test;
 
+import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assumeMinimumVersion;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyConstruct;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyInvoke_int;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.fail;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -19,6 +21,7 @@ import javax.crypto.ShortBufferException;
 import javax.crypto.spec.SecretKeySpec;
 
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.security.AlgorithmParameters;
 import java.security.GeneralSecurityException;
 import java.security.InvalidKeyException;
@@ -39,16 +42,23 @@ import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
-import org.junit.Assume;
-import org.junit.Test;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.Test;
 
 import com.amazon.corretto.crypto.provider.ExtraCheck;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.junit.jupiter.api.parallel.ResourceAccessMode;
+import org.junit.jupiter.api.parallel.ResourceLock;
 
+@ExtendWith(TestResultLogger.class)
+@Execution(ExecutionMode.CONCURRENT)
+@ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
 public class RsaCipherTest {
     private static final String OAEP_PADDING = "RSA/ECB/OAEPWithSHA-1AndMGF1Padding";
     private static final String PKCS1_PADDING = "RSA/ECB/Pkcs1Padding";
     private static final String NO_PADDING = "RSA/ECB/NoPadding";
-    private static final AmazonCorrettoCryptoProvider NATIVE_PROVIDER = AmazonCorrettoCryptoProvider.INSTANCE;
     private static final KeyPairGenerator KEY_GEN;
     private static final KeyFactory KEY_FACTORY;
     private static final KeyPair PAIR_1024;
@@ -135,8 +145,8 @@ public class RsaCipherTest {
         byte[] plaintext = getPlaintext(1024 / 8 + 1);
         try {
             nativeEncrypt.doFinal(plaintext);
-            fail("Expected bad padding exception");
-        } catch (final BadPaddingException ex) {
+            fail("Expected IllegalBlockSizeException");
+        } catch (final IllegalBlockSizeException ex) {
             // expected
         }
 
@@ -154,8 +164,8 @@ public class RsaCipherTest {
         plaintext = getPlaintext(2048 / 8 + 1);
         try {
             nativeEncrypt.doFinal(plaintext);
-            fail("Expected bad padding exception");
-        } catch (final BadPaddingException ex) {
+            fail("Expected IllegalBlockSizeException");
+        } catch (final IllegalBlockSizeException ex) {
             // expected
         }
 
@@ -173,8 +183,8 @@ public class RsaCipherTest {
         plaintext = getPlaintext(4096 / 8 + 1);
         try {
             nativeEncrypt.doFinal(plaintext);
-            fail("Expected bad padding exception");
-        } catch (final BadPaddingException ex) {
+            fail("Expected IllegalBlockSizeException");
+        } catch (final IllegalBlockSizeException ex) {
             // expected
         }
 
@@ -344,8 +354,8 @@ public class RsaCipherTest {
         byte[] plaintext = getPlaintext(1024 / 8 - 10);
         try {
             nativeC.doFinal(plaintext);
-            fail("Expected bad padding exception");
-        } catch (final BadPaddingException ex) {
+            fail("Expected IllegalBlockSizeException");
+        } catch (final IllegalBlockSizeException ex) {
             // expected
         }
 
@@ -354,8 +364,8 @@ public class RsaCipherTest {
         plaintext = getPlaintext(2048 / 8 - 10);
         try {
             nativeC.doFinal(plaintext);
-            fail("Expected bad padding exception");
-        } catch (final BadPaddingException ex) {
+            fail("Expected IllegalBlockSizeException");
+        } catch (final IllegalBlockSizeException ex) {
             // expected
         }
 
@@ -364,8 +374,8 @@ public class RsaCipherTest {
         plaintext = getPlaintext(4096 / 8 - 10);
         try {
             nativeC.doFinal(plaintext);
-            fail("Expected bad padding exception");
-        } catch (final BadPaddingException ex) {
+            fail("Expected IllegalBlockSizeException");
+        } catch (final IllegalBlockSizeException ex) {
             // expected
         }
     }
@@ -408,8 +418,8 @@ public class RsaCipherTest {
         byte[] plaintext = getPlaintext(1024 / 8 - 41);
         try {
             nativeC.doFinal(plaintext);
-            fail("Expected bad padding exception");
-        } catch (final BadPaddingException ex) {
+            fail("Expected IllegalBlockSizeException");
+        } catch (final IllegalBlockSizeException ex) {
             // expected
         }
 
@@ -418,8 +428,8 @@ public class RsaCipherTest {
         plaintext = getPlaintext(2048 / 8 - 41);
         try {
             nativeC.doFinal(plaintext);
-            fail("Expected bad padding exception");
-        } catch (final BadPaddingException ex) {
+            fail("Expected IllegalBlockSizeException");
+        } catch (final IllegalBlockSizeException ex) {
             // expected
         }
 
@@ -428,8 +438,8 @@ public class RsaCipherTest {
         plaintext = getPlaintext(4096 / 8 - 41);
         try {
             nativeC.doFinal(plaintext);
-            fail("Expected bad padding exception");
-        } catch (final BadPaddingException ex) {
+            fail("Expected IllegalBlockSizeException");
+        } catch (final IllegalBlockSizeException ex) {
             // expected
         }
     }
@@ -520,7 +530,7 @@ public class RsaCipherTest {
         final Cipher enc = Cipher.getInstance(PKCS1_PADDING, NATIVE_PROVIDER);
         final Cipher dec = Cipher.getInstance(PKCS1_PADDING, NATIVE_PROVIDER);
         final AmazonCorrettoCryptoProvider prov = (AmazonCorrettoCryptoProvider) dec.getProvider();
-        Assume.assumeTrue(prov.hasExtraCheck(ExtraCheck.PRIVATE_KEY_CONSISTENCY));
+        Assumptions.assumeTrue(prov.hasExtraCheck(ExtraCheck.PRIVATE_KEY_CONSISTENCY));
 
         final byte[] plaintext = getPlaintext(1024 / 8 - 11);
         enc.init(Cipher.ENCRYPT_MODE, PAIR_1024.getPublic());
@@ -556,11 +566,12 @@ public class RsaCipherTest {
         }
     }
 
-    @Test(expected = IllegalStateException.class)
+    @Test
     public void noninitialized() throws GeneralSecurityException {
         final Cipher enc = Cipher.getInstance(OAEP_PADDING, NATIVE_PROVIDER);
         final byte[] plaintext = getPlaintext((2048 / 8) - 42);
-        enc.doFinal(plaintext);
+        assertThrows(IllegalStateException.class, () ->
+            enc.doFinal(plaintext));
     }
 
     @Test
@@ -692,7 +703,7 @@ public class RsaCipherTest {
         wrapUnwrap(nativeC, jceC);
     }
 
-    @Test(expected = BadPaddingException.class)
+    @Test
     public void badPaddingTooSmallPkcs1() throws Exception {
         final Cipher enc = Cipher.getInstance(NO_PADDING, NATIVE_PROVIDER);
         enc.init(Cipher.ENCRYPT_MODE, PAIR_2048.getPublic());
@@ -701,10 +712,10 @@ public class RsaCipherTest {
         final byte[] ciphertext = enc.doFinal(plaintext);
         final Cipher dec = Cipher.getInstance(PKCS1_PADDING, NATIVE_PROVIDER);
         dec.init(Cipher.DECRYPT_MODE, PAIR_2048.getPrivate());
-        dec.doFinal(ciphertext);
+        assertThrows(BadPaddingException.class, () -> dec.doFinal(ciphertext));
     }
 
-    @Test(expected = BadPaddingException.class)
+    @Test
     public void badPaddingTooSmallOaep() throws Exception {
         final Cipher enc = Cipher.getInstance(NO_PADDING, NATIVE_PROVIDER);
         enc.init(Cipher.ENCRYPT_MODE, PAIR_2048.getPublic());
@@ -713,10 +724,10 @@ public class RsaCipherTest {
         byte[] ciphertext = enc.doFinal(plaintext);
         final Cipher dec = Cipher.getInstance(PKCS1_PADDING, NATIVE_PROVIDER);
         dec.init(Cipher.DECRYPT_MODE, PAIR_2048.getPrivate());
-        dec.doFinal(ciphertext);
+        assertThrows(BadPaddingException.class, () -> dec.doFinal(ciphertext));
     }
 
-    @Test(expected = BadPaddingException.class)
+    @Test
     public void badPaddingTooBigPkcs1() throws Exception {
         final Cipher enc = Cipher.getInstance(NO_PADDING, NATIVE_PROVIDER);
         enc.init(Cipher.ENCRYPT_MODE, PAIR_2048.getPublic());
@@ -725,10 +736,13 @@ public class RsaCipherTest {
         byte[] ciphertext = enc.doFinal(plaintext);
         final Cipher dec = Cipher.getInstance(PKCS1_PADDING, NATIVE_PROVIDER);
         dec.init(Cipher.DECRYPT_MODE, PAIR_2048.getPrivate());
-        dec.doFinal(ciphertext);
+        assertThrows(BadPaddingException.class, () -> dec.doFinal(ciphertext));
     }
 
-    @Test(expected = BadPaddingException.class)
+    // Unlike padded modes which have an upper-plaintext size defined in bytes,
+    // NoPadding has an upper-plaintext size defined numerically as the value of
+    // the modulus. So, we have a special test case for that.
+    @Test
     public void slightlyOverlargePlaintextNoPadding() throws Exception {
         final Cipher enc = Cipher.getInstance(NO_PADDING, NATIVE_PROVIDER);
         enc.init(Cipher.ENCRYPT_MODE, PAIR_2048.getPublic());
@@ -737,34 +751,11 @@ public class RsaCipherTest {
         if (plaintext[0] == 0) {
             plaintext = Arrays.copyOfRange(plaintext, 1, plaintext.length);
         }
-        enc.doFinal(plaintext);
+        final byte[] tmp = plaintext;
+        assertThrows(BadPaddingException.class, () -> enc.doFinal(tmp));
     }
 
-    @Test(expected = BadPaddingException.class)
-    public void slightlyOverlargePlaintextPkcs1() throws Exception {
-        final Cipher enc = Cipher.getInstance(PKCS1_PADDING, NATIVE_PROVIDER);
-        enc.init(Cipher.ENCRYPT_MODE, PAIR_2048.getPublic());
-        byte[] plaintext = ((RSAPublicKey) PAIR_2048.getPublic()).getModulus().toByteArray();
-        // Strip leading zero sign bit/byte if present
-        if (plaintext[0] == 0) {
-            plaintext = Arrays.copyOfRange(plaintext, 1, plaintext.length);
-        }
-        enc.doFinal(plaintext);
-    }
-
-    @Test(expected = BadPaddingException.class)
-    public void slightlyOverlargePlaintextOaepSha1() throws Exception {
-        final Cipher enc = Cipher.getInstance(OAEP_PADDING, NATIVE_PROVIDER);
-        enc.init(Cipher.ENCRYPT_MODE, PAIR_2048.getPublic());
-        byte[] plaintext = ((RSAPublicKey) PAIR_2048.getPublic()).getModulus().toByteArray();
-        // Strip leading zero sign bit/byte if present
-        if (plaintext[0] == 0) {
-            plaintext = Arrays.copyOfRange(plaintext, 1, plaintext.length);
-        }
-        enc.doFinal(plaintext);
-    }
-
-    @Test(expected = BadPaddingException.class)
+    @Test
     public void slightlyOverlargeCiphertextNoPadding() throws Exception {
         final Cipher dec = Cipher.getInstance(NO_PADDING, NATIVE_PROVIDER);
         dec.init(Cipher.DECRYPT_MODE, PAIR_2048.getPrivate());
@@ -773,10 +764,11 @@ public class RsaCipherTest {
         if (plaintext[0] == 0) {
             plaintext = Arrays.copyOfRange(plaintext, 1, plaintext.length);
         }
-        dec.doFinal(plaintext);
+        final byte[] tmp = plaintext;
+        assertThrows(BadPaddingException.class, () -> dec.doFinal(tmp));
     }
 
-    @Test(expected = BadPaddingException.class)
+    @Test
     public void slightlyOverlargeCiphertextPkcs1() throws Exception {
         final Cipher dec = Cipher.getInstance(PKCS1_PADDING, NATIVE_PROVIDER);
         dec.init(Cipher.DECRYPT_MODE, PAIR_2048.getPrivate());
@@ -785,10 +777,11 @@ public class RsaCipherTest {
         if (plaintext[0] == 0) {
             plaintext = Arrays.copyOfRange(plaintext, 1, plaintext.length);
         }
-        dec.doFinal(plaintext);
+        final byte[] tmp = plaintext;
+        assertThrows(BadPaddingException.class, () -> dec.doFinal(tmp));
     }
 
-    @Test(expected = BadPaddingException.class)
+    @Test
     public void slightlyOverlargeCiphertextOaepSha1() throws Exception {
         final Cipher dec = Cipher.getInstance(OAEP_PADDING, NATIVE_PROVIDER);
         dec.init(Cipher.DECRYPT_MODE, PAIR_2048.getPrivate());
@@ -797,7 +790,8 @@ public class RsaCipherTest {
         if (plaintext[0] == 0) {
             plaintext = Arrays.copyOfRange(plaintext, 1, plaintext.length);
         }
-        dec.doFinal(plaintext);
+        final byte[] tmp = plaintext;
+        assertThrows(BadPaddingException.class, () -> dec.doFinal(tmp));
     }
 
     @Test
@@ -917,6 +911,21 @@ public class RsaCipherTest {
         final byte[] ciphertext = encrypt.doFinal(plaintext);
         final byte[] decrypted = decrypt.doFinal(ciphertext);
         assertArrayEquals(plaintext, decrypted);
+
+        // Verify no release of data even on bad padding
+        if (!NO_PADDING.equals(padding)) {
+            final byte[] result = new byte[ciphertext.length]; // Full size
+            ciphertext[3] ^= 0x13; // Just twiddle some bits
+            assertThrows(BadPaddingException.class, () -> decrypt.doFinal(ciphertext, 0, ciphertext.length, result, 0));
+            assertArrayEquals(new byte[ciphertext.length], result);
+
+            Arrays.fill(result, (byte) 0);
+            ByteBuffer ciphertextBuff = ByteBuffer.wrap(ciphertext);
+            ByteBuffer resultBuff = ByteBuffer.wrap(result);
+            assertThrows(BadPaddingException.class, () -> decrypt.doFinal(ciphertextBuff, resultBuff));
+            assertArrayEquals(new byte[ciphertext.length], result);
+        }
+
     }
 
     private void wrapUnwrap(final Cipher wrap, final Cipher unwrap) throws InvalidKeyException,

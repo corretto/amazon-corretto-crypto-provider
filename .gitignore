@@ -3,6 +3,9 @@
 /.project
 /.settings/
 /.vscode/
+/.idea/
 *~
+\#*#
 *.ipr
 *.iws
+*.iml

@@ -5,9 +5,9 @@ package com.amazon.corretto.crypto.provider.test;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import org.junit.Assume;
+import org.junit.jupiter.api.Assumptions;
 
-import static org.junit.Assert.fail;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -25,7 +25,17 @@ import java.util.Arrays;
 
 @SuppressWarnings("unchecked")
 public class TestUtil {
+    public static final String RESOURCE_REFLECTION = "REFLECTIVE_TOOLS";
+    public static final String RESOURCE_PROVIDER = "JCE_PROVIDER";
+    /**
+     * Pseudo-resource used by ACCP tests to enforce that certain tests run by themselves.
+     * All tests should takea "READ" lock on this resource.
+     * Tests which require exclusive control should take a "READ_WRITE" lock.
+     */
+    public static final String RESOURCE_GLOBAL = "GLOBAL_TEST_LOCK";
     public static final BouncyCastleProvider BC_PROVIDER = new BouncyCastleProvider();
+    public static final Provider NATIVE_PROVIDER = AmazonCorrettoCryptoProvider.INSTANCE;
+
     /**
      * Thread local instances of SecureRandom with no further guarantees about implementation or security.
      *
@@ -83,7 +93,7 @@ public class TestUtil {
     // the signed JAR, so we need to use reflection to cross the package boundary here.
     public static void disableByteBufferReflection() {
         try {
-            Class<?> klass = ClassLoader.getSystemClassLoader().loadClass(
+            Class<?> klass = Class.forName(
                     "com.amazon.corretto.crypto.provider.ReflectiveTools");
             Method m = klass.getDeclaredMethod("disableByteBufferReflection");
             m.setAccessible(true);
@@ -96,7 +106,7 @@ public class TestUtil {
 
     public static void enableByteBufferReflection() {
         try {
-            Class<?> klass = ClassLoader.getSystemClassLoader().loadClass(
+            Class<?> klass = Class.forName(
                     "com.amazon.corretto.crypto.provider.ReflectiveTools");
             Method m = klass.getDeclaredMethod("enableByteBufferReflection");
             m.setAccessible(true);
@@ -164,7 +174,7 @@ public class TestUtil {
 
     public static InputStream sneakyGetTestData(String fileName) {
         try {
-            Class<?> klass = ClassLoader.getSystemClassLoader().loadClass(
+            Class<?> klass = Class.forName(
                 "com.amazon.corretto.crypto.provider.Loader");
             return (InputStream) sneakyInvoke(klass, "getTestData", fileName);
         } catch (Throwable e) {
@@ -301,8 +311,8 @@ public class TestUtil {
 
     public static void assumeMinimumVersion(String minVersion, Provider provider) {
         String providerVersion = getProviderVersion(provider);
-        Assume.assumeTrue(String.format("Required version %s, Actual version %s", minVersion, providerVersion),
-                versionCompare(minVersion, providerVersion) <= 0);
+        Assumptions.assumeTrue(versionCompare(minVersion, providerVersion) <= 0,
+                String.format("Required version %s, Actual version %s", minVersion, providerVersion));
     }
 
     public synchronized static Provider[] saveProviders() {

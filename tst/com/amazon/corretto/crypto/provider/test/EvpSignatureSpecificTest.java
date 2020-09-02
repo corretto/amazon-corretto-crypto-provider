@@ -3,12 +3,13 @@
 
 package com.amazon.corretto.crypto.provider.test;
 
+import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assumeMinimumVersion;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
@@ -35,8 +36,12 @@ import java.util.regex.Pattern;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.junit.jupiter.api.parallel.ResourceAccessMode;
+import org.junit.jupiter.api.parallel.ResourceLock;
 
 import javax.crypto.AEADBadTagException;
 import javax.crypto.Cipher;
@@ -46,8 +51,10 @@ import javax.crypto.spec.SecretKeySpec;
 /**
  * These tests cover cases specific to certain algorithms rather than general to all EvpSignature algorithms.
  */
+@ExtendWith(TestResultLogger.class)
+@Execution(ExecutionMode.CONCURRENT)
+@ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
 public class EvpSignatureSpecificTest {
-    private static final AmazonCorrettoCryptoProvider NATIVE_PROVIDER = AmazonCorrettoCryptoProvider.INSTANCE;
     private static final BouncyCastleProvider BOUNCYCASTLE_PROVIDER = new BouncyCastleProvider();
     private static final byte[] MESSAGE = new byte[513];
     private final static KeyPair RSA_PAIR;
@@ -190,10 +197,10 @@ public class EvpSignatureSpecificTest {
         });
     }
 
-    @Test(expected = SignatureException.class)
+    @Test
     public void uninitialized() throws GeneralSecurityException {
         final Signature signature = Signature.getInstance("SHA1withRSA", NATIVE_PROVIDER);
-        signature.update(MESSAGE);
+        assertThrows(SignatureException.class, () ->  signature.update(MESSAGE));
     }
 
     @Test
@@ -340,7 +347,7 @@ public class EvpSignatureSpecificTest {
             final Matcher m = namePattern.matcher(algorithm);
 
             if (!m.matches()) {
-                Assert.fail("Unexpected algorithm name: " + algorithm);
+                fail("Unexpected algorithm name: " + algorithm);
             }
 
             final String shaLength = m.group(2);
@@ -362,7 +369,7 @@ public class EvpSignatureSpecificTest {
                     ffSize = 4096;
                     break;
                 default:
-                    Assert.fail("Unexpected algorithm name: " + algorithm);
+                    fail("Unexpected algorithm name: " + algorithm);
             }
             if ("ECDSA".equals(base)) {
                 keyGenAlgorithm = "EC";
@@ -400,7 +407,7 @@ public class EvpSignatureSpecificTest {
                 nativeSig.update(message);
                 bcSig.update(message);
                 byte[] signature = nativeSig.sign();
-                assertTrue("Native->BC: " + algorithm, bcSig.verify(signature));
+                assertTrue(bcSig.verify(signature), "Native->BC: " + algorithm);
 
                 // Generate with BC and verify with native
                 nativeSig.initVerify(pair.getPublic());
@@ -408,7 +415,7 @@ public class EvpSignatureSpecificTest {
                 nativeSig.update(message);
                 bcSig.update(message);
                 signature = bcSig.sign();
-                assertTrue("BC->Native: " + algorithm, nativeSig.verify(signature));
+                assertTrue(nativeSig.verify(signature), "BC->Native: " + algorithm);
             } catch (SignatureException ex) {
                 throw new AssertionError(algorithm, ex);
             }

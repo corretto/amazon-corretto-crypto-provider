@@ -3,8 +3,9 @@
 
 package com.amazon.corretto.crypto.provider.test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigInteger;
 import java.security.GeneralSecurityException;
@@ -16,7 +17,6 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
-import java.security.Security;
 import java.security.Signature;
 import java.security.interfaces.ECPublicKey;
 import java.security.spec.ECFieldFp;
@@ -30,18 +30,27 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import org.bouncycastle.asn1.ASN1Encodable;
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.ASN1Sequence;
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.junit.jupiter.api.parallel.ResourceAccessMode;
+import org.junit.jupiter.api.parallel.ResourceLock;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.aggregator.ArgumentsAccessor;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
+@ExtendWith(TestResultLogger.class)
+@Execution(ExecutionMode.CONCURRENT)
+@ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
 public class EcGenTest {
-    public static final int[] KNOWN_SIZES = {192, 224, 256, 384, 521};
     public static final String[][] KNOWN_CURVES = new String[][] {
             // Prime Curves
             new String[]{"secp112r1", "1.3.132.0.6"},
@@ -114,18 +123,14 @@ public class EcGenTest {
     private KeyPairGenerator nativeGen;
     private KeyPairGenerator jceGen;
 
-    @BeforeClass
-    public static void setUpBeforeClass() throws Exception {
-        Security.addProvider(AmazonCorrettoCryptoProvider.INSTANCE);
-    }
-
-    @Before
+    @BeforeEach
     public void setup() throws GeneralSecurityException {
-        nativeGen = KeyPairGenerator.getInstance("EC", "AmazonCorrettoCryptoProvider");
+        nativeGen = KeyPairGenerator.getInstance("EC", NATIVE_PROVIDER);
         jceGen = KeyPairGenerator.getInstance("EC", "SunEC");
+
     }
 
-    @After
+    @AfterEach
     public void teardown() {
         // It is unclear if JUnit always properly releases references to classes and thus we may have memory leaks
         // if we do not properly null our references
@@ -133,57 +138,65 @@ public class EcGenTest {
         jceGen = null;
     }
 
-    @Test
-    public void knownCurves() throws GeneralSecurityException {
-        for (final String[] names : KNOWN_CURVES) {
-            for (final String name : names) {
-                ECGenParameterSpec spec = new ECGenParameterSpec(name);
-                nativeGen.initialize(spec);
-                KeyPair nativePair = nativeGen.generateKeyPair();
-                jceGen.initialize(spec);
-                KeyPair jcePair = jceGen.generateKeyPair();
-                final ECParameterSpec jceParams = ((ECPublicKey) jcePair.getPublic()).getParams();
-                final ECParameterSpec nativeParams = ((ECPublicKey) nativePair.getPublic()).getParams();
-                assertECEquals(name, jceParams, nativeParams);
+    private static String[][] knownCurveParams() {
+        return KNOWN_CURVES;
+    }
 
-                // Ensure we can construct the curve using raw numbers rather than the name
-                nativeGen.initialize(jceParams);
-                nativePair = nativeGen.generateKeyPair();
-                assertECEquals(name + "-explicit", jceParams, nativeParams);
+    @ParameterizedTest
+    @MethodSource("knownCurveParams")
+    public void knownCurves(ArgumentsAccessor arguments) throws GeneralSecurityException {
+        for (final Object name : arguments.toArray()) {
+            ECGenParameterSpec spec = new ECGenParameterSpec((String) name);
+            nativeGen.initialize(spec);
+            KeyPair nativePair = nativeGen.generateKeyPair();
+            jceGen.initialize(spec);
+            KeyPair jcePair = jceGen.generateKeyPair();
+            final ECParameterSpec jceParams = ((ECPublicKey) jcePair.getPublic()).getParams();
+            final ECParameterSpec nativeParams = ((ECPublicKey) nativePair.getPublic()).getParams();
+            assertECEquals((String) name, jceParams, nativeParams);
 
-                final SubjectPublicKeyInfo publicKeyInfo = SubjectPublicKeyInfo.getInstance(nativePair.getPublic().getEncoded());
-                ASN1Encodable algorithmParameters = publicKeyInfo.getAlgorithm().getParameters();
-                assertTrue("Public key uses named curve", algorithmParameters instanceof ASN1ObjectIdentifier);
+            // Ensure we can construct the curve using raw numbers rather than the name
+            nativeGen.initialize(jceParams);
+            nativePair = nativeGen.generateKeyPair();
+            assertECEquals(name + "-explicit", jceParams, nativeParams);
 
-                // PKCS #8 = SEQ [ Integer, AlgorithmIdentifier, Octet String, ???]
-                // AlgorithmIdentifier = SEQ [ OID, {OID | SEQ}]
-                final ASN1Sequence p8 = ASN1Sequence.getInstance(nativePair.getPrivate().getEncoded());
-                final ASN1Sequence algIdentifier = (ASN1Sequence) p8.getObjectAt(1);
-                assertTrue("Private key uses named curve", algIdentifier.getObjectAt(1) instanceof ASN1ObjectIdentifier);
+            final SubjectPublicKeyInfo publicKeyInfo = SubjectPublicKeyInfo.getInstance(nativePair.getPublic().getEncoded());
+            ASN1Encodable algorithmParameters = publicKeyInfo.getAlgorithm().getParameters();
+            assertTrue(algorithmParameters instanceof ASN1ObjectIdentifier, "Public key uses named curve");
 
-                // Check encoding/decoding
-                Key bouncedKey = KEY_FACTORY.generatePublic(new X509EncodedKeySpec(nativePair.getPublic().getEncoded()));
-                assertEquals("Public key survives encoding", nativePair.getPublic(), bouncedKey);
-                bouncedKey = KEY_FACTORY.generatePrivate(new PKCS8EncodedKeySpec(nativePair.getPrivate().getEncoded()));
-                assertEquals("Private key survives encoding", nativePair.getPrivate(), bouncedKey);
-            }
+            // PKCS #8 = SEQ [ Integer, AlgorithmIdentifier, Octet String, ???]
+            // AlgorithmIdentifier = SEQ [ OID, {OID | SEQ}]
+            final ASN1Sequence p8 = ASN1Sequence.getInstance(nativePair.getPrivate().getEncoded());
+            final ASN1Sequence algIdentifier = (ASN1Sequence) p8.getObjectAt(1);
+            assertTrue(algIdentifier.getObjectAt(1) instanceof ASN1ObjectIdentifier, "Private key uses named curve");
+
+            // Check encoding/decoding
+            Key bouncedKey = KEY_FACTORY.generatePublic(new X509EncodedKeySpec(nativePair.getPublic().getEncoded()));
+            assertEquals(nativePair.getPublic(), bouncedKey, "Public key survives encoding");
+            bouncedKey = KEY_FACTORY.generatePrivate(new PKCS8EncodedKeySpec(nativePair.getPrivate().getEncoded()));
+            assertEquals(nativePair.getPrivate(), bouncedKey, "Private key survives encoding");
         }
     }
 
-    @Test
-    public void knownSizes() throws GeneralSecurityException {
+    @ParameterizedTest
+    @ValueSource(ints = {192, 224, 256, 384, 521})
+    public void knownSizes(int keysize) throws GeneralSecurityException {
         TestUtil.assumeMinimumVersion("1.2.0", nativeGen.getProvider());
-        for (int keysize : KNOWN_SIZES) {
-            nativeGen.initialize(keysize);
-            jceGen.initialize(keysize);
+        nativeGen.initialize(keysize);
+        jceGen.initialize(keysize);
 
-            final KeyPair nativePair = nativeGen.generateKeyPair();
-            final KeyPair jcePair = jceGen.generateKeyPair();
+        final KeyPair nativePair = nativeGen.generateKeyPair();
+        final KeyPair jcePair = jceGen.generateKeyPair();
 
-            final ECParameterSpec jceParams = ((ECPublicKey) jcePair.getPublic()).getParams();
-            final ECParameterSpec nativeParams = ((ECPublicKey) nativePair.getPublic()).getParams();
-            assertECEquals(Integer.toString(keysize), jceParams, nativeParams);
-        }
+        final ECParameterSpec jceParams = ((ECPublicKey) jcePair.getPublic()).getParams();
+        final ECParameterSpec nativeParams = ((ECPublicKey) nativePair.getPublic()).getParams();
+        assertECEquals(Integer.toString(keysize), jceParams, nativeParams);
+    }
+
+    @Test
+    public void explicitSizesOnly() throws GeneralSecurityException {
+        TestUtil.assumeMinimumVersion("1.6.0", nativeGen.getProvider());
+        TestUtil.assertThrows(InvalidParameterException.class, () -> nativeGen.initialize(128));
     }
 
     @Test
@@ -251,7 +264,7 @@ public class EcGenTest {
 
                 ecdsa.initVerify(keyPair.getPublic());
                 ecdsa.update(message);
-                assertTrue(name, ecdsa.verify(signature));
+                assertTrue(ecdsa.verify(signature), name);
             }
         }
     }
@@ -259,15 +272,6 @@ public class EcGenTest {
     @Test
     public void defaultParams() throws GeneralSecurityException {
         nativeGen.generateKeyPair();
-    }
-
-    @Test
-    public void keyLength() throws GeneralSecurityException {
-        final int[] lengths = new int[] { 112, 128, 160, 192, 256, 384, 521 };
-        for (final int length : lengths) {
-            nativeGen.initialize(length);
-            nativeGen.generateKeyPair();
-        }
     }
 
     @Test
@@ -282,7 +286,7 @@ public class EcGenTest {
 
         final KeyPairGenerator[] generators = new KeyPairGenerator[generatorCount];
         for (int x = 0; x < generatorCount; x++) {
-            generators[x] = KeyPairGenerator.getInstance("EC", "AmazonCorrettoCryptoProvider");
+            generators[x] = KeyPairGenerator.getInstance("EC", NATIVE_PROVIDER);
             final int curveIdx = rng.nextInt(KNOWN_CURVES.length);
             generators[x].initialize(new ECGenParameterSpec(KNOWN_CURVES[curveIdx][0]));
         }
@@ -316,10 +320,10 @@ public class EcGenTest {
 
     private static void assertECEquals(final String message, final ECParameterSpec expected,
             final ECParameterSpec actual) {
-        assertEquals(message, expected.getCofactor(), actual.getCofactor());
-        assertEquals(message, expected.getOrder(), actual.getOrder());
-        assertEquals(message, expected.getGenerator(), actual.getGenerator());
-        assertEquals(message, expected.getCurve(), actual.getCurve());
+        assertEquals(expected.getCofactor(), actual.getCofactor(), message);
+        assertEquals(expected.getOrder(), actual.getOrder(), message);
+        assertEquals(expected.getGenerator(), actual.getGenerator(), message);
+        assertEquals(expected.getCurve(), actual.getCurve(), message);
     }
 
     private static class TestThread extends Thread {

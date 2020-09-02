@@ -1,7 +1,10 @@
 # Amazon Corretto Crypto Provider
 The Amazon Corretto Crypto Provider (ACCP) is a collection of high-performance cryptographic implementations exposed via the standard [JCA/JCE](https://docs.oracle.com/en/java/javase/11/security/java-cryptography-architecture-jca-reference-guide.html) interfaces.
 This means that it can be used as a drop in replacement for many different Java applications.
-Currently algorithms are primarily backed by OpenSSL's implementations (1.1.1f as of ACCP 1.4.0) but this may change in the future.
+Currently algorithms are primarily backed by OpenSSL's implementations (1.1.1g as of ACCP 1.5.0) but this may change in the future.
+
+[Security issue notifications](./CONTRIBUTING.md#security-issue-notifications)
+
 
 ## Build Status
 Please be aware that "Overkill" tests are known to be flakey
