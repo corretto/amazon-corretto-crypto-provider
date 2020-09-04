@@ -324,7 +324,7 @@ public class TemplateHmacSpi extends MacSpi implements Cloneable {
         }
         // Algorithm is explicitly NOT checked for compatibility with existing
         // JCE implementations such as SUN and BouncyCastle
-        if (!key.getFormat().equalsIgnoreCase("RAW")) {
+        if (!"RAW".equalsIgnoreCase(key.getFormat())) {
             throw new InvalidKeyException("Key must support RAW encoding");
         }
         byte[] rawKey = key.getEncoded();

@@ -359,6 +359,12 @@ public class HmacTest {
                 return "UnexpectedFormat";
             }
         };
+        final SecretKey nullFormat = new SecretKeySpec("yellowsubmarine".getBytes(StandardCharsets.UTF_8), "Generic") {
+            @Override
+            public String getFormat() {
+                return null;
+            }
+        };
         final SecretKey nullEncoding = new SecretKeySpec("yellowsubmarine".getBytes(StandardCharsets.UTF_8), "Generic") {
             @Override
             public byte[] getEncoded() {
@@ -372,6 +378,7 @@ public class HmacTest {
             assertThrows(InvalidAlgorithmParameterException.class, () -> mac.init(validKey, new IvParameterSpec(new byte[0])));
             assertThrows(InvalidKeyException.class, () -> mac.init(pubKey));
             assertThrows(InvalidKeyException.class, () -> mac.init(badFormat));
+            assertThrows(InvalidKeyException.class, () -> mac.init(nullFormat));
             assertThrows(InvalidKeyException.class, () -> mac.init(nullEncoding));
         }
     }
