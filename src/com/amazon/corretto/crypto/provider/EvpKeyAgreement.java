@@ -196,17 +196,35 @@ class EvpKeyAgreement extends KeyAgreementSpi {
     }
 
     private static byte[] trimZeros(final byte[] secret) {
-        // According to other implementations, we don't appear
-        // to need to worry about timing leaks of this data.
         int bytesToTrim = 0;
-        while (bytesToTrim < secret.length && secret[bytesToTrim] == 0) {
-            bytesToTrim++;
+        int foundNonZero = 0;
+        for (int x = 0; x < secret.length; x++) {
+            final int currByte = secret[x];
+            // Have we found something that isn't a zero?
+            foundNonZero |= currByte;
+
+            // foundNonZero == 0 iff we have not see any non-zero bytes
+            // Thus, we should update bytesToTrim iff foundNonZero == 0
+            final int shouldUpdateTrim = ConstantTime.isZero(foundNonZero);
+            bytesToTrim = ConstantTime.select(shouldUpdateTrim, x + 1, bytesToTrim);
         }
 
-        if (bytesToTrim == 0) {
-            return secret;
+        // Allocating arrays of different lengths always risks non-constant time operation.
+        // There is no way to avoid this.
+        final byte[] result = new byte[secret.length - bytesToTrim];
+
+        // We'll always do the same number of byte copies, but the leading zeros will be overwritten by valid ones.
+        // While the memory access pattern won't be identical, there is no way to completely avoid this.
+        for (int x = 0; x < secret.length; x++) {
+            final int realIndex = x - bytesToTrim;
+
+            final int notYetValid = ConstantTime.isNegative(realIndex);
+
+            final int indexToUpdate = ConstantTime.select(notYetValid, 0, realIndex);
+            result[indexToUpdate] = secret[x];
         }
-        return Arrays.copyOfRange(secret, bytesToTrim, secret.length);
+
+        return result;
     }
 
     static class ECDH extends EvpKeyAgreement {
