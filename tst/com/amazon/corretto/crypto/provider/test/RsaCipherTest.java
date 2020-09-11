@@ -137,6 +137,20 @@ public class RsaCipherTest {
         testJce2Native(NO_PADDING, 1024);
     }
 
+    private void assertProperWrongInputSizeException(GeneralSecurityException ex) throws GeneralSecurityException {
+        // Behavior changed as of version 1.5.0 and sometimes we need tests to run
+        // against older versions.
+        if (TestUtil.versionCompare("1.5.0", NATIVE_PROVIDER) <= 0) {
+            if (!(ex instanceof IllegalBlockSizeException)) {
+                throw ex;
+            }
+        } else {
+            if (!(ex instanceof BadPaddingException)) {
+                throw ex;
+            }
+        }
+    }
+
     @Test
     public void noPaddingSizes() throws GeneralSecurityException {
         final Cipher nativeEncrypt = Cipher.getInstance(NO_PADDING, NATIVE_PROVIDER);
@@ -146,8 +160,8 @@ public class RsaCipherTest {
         try {
             nativeEncrypt.doFinal(plaintext);
             fail("Expected IllegalBlockSizeException");
-        } catch (final IllegalBlockSizeException ex) {
-            // expected
+        } catch (final GeneralSecurityException ex) {
+            assertProperWrongInputSizeException(ex);
         }
 
         plaintext = new byte[1024 / 8];
@@ -165,8 +179,8 @@ public class RsaCipherTest {
         try {
             nativeEncrypt.doFinal(plaintext);
             fail("Expected IllegalBlockSizeException");
-        } catch (final IllegalBlockSizeException ex) {
-            // expected
+        } catch (final GeneralSecurityException ex) {
+            assertProperWrongInputSizeException(ex);
         }
 
         plaintext = new byte[2048 / 8];
@@ -184,8 +198,8 @@ public class RsaCipherTest {
         try {
             nativeEncrypt.doFinal(plaintext);
             fail("Expected IllegalBlockSizeException");
-        } catch (final IllegalBlockSizeException ex) {
-            // expected
+        } catch (final GeneralSecurityException ex) {
+            assertProperWrongInputSizeException(ex);
         }
 
         plaintext = new byte[4096 / 8];
@@ -355,18 +369,17 @@ public class RsaCipherTest {
         try {
             nativeC.doFinal(plaintext);
             fail("Expected IllegalBlockSizeException");
-        } catch (final IllegalBlockSizeException ex) {
-            // expected
+        } catch (final GeneralSecurityException ex) {
+            assertProperWrongInputSizeException(ex);
         }
-
         nativeC.init(Cipher.ENCRYPT_MODE, PAIR_2048.getPublic());
 
         plaintext = getPlaintext(2048 / 8 - 10);
         try {
             nativeC.doFinal(plaintext);
             fail("Expected IllegalBlockSizeException");
-        } catch (final IllegalBlockSizeException ex) {
-            // expected
+        } catch (final GeneralSecurityException ex) {
+            assertProperWrongInputSizeException(ex);
         }
 
         nativeC.init(Cipher.ENCRYPT_MODE, PAIR_4096.getPublic());
@@ -375,8 +388,8 @@ public class RsaCipherTest {
         try {
             nativeC.doFinal(plaintext);
             fail("Expected IllegalBlockSizeException");
-        } catch (final IllegalBlockSizeException ex) {
-            // expected
+        } catch (final GeneralSecurityException ex) {
+            assertProperWrongInputSizeException(ex);
         }
     }
 
@@ -419,8 +432,8 @@ public class RsaCipherTest {
         try {
             nativeC.doFinal(plaintext);
             fail("Expected IllegalBlockSizeException");
-        } catch (final IllegalBlockSizeException ex) {
-            // expected
+        } catch (final GeneralSecurityException ex) {
+            assertProperWrongInputSizeException(ex);
         }
 
         nativeC.init(Cipher.ENCRYPT_MODE, PAIR_2048.getPublic());
@@ -429,8 +442,8 @@ public class RsaCipherTest {
         try {
             nativeC.doFinal(plaintext);
             fail("Expected IllegalBlockSizeException");
-        } catch (final IllegalBlockSizeException ex) {
-            // expected
+        } catch (final GeneralSecurityException ex) {
+            assertProperWrongInputSizeException(ex);
         }
 
         nativeC.init(Cipher.ENCRYPT_MODE, PAIR_4096.getPublic());
@@ -439,8 +452,8 @@ public class RsaCipherTest {
         try {
             nativeC.doFinal(plaintext);
             fail("Expected IllegalBlockSizeException");
-        } catch (final IllegalBlockSizeException ex) {
-            // expected
+        } catch (final GeneralSecurityException ex) {
+            assertProperWrongInputSizeException(ex);
         }
     }
 

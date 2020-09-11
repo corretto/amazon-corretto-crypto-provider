@@ -640,6 +640,8 @@ public class AesTest {
 
     @Test
     public void testBadAEADTagException_noRelease() throws Throwable {
+        assumeMinimumVersion("1.5.0", AmazonCorrettoCryptoProvider.INSTANCE);
+
         final SecureRandom rnd = TestUtil.MISC_SECURE_RANDOM.get();
 
         Cipher c = Cipher.getInstance(ALGO_NAME, PROVIDER_SUN);
@@ -664,6 +666,8 @@ public class AesTest {
 
     @Test
     public void testBadAEADTagException_noReleaseByteBuffer() throws Throwable {
+        assumeMinimumVersion("1.5.0", AmazonCorrettoCryptoProvider.INSTANCE);
+
         final SecureRandom rnd = TestUtil.MISC_SECURE_RANDOM.get();
 
         Cipher c = Cipher.getInstance(ALGO_NAME, PROVIDER_SUN);
