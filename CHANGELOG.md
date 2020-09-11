@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.6.0 (Unreleased)
+### Breaking Change
+In accordance with our [versioning policy](https://github.com/corretto/amazon-corretto-crypto-provider/blob/master/VERSIONING.rst),
+this release contains a low-risk breaking change. For details please see the [1.5.0](#150) section of this document.
+This change only impacts libraries that generate EC keys using the
+[KeyPairGenerator.initialize(int keysize)](https://docs.oracle.com/javase/8/docs/api/java/security/KeyPairGenerator.html#initialize-int-)
+method.
+
+### Improvements
+* Stricter guarantees around which curves are used for EC key generation. [PR #127](https://github.com/corretto/amazon-corretto-crypto-provider/pull/127)
+
 ## 1.5.0
 ### Breaking Change Warning
 In accordance with our [versioning policy](https://github.com/corretto/amazon-corretto-crypto-provider/blob/master/VERSIONING.rst),
