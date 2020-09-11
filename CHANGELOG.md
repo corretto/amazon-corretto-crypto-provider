@@ -9,7 +9,7 @@ This change only impacts libraries that generate EC keys using the
 method.
 
 ### Improvements
-* Stricter guarantees around which curves are used for EC key generation. [PR #127](https://github.com/corretto/amazon-corretto-crypto-provider/pull/127)
+* Stricter guarantees about which curves are used for EC key generation. [PR #127](https://github.com/corretto/amazon-corretto-crypto-provider/pull/127)
 
 ## 1.5.0
 ### Breaking Change Warning
