@@ -7,7 +7,7 @@ plugins {
 }
 
 group = 'software.amazon.cryptools'
-version = '1.5.0'
+version = '1.6.0'
 
 def openssl_version = '1.1.1g'
 def opensslSrcPath = "${buildDir}/openssl/openssl-${openssl_version}"
