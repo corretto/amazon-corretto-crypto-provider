@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.6.0 (Unreleased)
+## 2.0.0 (Unreleased)
 ### Breaking Change
 In accordance with our [versioning policy](https://github.com/corretto/amazon-corretto-crypto-provider/blob/master/VERSIONING.rst),
 this release contains a low-risk breaking change. For details please see the [1.5.0](#150) section of this document.
@@ -14,6 +14,13 @@ method.
 
 ### Patches
 * Add version gating to some tests introduced in 1.5.0 [PR #128](https://github.com/corretto/amazon-corretto-crypto-provider/pull/128)
+
+## 1.6.0 (Never Released)
+This entry is for the planned but never released version 1.6.0 to assist in cross-references from the release notes in 1.5.0.
+
+This version was not released because other changes to ACCP planned for the same time were significant enough to warrant a major version bump.
+
+Please see the release notes for 2.0.0.
 
 ## 1.5.0
 ### Breaking Change Warning
