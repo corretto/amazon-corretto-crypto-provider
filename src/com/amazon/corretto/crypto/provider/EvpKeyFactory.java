@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.security.AlgorithmParameters;
 import java.security.GeneralSecurityException;
 import java.security.InvalidKeyException;
+import java.security.KeyFactory;
 import java.security.KeyFactorySpi;
 import java.security.Key;
 import java.security.PrivateKey;
@@ -365,6 +366,38 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
             }
             // TODO: Do we need special logic?
             return super.engineTranslateKey(key);
+        }
+    }
+
+    static KeyFactory commonRsaFactory() {
+        return FieldHolder.RSA_FACTORY;
+    }
+
+    static KeyFactory commonDsaFactory() {
+        return FieldHolder.DSA_FACTORY;
+    }
+
+    static KeyFactory commonDhFactory() {
+        return FieldHolder.DH_FACTORY;
+    }
+
+    static KeyFactory commonEcFactory() {
+        return FieldHolder.EC_FACTORY;
+    }
+
+    /**
+     * Lazy-initialization of fields without needing to worry about synchronization
+     */
+    private static class FieldHolder {
+        static final KeyFactory RSA_FACTORY = new ShimFactory(new RSA());
+        static final KeyFactory DSA_FACTORY = new ShimFactory(new DSA());
+        static final KeyFactory DH_FACTORY = new ShimFactory(new DH());
+        static final KeyFactory EC_FACTORY = new ShimFactory(new EC());
+    }
+
+    private static class ShimFactory extends KeyFactory {
+        private ShimFactory(EvpKeyFactory spi) {
+            super(spi, AmazonCorrettoCryptoProvider.INSTANCE, spi.type.jceName);
         }
     }
 }

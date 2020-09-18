@@ -43,10 +43,17 @@ enum EvpKeyType {
     }
 
     KeyFactory getKeyFactory() {
-        try {
-            return KeyFactory.getInstance(jceName, AmazonCorrettoCryptoProvider.INSTANCE);
-        } catch (NoSuchAlgorithmException e) {
-            throw new AssertionError("KeyFactory for " + jceName + " not available");
+        switch (this) {
+            case RSA:
+                return EvpKeyFactory.commonRsaFactory();
+            case DH:
+                return EvpKeyFactory.commonDhFactory();
+            case DSA:
+                return EvpKeyFactory.commonDsaFactory();
+            case EC:
+                return EvpKeyFactory.commonEcFactory();
+            default:
+                throw new AssertionError("Unsupported key type");
         }
     }
 
