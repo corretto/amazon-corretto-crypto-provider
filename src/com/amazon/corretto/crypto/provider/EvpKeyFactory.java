@@ -369,6 +369,20 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
         }
     }
 
+    // This next block of code is a micro-optimization around getting instances of this factory.
+    // It turns out the KeyFactory.getInstance(String, Provider) can be expensive
+    // (primarily due to synchronization of Provider.getService).
+    // The JDK tries to speed up the fast-path by remembering the last service retrieved
+    // for a given Provider and returning it quickly if it is retrieved again.
+    //
+    // With the move to EVP keys many of our SPIs require an instance of KeyFactory that they can
+    // use (primarily for translateKey). Since this means that retrieving a non-KeyFactory SPI
+    // shortly thereafter results in retrieving a KeyFactory SPI, there is real churn in
+    // Provider.getService which can massively slow-down performance.
+    //
+    // These methods will do a lazy-init (to avoid circular dependencies) of minimal KeyFactories
+    // for ACCP use only. This way we only create one of each and do not touch the expensive
+    // Provider.getService logic.
     static KeyFactory commonRsaFactory() {
         return FieldHolder.RSA_FACTORY;
     }
@@ -385,9 +399,7 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
         return FieldHolder.EC_FACTORY;
     }
 
-    /**
-     * Lazy-initialization of fields without needing to worry about synchronization
-     */
+    // Lazy-initialization of fields without needing to worry about synchronization
     private static class FieldHolder {
         static final KeyFactory RSA_FACTORY = new ShimFactory(new RSA());
         static final KeyFactory DSA_FACTORY = new ShimFactory(new DSA());
@@ -395,6 +407,9 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
         static final KeyFactory EC_FACTORY = new ShimFactory(new EC());
     }
 
+    /**
+     * Minimal KeyFactory used by the lazily initialized keyfactories above for internal use.
+     */
     private static class ShimFactory extends KeyFactory {
         private ShimFactory(EvpKeyFactory spi) {
             super(spi, AmazonCorrettoCryptoProvider.INSTANCE, spi.type.jceName);
