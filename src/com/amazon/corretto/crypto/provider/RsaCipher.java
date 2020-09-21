@@ -38,7 +38,6 @@ class RsaCipher extends CipherSpi {
     private static final int HANDLE_USAGE_IGNORE = 1;
     private static final int HANDLE_USAGE_USE = 2;
     private static final int HANDLE_USAGE_CREATE = 3;
-    private static final KeyFactory KEY_FACTORY;
 
     // From openssl/rsa.h
     private static enum Padding {
@@ -61,11 +60,6 @@ class RsaCipher extends CipherSpi {
 
     static {
         Loader.load();
-        try {
-            KEY_FACTORY = KeyFactory.getInstance("RSA");
-        } catch (final NoSuchAlgorithmException ex) {
-            throw new AssertionError(ex);
-        }
     }
 
     private static native int cipher(

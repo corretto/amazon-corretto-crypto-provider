@@ -20,6 +20,7 @@ import java.security.spec.RSAPrivateCrtKeySpec;
 import java.security.spec.RSAPublicKeySpec;
 
 class RsaGen extends KeyPairGeneratorSpi {
+    private static final RSAKeyGenParameterSpec DEFAULT_KEYGEN_SPEC = new RSAKeyGenParameterSpec(2048, RSAKeyGenParameterSpec.F4);
     private final KeyFactory keyFactory;
     private final AmazonCorrettoCryptoProvider provider_;
     private RSAKeyGenParameterSpec kgSpec;
@@ -31,12 +32,8 @@ class RsaGen extends KeyPairGeneratorSpi {
     RsaGen(AmazonCorrettoCryptoProvider provider) {
         Loader.checkNativeLibraryAvailability();
         provider_ = provider;
-        try {
-            keyFactory = KeyFactory.getInstance("RSA");
-            kgSpec = new RSAKeyGenParameterSpec(2048, RSAKeyGenParameterSpec.F4);
-        } catch (final NoSuchAlgorithmException ex) {
-            throw new AssertionError(ex);
-        }
+        keyFactory = EvpKeyType.RSA.getKeyFactory();
+        kgSpec = DEFAULT_KEYGEN_SPEC;
     }
 
     native private static long generateEvpKey(int keySize, boolean checkConsistency, byte[] pubExp);

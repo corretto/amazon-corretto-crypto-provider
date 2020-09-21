@@ -118,10 +118,10 @@ final class Utils {
             if (key instanceof SecretKey) {
                 encoded = key.getEncoded();
             } else if (key instanceof PublicKey) {
-                final KeyFactory factory = KeyFactory.getInstance(key.getAlgorithm());
+                final KeyFactory factory = getKeyFactory(key.getAlgorithm());
                 encoded = factory.getKeySpec(key, X509EncodedKeySpec.class).getEncoded();
             } else if (key instanceof PrivateKey) {
-                final KeyFactory factory = KeyFactory.getInstance(key.getAlgorithm());
+                final KeyFactory factory = getKeyFactory(key.getAlgorithm());
                 encoded = factory.getKeySpec(key, PKCS8EncodedKeySpec.class).getEncoded();
             } else {
                 throw new InvalidKeyException("Key does not implement SecretKey, PublicKey, or PrivateKey");
@@ -156,14 +156,14 @@ final class Utils {
     static PublicKey buildUnwrappedPublicKey(final byte[] rawKey, final String algorithm)
             throws NoSuchAlgorithmException,
             InvalidKeySpecException {
-        final KeyFactory kf = KeyFactory.getInstance(algorithm);
+        final KeyFactory kf = getKeyFactory(algorithm);
         return kf.generatePublic(new X509EncodedKeySpec(rawKey));
     }
 
     static PrivateKey buildUnwrappedPrivateKey(final byte[] rawKey, final String algorithm)
             throws NoSuchAlgorithmException,
             InvalidKeySpecException {
-        final KeyFactory kf = KeyFactory.getInstance(algorithm);
+        final KeyFactory kf = getKeyFactory(algorithm);
         return kf.generatePrivate(new PKCS8EncodedKeySpec(rawKey));
     }
 
@@ -408,6 +408,22 @@ final class Utils {
             src.limit(Math.min(src.remaining(), buffer.remaining()));
 
             buffer.put(src);
+        }
+    }
+
+    private static KeyFactory getKeyFactory(String algorithm) throws NoSuchAlgorithmException {
+        // Manual listing of supported algorithms for fast-path KeyFactory creation
+        switch (algorithm) {
+            case "RSA":
+                return EvpKeyFactory.commonRsaFactory();
+            case "DH":
+                return EvpKeyFactory.commonDhFactory();
+            case "DSA":
+                return EvpKeyFactory.commonDsaFactory();
+            case "EC":
+                return EvpKeyFactory.commonEcFactory();
+            default:
+                return KeyFactory.getInstance(algorithm);
         }
     }
 }
