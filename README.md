@@ -64,7 +64,7 @@ KeyPairGenerator algorithms:
 * EC
 * RSA
 
-KeyAgreement:
+KeyAgreement algorithms:
 * DH
 * DiffieHellman (same as DH)
 * ECDH
@@ -72,6 +72,11 @@ KeyAgreement:
 SecureRandom algorithms:
 * NIST800-90A/AES-CTR-256 (Used as the default and only enabled if your CPU supports RDRAND)
 
+KeyFactory algorithms:
+* DH
+* DSA
+* EC
+* RSA
 
 # Compatibility & Requirements
 ACCP has the following requirements:

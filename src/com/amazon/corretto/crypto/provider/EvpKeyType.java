@@ -26,8 +26,10 @@ import javax.crypto.interfaces.DHPublicKey;
  * Corresponds to native constants in OpenSSL which represent keytypes.
  */
 enum EvpKeyType {
-    RSA("RSA", 6, RSAPublicKey.class, RSAPrivateKey.class), DH("DH", 28, DHPublicKey.class, DHPrivateKey.class),
-    DSA("DSA", 116, DSAPublicKey.class, DSAPrivateKey.class), EC("EC", 408, ECPublicKey.class, ECPrivateKey.class);
+    RSA("RSA", 6, RSAPublicKey.class, RSAPrivateKey.class),
+    DH("DH", 28, DHPublicKey.class, DHPrivateKey.class),
+    DSA("DSA", 116, DSAPublicKey.class, DSAPrivateKey.class),
+    EC("EC", 408, ECPublicKey.class, ECPrivateKey.class);
 
     final String jceName;
     final int nativeValue;
