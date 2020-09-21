@@ -609,7 +609,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpDhPubli
 {
     try
     {
-        raii_env env(pEnv); // Does not need to be freed
+        raii_env env(pEnv);
 
         EvpKeyContext *ctx = reinterpret_cast<EvpKeyContext *>(ctxP);
 
@@ -630,6 +630,113 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpDhPubli
     catch (java_ex &ex)
     {
         ex.throw_to_java(pEnv);
-        return 0;
+        return NULL;
+    }
+}
+
+/*
+ * Class:     com_amazon_corretto_crypto_provider_EvpDhPrivateKey
+ * Method:    getX
+ * Signature: (J)[B
+ */
+JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpDhPrivateKey_getX(
+    JNIEnv *pEnv,
+    jclass,
+    jlong ctxP)
+{
+    try
+    {
+        raii_env env(pEnv);
+
+        EvpKeyContext *ctx = reinterpret_cast<EvpKeyContext *>(ctxP);
+
+        DH *dh = EVP_PKEY_get0_DH(ctx->getKey()); // Does not need to be freed
+        if (!dh)
+        {
+            throw_openssl(EX_RUNTIME_CRYPTO, "Could not retrieve DH key");
+        }
+
+        const BIGNUM *x = DH_get0_priv_key(dh);
+        if (!x)
+        {
+            throw_java_ex(EX_RUNTIME_CRYPTO, "Could not retrieve X");
+        }
+
+        return bn2jarr(env, y);
+    }
+    catch (java_ex &ex)
+    {
+        ex.throw_to_java(pEnv);
+        return NULL;
+    }
+}
+
+/*
+ * Class:     com_amazon_corretto_crypto_provider_EvpDsaPublicKey
+ * Method:    getY
+ * Signature: (J)[B
+ */
+JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpDsaPublicKey_getY(
+    JNIEnv *pEnv,
+    jclass,
+    jlong ctxP)
+{
+    try {
+        raii_env env(pEnv);
+
+        EvpKeyContext *ctx = reinterpret_cast<EvpKeyContext *>(ctxP);
+
+        DSA *dsa = EVP_PKEY_get0_DSA(ctx->getKey()); // Does not need to be freed
+        if (!dsa) {
+            throw_openssl(EX_RUNTIME_CRYPTO, "Could not retrieve DH key");
+        }
+
+        const BIGNUM *y = DSA_get0_pub_key(dsa);
+        if (!y)
+        {
+            throw_java_ex(EX_RUNTIME_CRYPTO, "Could not retrieve Y");
+        }
+
+        return bn2jarr(env, x);
+    } catch (java_ex & ex)
+    {
+        ex.throw_to_java(pEnv);
+        return NULL;
+    }
+}
+
+/*
+ * Class:     com_amazon_corretto_crypto_provider_EvpDsaPrivateKey
+ * Method:    getX
+ * Signature: (J)[B
+ */
+JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpDsaPrivateKey_getX(
+    JNIEnv *pEnv,
+    jclass,
+    jlong ctxP)
+{
+    try
+    {
+        raii_env env(pEnv);
+
+        EvpKeyContext *ctx = reinterpret_cast<EvpKeyContext *>(ctxP);
+
+        DSA *dsa = EVP_PKEY_get0_DSA(ctx->getKey()); // Does not need to be freed
+        if (!dsa)
+        {
+            throw_openssl(EX_RUNTIME_CRYPTO, "Could not retrieve DH key");
+        }
+
+        const BIGNUM *x = DSA_get0_priv_key(dsa);
+        if (!x)
+        {
+            throw_java_ex(EX_RUNTIME_CRYPTO, "Could not retrieve X");
+        }
+
+        return bn2jarr(env, x);
+    } catch (java_ex & ex)
+    {
+        ex.throw_to_java(pEnv);
+        return NULL;
     }
 }
