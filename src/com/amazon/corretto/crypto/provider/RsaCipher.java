@@ -297,6 +297,13 @@ class RsaCipher extends CipherSpi {
                 if (psrc == null || !pDefault.getAlgorithm().equalsIgnoreCase(psrc.getAlgorithm())) {
                     throw new InvalidAlgorithmParameterException();
                 }
+                // Only support empty label
+                if (!(psrc instanceof PSource.PSpecified)) {
+                    throw new InvalidAlgorithmParameterException();
+                }
+                if (((PSource.PSpecified) psrc).getValue().length != 0) {
+                    throw new InvalidAlgorithmParameterException();
+                }
             } else {
                 throw new InvalidAlgorithmParameterException();
             }
