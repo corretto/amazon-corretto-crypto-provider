@@ -1,6 +1,7 @@
 // Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+#include <openssl/asn1t.h>
 #include <openssl/dh.h>
 #include <openssl/ec.h>
 #include <openssl/evp.h>
@@ -662,7 +663,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpDhPriva
             throw_java_ex(EX_RUNTIME_CRYPTO, "Could not retrieve X");
         }
 
-        return bn2jarr(env, y);
+        return bn2jarr(env, x);
     }
     catch (java_ex &ex)
     {
@@ -697,7 +698,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpDsaPubl
             throw_java_ex(EX_RUNTIME_CRYPTO, "Could not retrieve Y");
         }
 
-        return bn2jarr(env, x);
+        return bn2jarr(env, y);
     } catch (java_ex & ex)
     {
         ex.throw_to_java(pEnv);
@@ -739,4 +740,188 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpDsaPriv
         ex.throw_to_java(pEnv);
         return NULL;
     }
+}
+
+/*
+ * Class:     com_amazon_corretto_crypto_provider_EvpKeyFactory
+ * Method:    rsa2Evp
+ * Signature: ([B[B[B[B[B[B[B[B)J
+ * modulus, publicExponentArr, privateExponentArr, crtCoefArr, expPArr, expQArr, primePArr, primeQArr
+ */
+JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_rsa2Evp(
+    JNIEnv *pEnv,
+    jclass,
+    jbyteArray modulusArray,
+    jbyteArray publicExponentArr,
+    jbyteArray privateExponentArr,
+    jbyteArray crtCoefArr,
+    jbyteArray expPArr,
+    jbyteArray expQArr,
+    jbyteArray primePArr,
+    jbyteArray primeQArr)
+{
+    RSA *rsa = NULL;
+    try
+    {
+        raii_env env(pEnv);
+        EvpKeyContext ctx;
+
+        rsa = RSA_new();
+        if (unlikely(!rsa)) {
+            throw_openssl(EX_OOM, "Unable to create RSA object");
+        }
+
+        BigNumObj modulus = BigNumObj::fromJavaArray(env, modulusArray);
+        // Java allows for weird degenerate keys with the public exponent being NULL.
+        // We simulate this with zero.
+        BigNumObj pubExp; // Defaults to zero
+        if (publicExponentArr) {
+            jarr2bn(env, publicExponentArr, pubExp);
+        }
+
+        if (privateExponentArr) {
+            BigNumObj privExp = BigNumObj::fromJavaArray(env, privateExponentArr);
+
+            if (RSA_set0_key(rsa, modulus, pubExp, privExp) != 1)
+            {
+                throw_openssl(EX_RUNTIME_CRYPTO, "Unable to set RSA values");
+            }
+            // RSA_set0_key takes ownership
+            modulus.releaseOwnership();
+            pubExp.releaseOwnership();
+            privExp.releaseOwnership();
+        } else {
+            if (RSA_set0_key(rsa, modulus, pubExp, NULL) != 1)
+            {
+                throw_openssl(EX_RUNTIME_CRYPTO, "Unable to set RSA values");
+            }
+            // RSA_set0_key takes ownership
+            modulus.releaseOwnership();
+            pubExp.releaseOwnership();
+        }
+
+        if (primePArr && primeQArr) {
+            BigNumObj p = BigNumObj::fromJavaArray(env, primePArr);
+            BigNumObj q = BigNumObj::fromJavaArray(env, primeQArr);
+
+            if (RSA_set0_factors(rsa, p, q) != 1)
+            {
+                throw_openssl(EX_RUNTIME_CRYPTO, "Unable to set RSA factors");
+            }
+
+            // RSA_set0_factors takes ownership
+            p.releaseOwnership();
+            q.releaseOwnership();
+        }
+
+        if (crtCoefArr && expPArr && expQArr)
+        {
+            BigNumObj iqmp = BigNumObj::fromJavaArray(env, crtCoefArr);
+            BigNumObj dmp1 = BigNumObj::fromJavaArray(env, expPArr);
+            BigNumObj dmq1 = BigNumObj::fromJavaArray(env, expQArr);
+
+            if (RSA_set0_crt_params(rsa, dmp1, dmq1, iqmp) != 1)
+            {
+                throw_openssl(EX_RUNTIME_CRYPTO, "Unable to set RSA CRT values");
+            }
+
+            // RSA_set0_crt_params takes ownership
+            iqmp.releaseOwnership();
+            dmp1.releaseOwnership();
+            dmq1.releaseOwnership();
+        }
+
+        ctx.setKey(EVP_PKEY_new());
+        if (!ctx.getKey())
+        {
+            throw_openssl(EX_OOM, "Unable to create EVP key");
+        }
+
+        if (unlikely(EVP_PKEY_set1_RSA(ctx.getKey(), rsa) != 1))
+        {
+            throw_openssl(EX_OOM, "Unable to assign RSA key");
+        }
+
+        return reinterpret_cast<jlong>(ctx.moveToHeap());
+    }
+    catch (java_ex &ex)
+    {
+        RSA_free(rsa);
+        ex.throw_to_java(pEnv);
+        return 0;
+    }
+}
+
+/*
+ * Class:     com_amazon_corretto_crypto_provider_EvpRsaPrivateKey
+ * Method:    encodeRsaPrivateKey
+ * Signature: (J)[B
+ */
+JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpRsaPrivateKey_encodeRsaPrivateKey(JNIEnv * pEnv, jclass, jlong ctxHandle)
+{
+    jbyteArray result = NULL;
+    PKCS8_PRIV_KEY_INFO *pkcs8 = NULL;
+    RSA *zeroed_rsa = NULL;
+    try
+    {
+        raii_env env(pEnv);
+
+        EvpKeyContext *ctx = reinterpret_cast<EvpKeyContext *>(ctxHandle);
+
+        const RSA *rsaKey = NULL;
+        const BIGNUM *e = NULL;
+        const BIGNUM *d = NULL;
+        const BIGNUM *n = NULL;
+        CHECK_OPENSSL(rsaKey = EVP_PKEY_get0_RSA(ctx->getKey()));
+        RSA_get0_key(rsaKey, &n, &e, &d);
+
+        if (BN_is_zero(e)) {
+            EvpKeyContext stackContext;
+
+            // Key is lacking the public exponent so we must encode manually
+            // Fortunately, this must be the most boring type of key (no params)
+            CHECK_OPENSSL(zeroed_rsa = RSA_new());
+            if (!RSA_set0_key(zeroed_rsa, BN_dup(n), BN_dup(e), BN_dup(d))) {
+              throw_openssl(EX_RUNTIME_CRYPTO, "Unable to set RSA components");
+            }
+            if (!RSA_set0_factors(zeroed_rsa, BN_new(), BN_new())) {
+                throw_openssl(EX_RUNTIME_CRYPTO, "Unable to set RSA factors");
+            }
+            if (!RSA_set0_crt_params(zeroed_rsa, BN_new(), BN_new(), BN_new())) {
+                throw_openssl(EX_RUNTIME_CRYPTO, "Unable to set RSA CRT components");
+            }
+            stackContext.setKey(EVP_PKEY_new());
+            CHECK_OPENSSL(stackContext.getKey());
+            EVP_PKEY_set1_RSA(stackContext.getKey(), zeroed_rsa);
+            RSA_free(zeroed_rsa);
+
+            CHECK_OPENSSL(pkcs8 = EVP_PKEY2PKCS8(stackContext.getKey()));
+
+        } else {
+            // This is a normal key and we don't need to do anything special
+            CHECK_OPENSSL(pkcs8 = EVP_PKEY2PKCS8(ctx->getKey()));
+        }
+
+        unsigned char *der = NULL;
+        // This next line allocates memory
+        int derLen = i2d_PKCS8_PRIV_KEY_INFO(pkcs8, &der);
+        CHECK_OPENSSL(derLen > 0);
+        if (!(result = env->NewByteArray(derLen)))
+        {
+            throw_java_ex(EX_OOM, "Unable to allocate DER array");
+        }
+        // This may throw, if it does we'll just keep the exception state as we return.
+        env->SetByteArrayRegion(result, 0, derLen, (jbyte *)&der[0]);
+        OPENSSL_free(der);
+    }
+    catch (java_ex &ex)
+    {
+        RSA_free(zeroed_rsa);
+        PKCS8_PRIV_KEY_INFO_free(pkcs8);
+
+        // MinimalRsaPrivateKey_free(minKey);
+        ex.throw_to_java(pEnv);
+    }
+
+    return result;
 }

@@ -8,7 +8,8 @@ import java.security.interfaces.RSAPrivateKey;
 
 class EvpRsaPrivateKey extends EvpRsaKey implements RSAPrivateKey {
     private static final long serialVersionUID = 1;
-    
+    private static native byte[] encodeRsaPrivateKey(long ptr);
+
     protected BigInteger privateExponent;
 
     protected static native byte[] getPrivateExponent(long ptr);
@@ -36,5 +37,16 @@ class EvpRsaPrivateKey extends EvpRsaKey implements RSAPrivateKey {
     protected synchronized void destroyJavaState() {
         super.destroyJavaState();
         privateExponent = null;
+    }
+
+    @Override
+    public byte[] getEncoded() {
+        // RSA private keys in Java may lack CRT parameters and thus need custom serialization
+        synchronized (this) {
+            if (encoded == null) {
+                encoded = use(EvpRsaPrivateKey::encodeRsaPrivateKey);
+            }
+        }
+        return encoded != null ? encoded.clone() : encoded;
     }
 }

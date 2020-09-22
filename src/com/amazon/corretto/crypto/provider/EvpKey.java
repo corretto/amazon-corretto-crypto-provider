@@ -23,7 +23,7 @@ abstract class EvpKey implements Key, Destroyable {
     protected final boolean isPublicKey;
     protected boolean ephemeral = false;
     
-    private byte[] encoded;
+    protected byte[] encoded;
 
     private static native void releaseKey(long ptr);
     private static native byte[] encodePublicKey(long ptr);
