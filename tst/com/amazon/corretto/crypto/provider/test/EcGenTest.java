@@ -318,21 +318,25 @@ public class EcGenTest {
         }
     }
 
-    private static void assertECEquals(final String message, final ECPrivateKey expected,
+    public static void assertECEquals(final String message, final ECPrivateKey expected,
                                        final ECPrivateKey actual) {
+        assertEquals(expected.getAlgorithm(), actual.getAlgorithm(), message);
+        assertEquals(expected.getFormat(), actual.getFormat(), message);
         assertArrayEquals(expected.getEncoded(), actual.getEncoded(), message);
         assertEquals(expected.getS(), actual.getS(), message);
         assertECEquals(message, expected.getParams(), actual.getParams());
     }
 
-    private static void assertECEquals(final String message, final ECPublicKey expected,
+    public static void assertECEquals(final String message, final ECPublicKey expected,
                                        final ECPublicKey actual) {
+        assertEquals(expected.getAlgorithm(), actual.getAlgorithm(), message);
+        assertEquals(expected.getFormat(), actual.getFormat(), message);
         assertArrayEquals(expected.getEncoded(), actual.getEncoded(), message);
         assertEquals(expected.getW(), actual.getW(), message);
         assertECEquals(message, expected.getParams(), actual.getParams());
     }
 
-    private static void assertECEquals(final String message, final ECParameterSpec expected,
+    public static void assertECEquals(final String message, final ECParameterSpec expected,
             final ECParameterSpec actual) {
         assertEquals(expected.getCofactor(), actual.getCofactor(), message);
         assertEquals(expected.getOrder(), actual.getOrder(), message);

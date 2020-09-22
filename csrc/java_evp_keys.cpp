@@ -189,6 +189,8 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_e
     jbyteArray paramsArr)
 {
     EC_KEY *ec = NULL;
+    BN_CTX *bn_ctx = NULL;
+    EC_POINT *point = NULL;
     try
     {
         raii_env env(pEnv);
@@ -229,6 +231,23 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_e
                 {
                     throw_openssl(EX_RUNTIME_CRYPTO, "Unable to set private key");
                 }
+
+                if (!wxArr || !wyArr)
+                {
+                    // We have to calculate this ourselves.
+                    // Otherwise, it will be taken care of later
+                    const EC_GROUP *group = EC_KEY_get0_group(ec);
+                    CHECK_OPENSSL(group);
+                    CHECK_OPENSSL(point = EC_POINT_new(group));
+                    CHECK_OPENSSL(bn_ctx = BN_CTX_secure_new());
+
+                    CHECK_OPENSSL(EC_POINT_mul(group, point, s, NULL, NULL, bn_ctx) == 1);
+
+                    CHECK_OPENSSL(EC_KEY_set_public_key(ec, point) == 1);
+
+                    unsigned int oldFlags = EC_KEY_get_enc_flags(ec);
+                    EC_KEY_set_enc_flags(ec, oldFlags | EC_PKEY_NO_PUBKEY);
+                }
             }
 
             if (wxArr && wyArr)
@@ -243,10 +262,16 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_e
             }
         }
 
+        BN_CTX_free(bn_ctx);
+        EC_POINT_free(point);
+        EC_KEY_free(ec);
+
         return reinterpret_cast<jlong>(ctx.moveToHeap());
     }
     catch (java_ex &ex)
     {
+        BN_CTX_free(bn_ctx);
+        EC_POINT_free(point);
         EC_KEY_free(ec);
         ex.throw_to_java(pEnv);
         return 0;
@@ -300,9 +325,9 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpKey_get
     }
     catch (java_ex &ex)
     {
-        OPENSSL_free(der);
         ex.throw_to_java(pEnv);
     }
+    OPENSSL_free(der);
     return result;
 }
 
@@ -589,6 +614,7 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_d
             y.releaseOwnership();
         }
 
+        DH_free(dh);
         return reinterpret_cast<jlong>(ctx.moveToHeap());
     }
     catch (java_ex &ex)
@@ -843,6 +869,7 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_r
             throw_openssl(EX_OOM, "Unable to assign RSA key");
         }
 
+        RSA_free(rsa);
         return reinterpret_cast<jlong>(ctx.moveToHeap());
     }
     catch (java_ex &ex)
@@ -914,6 +941,9 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpRsaPriv
         // This may throw, if it does we'll just keep the exception state as we return.
         env->SetByteArrayRegion(result, 0, derLen, (jbyte *)&der[0]);
         OPENSSL_free(der);
+
+        RSA_free(zeroed_rsa);
+        PKCS8_PRIV_KEY_INFO_free(pkcs8);
     }
     catch (java_ex &ex)
     {
@@ -1014,6 +1044,8 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_d
             }
         }
 
+        BN_CTX_free(bn_ctx);
+        DSA_free(dsa);
         return reinterpret_cast<jlong>(ctx.moveToHeap());
     }
     catch (java_ex &ex)

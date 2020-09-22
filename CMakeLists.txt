@@ -556,6 +556,7 @@ add_jar(
         tst/com/amazon/corretto/crypto/provider/test/HmacTest.java
         tst/com/amazon/corretto/crypto/provider/test/InputBufferTest.java
         tst/com/amazon/corretto/crypto/provider/test/JanitorTest.java
+        tst/com/amazon/corretto/crypto/provider/test/EvpKeyFactoryTest.java
         tst/com/amazon/corretto/crypto/provider/test/MD5Test.java
         tst/com/amazon/corretto/crypto/provider/test/MiscSingleThreadedTests.java
         tst/com/amazon/corretto/crypto/provider/test/NativeTestHooks.java
