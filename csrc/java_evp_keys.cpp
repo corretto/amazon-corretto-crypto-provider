@@ -3,6 +3,7 @@
 
 #include <openssl/asn1t.h>
 #include <openssl/dh.h>
+#include <openssl/dsa.h>
 #include <openssl/ec.h>
 #include <openssl/evp.h>
 #include <openssl/err.h>
@@ -924,4 +925,102 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpRsaPriv
     }
 
     return result;
+}
+
+/*
+ * Class:     com_amazon_corretto_crypto_provider_EvpKeyFactory
+ * Method:    dsa2Evp
+ * Signature: ([B[B[B)J
+ */
+JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_dsa2Evp(
+    JNIEnv * pEnv,
+    jclass,
+    jbyteArray xArr,
+    jbyteArray yArr,
+    jbyteArray paramsArr)
+{
+    DSA *dsa = NULL;
+    BN_CTX *bn_ctx = NULL;
+    try
+    {
+        raii_env env(pEnv);
+        EvpKeyContext ctx;
+
+        {
+            // Parse the parameters
+            java_buffer paramsBuff = java_buffer::from_array(env, paramsArr);
+            size_t paramsLength = paramsBuff.len();
+            jni_borrow borrow(env, paramsBuff, "params");
+
+            const unsigned char *derPtr = borrow.data();
+            const unsigned char *derMutablePtr = derPtr;
+
+            dsa = d2i_DSAparams(NULL, &derMutablePtr, paramsLength);
+            if (!dsa)
+            {
+                throw_openssl(EX_INVALID_KEY_SPEC, "Invalid parameters");
+            }
+            if (derPtr + paramsLength != derMutablePtr)
+            {
+                throw_openssl(EX_INVALID_KEY_SPEC, "Extra key information");
+            }
+
+            ctx.setKey(EVP_PKEY_new());
+            if (!EVP_PKEY_set1_DSA(ctx.getKey(), dsa))
+            {
+                throw_openssl(EX_INVALID_KEY_SPEC, "Could not convert to EVP_PKEY");
+            }
+        }
+
+        // Set the key pieces
+        {
+            if (yArr && !xArr) // Public only
+            {
+                BigNumObj y = BigNumObj::fromJavaArray(env, yArr);
+                if (DSA_set0_key(dsa, y, NULL) != 1) // Takes ownership
+                {
+                    throw_openssl(EX_RUNTIME_CRYPTO, "Unable to set public key");
+                }
+                y.releaseOwnership();
+            } else if (xArr) {
+                BigNumObj x = BigNumObj::fromJavaArray(env, xArr);
+                BigNumObj y;
+                if (yArr) {
+                    jarr2bn(env, yArr, y);
+                } else {
+                    // We need to calculate this ourselves
+                    BigNumObj xConstTime; // Must be freed before we do anything else with x
+                    BN_with_flags(xConstTime, x, BN_FLG_CONSTTIME);
+
+                    const BIGNUM *p = NULL;
+                    const BIGNUM *g = NULL;
+
+                    DSA_get0_pqg(dsa, &p, NULL, &g);
+
+                    bn_ctx = BN_CTX_secure_new();
+                    CHECK_OPENSSL(BN_mod_exp(y, g, xConstTime, p, bn_ctx) == 1);
+                } // End of scope frees xConstTime
+
+
+                if (DSA_set0_key(dsa, y, x) != 1) // Takes ownership
+                {
+                    throw_openssl(EX_RUNTIME_CRYPTO, "Unable to set private key");
+                }
+
+                y.releaseOwnership();
+                x.releaseOwnership();
+            } else {
+                throw_java_ex(EX_RUNTIME_CRYPTO, "DSA lacks both public and private parts");
+            }
+        }
+
+        return reinterpret_cast<jlong>(ctx.moveToHeap());
+    }
+    catch (java_ex &ex)
+    {
+        BN_CTX_free(bn_ctx);
+        DSA_free(dsa);
+        ex.throw_to_java(pEnv);
+        return 0;
+    }
 }
