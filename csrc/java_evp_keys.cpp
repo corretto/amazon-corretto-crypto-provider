@@ -890,6 +890,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpRsaPriv
     jbyteArray result = NULL;
     PKCS8_PRIV_KEY_INFO *pkcs8 = NULL;
     RSA *zeroed_rsa = NULL;
+
     try
     {
         raii_env env(pEnv);
@@ -902,7 +903,6 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpRsaPriv
         const BIGNUM *n = NULL;
         CHECK_OPENSSL(rsaKey = EVP_PKEY_get0_RSA(ctx->getKey()));
         RSA_get0_key(rsaKey, &n, &e, &d);
-
         if (BN_is_zero(e)) {
             EvpKeyContext stackContext;
 
@@ -921,7 +921,6 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpRsaPriv
             stackContext.setKey(EVP_PKEY_new());
             CHECK_OPENSSL(stackContext.getKey());
             EVP_PKEY_set1_RSA(stackContext.getKey(), zeroed_rsa);
-            RSA_free(zeroed_rsa);
 
             CHECK_OPENSSL(pkcs8 = EVP_PKEY2PKCS8(stackContext.getKey()));
 
@@ -929,7 +928,6 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpRsaPriv
             // This is a normal key and we don't need to do anything special
             CHECK_OPENSSL(pkcs8 = EVP_PKEY2PKCS8(ctx->getKey()));
         }
-
         unsigned char *der = NULL;
         // This next line allocates memory
         int derLen = i2d_PKCS8_PRIV_KEY_INFO(pkcs8, &der);
@@ -950,10 +948,8 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpRsaPriv
         RSA_free(zeroed_rsa);
         PKCS8_PRIV_KEY_INFO_free(pkcs8);
 
-        // MinimalRsaPrivateKey_free(minKey);
         ex.throw_to_java(pEnv);
     }
-
     return result;
 }
 

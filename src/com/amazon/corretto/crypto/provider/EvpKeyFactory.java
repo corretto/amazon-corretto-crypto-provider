@@ -156,7 +156,7 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
                 publicExponentArr = spec.getPublicExponent().toByteArray();
                 privateExponentArr = spec.getPrivateExponent().toByteArray();
                 crtCoefArr = spec.getCrtCoefficient().toByteArray();
-                expPArr = spec.getPrimeExponentP​().toByteArray();
+                expPArr = spec.getPrimeExponentP().toByteArray();
                 expQArr = spec.getPrimeExponentQ().toByteArray();
                 primePArr = spec.getPrimeP().toByteArray();
                 primeQArr = spec.getPrimeQ().toByteArray();
@@ -187,7 +187,7 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
 
         @Override
         protected <T extends KeySpec> T engineGetKeySpec​(Key key, Class<T> keySpec) throws InvalidKeySpecException {
-            if (RSAPrivateCrtKeySpec.class.isAssignableFrom(keySpec) && key instanceof RSAPrivateCrtKey) {
+            if (keySpec.isAssignableFrom(RSAPrivateCrtKeySpec.class) && key instanceof RSAPrivateCrtKey) {
                 RSAPrivateCrtKey crtKey = (RSAPrivateCrtKey) key;
                 return keySpec.cast(new RSAPrivateCrtKeySpec​(
                     crtKey.getModulus(),
@@ -195,15 +195,15 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
                     crtKey.getPrivateExponent(),
                     crtKey.getPrimeP(),
                     crtKey.getPrimeQ(),
-                    crtKey.getPrimeExponentP​(),
+                    crtKey.getPrimeExponentP(),
                     crtKey.getPrimeExponentQ(),
                     crtKey.getCrtCoefficient()));
             }
-            if (RSAPrivateKeySpec.class.isAssignableFrom(keySpec) && key instanceof RSAPrivateKey) {
+            if (keySpec.isAssignableFrom(RSAPrivateKeySpec.class) && key instanceof RSAPrivateKey) {
                 RSAPrivateKey rsaKey = (RSAPrivateKey) key;
                 return keySpec.cast(new RSAPrivateKeySpec(rsaKey.getModulus(), rsaKey.getPrivateExponent()));
             }
-            if (RSAPublicKeySpec.class.isAssignableFrom(keySpec) && key instanceof RSAPublicKey) {
+            if (keySpec.isAssignableFrom(RSAPublicKeySpec.class) && key instanceof RSAPublicKey) {
                 RSAPublicKey rsaKey = (RSAPublicKey) key;
                 return keySpec.cast(new RSAPublicKeySpec(rsaKey.getModulus(), rsaKey.getPublicExponent()));
             }
