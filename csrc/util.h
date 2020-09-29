@@ -80,23 +80,6 @@ namespace AmazonCorrettoCryptoProvider
     virtual void zeroize() { secureZero(buf, sizeof(buf)); }
   };
 
-  class EC_GROUP_auto
-  {
-  public:
-    EC_GROUP *group;
-
-    EC_GROUP_auto(int nid)
-    {
-      group = EC_GROUP_new_by_curve_name(nid);
-    }
-    ~EC_GROUP_auto()
-    {
-      EC_GROUP_free(group);
-    }
-    operator EC_GROUP *() { return group; }
-    operator const EC_GROUP *() const { return group; }
-  };
-
   class pthread_lock_auto
   {
   public:

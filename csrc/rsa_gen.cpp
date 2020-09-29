@@ -9,7 +9,7 @@
 #include "keyutils.h"
 #include "util.h"
 #include "bn.h"
-#include "rsa.h"
+#include "auto_free.h"
 
 using namespace AmazonCorrettoCryptoProvider;
 
@@ -20,7 +20,7 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_RsaGen_generate
     jboolean checkConsistency,
     jbyteArray pubExp)
 {
-    RSA_auto r;
+    RSA_auto r = RSA_auto::from(RSA_new());
 
     try
     {

@@ -9,6 +9,7 @@
 #include "util.h"
 #include "env.h"
 #include "bn.h"
+#include "auto_free.h"
 
 using namespace AmazonCorrettoCryptoProvider;
 
@@ -78,8 +79,8 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_curveNam
             return 0;
         }
 
-        EC_GROUP_auto group(nid);
-        if (unlikely(!group.group)) {
+        EC_GROUP_auto group = EC_GROUP_auto::from(EC_GROUP_new_by_curve_name(nid));
+        if (unlikely(!group.isInitialized())) {
             unsigned long errCode = drainOpensslErrors();
             if (errCode == ERR_PACK(ERR_LIB_EC, EC_F_EC_GROUP_NEW_BY_CURVE_NAME, EC_R_UNKNOWN_GROUP)) {
                 throw_java_ex(EX_ILLEGAL_ARGUMENT, "Unknown curve");

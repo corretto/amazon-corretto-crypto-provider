@@ -8,7 +8,6 @@
 #include "generated-headers.h"
 #include "util.h"
 #include "bn.h"
-#include "rsa.h"
 #include "keyutils.h"
 
 using namespace AmazonCorrettoCryptoProvider;
@@ -32,7 +31,7 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_RsaCipher_cipher
 
         EvpKeyContext *ctx = reinterpret_cast<EvpKeyContext *>(ctxHandle);
 
-	RSA* r = EVP_PKEY_get0_RSA(ctx->getKey());
+        RSA* r = EVP_PKEY_get0_RSA(ctx->getKey()); // Doesn't need to be freed
 
         if (!r) {
             throw_java_ex(EX_NPE, "Null RSA key");
