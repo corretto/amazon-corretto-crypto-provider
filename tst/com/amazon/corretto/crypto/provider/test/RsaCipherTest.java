@@ -1010,6 +1010,11 @@ public class RsaCipherTest {
         final byte[] decrypted = decrypt.doFinal(ciphertext);
         assertArrayEquals(plaintext, decrypted);
 
+        // Test otherwised missed lines for a specific update case
+        assertEquals(0, decrypt.update(ciphertext, 0, ciphertext.length / 2, new byte[0], 0));
+        assertEquals(0, decrypt.update(ciphertext, ciphertext.length / 2, ciphertext.length - (ciphertext.length / 2), new byte[0], 0));
+        assertArrayEquals(plaintext, decrypt.doFinal());
+
         // Verify no release of data even on bad padding
         if (!NO_PADDING.equals(padding)) {
             final byte[] result = new byte[ciphertext.length]; // Full size

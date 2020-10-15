@@ -11,6 +11,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -123,6 +125,42 @@ public class EvpKeyFactoryTest {
         return KEYPAIRS.get("DH");
     }
 
+    public static List<Arguments> rsaPairsTranslation() {
+        final List<Arguments> result = new ArrayList<>();
+        for (Arguments base : KEYPAIRS.get("RSA")) {
+            result.add(Arguments.of(base.get()[0], base.get()[1], false));
+            result.add(Arguments.of(base.get()[0], base.get()[1], true));
+        }
+        return result;
+    }
+
+    public static List<Arguments> dsaPairsTranslation() {
+        final List<Arguments> result = new ArrayList<>();
+        for (Arguments base : KEYPAIRS.get("DSA")) {
+            result.add(Arguments.of(base.get()[0], base.get()[1], false));
+            result.add(Arguments.of(base.get()[0], base.get()[1], true));
+        }
+        return result;
+    }
+
+    public static List<Arguments> ecPairsTranslation() {
+        final List<Arguments> result = new ArrayList<>();
+        for (Arguments base : KEYPAIRS.get("EC")) {
+            result.add(Arguments.of(base.get()[0], base.get()[1], false));
+            result.add(Arguments.of(base.get()[0], base.get()[1], true));
+        }
+        return result;
+    }
+
+    public static List<Arguments> dhPairsTranslation() {
+        final List<Arguments> result = new ArrayList<>();
+        for (Arguments base : KEYPAIRS.get("DH")) {
+            result.add(Arguments.of(base.get()[0], base.get()[1], false));
+            result.add(Arguments.of(base.get()[0], base.get()[1], true));
+        }
+        return result;
+    }
+
     @ParameterizedTest(name = "{1}")
     @MethodSource("allPairs")
     public void testX509Encoding(final KeyPair keyPair, final String testName) throws Exception {
@@ -153,20 +191,20 @@ public class EvpKeyFactoryTest {
         assertArrayEquals(jceSpec.getEncoded(), nativeSpec.getEncoded(), "PKCS #8 encodings match");
     }
 
-    @ParameterizedTest(name = "{1}")
-    @MethodSource("rsaPairs")
-    public void rsaPublic(final KeyPair keyPair, final String testName) throws Exception {
-        Samples<RSAPublicKey> keys = getSamples(keyPair, false);
+    @ParameterizedTest(name = "{1}, Translate: {2}")
+    @MethodSource("rsaPairsTranslation")
+    public void rsaPublic(final KeyPair keyPair, final String testName, final boolean translate) throws Exception {
+        Samples<RSAPublicKey> keys = getSamples(keyPair, false, translate);
 
         assertEquals(keys.jceSample.getModulus(), keys.nativeSample.getModulus(), "Modulus");
         assertEquals(keys.jceSample.getPublicExponent(), keys.nativeSample.getPublicExponent(), "Public Exponent");
     }
 
-    @ParameterizedTest(name = "{1}")
-    @MethodSource("rsaPairs")
+    @ParameterizedTest(name = "{1}, Translate: {2}")
+    @MethodSource("rsaPairsTranslation")
     @SuppressWarnings("unchecked")
-    public void rsaPrivate(final KeyPair keyPair, final String testName) throws Exception {
-        Samples<RSAPrivateKey> keys = getSamples(keyPair, true);
+    public void rsaPrivate(final KeyPair keyPair, final String testName, final boolean translate) throws Exception {
+        Samples<RSAPrivateKey> keys = getSamples(keyPair, true, translate);
 
         assertEquals(keys.jceSample.getModulus(), keys.nativeSample.getModulus(), "Modulus");
         assertEquals(keys.jceSample.getPrivateExponent(), keys.nativeSample.getPrivateExponent(), "Private Exponent");
@@ -251,19 +289,19 @@ public class EvpKeyFactoryTest {
         assertEquals(jceParams.getQ(), nativeParams.getQ(), "Q");
     }
     
-    @ParameterizedTest(name = "{1}")
-    @MethodSource("dsaPairs")
-    public void dsaPrivate(final KeyPair keyPair, final String testName) throws Exception {
-        Samples<DSAPrivateKey> keys = getSamples(keyPair, true);
+    @ParameterizedTest(name = "{1}, Translate: {2}")
+    @MethodSource("dsaPairsTranslation")
+    public void dsaPrivate(final KeyPair keyPair, final String testName, final boolean translate) throws Exception {
+        Samples<DSAPrivateKey> keys = getSamples(keyPair, true, translate);
 
         assertEquals(keys.jceSample.getX(), keys.nativeSample.getX(), "X");
         assertParamEquals(keys.jceSample.getParams(), keys.nativeSample.getParams());
     }
 
-    @ParameterizedTest(name = "{1}")
-    @MethodSource("dsaPairs")
-    public void dsaPublic(final KeyPair keyPair, final String testName) throws Exception {
-        Samples<DSAPublicKey> keys = getSamples(keyPair, false);
+    @ParameterizedTest(name = "{1}, Translate: {2}")
+    @MethodSource("dsaPairsTranslation")
+    public void dsaPublic(final KeyPair keyPair, final String testName, final boolean translate) throws Exception {
+        Samples<DSAPublicKey> keys = getSamples(keyPair, false, translate);
 
         assertEquals(keys.jceSample.getY(), keys.nativeSample.getY(), "Y");
         assertParamEquals(keys.jceSample.getParams(), keys.nativeSample.getParams());        
@@ -297,19 +335,19 @@ public class EvpKeyFactoryTest {
         assertEquals(jceParams.getL(), nativeParams.getL(), "L");
     }
 
-    @ParameterizedTest(name = "{1}")
-    @MethodSource("dhPairs")
-    public void dhPrivate(final KeyPair keyPair, final String testName) throws Exception {
-        Samples<DHPrivateKey> keys = getSamples(keyPair, true);
+    @ParameterizedTest(name = "{1}, Translate: {2}")
+    @MethodSource("dhPairsTranslation")
+    public void dhPrivate(final KeyPair keyPair, final String testName, final boolean translate) throws Exception {
+        Samples<DHPrivateKey> keys = getSamples(keyPair, true, translate);
 
         assertEquals(keys.jceSample.getX(), keys.nativeSample.getX(), "X");
         assertParamEquals(keys.jceSample.getParams(), keys.nativeSample.getParams());
     }
 
-    @ParameterizedTest(name = "{1}")
-    @MethodSource("dhPairs")
-    public void dhPublic(final KeyPair keyPair, final String testName) throws Exception {
-        Samples<DHPublicKey> keys = getSamples(keyPair, false);
+    @ParameterizedTest(name = "{1}, Translate: {2}")
+    @MethodSource("dhPairsTranslation")
+    public void dhPublic(final KeyPair keyPair, final String testName, final boolean translate) throws Exception {
+        Samples<DHPublicKey> keys = getSamples(keyPair, false, translate);
 
         assertEquals(keys.jceSample.getY(), keys.nativeSample.getY(), "Y");
         assertParamEquals(keys.jceSample.getParams(), keys.nativeSample.getParams());        
@@ -335,18 +373,18 @@ public class EvpKeyFactoryTest {
         assertEquals(samples.jceSample.getY(), samples.jceSample.getY(), "Y");
     }
 
-    @ParameterizedTest(name = "{1}")
-    @MethodSource("ecPairs")
-    public void ecPrivate(final KeyPair keyPair, final String testName) throws Exception {
-        Samples<ECPrivateKey> keys = getSamples(keyPair, true);
+    @ParameterizedTest(name = "{1}, Translate: {2}")
+    @MethodSource("ecPairsTranslation")
+    public void ecPrivate(final KeyPair keyPair, final String testName, final boolean translate) throws Exception {
+        Samples<ECPrivateKey> keys = getSamples(keyPair, true, translate);
 
         EcGenTest.assertECEquals("ecPrivate", keys.jceSample, keys.nativeSample);
     }
 
-    @ParameterizedTest(name = "{1}")
-    @MethodSource("ecPairs")
-    public void ecPublic(final KeyPair keyPair, final String testName) throws Exception {
-        Samples<ECPublicKey> keys = getSamples(keyPair, false);
+    @ParameterizedTest(name = "{1}, Translate: {2}")
+    @MethodSource("ecPairsTranslation")
+    public void ecPublic(final KeyPair keyPair, final String testName, final boolean translate) throws Exception {
+        Samples<ECPublicKey> keys = getSamples(keyPair, false, translate);
 
         EcGenTest.assertECEquals("ecPublic", keys.jceSample, keys.nativeSample);
     }
@@ -370,22 +408,34 @@ public class EvpKeyFactoryTest {
     }
 
     @SuppressWarnings("unchecked")
-    private static <T extends Key, S extends KeySpec> Samples<T> getSamples(KeyPair pair, boolean isPrivate) throws GeneralSecurityException {
+    private static <T extends Key> Samples<T> getSamples(KeyPair pair, boolean isPrivate, boolean isTranslated) throws GeneralSecurityException {
         final String algorithm = pair.getPublic().getAlgorithm();
         final KeyFactory nativeFactory = KeyFactory.getInstance(algorithm, NATIVE_PROVIDER);
         final KeyFactory jceFactory = KeyFactory.getInstance(algorithm);
         final T nativeSample;
         final T jceSample;
-        if (isPrivate) {
-            final PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(pair.getPrivate().getEncoded());
-            nativeSample = (T) nativeFactory.generatePrivate(spec);
-            jceSample = (T) jceFactory.generatePrivate(spec);
+        if (isTranslated) {
+            if (isPrivate) {
+                nativeSample = (T) nativeFactory.translateKey(pair.getPrivate());
+                jceSample = (T) jceFactory.translateKey(pair.getPrivate());
+            } else {
+                nativeSample = (T) nativeFactory.translateKey(pair.getPublic());
+                jceSample = (T) jceFactory.translateKey(pair.getPublic());
+            }
+            assertNotSame(nativeSample, jceSample);
+            // Retranslation should leave it the same
+            assertSame(nativeSample, nativeFactory.translateKey(nativeSample));
         } else {
-            final X509EncodedKeySpec spec = new X509EncodedKeySpec(pair.getPublic().getEncoded());
-            nativeSample = (T) nativeFactory.generatePublic(spec);
-            jceSample = (T) jceFactory.generatePublic(spec);
+            if (isPrivate) {
+                final PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(pair.getPrivate().getEncoded());
+                nativeSample = (T) nativeFactory.generatePrivate(spec);
+                jceSample = (T) jceFactory.generatePrivate(spec);
+            } else {
+                final X509EncodedKeySpec spec = new X509EncodedKeySpec(pair.getPublic().getEncoded());
+                nativeSample = (T) nativeFactory.generatePublic(spec);
+                jceSample = (T) jceFactory.generatePublic(spec);
+            }
         }
-
         assertEquals(jceSample.getAlgorithm(), nativeSample.getAlgorithm(), "Algorithm");
         assertEquals(jceSample.getFormat(), nativeSample.getFormat(), "Format");
         assertArrayEquals(jceSample.getEncoded(), nativeSample.getEncoded(), "Encoded");
