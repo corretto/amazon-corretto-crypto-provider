@@ -165,7 +165,7 @@ public class InputBuffer<T, S, X extends Throwable> implements Cloneable {
     //@ spec_public
     private /*@ { Consumer.Local<S> } @*/ Consumer<S> stateResetter = (ignored) -> { }; // NOP
     //@ spec_public
-    private StateSupplier<S> stateSupplier = () -> null;
+    private StateSupplier<S> stateSupplier = () -> state;
     //@ spec_public
     private Optional<Function<S, S>> stateCloner = Optional.empty();
     // If absent, delegates to arrayUpdater
@@ -229,10 +229,7 @@ public class InputBuffer<T, S, X extends Throwable> implements Cloneable {
     public void reset() {
         buff.reset();
         firstData = true;
-        if (state != null) {
-            stateResetter.accept(state);
-        }
-        state = stateSupplier.get();
+        state = null;
         /*@ set bytesReceived = 0;
           @ set bytesProcessed = 0;
           @ set bufferState = ((bufferState == BufferState.Uninitialized)

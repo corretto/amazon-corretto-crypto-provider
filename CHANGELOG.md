@@ -11,6 +11,7 @@ method.
 ### Improvements
 * Stricter guarantees about which curves are used for EC key generation. [PR #127](https://github.com/corretto/amazon-corretto-crypto-provider/pull/127)
 * Reduce timing signal from trimming zeros of TLSPremasterSecrets from DH KeyAgreement. [PR #129](https://github.com/corretto/amazon-corretto-crypto-provider/pull/129)
+* Reuse state in `MessageDigest` to decrease object allocation rate. [PR #131](https://github.com/corretto/amazon-corretto-crypto-provider/pull/131)
 * Add `KeyFactory` implementations for RSA, EC, DH, and DSA keys. This also includes our own implementations of keys for the same algorithms.
 
 ### Patches
