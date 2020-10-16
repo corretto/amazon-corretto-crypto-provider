@@ -1,6 +1,10 @@
 # Changelog
 
 ## 2.0.0 (Unreleased)
+We're marking this as a major version release due to new implementions of `KeyFactory`.
+Though these changes are expected to have no visible impact (other than performance) to consumers,
+they do correspond to a significant rearchitecture of ACCP.
+
 ### Breaking Change
 In accordance with our [versioning policy](https://github.com/corretto/amazon-corretto-crypto-provider/blob/master/VERSIONING.rst),
 this release contains a low-risk breaking change. For details please see the [1.5.0](#150) section of this document.
@@ -12,7 +16,7 @@ method.
 * Stricter guarantees about which curves are used for EC key generation. [PR #127](https://github.com/corretto/amazon-corretto-crypto-provider/pull/127)
 * Reduce timing signal from trimming zeros of TLSPremasterSecrets from DH KeyAgreement. [PR #129](https://github.com/corretto/amazon-corretto-crypto-provider/pull/129)
 * Reuse state in `MessageDigest` to decrease object allocation rate. [PR #131](https://github.com/corretto/amazon-corretto-crypto-provider/pull/131)
-* Add `KeyFactory` implementations for RSA, EC, DH, and DSA keys. This also includes our own implementations of keys for the same algorithms.
+* Add `KeyFactory` implementations for RSA, EC, DH, and DSA keys. This also includes our own implementations of keys for the same algorithms. [PR #132](https://github.com/corretto/amazon-corretto-crypto-provider/pull/132)
 
 ### Patches
 * Add version gating to some tests introduced in 1.5.0 [PR #128](https://github.com/corretto/amazon-corretto-crypto-provider/pull/128)
