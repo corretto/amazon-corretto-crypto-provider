@@ -27,7 +27,7 @@ class EvpEcPublicKey extends EvpEcKey implements ECPublicKey {
     public ECPoint getW() {
         synchronized (this) {
             if (w == null) {
-                final int fieldSizeBits = getParams().getCurve​().getField().getFieldSize();
+                final int fieldSizeBits = getParams().getCurve().getField().getFieldSize();
                 final int fieldSizeBytes = (fieldSizeBits + 7) / 8;
 
                 final byte[] x = new byte[fieldSizeBytes];

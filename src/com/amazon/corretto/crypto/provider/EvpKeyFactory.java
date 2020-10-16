@@ -79,7 +79,7 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
     }
 
     @Override
-    protected <T extends KeySpec> T engineGetKeySpec​(Key key, Class<T> keySpec) throws InvalidKeySpecException {
+    protected <T extends KeySpec> T engineGetKeySpec(Key key, Class<T> keySpec) throws InvalidKeySpecException {
         if (keySpec.isAssignableFrom(PKCS8EncodedKeySpec.class) && key.getFormat().equalsIgnoreCase("PKCS#8")) {
             return keySpec.cast(new PKCS8EncodedKeySpec(requireNonNullEncoding(key)));
         }
@@ -186,10 +186,10 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
         }
 
         @Override
-        protected <T extends KeySpec> T engineGetKeySpec​(Key key, Class<T> keySpec) throws InvalidKeySpecException {
+        protected <T extends KeySpec> T engineGetKeySpec(Key key, Class<T> keySpec) throws InvalidKeySpecException {
             if (keySpec.isAssignableFrom(RSAPrivateCrtKeySpec.class) && key instanceof RSAPrivateCrtKey) {
                 RSAPrivateCrtKey crtKey = (RSAPrivateCrtKey) key;
-                return keySpec.cast(new RSAPrivateCrtKeySpec​(
+                return keySpec.cast(new RSAPrivateCrtKeySpec(
                     crtKey.getModulus(),
                     crtKey.getPublicExponent(),
                     crtKey.getPrivateExponent(),
@@ -207,7 +207,7 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
                 RSAPublicKey rsaKey = (RSAPublicKey) key;
                 return keySpec.cast(new RSAPublicKeySpec(rsaKey.getModulus(), rsaKey.getPublicExponent()));
             }
-            return super.engineGetKeySpec​(key, keySpec);
+            return super.engineGetKeySpec(key, keySpec);
         }
 
         @Override
@@ -246,7 +246,7 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
         }
 
         @Override
-        protected <T extends KeySpec> T engineGetKeySpec​(Key key, Class<T> keySpec) throws InvalidKeySpecException {
+        protected <T extends KeySpec> T engineGetKeySpec(Key key, Class<T> keySpec) throws InvalidKeySpecException {
             if (ECPublicKeySpec.class.isAssignableFrom(keySpec) && key instanceof ECPublicKey) {
                 ECPublicKey ecKey = (ECPublicKey) key;
                 return keySpec.cast(new ECPublicKeySpec(ecKey.getW(), ecKey.getParams()));
@@ -294,7 +294,7 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
 
         @Override
         @SuppressWarnings("unchecked")
-        protected <T extends KeySpec> T engineGetKeySpec​(Key key, Class<T> keySpec) throws InvalidKeySpecException {
+        protected <T extends KeySpec> T engineGetKeySpec(Key key, Class<T> keySpec) throws InvalidKeySpecException {
             if (DHPublicKeySpec.class.isAssignableFrom(keySpec) && key instanceof DHPublicKey) {
                 DHPublicKey dhKey = (DHPublicKey) key;
                 DHParameterSpec params = dhKey.getParams();
@@ -345,7 +345,7 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
 
         @Override
         @SuppressWarnings("unchecked")
-        protected <T extends KeySpec> T engineGetKeySpec​(Key key, Class<T> keySpec) throws InvalidKeySpecException {
+        protected <T extends KeySpec> T engineGetKeySpec(Key key, Class<T> keySpec) throws InvalidKeySpecException {
             if (DSAPublicKeySpec.class.isAssignableFrom(keySpec) && key instanceof DSAPublicKey) {
                 DSAPublicKey dsaKey = (DSAPublicKey) key;
                 DSAParams params = dsaKey.getParams();

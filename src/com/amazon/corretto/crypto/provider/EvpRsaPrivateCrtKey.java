@@ -81,31 +81,31 @@ class EvpRsaPrivateCrtKey extends EvpRsaPrivateKey implements RSAPrivateCrtKey {
     }
 
     @Override
-    public BigInteger getCrtCoefficient​() {
+    public BigInteger getCrtCoefficient() {
         initBNs();
         return crtCoef;
     }
 
     @Override
-    public BigInteger getPrimeExponentP​() {
+    public BigInteger getPrimeExponentP() {
         initBNs();
         return expP;
     }
 
     @Override
-    public BigInteger getPrimeExponentQ​() {
+    public BigInteger getPrimeExponentQ() {
         initBNs();
         return expQ;
     }
 
     @Override
-    public BigInteger getPrimeP​() {
+    public BigInteger getPrimeP() {
         initBNs();
         return primeP;
     }
 
     @Override
-    public BigInteger getPrimeQ​() {
+    public BigInteger getPrimeQ() {
         initBNs();
         return primeQ;
     }
