@@ -44,7 +44,6 @@ abstract class EvpKey implements Key, Destroyable {
         this.ephemeral = ephemeral;
     }
 
-    // TODO: Call this aggressively throughout
     void releaseEphemeral() {
         if (ephemeral) {
             destroy();

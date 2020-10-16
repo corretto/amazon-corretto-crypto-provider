@@ -92,7 +92,10 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
 
     @Override
     protected Key engineTranslateKey(Key key) throws InvalidKeyException {
-        // Caller must have already called keyNeedsConversion!
+        if (!keyNeedsConversion(key)) {
+            return key;
+        }
+
         try {
             final EvpKey result;
             if (key.getFormat().equalsIgnoreCase("PKCS#8")) {
@@ -209,15 +212,6 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
             }
             return super.engineGetKeySpec(key, keySpec);
         }
-
-        @Override
-        protected Key engineTranslateKey(Key key) throws InvalidKeyException {
-            if (!keyNeedsConversion(key)) {
-                return key;
-            }
-            // TODO: Do we need special logic?
-            return super.engineTranslateKey(key);
-        }
     }
 
     static class EC extends EvpKeyFactory {
@@ -256,15 +250,6 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
                 return keySpec.cast(new ECPrivateKeySpec(ecKey.getS(), ecKey.getParams()));
             }
             return super.engineGetKeySpec(key, keySpec);
-        }
-
-        @Override
-        protected Key engineTranslateKey(Key key) throws InvalidKeyException {
-            if (!keyNeedsConversion(key)) {
-                return key;
-            }
-            // TODO: Do we need special logic?
-            return super.engineTranslateKey(key);
         }
     }
 
@@ -307,15 +292,6 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
             }
             return super.engineGetKeySpec(key, keySpec);
         }
-
-        @Override
-        protected Key engineTranslateKey(Key key) throws InvalidKeyException {
-            if (!keyNeedsConversion(key)) {
-                return key;
-            }
-            // TODO: Do we need special logic?
-            return super.engineTranslateKey(key);
-        }
     }
 
     static class DSA extends EvpKeyFactory {
@@ -357,15 +333,6 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
                 return keySpec.cast(new DSAPrivateKeySpec(dsaKey.getX(), params.getP(), params.getQ(), params.getG()));
             }
             return super.engineGetKeySpec(key, keySpec);
-        }
-
-        @Override
-        protected Key engineTranslateKey(Key key) throws InvalidKeyException {
-            if (!keyNeedsConversion(key)) {
-                return key;
-            }
-            // TODO: Do we need special logic?
-            return super.engineTranslateKey(key);
         }
     }
 
