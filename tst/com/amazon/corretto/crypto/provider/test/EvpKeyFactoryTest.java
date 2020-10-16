@@ -14,6 +14,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 
+import java.math.BigInteger;
+import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -21,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.security.GeneralSecurityException;
+import java.security.InvalidKeyException;
 import java.security.Key;
 import java.security.KeyFactory;
 import java.security.KeyPair;
@@ -85,16 +88,26 @@ public class EvpKeyFactoryTest {
 
         for (String algorithm : ALGORITHMS) {
             KeyPairGenerator kpg = KeyPairGenerator.getInstance(algorithm);
-            // Just use the default parameters
             List<Arguments> keys = new ArrayList<>();
-            keys.add(Arguments.of(kpg.generateKeyPair(), algorithm));
-            if (algorithm.equals("RSA")) {
-                // Special case RSA with no CRT parameters
-                KeyPair pair = kpg.generateKeyPair();
-                RSAPrivateKey privKey = (RSAPrivateKey) pair.getPrivate();
-                final KeyFactory jceFactory = KeyFactory.getInstance(algorithm);
-                privKey = (RSAPrivateKey) jceFactory.generatePrivate(new RSAPrivateKeySpec(privKey.getModulus(), privKey.getPrivateExponent()));
-                keys.add(Arguments.of(new KeyPair(pair.getPublic(), privKey), "RSA-NoCRT"));
+            if (algorithm.equals("EC")) {
+                // Different curves can excercise different areas of ASN.1/DER and so should all be tested.
+                final int[] keySizes = {192, 224, 256, 384, 521};
+
+                for (int size : keySizes) {
+                    kpg.initialize(size);
+                    keys.add(Arguments.of(kpg.generateKeyPair(), algorithm + "-" + size));
+                }
+            } else {
+                // Just use the default parameters
+                keys.add(Arguments.of(kpg.generateKeyPair(), algorithm));
+                if (algorithm.equals("RSA")) {
+                    // Special case RSA with no CRT parameters
+                    KeyPair pair = kpg.generateKeyPair();
+                    RSAPrivateKey privKey = (RSAPrivateKey) pair.getPrivate();
+                    final KeyFactory jceFactory = KeyFactory.getInstance(algorithm);
+                    privKey = (RSAPrivateKey) jceFactory.generatePrivate(new RSAPrivateKeySpec(privKey.getModulus(), privKey.getPrivateExponent()));
+                    keys.add(Arguments.of(new KeyPair(pair.getPublic(), privKey), "RSA-NoCRT"));
+                }
             }
             KEYPAIRS.put(algorithm, keys);
         }
@@ -121,8 +134,46 @@ public class EvpKeyFactoryTest {
         return KEYPAIRS.get("EC");
     }
 
+    public static List<Arguments> badEcPublicKeys() throws Exception {
+        List<Arguments> result = new ArrayList<>();
+        for (Arguments base : ecPairs()) {
+            KeyPair pair = (KeyPair) base.get()[0];
+            ECPublicKey goodKey = (ECPublicKey) pair.getPublic();
+            String name = (String) base.get()[1];
+            result.add(Arguments.of(
+                EvpKeyAgreementTest.buildKeyAtInfinity(goodKey), name + ": Infinity"
+            ));
+            result.add(Arguments.of(
+                EvpKeyAgreementTest.buildKeyOffCurve(goodKey), name + ": OffCurve"
+            ));
+        }
+        return result;
+    }
+
     public static List<Arguments> dhPairs() {
         return KEYPAIRS.get("DH");
+    }
+
+    public static List<Arguments> badDhPublicKeys() throws Exception {
+        List<Arguments> result = new ArrayList<>();
+        for (Arguments base : dhPairs()) {
+            KeyPair pair = (KeyPair) base.get()[0];
+            DHPublicKey goodKey = (DHPublicKey) pair.getPublic();
+            List<DHPublicKey> weakKeys = EvpKeyAgreementTest.buildWeakDhKeys(goodKey);
+            String goodName = (String) base.get()[1];
+            for (DHPublicKey badKey : weakKeys) {
+                String name;
+                // The weak keys can all be named relative to either zero or p
+                BigInteger y = badKey.getY();
+                if (y.compareTo(BigInteger.TEN) <= 0) {
+                    name = goodName + ": y = " + y;
+                } else {
+                    name = goodName + ": (p - y) = " + badKey.getParams().getP().subtract(y);
+                }
+                result.add(Arguments.of(badKey, name));
+            }
+        }
+        return result;
     }
 
     public static List<Arguments> rsaPairsTranslation() {
@@ -174,6 +225,12 @@ public class EvpKeyFactoryTest {
         final X509EncodedKeySpec jceSpec = jceFactory.getKeySpec(pubKey, X509EncodedKeySpec.class);
 
         assertArrayEquals(jceSpec.getEncoded(), nativeSpec.getEncoded(), "X.509 encodings match");
+
+        // Get a spec with extra data
+        final byte[] validSpec = nativeSpec.getEncoded();
+        assertThrows(InvalidKeySpecException.class, () -> nativeFactory.generatePublic(new X509EncodedKeySpec(Arrays.copyOf(validSpec, validSpec.length + 1))));
+        // Get a spec which has been truncated
+        assertThrows(InvalidKeySpecException.class, () -> nativeFactory.generatePublic(new X509EncodedKeySpec(Arrays.copyOf(validSpec, validSpec.length - 1))));
     }
     
     @ParameterizedTest(name = "{1}")
@@ -189,6 +246,12 @@ public class EvpKeyFactoryTest {
         final PKCS8EncodedKeySpec jceSpec = jceFactory.getKeySpec(privKey, PKCS8EncodedKeySpec.class);
 
         assertArrayEquals(jceSpec.getEncoded(), nativeSpec.getEncoded(), "PKCS #8 encodings match");
+
+        // Get a spec with extra data
+        final byte[] validSpec = nativeSpec.getEncoded();
+        assertThrows(InvalidKeySpecException.class, () -> nativeFactory.generatePrivate(new PKCS8EncodedKeySpec(Arrays.copyOf(validSpec, validSpec.length + 1))));
+        // Get a spec which has been truncated
+        assertThrows(InvalidKeySpecException.class, () -> nativeFactory.generatePrivate(new PKCS8EncodedKeySpec(Arrays.copyOf(validSpec, validSpec.length - 1))));
     }
 
     @ParameterizedTest(name = "{1}, Translate: {2}")
@@ -373,6 +436,17 @@ public class EvpKeyFactoryTest {
         assertEquals(samples.jceSample.getY(), samples.jceSample.getY(), "Y");
     }
 
+    @ParameterizedTest(name = "{1}")
+    @MethodSource("badDhPublicKeys")
+    public void dhInvalidPublicKeyRejected(final DHPublicKey badKey, final String testName) throws Exception {
+        final KeyFactory nativeFactory = KeyFactory.getInstance("DH", NATIVE_PROVIDER);
+
+        // Cannot translate it
+        assertThrows(InvalidKeyException.class, () -> nativeFactory.translateKey(badKey));
+        // Cannot construct it from encoding
+        assertThrows(InvalidKeySpecException.class, () -> nativeFactory.generatePublic(new X509EncodedKeySpec(badKey.getEncoded())));
+    }
+
     @ParameterizedTest(name = "{1}, Translate: {2}")
     @MethodSource("ecPairsTranslation")
     public void ecPrivate(final KeyPair keyPair, final String testName, final boolean translate) throws Exception {
@@ -405,6 +479,17 @@ public class EvpKeyFactoryTest {
 
         assertEquals(samples.jceSample.getW(), samples.nativeSample.getW(), "W");
         EcGenTest.assertECEquals("ecPrivateKeySpec", samples.jceSample.getParams(), samples.nativeSample.getParams());
+    }
+
+    @ParameterizedTest(name = "{1}")
+    @MethodSource("badEcPublicKeys")
+    public void ecInvalidPublicKeyRejected(final ECPublicKey badKey, final String testName) throws Exception {
+        final KeyFactory nativeFactory = KeyFactory.getInstance("EC", NATIVE_PROVIDER);
+
+        // Cannot translate it
+        assertThrows(InvalidKeyException.class, () -> nativeFactory.translateKey(badKey));
+        // Cannot construct it from encoding
+        assertThrows(InvalidKeySpecException.class, () -> nativeFactory.generatePublic(new X509EncodedKeySpec(badKey.getEncoded())));
     }
 
     @SuppressWarnings("unchecked")

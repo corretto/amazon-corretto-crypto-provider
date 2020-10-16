@@ -91,53 +91,7 @@ public class EvpKeyAgreementSpecificTest {
 
     }
 
-    // TODO: Convert to key factory tests
-    // @Test
-    // public void invalidDerEncodings() {
-    //     byte[] privKey = EC_KEYPAIR.getPrivate().getEncoded();
-    //     byte[] pubKey = EC_KEYPAIR.getPublic().getEncoded();
-
-    //     assertThrows(InvalidKeyException.class, () -> agree(
-    //         new byte[0],
-    //         pubKey,
-    //         EC_TYPE));
-
-    //     assertThrows(InvalidKeyException.class, () -> agree(
-    //         privKey,
-    //         new byte[0],
-    //         EC_TYPE));
-
-
-    //     assertThrows(InvalidKeyException.class, () -> agree(
-    //         Arrays.copyOf(privKey, privKey.length + 1),
-    //         EC_KEYPAIR.getPublic().getEncoded(),
-    //         EC_TYPE));
-
-    //     assertThrows(InvalidKeyException.class, () -> agree(
-    //         privKey,
-    //         Arrays.copyOf(pubKey, pubKey.length + 1),
-    //         EC_TYPE));
-    // }
-
-    // TODO: Convert to key factory tests
-    // @Test
-    // public void evilEcKeys() {
-    //     byte[] privKey = EC_KEYPAIR.getPrivate().getEncoded();
-    //     assertThrows(InvalidKeyException.class, () -> agree(
-    //         privKey,
-    //         EvpKeyAgreementTest.buildKeyAtInfinity(
-    //             (ECPublicKey) EC_KEYPAIR.getPublic()).getEncoded(),
-    //         EC_TYPE));
-
-    //     assertThrows(InvalidKeyException.class, () -> agree(
-    //         privKey,
-    //         EvpKeyAgreementTest.buildKeyOffCurve(
-    //            (ECPublicKey) EC_KEYPAIR.getPublic()).getEncoded(),
-    //         EC_TYPE));
-
-    // }
-
-    // This test covers three-way DH
+     // This test covers three-way DH
     @Test
     public void dh3() throws Throwable {
         final KeyPairGenerator kg = KeyPairGenerator.getInstance("DH");

@@ -3,6 +3,7 @@
 
 #include <openssl/dh.h>
 #include <openssl/ec.h>
+#include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/rsa.h>
 #include "keyutils.h"
@@ -16,7 +17,7 @@ namespace AmazonCorrettoCryptoProvider {
   } \
 } while(0)
 
-EVP_PKEY* der2EvpPrivateKey(const unsigned char* der, const int derLen, const bool checkPrivateKey, const char* javaExceptionClass) {
+EVP_PKEY* der2EvpPrivateKey(const unsigned char* der, const int derLen, const bool shouldCheckPrivate, const char* javaExceptionClass) {
   const unsigned char* der_mutable_ptr = der; // openssl modifies the input pointer
 
   PKCS8_PRIV_KEY_INFO* pkcs8Key = d2i_PKCS8_PRIV_KEY_INFO(NULL, &der_mutable_ptr, derLen);
@@ -35,9 +36,10 @@ EVP_PKEY* der2EvpPrivateKey(const unsigned char* der, const int derLen, const bo
       throw_openssl(javaExceptionClass, "Unable to convert PKCS8_PRIV_KEY_INFO to EVP_PKEY");
   }
 
-  if (checkPrivateKey && !checkKey(result)) {
-      EVP_PKEY_free(result);
-      throw_openssl(javaExceptionClass, "Key fails check");
+  if (shouldCheckPrivate && !checkPrivateKey(result))
+  {
+    EVP_PKEY_free(result);
+    throw_openssl(javaExceptionClass, "Key fails check");
   }
 
   if (EVP_PKEY_base_id(result) == EVP_PKEY_RSA) {
@@ -103,45 +105,45 @@ EVP_PKEY* der2EvpPublicKey(const unsigned char* der, const int derLen, const cha
     throw_openssl(javaExceptionClass, "Unable to parse key");
   }
 
-  if (!checkKey(result)) {
+  if (!checkPublicKey(result)) {
       EVP_PKEY_free(result);
       throw_openssl(javaExceptionClass, "Key fails check");
   }
   return result;
 }
 
-bool checkKey(EVP_PKEY* key) {
-    int keyType = EVP_PKEY_base_id(key);
-    bool result = false;
+bool checkPublicKey(EVP_PKEY *key)
+{
+  // We can only check EVP_PKEY_CTX objects
+  EvpKeyContext ctx;
+  ctx.setKeyCtx(EVP_PKEY_CTX_new(key, NULL));
+  if (unlikely(ctx.getKeyCtx() == NULL))
+  {
+    throw_openssl(EX_RUNTIME_CRYPTO, "Unable to create EVP_PKEY_CTX");
+  }
+  int opensslResult = EVP_PKEY_public_check(ctx.getKeyCtx());
+  //  1: Success
+  // -2: Key type cannot be checked (so we'll let it through)
+  if (opensslResult == -2) {
+    // Clear the error queue since we know why it happened
+    ERR_clear_error();
+    opensslResult = 1;
+  }
 
-    const RSA* rsaKey;
-    const BIGNUM *p;
-    const BIGNUM *q;
-    const EC_KEY* ecKey;
+  return opensslResult == 1;
+}
 
-    switch (keyType) {
-    case EVP_PKEY_RSA:
-        rsaKey = EVP_PKEY_get0_RSA(key);
-        RSA_get0_factors(rsaKey, &p, &q);
-        // RSA_check_key only works when sufficient private values are set
-        if (p && !BN_is_zero(p) && q && !BN_is_zero(q)) {
-            result = RSA_check_key(rsaKey) == 1;
-        } else {
-            // We don't have enough information to actually check the key
-            result = true;
-        }
-
-        break;
-    case EVP_PKEY_EC:
-        ecKey = EVP_PKEY_get0_EC_KEY(key);
-        result = EC_KEY_check_key(ecKey) == 1;
-
-        break;
-    default:
-        // Keys we can't check, we just claim are fine, because there is nothing else we can do.
-        // DH keys appear to be properly checked upon use (and unit test confirm this behavior).
-        result = true;
-    }
-    return result;
+bool checkPrivateKey(EVP_PKEY* key) {
+  // We can only check EVP_PKEY_CTX objects
+  EvpKeyContext ctx;
+  ctx.setKeyCtx(EVP_PKEY_CTX_new(key, NULL));
+  if (unlikely(ctx.getKeyCtx() == NULL)) {
+    throw_openssl(EX_RUNTIME_CRYPTO, "Unable to create EVP_PKEY_CTX");
+  }
+  int opensslResult = EVP_PKEY_check(ctx.getKeyCtx());
+  //  1: Success
+  // -2: Key type cannot be checked (so we'll let it through)
+  // Anything else: Error
+  return (opensslResult == 1 || opensslResult == -2);
 }
 }

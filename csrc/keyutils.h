@@ -107,7 +107,8 @@ namespace AmazonCorrettoCryptoProvider
 
     EVP_PKEY *der2EvpPrivateKey(const unsigned char *der, const int derLen, const bool checkPrivateKey, const char *javaExceptionClass);
     EVP_PKEY *der2EvpPublicKey(const unsigned char *der, const int derLen, const char *javaExceptionClass);
-    bool checkKey(EVP_PKEY *key);
+    bool checkPrivateKey(EVP_PKEY *key);
+    bool checkPublicKey(EVP_PKEY *key);
 
     class raii_cipher_ctx
     {
