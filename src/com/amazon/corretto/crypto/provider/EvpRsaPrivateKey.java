@@ -40,13 +40,10 @@ class EvpRsaPrivateKey extends EvpRsaKey implements RSAPrivateKey {
     }
 
     @Override
-    public byte[] getEncoded() {
+    protected synchronized void initEncoded() {
         // RSA private keys in Java may lack CRT parameters and thus need custom serialization
-        synchronized (this) {
-            if (encoded == null) {
-                encoded = use(EvpRsaPrivateKey::encodeRsaPrivateKey);
-            }
+        if (encoded == null) {
+            encoded = use(EvpRsaPrivateKey::encodeRsaPrivateKey);
         }
-        return encoded != null ? encoded.clone() : encoded;
     }
 }

@@ -521,6 +521,9 @@ public class EvpKeyFactoryTest {
                 jceSample = (T) jceFactory.generatePublic(spec);
             }
         }
+        // Check is done in both directions to ensure that regardless of who's equality code is run, it still passes.
+        assertEquals(jceSample, nativeSample);
+        assertEquals(nativeSample, jceSample);
         assertEquals(jceSample.getAlgorithm(), nativeSample.getAlgorithm(), "Algorithm");
         assertEquals(jceSample.getFormat(), nativeSample.getFormat(), "Format");
         assertArrayEquals(jceSample.getEncoded(), nativeSample.getEncoded(), "Encoded");
