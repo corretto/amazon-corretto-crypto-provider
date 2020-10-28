@@ -7,7 +7,6 @@ import java.io.IOException;
 import java.security.AlgorithmParameters;
 import java.security.GeneralSecurityException;
 import java.security.InvalidKeyException;
-import java.security.KeyFactory;
 import java.security.KeyFactorySpi;
 import java.security.Key;
 import java.security.PrivateKey;
@@ -347,53 +346,6 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
                 return keySpec.cast(new DSAPrivateKeySpec(dsaKey.getX(), params.getP(), params.getQ(), params.getG()));
             }
             return super.engineGetKeySpec(key, keySpec);
-        }
-    }
-
-    // This next block of code is a micro-optimization around getting instances of this factory.
-    // It turns out the KeyFactory.getInstance(String, Provider) can be expensive
-    // (primarily due to synchronization of Provider.getService).
-    // The JDK tries to speed up the fast-path by remembering the last service retrieved
-    // for a given Provider and returning it quickly if it is retrieved again.
-    //
-    // With the move to EVP keys many of our SPIs require an instance of KeyFactory that they can
-    // use (primarily for translateKey). Since this means that retrieving a non-KeyFactory SPI
-    // shortly thereafter results in retrieving a KeyFactory SPI, there is real churn in
-    // Provider.getService which can massively slow-down performance.
-    //
-    // These methods will do a lazy-init (to avoid circular dependencies) of minimal KeyFactories
-    // for ACCP use only. This way we only create one of each and do not touch the expensive
-    // Provider.getService logic.
-    static KeyFactory commonRsaFactory() {
-        return FieldHolder.RSA_FACTORY;
-    }
-
-    static KeyFactory commonDsaFactory() {
-        return FieldHolder.DSA_FACTORY;
-    }
-
-    static KeyFactory commonDhFactory() {
-        return FieldHolder.DH_FACTORY;
-    }
-
-    static KeyFactory commonEcFactory() {
-        return FieldHolder.EC_FACTORY;
-    }
-
-    // Lazy-initialization of fields without needing to worry about synchronization
-    private static class FieldHolder {
-        static final KeyFactory RSA_FACTORY = new ShimFactory(new RSA(AmazonCorrettoCryptoProvider.INSTANCE));
-        static final KeyFactory DSA_FACTORY = new ShimFactory(new DSA(AmazonCorrettoCryptoProvider.INSTANCE));
-        static final KeyFactory DH_FACTORY = new ShimFactory(new DH(AmazonCorrettoCryptoProvider.INSTANCE));
-        static final KeyFactory EC_FACTORY = new ShimFactory(new EC(AmazonCorrettoCryptoProvider.INSTANCE));
-    }
-
-    /**
-     * Minimal KeyFactory used by the lazily initialized keyfactories above for internal use.
-     */
-    private static class ShimFactory extends KeyFactory {
-        private ShimFactory(EvpKeyFactory spi) {
-            super(spi, AmazonCorrettoCryptoProvider.INSTANCE, spi.type.jceName);
         }
     }
 }

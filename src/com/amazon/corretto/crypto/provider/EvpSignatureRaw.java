@@ -7,12 +7,10 @@ import java.nio.ByteBuffer;
 import java.security.SignatureException;
 
 class EvpSignatureRaw extends EvpSignatureBase {
-    private final AmazonCorrettoCryptoProvider provider_;
     private AccessibleByteArrayOutputStream buffer = new AccessibleByteArrayOutputStream(64, 1024 * 1024);
 
     private EvpSignatureRaw(AmazonCorrettoCryptoProvider provider, final EvpKeyType keyType, final int paddingType) {
-        super(keyType, paddingType);
-        provider_ = provider;
+        super(provider, keyType, paddingType);
     }
 
     @Override

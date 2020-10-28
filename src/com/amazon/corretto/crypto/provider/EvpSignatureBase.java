@@ -25,6 +25,7 @@ abstract class EvpSignatureBase extends SignatureSpi {
     // Package visible so main Provider can use it
     static final String P1363_FORMAT_SUFFIX = "inP1363Format";
     protected static final int RSA_PKCS1_PADDING = 1;
+    protected final AmazonCorrettoCryptoProvider provider_;
     protected final EvpKeyType keyType_;
     protected final int paddingType_;
     protected Key untranslatedKey_ = null;
@@ -34,9 +35,11 @@ abstract class EvpSignatureBase extends SignatureSpi {
     protected String algorithmName_ = null;
 
     EvpSignatureBase(
+            final AmazonCorrettoCryptoProvider provider,
             final EvpKeyType keyType,
             final int paddingType
     ) {
+        provider_ = provider;
         keyType_ = keyType;
         paddingType_ = paddingType;
     }
@@ -71,7 +74,7 @@ abstract class EvpSignatureBase extends SignatureSpi {
             if (key_ != null) {
                 key_.releaseEphemeral();
             }
-            key_ = keyType_.translateKey(untranslatedKey_);
+            key_ = provider_.translateKey(untranslatedKey_, keyType_);
         }
         signMode = true;
         engineReset();
@@ -92,7 +95,7 @@ abstract class EvpSignatureBase extends SignatureSpi {
             if (key_ != null) {
                 key_.releaseEphemeral();
             }
-            key_ = keyType_.translateKey(untranslatedKey_);
+            key_ = provider_.translateKey(untranslatedKey_, keyType_);
         }
         signMode = false;
         engineReset();

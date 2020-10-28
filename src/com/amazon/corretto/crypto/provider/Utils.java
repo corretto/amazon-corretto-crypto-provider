@@ -112,16 +112,16 @@ final class Utils {
         return (long)o1 + length > (long)o2;
     }
 
-    static byte[] encodeForWrapping(final Key key) throws InvalidKeyException {
+    static byte[] encodeForWrapping(final AmazonCorrettoCryptoProvider provider, final Key key) throws InvalidKeyException {
         try {
             final byte[] encoded;
             if (key instanceof SecretKey) {
                 encoded = key.getEncoded();
             } else if (key instanceof PublicKey) {
-                final KeyFactory factory = getKeyFactory(key.getAlgorithm());
+                final KeyFactory factory = getKeyFactory(provider, key.getAlgorithm());
                 encoded = factory.getKeySpec(key, X509EncodedKeySpec.class).getEncoded();
             } else if (key instanceof PrivateKey) {
-                final KeyFactory factory = getKeyFactory(key.getAlgorithm());
+                final KeyFactory factory = getKeyFactory(provider, key.getAlgorithm());
                 encoded = factory.getKeySpec(key, PKCS8EncodedKeySpec.class).getEncoded();
             } else {
                 throw new InvalidKeyException("Key does not implement SecretKey, PublicKey, or PrivateKey");
@@ -135,15 +135,15 @@ final class Utils {
         }
     }
 
-    static Key buildUnwrappedKey(final byte[] rawKey, final String algorithm, final int keyType)
+    static Key buildUnwrappedKey(final AmazonCorrettoCryptoProvider provider, final byte[] rawKey, final String algorithm, final int keyType)
             throws NoSuchAlgorithmException, InvalidKeySpecException {
         switch (keyType) {
             case Cipher.SECRET_KEY:
                 return buildUnwrappedSecretKey(rawKey, algorithm);
             case Cipher.PUBLIC_KEY:
-                return buildUnwrappedPublicKey(rawKey, algorithm);
+                return buildUnwrappedPublicKey(provider, rawKey, algorithm);
             case Cipher.PRIVATE_KEY:
-                return buildUnwrappedPrivateKey(rawKey, algorithm);
+                return buildUnwrappedPrivateKey(provider, rawKey, algorithm);
             default:
                 throw new IllegalArgumentException("Unexpected key type: " + keyType);
         }
@@ -153,17 +153,17 @@ final class Utils {
         return new SecretKeySpec(rawKey, algorithm);
     }
 
-    static PublicKey buildUnwrappedPublicKey(final byte[] rawKey, final String algorithm)
+    static PublicKey buildUnwrappedPublicKey(final AmazonCorrettoCryptoProvider provider, final byte[] rawKey, final String algorithm)
             throws NoSuchAlgorithmException,
             InvalidKeySpecException {
-        final KeyFactory kf = getKeyFactory(algorithm);
+        final KeyFactory kf = getKeyFactory(provider, algorithm);
         return kf.generatePublic(new X509EncodedKeySpec(rawKey));
     }
 
-    static PrivateKey buildUnwrappedPrivateKey(final byte[] rawKey, final String algorithm)
+    static PrivateKey buildUnwrappedPrivateKey(final AmazonCorrettoCryptoProvider provider, final byte[] rawKey, final String algorithm)
             throws NoSuchAlgorithmException,
             InvalidKeySpecException {
-        final KeyFactory kf = getKeyFactory(algorithm);
+        final KeyFactory kf = getKeyFactory(provider, algorithm);
         return kf.generatePrivate(new PKCS8EncodedKeySpec(rawKey));
     }
 
@@ -411,17 +411,17 @@ final class Utils {
         }
     }
 
-    private static KeyFactory getKeyFactory(String algorithm) throws NoSuchAlgorithmException {
+    private static KeyFactory getKeyFactory(AmazonCorrettoCryptoProvider provider, String algorithm) throws NoSuchAlgorithmException {
         // Manual listing of supported algorithms for fast-path KeyFactory creation
         switch (algorithm) {
             case "RSA":
-                return EvpKeyFactory.commonRsaFactory();
+                return provider.getKeyFactory(EvpKeyType.RSA);
             case "DH":
-                return EvpKeyFactory.commonDhFactory();
+                return provider.getKeyFactory(EvpKeyType.DH);
             case "DSA":
-                return EvpKeyFactory.commonDsaFactory();
+                return provider.getKeyFactory(EvpKeyType.DSA);
             case "EC":
-                return EvpKeyFactory.commonEcFactory();
+                return provider.getKeyFactory(EvpKeyType.EC);
             default:
                 return KeyFactory.getInstance(algorithm);
         }

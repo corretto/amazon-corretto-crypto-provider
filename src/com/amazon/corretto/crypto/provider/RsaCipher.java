@@ -237,7 +237,7 @@ class RsaCipher extends CipherSpi {
               key_ = (RSAKey) key;
               keySizeBytes_ = (key_.getModulus().bitLength() + 7) / 8;
               buffer_ = new AccessibleByteArrayOutputStream();
-              nativeKey_ = EvpKeyType.RSA.translateKey(key);
+              nativeKey_ = provider_.translateKey(key, EvpKeyType.RSA);
           }
         }
     }
@@ -365,7 +365,7 @@ class RsaCipher extends CipherSpi {
         }
         try {
             final byte[] unwrappedKey = engineDoFinal(wrappedKey, 0, wrappedKey.length);
-            return Utils.buildUnwrappedKey(unwrappedKey, wrappedKeyAlgorithm, wrappedKeyType);
+            return Utils.buildUnwrappedKey(provider_, unwrappedKey, wrappedKeyAlgorithm, wrappedKeyType);
         } catch (final BadPaddingException | IllegalBlockSizeException | InvalidKeySpecException ex) {
             throw new InvalidKeyException("Unwrapping failed", ex);
         }
@@ -377,7 +377,7 @@ class RsaCipher extends CipherSpi {
             throw new IllegalStateException("Cipher must be in WRAP_MODE");
         }
         try {
-            final byte[] encoded = Utils.encodeForWrapping(key);
+            final byte[] encoded = Utils.encodeForWrapping(provider_, key);
             return engineDoFinal(encoded, 0, encoded.length);
         } catch (final BadPaddingException ex) {
             throw new InvalidKeyException("Wrapping failed", ex);

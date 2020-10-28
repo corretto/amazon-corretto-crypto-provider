@@ -44,25 +44,6 @@ enum EvpKeyType {
         this.privateKeyClass = privateKeyClass;
     }
 
-    KeyFactory getKeyFactory() {
-        switch (this) {
-            case RSA:
-                return EvpKeyFactory.commonRsaFactory();
-            case DH:
-                return EvpKeyFactory.commonDhFactory();
-            case DSA:
-                return EvpKeyFactory.commonDsaFactory();
-            case EC:
-                return EvpKeyFactory.commonEcFactory();
-            default:
-                throw new AssertionError("Unsupported key type");
-        }
-    }
-
-    EvpKey translateKey(Key key) throws InvalidKeyException {
-        return (EvpKey) getKeyFactory().translateKey(key);
-    }
-
     <X extends Throwable> PrivateKey buildPrivateKey(MiscInterfaces.ThrowingToLongBiFunction<byte[], Integer, X> fn, PKCS8EncodedKeySpec der) throws X {
         switch (this) {
             case RSA:

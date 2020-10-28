@@ -193,6 +193,7 @@ final class AesGcmSpi extends CipherSpi {
 
     private static final int BLOCK_SIZE = 128 / 8;
 
+    private final AmazonCorrettoCryptoProvider provider;
     private NativeResource context = null;
     private SecretKey jceKey;
     private byte[] iv, key;
@@ -205,8 +206,8 @@ final class AesGcmSpi extends CipherSpi {
 
     private AccessibleByteArrayOutputStream decryptInputBuf, decryptAADBuf;
 
-    AesGcmSpi() {
-        Loader.checkNativeLibraryAvailability();
+    AesGcmSpi(AmazonCorrettoCryptoProvider provider) {
+        this.provider = provider;
     }
 
     @Override
@@ -722,7 +723,7 @@ final class AesGcmSpi extends CipherSpi {
             throw new IllegalStateException("Cipher must be in WRAP_MODE");
         }
         try {
-            final byte[] encoded = Utils.encodeForWrapping(key);
+            final byte[] encoded = Utils.encodeForWrapping(provider, key);
             return engineDoFinal(encoded, 0, encoded.length);
         } catch (final BadPaddingException ex) {
             throw new InvalidKeyException("Wrapping failed", ex);
@@ -737,7 +738,7 @@ final class AesGcmSpi extends CipherSpi {
         }
         try {
             final byte[] unwrappedKey = engineDoFinal(wrappedKey, 0, wrappedKey.length);
-            return Utils.buildUnwrappedKey(unwrappedKey, wrappedKeyAlgorithm, wrappedKeyType);
+            return Utils.buildUnwrappedKey(provider, unwrappedKey, wrappedKeyAlgorithm, wrappedKeyType);
         } catch (final BadPaddingException | IllegalBlockSizeException | InvalidKeySpecException ex) {
             throw new InvalidKeyException("Unwrapping failed", ex);
         }

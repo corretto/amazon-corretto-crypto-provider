@@ -301,7 +301,6 @@ class EvpSignature extends EvpSignatureBase {
      */
     private static native boolean verifyFinish(long ctx, byte[] signature, int sigOff, int sigLen) throws SignatureException;
 
-    private final AmazonCorrettoCryptoProvider provider_;
     private final String digestName_;
     private byte[] oneByteArray_ = null;
     private final InputBuffer<byte[], EvpContext, RuntimeException> signingBuffer;
@@ -321,9 +320,8 @@ class EvpSignature extends EvpSignatureBase {
      *      href="https://www.openssl.org/docs/man1.1.0/crypto/EVP_get_digestbyname.html">EVP_get_digestbyname</a>
      */
     private EvpSignature(AmazonCorrettoCryptoProvider provider, final EvpKeyType keyType, final int paddingType, final String digestName) {
-        super(keyType, paddingType);
+        super(provider, keyType, paddingType);
         Loader.checkNativeLibraryAvailability();
-        provider_ = provider;
         digestName_ = digestName;
 
         signingBuffer = new InputBuffer<byte[], EvpContext, RuntimeException>(1024)

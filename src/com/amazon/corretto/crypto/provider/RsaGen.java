@@ -32,7 +32,7 @@ class RsaGen extends KeyPairGeneratorSpi {
     RsaGen(AmazonCorrettoCryptoProvider provider) {
         Loader.checkNativeLibraryAvailability();
         provider_ = provider;
-        keyFactory = EvpKeyType.RSA.getKeyFactory();
+        keyFactory = provider_.getKeyFactory(EvpKeyType.RSA);
         kgSpec = DEFAULT_KEYGEN_SPEC;
     }
 

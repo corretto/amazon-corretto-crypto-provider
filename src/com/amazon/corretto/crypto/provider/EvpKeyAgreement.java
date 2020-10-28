@@ -65,7 +65,7 @@ class EvpKeyAgreement extends KeyAgreementSpi {
         if (!keyType_.publicKeyClass.isAssignableFrom(key.getClass())) {
             throw new InvalidKeyException("Expected key of type " + keyType_.publicKeyClass + " not " + key.getClass());
         }
-        final EvpKey publicKey = (EvpKey) keyType_.getKeyFactory().translateKey(key);
+        final EvpKey publicKey = provider_.translateKey(key, keyType_);
         try {
             if (lastPhase) {
                 // We do the actual agreement here because that is where key validation and thus exceptions
@@ -75,7 +75,7 @@ class EvpKeyAgreement extends KeyAgreementSpi {
             } else if ("DH".equals(algorithm_)) {
                 final DHParameterSpec dhParams = ((DHKey) privKey).getParams();
                 try {
-                    final Key result = keyType_.getKeyFactory().generatePublic(new DHPublicKeySpec(
+                    final Key result = provider_.getKeyFactory(keyType_).generatePublic(new DHPublicKeySpec(
                         new BigInteger(1, agree(publicKey)), // y
                         dhParams.getP(),
                         dhParams.getG()
@@ -177,7 +177,7 @@ class EvpKeyAgreement extends KeyAgreementSpi {
         if (privKey != null) {
             privKey.releaseEphemeral();
         }
-        privKey = (EvpKey) keyType_.getKeyFactory().translateKey(key);
+        privKey = provider_.translateKey(key, keyType_);
         reset();
     }
 
