@@ -114,7 +114,8 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_p
     JNIEnv *pEnv,
     jclass,
     jbyteArray pkcs8der,
-    jint nativeValue)
+    jint nativeValue,
+    jboolean shouldCheckPrivate)
 {
     try
     {
@@ -126,7 +127,7 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_p
 
         {
             jni_borrow borrow = jni_borrow(env, pkcs8Buff, "pkcs8Buff");
-            result.setKey(der2EvpPrivateKey(borrow, derLen, false, EX_INVALID_KEY_SPEC));
+            result.setKey(der2EvpPrivateKey(borrow, derLen, shouldCheckPrivate, EX_INVALID_KEY_SPEC));
             if (EVP_PKEY_base_id(result.getKey()) != nativeValue)
             {
                 throw_java_ex(EX_INVALID_KEY_SPEC, "Incorrect key type");
@@ -188,7 +189,8 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_e
     jbyteArray sArr,
     jbyteArray wxArr,
     jbyteArray wyArr,
-    jbyteArray paramsArr)
+    jbyteArray paramsArr,
+    jboolean shouldCheckPrivate)
 {
     try
     {
@@ -249,6 +251,9 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_e
 
                     unsigned int oldFlags = EC_KEY_get_enc_flags(ec);
                     EC_KEY_set_enc_flags(ec, oldFlags | EC_PKEY_NO_PUBKEY);
+                }
+                if (shouldCheckPrivate && !checkPrivateKey(ctx.getKey())) {
+                    throw_openssl(EX_INVALID_KEY_SPEC, "Key fails check");
                 }
             }
 
@@ -549,7 +554,7 @@ JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_EvpRsaPrivateCrt
 }
 
 JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_dh2Evp(
-    JNIEnv *pEnv, jclass, jbyteArray xArr, jbyteArray yArr, jbyteArray paramsDer)
+    JNIEnv *pEnv, jclass, jbyteArray xArr, jbyteArray yArr, jbyteArray paramsDer, jboolean shouldCheckPrivate)
 // x = Private, y = Public
 {
     DH_auto dh;
@@ -606,6 +611,12 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_d
             }
             x.releaseOwnership();
             y.releaseOwnership();
+
+            // !!x means that this is a private key
+            if (shouldCheckPrivate && !!x && !checkPrivateKey(ctx.getKey()))
+            {
+                throw_openssl(EX_INVALID_KEY_SPEC, "Key fails check");
+            }
         }
 
         return reinterpret_cast<jlong>(ctx.moveToHeap());
@@ -777,7 +788,8 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_r
     jbyteArray expPArr,
     jbyteArray expQArr,
     jbyteArray primePArr,
-    jbyteArray primeQArr)
+    jbyteArray primeQArr,
+    jboolean shouldCheckPrivate)
 {
     try
     {
@@ -859,7 +871,11 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_r
         {
             throw_openssl(EX_OOM, "Unable to assign RSA key");
         }
-
+        // We can only check consistency if the CRT parameters are present
+        if (shouldCheckPrivate && !!crtCoefArr && !checkPrivateKey(ctx.getKey()))
+        {
+            throw_openssl(EX_INVALID_KEY_SPEC, "Key fails check");
+        }
         return reinterpret_cast<jlong>(ctx.moveToHeap());
     }
     catch (java_ex &ex)
@@ -943,11 +959,12 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpRsaPriv
  * Signature: ([B[B[B)J
  */
 JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_dsa2Evp(
-    JNIEnv * pEnv,
+    JNIEnv *pEnv,
     jclass,
     jbyteArray xArr,
     jbyteArray yArr,
-    jbyteArray paramsArr)
+    jbyteArray paramsArr,
+    jboolean shouldCheckPrivate)
 {
     try
     {
@@ -1019,6 +1036,11 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_d
 
                 y.releaseOwnership();
                 x.releaseOwnership();
+
+                if (shouldCheckPrivate && !checkPrivateKey(ctx.getKey()))
+                {
+                    throw_openssl(EX_INVALID_KEY_SPEC, "Key fails check");
+                }
             } else {
                 throw_java_ex(EX_RUNTIME_CRYPTO, "DSA lacks both public and private parts");
             }

@@ -42,20 +42,30 @@ import java.security.spec.X509EncodedKeySpec;
 
 abstract class EvpKeyFactory extends KeyFactorySpi {
     private final EvpKeyType type;
+    private final AmazonCorrettoCryptoProvider provider;
 
-    private static native long pkcs82Evp(byte[] der, int nativeValue) throws InvalidKeySpecException;
+    private static native long pkcs82Evp(byte[] der, int nativeValue, boolean checkPrivate) throws InvalidKeySpecException;
     private static native long x5092Evp(byte[] der, int nativeValue) throws InvalidKeySpecException;
 
-    private static native long rsa2Evp(byte[] modulus, byte[] publicExponentArr, byte[] privateExponentArr, byte[] crtCoefArr, byte[] expPArr, byte[] expQArr, byte[] primePArr, byte[] primeQArr);
-    private static native long ec2Evp(byte[] s, byte[] wx, byte[] wy, byte[] params) throws InvalidKeySpecException; // DONE
-    private static native long dsa2Evp(byte[] x, byte[] y, byte[] params);
-    private static native long dh2Evp(byte[] x, byte[] y, byte[] params) throws InvalidKeySpecException; // DONE
+    private static native long rsa2Evp(byte[] modulus, byte[] publicExponentArr, byte[] privateExponentArr, byte[] crtCoefArr, byte[] expPArr, byte[] expQArr, byte[] primePArr, byte[] primeQArr, boolean checkPrivate);
+    private static native long ec2Evp(byte[] s, byte[] wx, byte[] wy, byte[] params, boolean checkPrivate) throws InvalidKeySpecException;
+    private static native long dsa2Evp(byte[] x, byte[] y, byte[] params, boolean checkPrivate);
+    private static native long dh2Evp(byte[] x, byte[] y, byte[] params, boolean checkPrivate) throws InvalidKeySpecException;
 
-    protected EvpKeyFactory(EvpKeyType type) {
+    protected EvpKeyFactory(EvpKeyType type, AmazonCorrettoCryptoProvider provider) {
         this.type = type;
+        this.provider = provider;
         if (this.type == null) {
             throw new NullPointerException("Null type?!");
         }
+    }
+
+    protected boolean shouldCheckPrivateKey() {
+        return provider.hasExtraCheck(ExtraCheck.PRIVATE_KEY_CONSISTENCY);
+    }
+
+    protected long maybeCheckPkcs82Evp(byte[] der, int nativeValue) throws InvalidKeySpecException {
+        return pkcs82Evp(der, nativeValue, shouldCheckPrivateKey());
     }
 
     @Override
@@ -65,7 +75,7 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
         }
         PKCS8EncodedKeySpec pkcs8 = (PKCS8EncodedKeySpec) keySpec;
 
-        return type.buildPrivateKey(EvpKeyFactory::pkcs82Evp, pkcs8);
+        return type.buildPrivateKey(this::maybeCheckPkcs82Evp, pkcs8);
     }
 
     @Override
@@ -138,8 +148,8 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
     }
 
     static class RSA extends EvpKeyFactory {
-        RSA() {
-            super(EvpKeyType.RSA);
+        RSA(AmazonCorrettoCryptoProvider provider) {
+            super(EvpKeyType.RSA, provider);
         }
 
         @Override
@@ -164,14 +174,14 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
                 primePArr = spec.getPrimeP().toByteArray();
                 primeQArr = spec.getPrimeQ().toByteArray();
 
-                return new EvpRsaPrivateCrtKey(rsa2Evp(modulus, publicExponentArr, privateExponentArr, crtCoefArr, expPArr, expQArr, primePArr, primeQArr));
+                return new EvpRsaPrivateCrtKey(rsa2Evp(modulus, publicExponentArr, privateExponentArr, crtCoefArr, expPArr, expQArr, primePArr, primeQArr, shouldCheckPrivateKey()));
             }
             if (keySpec instanceof RSAPrivateKeySpec) {
                 RSAPrivateKeySpec spec = (RSAPrivateKeySpec) keySpec;
                 modulus = spec.getModulus().toByteArray();
                 privateExponentArr = spec.getPrivateExponent().toByteArray();
 
-                return new EvpRsaPrivateKey(rsa2Evp(modulus, publicExponentArr, privateExponentArr, crtCoefArr, expPArr, expQArr, primePArr, primeQArr));
+                return new EvpRsaPrivateKey(rsa2Evp(modulus, publicExponentArr, privateExponentArr, crtCoefArr, expPArr, expQArr, primePArr, primeQArr, shouldCheckPrivateKey()));
             }
             return super.engineGeneratePrivate(keySpec);
         }
@@ -183,7 +193,7 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
                 byte[] modulus = spec.getModulus().toByteArray();
                 byte[] publicExponentArr = spec.getPublicExponent().toByteArray();
 
-                return new EvpRsaPublicKey(rsa2Evp(modulus, publicExponentArr, null, null, null, null, null, null));
+                return new EvpRsaPublicKey(rsa2Evp(modulus, publicExponentArr, null, null, null, null, null, null, false));
             }
             return super.engineGeneratePublic(keySpec);
         }
@@ -215,15 +225,15 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
     }
 
     static class EC extends EvpKeyFactory {
-        EC() {
-            super(EvpKeyType.EC);
+        EC(AmazonCorrettoCryptoProvider provider) {
+            super(EvpKeyType.EC, provider);
         }
 
         @Override
         protected PrivateKey engineGeneratePrivate(KeySpec keySpec) throws InvalidKeySpecException {
             if (keySpec instanceof ECPrivateKeySpec) {
                 ECPrivateKeySpec ecSpec = (ECPrivateKeySpec) keySpec;
-                return new EvpEcPrivateKey(ec2Evp(ecSpec.getS().toByteArray(), null, null, paramsToDer(ecSpec.getParams())));
+                return new EvpEcPrivateKey(ec2Evp(ecSpec.getS().toByteArray(), null, null, paramsToDer(ecSpec.getParams()), shouldCheckPrivateKey()));
             }
             return super.engineGeneratePrivate(keySpec);
         }
@@ -234,7 +244,8 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
                 ECPublicKeySpec ecSpec = (ECPublicKeySpec) keySpec;
                 return new EvpEcPublicKey(ec2Evp(null,
                     ecSpec.getW().getAffineX().toByteArray(), ecSpec.getW().getAffineY().toByteArray(),
-                    paramsToDer(ecSpec.getParams())));
+                    paramsToDer(ecSpec.getParams()),
+                    false));
             }
             return super.engineGeneratePublic(keySpec);
         }
@@ -254,15 +265,15 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
     }
 
     static class DH extends EvpKeyFactory {
-        DH() {
-            super(EvpKeyType.DH);
+        DH(AmazonCorrettoCryptoProvider provider) {
+            super(EvpKeyType.DH, provider);
         }
 
         @Override
         protected PrivateKey engineGeneratePrivate(KeySpec keySpec) throws InvalidKeySpecException {
             if (keySpec instanceof DHPrivateKeySpec) {
                 DHPrivateKeySpec dhSpec = (DHPrivateKeySpec) keySpec;
-                return new EvpDhPrivateKey(dh2Evp(dhSpec.getX().toByteArray(), null, paramsToDer(new DHParameterSpec(dhSpec.getP(), dhSpec.getG()))));
+                return new EvpDhPrivateKey(dh2Evp(dhSpec.getX().toByteArray(), null, paramsToDer(new DHParameterSpec(dhSpec.getP(), dhSpec.getG())), shouldCheckPrivateKey()));
             }
             return super.engineGeneratePrivate(keySpec);
         }
@@ -272,7 +283,8 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
             if (keySpec instanceof DHPublicKeySpec) {
                 DHPublicKeySpec dhSpec = (DHPublicKeySpec) keySpec;
                 return new EvpDhPublicKey(dh2Evp(null, dhSpec.getY().toByteArray(),
-                    paramsToDer(new DHParameterSpec(dhSpec.getP(), dhSpec.getG()))));
+                    paramsToDer(new DHParameterSpec(dhSpec.getP(), dhSpec.getG())),
+                    false));
             }
             return super.engineGeneratePublic(keySpec);
         }
@@ -295,8 +307,8 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
     }
 
     static class DSA extends EvpKeyFactory {
-        DSA() {
-            super(EvpKeyType.DSA);
+        DSA(AmazonCorrettoCryptoProvider provider) {
+            super(EvpKeyType.DSA, provider);
         }
 
         @Override
@@ -304,7 +316,8 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
             if (keySpec instanceof DSAPrivateKeySpec) {
                 DSAPrivateKeySpec dsaSpec = (DSAPrivateKeySpec) keySpec;
                 return new EvpDsaPrivateKey(dsa2Evp(dsaSpec.getX().toByteArray(), null,
-                    paramsToDer(new DSAParameterSpec(dsaSpec.getP(), dsaSpec.getQ(), dsaSpec.getG()))));
+                    paramsToDer(new DSAParameterSpec(dsaSpec.getP(), dsaSpec.getQ(), dsaSpec.getG())),
+                    shouldCheckPrivateKey()));
             }
             return super.engineGeneratePrivate(keySpec);
         }
@@ -314,7 +327,8 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
             if (keySpec instanceof DSAPublicKeySpec) {
                 DSAPublicKeySpec dsaSpec = (DSAPublicKeySpec) keySpec;
                 return new EvpDsaPublicKey(dsa2Evp(null, dsaSpec.getY().toByteArray(),
-                    paramsToDer(new DSAParameterSpec(dsaSpec.getP(), dsaSpec.getQ(), dsaSpec.getG()))));
+                    paramsToDer(new DSAParameterSpec(dsaSpec.getP(), dsaSpec.getQ(), dsaSpec.getG())),
+                    false));
             }
             return super.engineGeneratePublic(keySpec);
         }
@@ -368,10 +382,10 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
 
     // Lazy-initialization of fields without needing to worry about synchronization
     private static class FieldHolder {
-        static final KeyFactory RSA_FACTORY = new ShimFactory(new RSA());
-        static final KeyFactory DSA_FACTORY = new ShimFactory(new DSA());
-        static final KeyFactory DH_FACTORY = new ShimFactory(new DH());
-        static final KeyFactory EC_FACTORY = new ShimFactory(new EC());
+        static final KeyFactory RSA_FACTORY = new ShimFactory(new RSA(AmazonCorrettoCryptoProvider.INSTANCE));
+        static final KeyFactory DSA_FACTORY = new ShimFactory(new DSA(AmazonCorrettoCryptoProvider.INSTANCE));
+        static final KeyFactory DH_FACTORY = new ShimFactory(new DH(AmazonCorrettoCryptoProvider.INSTANCE));
+        static final KeyFactory EC_FACTORY = new ShimFactory(new EC(AmazonCorrettoCryptoProvider.INSTANCE));
     }
 
     /**

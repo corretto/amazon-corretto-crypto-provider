@@ -17,7 +17,7 @@ namespace AmazonCorrettoCryptoProvider {
   } \
 } while(0)
 
-EVP_PKEY* der2EvpPrivateKey(const unsigned char* der, const int derLen, const bool shouldCheckPrivate, const char* javaExceptionClass) {
+EVP_PKEY* der2EvpPrivateKey(const unsigned char* der, const int derLen, bool shouldCheckPrivate, const char* javaExceptionClass) {
   const unsigned char* der_mutable_ptr = der; // openssl modifies the input pointer
 
   PKCS8_PRIV_KEY_INFO* pkcs8Key = d2i_PKCS8_PRIV_KEY_INFO(NULL, &der_mutable_ptr, derLen);
@@ -34,12 +34,6 @@ EVP_PKEY* der2EvpPrivateKey(const unsigned char* der, const int derLen, const bo
   PKCS8_PRIV_KEY_INFO_free(pkcs8Key);
   if (!result) {
       throw_openssl(javaExceptionClass, "Unable to convert PKCS8_PRIV_KEY_INFO to EVP_PKEY");
-  }
-
-  if (shouldCheckPrivate && !checkPrivateKey(result))
-  {
-    EVP_PKEY_free(result);
-    throw_openssl(javaExceptionClass, "Key fails check");
   }
 
   if (EVP_PKEY_base_id(result) == EVP_PKEY_RSA) {
@@ -84,9 +78,17 @@ EVP_PKEY* der2EvpPrivateKey(const unsigned char* der, const int derLen, const bo
             EVP_PKEY_set1_RSA(result, nulled_rsa);
             RSA_free(nulled_rsa); // Decrement reference counter
             RSA_blinding_off(nulled_rsa);
+            shouldCheckPrivate = false; // We cannot check private keys without CRT parameters
           }
       }
   }
+
+  if (shouldCheckPrivate && !checkPrivateKey(result))
+  {
+    EVP_PKEY_free(result);
+    throw_openssl(javaExceptionClass, "Key fails check");
+  }
+
 
   return result;
 }
@@ -141,9 +143,16 @@ bool checkPrivateKey(EVP_PKEY* key) {
     throw_openssl(EX_RUNTIME_CRYPTO, "Unable to create EVP_PKEY_CTX");
   }
   int opensslResult = EVP_PKEY_check(ctx.getKeyCtx());
+
   //  1: Success
   // -2: Key type cannot be checked (so we'll let it through)
-  // Anything else: Error
-  return (opensslResult == 1 || opensslResult == -2);
+  if (opensslResult == -2)
+  {
+    // Clear the error queue since we know why it happened
+    ERR_clear_error();
+    opensslResult = 1;
+  }
+
+    return opensslResult == 1;
 }
 }

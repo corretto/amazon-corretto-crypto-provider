@@ -57,6 +57,8 @@ import javax.crypto.spec.DHParameterSpec;
 import javax.crypto.spec.DHPrivateKeySpec;
 import javax.crypto.spec.DHPublicKeySpec;
 
+import com.amazon.corretto.crypto.provider.ExtraCheck;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -490,6 +492,30 @@ public class EvpKeyFactoryTest {
         assertThrows(InvalidKeyException.class, () -> nativeFactory.translateKey(badKey));
         // Cannot construct it from encoding
         assertThrows(InvalidKeySpecException.class, () -> nativeFactory.generatePublic(new X509EncodedKeySpec(badKey.getEncoded())));
+    }
+
+    @Test
+    public void rsaWithBadCrt() throws GeneralSecurityException {
+        Assumptions.assumeTrue(NATIVE_PROVIDER.hasExtraCheck(ExtraCheck.PRIVATE_KEY_CONSISTENCY));
+        // Corrupt out the CRT factors
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA");
+        kpg.initialize(2048);
+        KeyPair pair = kpg.generateKeyPair();
+
+        // The default Java key factory doesn't check for consistency
+        KeyFactory jceFactory = KeyFactory.getInstance("RSA");
+        final RSAPrivateCrtKeySpec goodSpec = jceFactory.getKeySpec(pair.getPrivate(), RSAPrivateCrtKeySpec.class);
+        final RSAPrivateCrtKeySpec badSpec = new RSAPrivateCrtKeySpec(goodSpec.getModulus(),
+                goodSpec.getPublicExponent(), goodSpec.getPrivateExponent(), goodSpec.getPrimeP(),
+                goodSpec.getPrimeQ(), goodSpec.getPrimeP(),
+                goodSpec.getPrimeExponentQ().add(BigInteger.ONE),
+                goodSpec.getCrtCoefficient());
+        final PrivateKey privateKey = jceFactory.generatePrivate(badSpec);
+
+        KeyFactory nativeFactory = KeyFactory.getInstance("RSA", NATIVE_PROVIDER);
+
+        assertThrows(InvalidKeySpecException.class, () -> nativeFactory.generatePrivate(badSpec));
+        assertThrows(InvalidKeyException.class, () -> nativeFactory.translateKey(privateKey));
     }
 
     @SuppressWarnings("unchecked")

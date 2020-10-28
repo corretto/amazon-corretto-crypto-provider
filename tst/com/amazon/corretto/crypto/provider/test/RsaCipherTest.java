@@ -46,10 +46,8 @@ import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
-import com.amazon.corretto.crypto.provider.ExtraCheck;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
@@ -593,32 +591,6 @@ public class RsaCipherTest {
         final byte[] ciphertext = enc.doFinal(plaintext);
         final byte[] decrypted = dec.doFinal(ciphertext);
         assertArrayEquals(plaintext, decrypted);
-    }
-
-    @Test
-    public void badCrt() throws GeneralSecurityException {
-        // Corrupt out the CRT factors
-        final RSAPrivateCrtKeySpec goodSpec = KEY_FACTORY.getKeySpec(PAIR_1024.getPrivate(),
-                RSAPrivateCrtKeySpec.class);
-        final RSAPrivateCrtKeySpec badSpec = new RSAPrivateCrtKeySpec(goodSpec.getModulus(),
-                goodSpec.getPublicExponent(), goodSpec.getPrivateExponent(), goodSpec.getPrimeP(),
-                goodSpec.getPrimeQ(), goodSpec.getPrimeP(),
-                goodSpec.getPrimeExponentQ().add(BigInteger.ONE),
-                goodSpec.getCrtCoefficient());
-        final PrivateKey privateKey = KEY_FACTORY.generatePrivate(badSpec);
-
-        final Cipher enc = Cipher.getInstance(PKCS1_PADDING, NATIVE_PROVIDER);
-        final Cipher dec = Cipher.getInstance(PKCS1_PADDING, NATIVE_PROVIDER);
-        final AmazonCorrettoCryptoProvider prov = (AmazonCorrettoCryptoProvider) dec.getProvider();
-        Assumptions.assumeTrue(prov.hasExtraCheck(ExtraCheck.PRIVATE_KEY_CONSISTENCY));
-
-        final byte[] plaintext = getPlaintext(1024 / 8 - 11);
-        enc.init(Cipher.ENCRYPT_MODE, PAIR_1024.getPublic());
-        dec.init(Cipher.DECRYPT_MODE, privateKey);
-
-        final byte[] ciphertext = enc.doFinal(plaintext);
-
-        TestUtil.assertThrows(GeneralSecurityException.class, () -> dec.doFinal(ciphertext));
     }
 
     @Test
