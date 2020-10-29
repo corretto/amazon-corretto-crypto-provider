@@ -37,8 +37,7 @@ class EvpKeyAgreement extends KeyAgreementSpi {
     private EvpKey privKey = null;
     private byte[] secret = null;
 
-    private static native byte[] agree(long privateKeyPtr, long publicKeyPtr);
-            // throws InvalidKeyException; Sneaky throws
+    private static native byte[] agree(long privateKeyPtr, long publicKeyPtr) throws InvalidKeyException;
 
     EvpKeyAgreement(AmazonCorrettoCryptoProvider provider, final String algorithm, final EvpKeyType keyType) {
         Loader.checkNativeLibraryAvailability();
@@ -47,7 +46,7 @@ class EvpKeyAgreement extends KeyAgreementSpi {
         keyType_ = keyType;
     }
 
-    private byte[] agree(EvpKey pubKey) {
+    private byte[] agree(EvpKey pubKey) throws InvalidKeyException {
         return privKey.use(privatePtr ->
             pubKey.use(publicPtr -> 
                 agree(privatePtr, publicPtr)
