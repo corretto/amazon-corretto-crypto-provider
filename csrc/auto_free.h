@@ -125,6 +125,8 @@ OPENSSL_auto(EC_GROUP);
 OPENSSL_auto(EC_POINT);
 OPENSSL_auto(EC_KEY);
 OPENSSL_auto(BN_CTX);
+OPENSSL_auto(EVP_PKEY);
+OPENSSL_auto(EVP_PKEY_CTX);
 
 class OPENSSL_buffer_auto
 {

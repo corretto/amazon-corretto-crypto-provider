@@ -6,6 +6,7 @@
 #include <openssl/evp.h>
 #include <memory>
 #include "generated-headers.h"
+#include "auto_free.h"
 #include "util.h"
 #include "env.h"
 #include "bn.h"
@@ -21,14 +22,14 @@ using namespace AmazonCorrettoCryptoProvider;
  */
 JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EcGen_buildEcParams(JNIEnv *pEnv, jclass, jint nid)
 {
-    EVP_PKEY_CTX *paramCtx = nullptr;
+    EVP_PKEY_CTX_auto paramCtx;
     jlong retval;
 
     try
     {
-        paramCtx = EVP_PKEY_CTX_new_id(EVP_PKEY_EC, NULL);
+        paramCtx.set(EVP_PKEY_CTX_new_id(EVP_PKEY_EC, NULL));
 
-        if (!paramCtx)
+        if (!paramCtx.isInitialized())
         {
             throw java_ex::from_openssl(EX_RUNTIME_CRYPTO, "Unable to create param context");
         }
@@ -38,7 +39,7 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EcGen_buildEcPa
             throw java_ex::from_openssl(EX_RUNTIME_CRYPTO, "Unable to initialize param context");
         }
 
-        if (!EVP_PKEY_CTX_set_ec_paramgen_curve_nid(&*paramCtx, nid))
+        if (!EVP_PKEY_CTX_set_ec_paramgen_curve_nid(paramCtx, nid))
         {
             throw java_ex::from_openssl(EX_RUNTIME_CRYPTO, "Unable to set curve");
         }
@@ -57,7 +58,6 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EcGen_buildEcPa
         retval = 0;
     }
 
-    EVP_PKEY_CTX_free(paramCtx);
     return retval;
 }
 
@@ -117,8 +117,8 @@ JNIEXPORT long JNICALL Java_com_amazon_corretto_crypto_provider_EcGen_generateEv
     jboolean checkConsistency)
 {
     std::vector<uint8_t, SecureAlloc<uint8_t>> derBuf;
-    EC_KEY *ecParams = NULL;
-    EVP_PKEY *params_as_pkey = EVP_PKEY_new();
+    EC_KEY_auto ecParams;
+    EVP_PKEY_auto params_as_pkey = EVP_PKEY_auto::from(EVP_PKEY_new());
     EvpKeyContext ctx;
 
     try
@@ -126,20 +126,15 @@ JNIEXPORT long JNICALL Java_com_amazon_corretto_crypto_provider_EcGen_generateEv
         raii_env env(pEnv);
 
         // First, parse the params
-
-        // Since the ecParams object doesn't seem to need freeing,
-        // I am suspicious that it depends on the backing buffer.
-        // So, I don't feel comfortable releasing of freeing it before we're
-        // completely done
         derBuf = java_buffer::from_array(env, paramsDer).to_vector(env);
         const unsigned char *tmp = (const unsigned char *)&derBuf[0]; // necessary due to modification
-        if (!likely(ecParams = d2i_ECParameters(NULL, &tmp, derBuf.size())))
+
+        if (!likely(ecParams.set(d2i_ECParameters(NULL, &tmp, derBuf.size()))))
         {
             throw_openssl("Unable to parse parameters");
         }
 
-        CHECK_OPENSSL(EVP_PKEY_assign_EC_KEY(params_as_pkey, ecParams));
-        ecParams = NULL; // Ownership taken by previous line
+        CHECK_OPENSSL(EVP_PKEY_assign_EC_KEY(params_as_pkey, ecParams.take())); // Takes ownership of ecParams
 
         generateEcKey(&env, ctx, params_as_pkey, checkConsistency);
 
@@ -148,9 +143,6 @@ JNIEXPORT long JNICALL Java_com_amazon_corretto_crypto_provider_EcGen_generateEv
     catch (java_ex &ex)
     {
         ex.throw_to_java(pEnv);
+        return 0;
     }
-
-    EC_KEY_free(ecParams);
-    EVP_PKEY_free(params_as_pkey);
-    return 0;
 }
