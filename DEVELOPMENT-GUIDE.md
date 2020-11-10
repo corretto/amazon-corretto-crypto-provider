@@ -4,7 +4,7 @@ Like all cryptographic implementations, correctness and code-safety is paramount
 The purpose of this guide is not to provide all information needed for development within ACCP.
 Instead, it is intended to provide a quick introduction to the most important (and ACCP-specific) components to help developers find and learn what is most important.
 
-# Development Principals
+# Development Principles
 
 In decreasing order of importance:
 
@@ -32,7 +32,7 @@ In decreasing order of importance:
 6. Code should be *obviously* correct.
     A developer should be able to look at an implementation and *know* it is correct with minimal reasoning or justification.
     By implication, this means that you shouldn't be clever.
-    This principal sometimes needs to be sacrificed to support higher priority tenets. When this happens, we must do the following:
+    This principle sometimes needs to be sacrificed to support higher priority tenets. When this happens, we must do the following:
     1. Isolation of complexity. (So that only a few methods or a single file is hard to understand.)
     2. Testing to prove correctness. (While we must always do this, it is even more critical here.)
     3. Comments explaining exactly what is going on.
