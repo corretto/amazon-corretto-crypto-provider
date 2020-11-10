@@ -1,5 +1,5 @@
 # ACCP Development Guidance
-Like all cryptographic implementations, correctness and code-safety is paramount in the Amazon Corretto Crypto Provider.
+Correctness and code-safety is paramount in the Amazon Corretto Crypto Provider.
 
 The purpose of this guide is not to provide all information needed for development within ACCP.
 Instead, it is intended to provide a quick introduction to the most important (and ACCP-specific) components to help developers find and learn what is most important.
