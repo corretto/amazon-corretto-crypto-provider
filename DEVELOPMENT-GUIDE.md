@@ -1,8 +1,9 @@
 # ACCP Development Guidance
-Correctness and code-safety is paramount in the Amazon Corretto Crypto Provider.
+Correctness and code safety is paramount in the Amazon Corretto Crypto Provider.
 
-The purpose of this guide is not to provide all information needed for development within ACCP.
-Instead, it is intended to provide a quick introduction to the most important (and ACCP-specific) components to help developers find and learn what is most important.
+This guide is designed to provide a quick introduction to the most important (and ACCP-specific) components to help developers find and learn what is most important.
+The purpose of this guide is not to provide all information needed to develop ACCP.
+This is a living document and we will continue to add lessons learned and other best practice as appropriate.
 
 # Development Principles
 
@@ -13,7 +14,7 @@ In decreasing order of importance:
 2. Correctness.
     We must _never_ do the wrong thing or return the wrong result.
     Subtle failures are easy to miss and can cause problems.
-    When something goes wrong we should fail obviously and force the error to be properly handled.
+    When something goes wrong, we should fail obviously and force the error to be properly handled.
 3. All logic flows must be designed and explicit.
     This means that there must be no dependencies on undefined behavior (in Java or C++).
     (There is a single exception to this rule. We are permitted to depend on implicit `NullPointerException`s in Java.)
@@ -33,9 +34,9 @@ In decreasing order of importance:
     A developer should be able to look at an implementation and *know* it is correct with minimal reasoning or justification.
     By implication, this means that you shouldn't be clever.
     This principle sometimes needs to be sacrificed to support higher priority tenets. When this happens, we must do the following:
-    1. Isolation of complexity. (So that only a few methods or a single file is hard to understand.)
-    2. Testing to prove correctness. (While we must always do this, it is even more critical here.)
-    3. Comments explaining exactly what is going on.
+    1. Isolate complexity. (So that only a few methods or a single file is hard to understand.)
+    2. Test to prove correctness. (While we must always do this, it is even more critical here.)
+    3. Comment to explain exactly what is intended and, when appropriate, why a particular technique was choseen.
     Examples: ([ConstantTime](https://github.com/corretto/amazon-corretto-crypto-provider/blob/develop/src/com/amazon/corretto/crypto/provider/ConstantTime.java) and its [tests](https://github.com/corretto/amazon-corretto-crypto-provider/blob/develop/tst/com/amazon/corretto/crypto/provider/test/ConstantTimeTests.java), [Janitor](https://github.com/corretto/amazon-corretto-crypto-provider/blob/develop/src/com/amazon/corretto/crypto/provider/Janitor.java) and its [tests](https://github.com/corretto/amazon-corretto-crypto-provider/blob/develop/tst/com/amazon/corretto/crypto/provider/test/JanitorTest.java))
 
 # Important and Unique Components
@@ -56,10 +57,10 @@ The [InputBuffer](https://github.com/corretto/amazon-corretto-crypto-provider/bl
 This is useful because properly joining and splitting inbound data has caused bugs in other libraries (as has proper handling of `ByteBuffers`).
 
 ## C++
-In general, ACCP uses the philosophy that [Resource aquisition is initialization](https://en.wikipedia.org/wiki/Resource_acquisition_is_initialization). Whenever possible we will have stack-based objects tracking the lifecycle of heap-based resources. This ensures that when we leave a code-block the destructors will properly clean-up the resources, regardless of how we leave the block. This, combined with C++ exceptions, results in a relatively easy to write/read control-flow while being confident that we do not leak resources. This means that only the top-level JNI native methods should ever throw Java exceptions. In all cases `goto` should be avoided and throwing a C++ exception should be used for exceptional cases.
+Whenever possible, we follow the philosophy that [Resource aquisition is initialization](https://en.wikipedia.org/wiki/Resource_acquisition_is_initialization). Whenever possible we will have stack-based objects tracking the lifecycle of heap-based resources. This ensures that when we leave a code-block the destructors will properly clean up the resources, regardless of how we leave the block. This, combined with C++ exceptions, results in a relatively easy to write/read control flow while being confident that we do not leak resources. This means that only the top-level JNI native methods should ever throw Java exceptions. In all cases `goto` should be avoided and throwing a C++ exception should be used for exceptional cases.
 
 ### *_auto
-There are several objects with names of the form `*_auth` (ex: `RSA_auto`) which provide stack-based tracking of the named resource. These should be used whenever possible.
+Whenever possible, use classes that provide stack-based tracking. These classes have names with the form `*_auth` (ex: `RSA_auto`).
 
 ### BigNumObj
 `BigNumObj ` is essentially a `*_auto` object for `BN` resources, but with `BN` specific logic attached to make it easier to use.
