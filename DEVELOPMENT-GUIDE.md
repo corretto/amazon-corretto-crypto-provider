@@ -20,11 +20,11 @@ In decreasing order of importance:
     (There is a single exception to this rule. We are permitted to depend on implicit `NullPointerException`s in Java.)
 4. Testing ensures correctness.
     1. Known answer and compatibility tests are crucial.
-        As we are implementing standards, we must be compatible with other implementations. Both the default implementation from Java and BouncyCastle are considered acceptable alternatives. (They both have had historical bugs and so both are used to work around issues in the other.)
+        Because we are implementing standards, we must be compatible with other implementations. Both the default implementation from Java and BouncyCastle are considered acceptable alternatives. (They both have had historical bugs and so both are used to work around issues in the other.)
         When Known Answer Tests from standards are available, we must use them. (Some older tests do not yet meet this standard but compensate with compatibility tests.)
     2. Cryptographic error cases must be checked.
         (While useful, API error cases should be checked but for simple type, null, and related errors, it is acceptable to miss some.)
-    3. Different call patterns must be checked
+    3. Different call patterns must be checked.
         Many cryptographic APIs can be called in different ways. These must all be checked.
 	  ([`MessageDigest` example](https://github.com/corretto/amazon-corretto-crypto-provider/blob/develop/src/com/amazon/corretto/crypto/provider/Utils.java#L297))
 5. ACCP must be fast.
