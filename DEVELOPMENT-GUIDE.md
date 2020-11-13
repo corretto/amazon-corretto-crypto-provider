@@ -49,8 +49,8 @@ In decreasing order of importance:
 # Important and Unique Components
 ## Java
 ### Janitor
-ACCP never uses [finalizers](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/Object.html#finalize()) due to significant performance problems. Since we still need to support Java8 for the foreseable future, we have implemented [Janitor](https://github.com/corretto/amazon-corretto-crypto-provider/blob/develop/src/com/amazon/corretto/crypto/provider/Janitor.java) as a JDK8+ replacement for the newer (since JDK9) [Cleaner](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/ref/Cleaner.html). To avoid circular dependency issues, `Janitor` *MUST NOT* depend on any other ACCP resources (directly or indirectly). It must remain entirely self contained.
-The canonical exmaple for using `Janitory` is `NativeResource`.
+ACCP never uses [finalizers](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/Object.html#finalize()) due to significant performance problems. Since we still need to support Java8 for the foreseable future, we have implemented [Janitor](https://github.com/corretto/amazon-corretto-crypto-provider/blob/develop/src/com/amazon/corretto/crypto/provider/Janitor.java) as a JDK8+ replacement for the newer (since JDK9) [Cleaner](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/ref/Cleaner.html). When JDK8 is no longer supported we will re-evaluate `Cleaner` to see if it meets our perforance requirements. To avoid circular dependency issues, `Janitor` *MUST NOT* depend on any other ACCP resources (directly or indirectly). It must remain entirely self contained.
+The canonical example for using `Janitory` is `NativeResource`.
 
 ### Loader
 The [Loader](https://github.com/corretto/amazon-corretto-crypto-provider/blob/develop/src/com/amazon/corretto/crypto/provider/Loader.java) is responsible for bootstrapping the provider and loading the native library. To avoid circular dependencies `Loader` *MUST NOT* depend on any other classes or logic from within ACCP (with the sole exception of `Janitor`.)
@@ -67,7 +67,7 @@ This is useful because properly joining and splitting inbound data has caused bu
 Whenever possible, we follow the philosophy that [Resource aquisition is initialization](https://en.wikipedia.org/wiki/Resource_acquisition_is_initialization). Whenever possible we will have stack-based objects tracking the lifecycle of heap-based resources. This ensures that when we leave a code-block the destructors will properly clean up the resources, regardless of how we leave the block. This, combined with C++ exceptions, results in a relatively easy to write/read control flow while being confident that we do not leak resources. This means that only the top-level JNI native methods should ever throw Java exceptions. In all cases `goto` should be avoided and throwing a C++ exception should be used for exceptional cases.
 
 ### *_auto
-Whenever possible, use classes that provide stack-based tracking. These classes have names with the form `*_auth` (ex: `RSA_auto`).
+Whenever possible, use classes that provide stack-based tracking. These classes have names with the form `*_auto` (ex: `RSA_auto`).
 
 ### BigNumObj
 `BigNumObj ` is essentially a `*_auto` object for `BN` resources, but with `BN` specific logic attached to make it easier to use.
