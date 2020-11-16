@@ -66,6 +66,12 @@ This is useful because properly joining and splitting inbound data has caused bu
 ## C++
 Whenever possible, we follow the philosophy that [Resource aquisition is initialization](https://en.wikipedia.org/wiki/Resource_acquisition_is_initialization). Whenever possible we will have stack-based objects tracking the lifecycle of heap-based resources. This ensures that when we leave a code-block the destructors will properly clean up the resources, regardless of how we leave the block. This, combined with C++ exceptions, results in a relatively easy to write/read control flow while being confident that we do not leak resources. This means that only the top-level JNI native methods should ever throw Java exceptions. In all cases `goto` should be avoided and throwing a C++ exception should be used for exceptional cases.
 
+Please remember that (unlike Java) all memory management is C++ is manual and it is very easy to leak memory.
+Even memory which hasn't been truly "leaked" (because it is being properly tracked by a `NativeResource` object and so will cleaned eventually) can create an out of memory situation.
+The issue is that Java has no visibility into the size of native objects.
+This means that all `NativeResource` objects appear to be quite small to Java.
+If you have a large amount of native memory allocated (enough to create memory pressure on the system), Java cannot know that it needs to run the GC and clean up the (small) `NativeResource` objects to free the potentially large amount of native memory.
+
 ### *_auto
 Whenever possible, use classes that provide stack-based tracking. These classes have names with the form `*_auto` (ex: `RSA_auto`).
 
