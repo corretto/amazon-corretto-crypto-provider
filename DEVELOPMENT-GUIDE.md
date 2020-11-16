@@ -133,7 +133,7 @@ From highest level (Java) down.
 Once a [Java Exception](https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/design.html#java_exceptions) has been thrown, there are exceedingly few JNI operations a caller is allowed to perform.
 What's more, it is easy to not notice that there is a Java exception pending.
 So long as you do not interact with `JNIEnv`/`raii_env` directly, you shouldn't need to worry about Java exceptions as the ACCP objects/methods which use them already have appropriate checks which throw C++ exceptions (specifically `java_ex`) instead.
-If you need to throw an exception, it should almost alwasy be a C++ exception and thrown using the `throw_java_ex` or `throw_openssl` methods. (The former is more efficient but the latter MUST be used when the exception is due to an error state reported by OpenSSL.)
+If you need to throw an exception, it should almost always be a C++ exception and thrown using the `throw_java_ex` or `throw_openssl` methods. (The former is more efficient but the latter MUST be used when the exception is due to an error state reported by OpenSSL.)
 
 Openssl has its *own* separate error handling in the form of a thread-local queue.
 This has caused bugs in the past where consuming code has not noticed that errors were present on the stack and so later calls incorrectly saw old and irrelevant Openssl errors.
@@ -156,5 +156,5 @@ This means that the JVM is unable to do many of its memory management functions 
 So, when you are in a critical region there are exceedingly few operations you can safely do.
 Essentially, all you can do is methods which manipulate your critical region until you get out of it.
 It is **extremely important** that you do not allocate *any* Java memory (such as creating Java objects, like a Java Exception), call *any* Java methods (which you shouldn't be doing anyway), or take any actions which may block.
-It is also **very important** that you don't spend too much time in a critical region.
-If you are concerned that an operation is not reasonably time-bounded, you should probably be sure to release the critical region on a regular basis to ensure the JVM has the opportunity to do needed memory management.
+It is also **very important** that you don't spend too much time (more than about a millisecond) in a critical region.
+If you are concerned that an operation is not reasonably time-bounded, you should probably be sure to release the critical region on a regular basis to ensure the JVM has the opportunity to do needed memory management. (This isn't always achievable when everything is happening within a single atomic cryptographic operation.)
