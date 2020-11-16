@@ -49,7 +49,7 @@ In decreasing order of importance:
 # Important and Unique Components
 ## Java
 ### Janitor
-ACCP never uses [finalizers](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/Object.html#finalize()) due to significant performance problems. Since we still need to support Java8 for the foreseable future, we have implemented [Janitor](https://github.com/corretto/amazon-corretto-crypto-provider/blob/develop/src/com/amazon/corretto/crypto/provider/Janitor.java) as a JDK8+ replacement for the newer (since JDK9) [Cleaner](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/ref/Cleaner.html). When JDK8 is no longer supported we will re-evaluate `Cleaner` to see if it meets our perforance requirements. To avoid circular dependency issues, `Janitor` *MUST NOT* depend on any other ACCP resources (directly or indirectly). It must remain entirely self contained.
+ACCP never uses [finalizers](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/Object.html#finalize()) due to significant performance problems. Since we still need to support Java8 for the foreseable future, we have implemented [Janitor](https://github.com/corretto/amazon-corretto-crypto-provider/blob/develop/src/com/amazon/corretto/crypto/provider/Janitor.java) as a JDK8+ replacement for the newer (since JDK9) [Cleaner](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/ref/Cleaner.html). When JDK8 is no longer supported we will re-evaluate `Cleaner` to see if it meets our performance requirements. To avoid circular dependency issues, `Janitor` *MUST NOT* depend on any other ACCP resources (directly or indirectly). It must remain entirely self contained.
 The canonical example for using `Janitory` is `NativeResource`.
 
 ### Loader
@@ -91,3 +91,70 @@ Represents a `String` object from Java and gives access to the UTF-8 encoded con
 
 ### SecureBuffer
 The `SecureBuffer` represents a fixed-length array of a type (usually `uint8_t`) which will always zero itself upon destruction.
+
+# About JNI (Java Native Interface)
+The [Java Native Interface](https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/jniTOC.html) (JNI) is a standard way for standard Java code to interact with native code (such as that written in C or C++).
+The JNI (specifically version 6.0 as supported by JDK8 and linked above) is a core component of ACCP's implementation as it allows us to connect high-performance implementations in C/C++ with callers from Java.
+Unfortunately, JNI development can be tricky and carries with it many correctness, stability, and performance risks if not done properly.
+There are no short-cuts here except to [read the documentation](https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/jniTOC.html).
+The most important sections of the official guide are:
+* [Introduction](https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/intro.html)
+* [Java Exceptions](https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/design.html#java_exceptions)
+* [JNI Types and Data Structures](https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/types.html)
+* [Array Operations](https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/functions.html#array_operations)
+
+## How ACCP uses the JNI
+Just as in many other areas of development, is a wide range of acceptable styles for JNI code.
+ACCP has adopted the following guidelines and patterns to make code more efficient as well as easier to review and write.
+
+### Avoid Native to Java calls
+Crossing the JNI boundary in either direction is expensive. However, crossing it from Native to Java is far worse.
+For this reason, *all* calls which interact with `JNIEnv` (or, more properly, `raii_env` in ACCP) must be minimized.
+As a result:
+* Native code should never touch a Java object
+* Native code should never call a Java method
+* All parameters to native methods should be either primitives or primitive arrays.
+  (Technically all arrays are Java objects and thus expensive to touch, however this is an unavoidable compromise).
+* Logic should use native data structures and only translate from and to Java results at the beginning and end of the top-most methods.
+* Native methods should all be `static`.
+  While this technically isn't necessary, if they aren't allowed to touch Java objects, then there is no need for them to be passed a reference to `this`.
+
+One result of this design decision is that ACCP's code can be (roughly) divided into four layers.
+These are not *currently* formally marked, but that may change in the future.
+Each layer
+From highest level (Java) down.
+1. Pure (normal) Java. This layer is called by external (non-ACCP) Java code.
+2. Java->Primitive Translation. This layer is written in Java and converts from Java objects to primitives and actually calls the `native` methods.
+3. JNI->Native Translation. This layer is written in C++ and converts from JNI objects to native or ACCP implemented structures (such as `java_buffer`).
+    This layer is also responsible for translating C++ exceptions thrown by the lowest layer to Java exceptions.
+4. Native. This layer is written in C++ and actually does the logic. It should rarely (if ever) directly interact with `JNIEnv`/`raii_env` and should rarely (if ever) throw a Java exception.
+
+### Error Handling
+Once a [Java Exception](https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/design.html#java_exceptions) has been thrown, there are exceedingly few JNI operations a caller is allowed to perform.
+What's more, it is easy to not notice that there is a Java exception pending.
+So long as you do not interact with `JNIEnv`/`raii_env` directly, you shouldn't need to worry about Java exceptions as the ACCP objects/methods which use them already have appropriate checks which throw C++ exceptions (specifically `java_ex`) instead.
+If you need to throw an exception, it should almost alwasy be a C++ exception and thrown using the `throw_java_ex` or `throw_openssl` methods. (The former is more efficient but the latter MUST be used when the exception is due to an error state reported by OpenSSL.)
+
+Openssl has its *own* separate error handling in the form of a thread-local queue.
+This has caused bugs in the past where consuming code has not noticed that errors were present on the stack and so later calls incorrectly saw old and irrelevant Openssl errors.
+`throw_openssl` correctly checks *and clears* the OpenSSL error queue prior to throwing the C++ exception.
+It also will use the OpenSSL provided error message if available.
+If there is no OpenSSL error or applicable message, it will use the provided default message.
+
+Making sure that the OpenSSL error queue is empty prior to returning from native code is critical.
+This is why *during coverage tests* we enable extra assertions which will terminate the process if any unhandled OpenSSL errors are present.
+These assertions are only present during the coverage tests as they can be expensive (especially on multi-threaded systems).
+
+### Critical Regions
+There are two different ways to read data from Java arrays and Strings: Copying, or Critical Regions.
+* [String Critical methods](https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/functions.html#GetStringCritical_ReleaseStringCritical)
+* [Array Critical methods](https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/functions.html#GetPrimitiveArrayCritical_ReleasePrimitiveArrayCritical)
+
+ACCP generally uses critical regions because they are (usually) faster.
+When you are in a critical region the JVM (generally) pins the object being handled to a specific memory location and gives you direct access to the underlying data.
+This means that the JVM is unable to do many of its memory management functions (as they require moving objects) and is operating essentially in a degraded mode. (No garbage collection, etc.)
+So, when you are in a critical region there are exceedingly few operations you can safely do.
+Essentially, all you can do is methods which manipulate your critical region until you get out of it.
+It is **extremely important** that you do not allocate *any* Java memory (such as creating Java objects, like a Java Exception), call *any* Java methods (which you shouldn't be doing anyway), or take any actions which may block.
+It is also **very important** that you don't spend too much time in a critical region.
+If you are concerned that an operation is not reasonably time-bounded, you should probably be sure to release the critical region on a regular basis to ensure the JVM has the opportunity to do needed memory management.
