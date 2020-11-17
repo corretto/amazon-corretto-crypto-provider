@@ -102,7 +102,7 @@ The `SecureBuffer` represents a fixed-length array of a type (usually `uint8_t`)
 The [Java Native Interface](https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/jniTOC.html) (JNI) is a standard way for standard Java code to interact with native code (such as that written in C or C++).
 The JNI (specifically version 6.0 as supported by JDK8 and linked above) is a core component of ACCP's implementation as it allows us to connect high-performance implementations in C/C++ with callers from Java.
 Unfortunately, JNI development can be tricky. If not done properly, it jeopardizes correctness, stability, and performance .
-There are no short-cuts here except to [read the documentation](https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/jniTOC.html).
+There are no shortcuts here. [Read the documentation](https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/jniTOC.html).
 The most important sections of the official guide are:
 * [Introduction](https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/intro.html)
 * [Java Exceptions](https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/design.html#java_exceptions)
@@ -110,10 +110,10 @@ The most important sections of the official guide are:
 * [Array Operations](https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/functions.html#array_operations)
 
 ## How ACCP uses the JNI
-Just as in many other areas of development, is a wide range of acceptable styles for JNI code.
+Just as in many other areas of development, there are a wide range of acceptable styles for JNI code.
 ACCP has adopted the following guidelines and patterns to make code more efficient as well as easier to write and review.
 
-### Avoid Native to Java calls
+### Avoid native calls to Java
 Crossing the JNI boundary in either direction is expensive. However, crossing it from Native to Java is far worse.
 For this reason, avoid calls that interact with `JNIEnv` (or, more properly, `raii_env` in ACCP).
 As a result:
