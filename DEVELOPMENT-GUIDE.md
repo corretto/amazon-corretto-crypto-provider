@@ -101,7 +101,7 @@ The `SecureBuffer` represents a fixed-length array of a type (usually `uint8_t`)
 # About JNI (Java Native Interface)
 The [Java Native Interface](https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/jniTOC.html) (JNI) is a standard way for standard Java code to interact with native code (such as that written in C or C++).
 The JNI (specifically version 6.0 as supported by JDK8 and linked above) is a core component of ACCP's implementation as it allows us to connect high-performance implementations in C/C++ with callers from Java.
-Unfortunately, JNI development can be tricky and carries with it many correctness, stability, and performance risks if not done properly.
+Unfortunately, JNI development can be tricky. If not done properly, it jeopardizes correctness, stability, and performance .
 There are no short-cuts here except to [read the documentation](https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/jniTOC.html).
 The most important sections of the official guide are:
 * [Introduction](https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/intro.html)
@@ -111,16 +111,16 @@ The most important sections of the official guide are:
 
 ## How ACCP uses the JNI
 Just as in many other areas of development, is a wide range of acceptable styles for JNI code.
-ACCP has adopted the following guidelines and patterns to make code more efficient as well as easier to review and write.
+ACCP has adopted the following guidelines and patterns to make code more efficient as well as easier to write and review.
 
 ### Avoid Native to Java calls
 Crossing the JNI boundary in either direction is expensive. However, crossing it from Native to Java is far worse.
-For this reason, *all* calls which interact with `JNIEnv` (or, more properly, `raii_env` in ACCP) must be minimized.
+For this reason, avoid calls that interact with `JNIEnv` (or, more properly, `raii_env` in ACCP).
 As a result:
 * Native code should never touch a Java object
 * Native code should never call a Java method
 * All parameters to native methods should be either primitives or primitive arrays.
-  (Technically all arrays are Java objects and thus expensive to touch, however this is an unavoidable compromise).
+  (Technically, all arrays are Java objects and thus expensive to touch; however this is an unavoidable compromise).
 * Logic should use native data structures and only translate from and to Java results at the beginning and end of the top-most methods.
 * Native methods should all be `static`.
   While this technically isn't necessary, if they aren't allowed to touch Java objects, then there is no need for them to be passed a reference to `this`.
