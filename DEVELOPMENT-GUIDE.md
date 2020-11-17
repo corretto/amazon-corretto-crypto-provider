@@ -49,8 +49,9 @@ In decreasing order of importance:
 # Important and Unique Components
 ## Java
 ### Janitor
-ACCP never uses [finalizers](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/Object.html#finalize()) due to significant performance problems. Since we still need to support Java8 for the foreseable future, we have implemented [Janitor](https://github.com/corretto/amazon-corretto-crypto-provider/blob/develop/src/com/amazon/corretto/crypto/provider/Janitor.java) as a JDK8+ replacement for the newer (since JDK9) [Cleaner](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/ref/Cleaner.html). When JDK8 is no longer supported we will re-evaluate `Cleaner` to see if it meets our performance requirements. To avoid circular dependency issues, `Janitor` *MUST NOT* depend on any other ACCP resources (directly or indirectly). It must remain entirely self contained.
-The canonical example for using `Janitory` is `NativeResource`.
+ACCP never uses [finalizers](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/Object.html#finalize()) due to significant performance problems.
+Since we still need to support Java8 for the foreseable future, we have implemented [Janitor](https://github.com/corretto/amazon-corretto-crypto-provider/blob/develop/src/com/amazon/corretto/crypto/provider/Janitor.java) as a JDK8+ replacement for the newer (since JDK9) [Cleaner](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/ref/Cleaner.html). When JDK8 is no longer supported we will re-evaluate `Cleaner` to see if it meets our performance requirements. To avoid circular dependency issues, `Janitor` *MUST NOT* depend on any other ACCP resources (directly or indirectly). It must remain entirely self contained.
+The canonical example for using `Janitor` is `NativeResource`.
 
 ### Loader
 The [Loader](https://github.com/corretto/amazon-corretto-crypto-provider/blob/develop/src/com/amazon/corretto/crypto/provider/Loader.java) is responsible for bootstrapping the provider and loading the native library. To avoid circular dependencies `Loader` *MUST NOT* depend on any other classes or logic from within ACCP (with the sole exception of `Janitor`.)
@@ -127,8 +128,8 @@ As a result:
 
 One result of this design decision is that ACCP's code can be (roughly) divided into four layers.
 These are not *currently* formally marked, but that may change in the future.
-Each layer
-From highest level (Java) down.
+
+Each layer from highest level (Java) down:
 1. Pure (normal) Java. This layer is called by external (non-ACCP) Java code.
 2. Java->Primitive Translation. This layer is written in Java and converts from Java objects to primitives and actually calls the `native` methods.
 3. JNI->Native Translation. This layer is written in C++ and converts from JNI objects to native or ACCP implemented structures (such as `java_buffer`).
