@@ -141,6 +141,8 @@ Once a [Java Exception](https://docs.oracle.com/javase/8/docs/technotes/guides/j
 What's more, it is easy to not notice that there is a Java exception pending.
 So long as you do not interact with `JNIEnv`/`raii_env` directly, you shouldn't need to worry about Java exceptions as the ACCP objects/methods which use them already have appropriate checks which throw C++ exceptions (specifically `java_ex`) instead.
 If you need to throw an exception, it should almost always be a C++ exception and thrown using the `throw_java_ex` or `throw_openssl` methods. (The former is more efficient but the latter MUST be used when the exception is due to an error state reported by OpenSSL.)
+If you are throwing a C++ exception then it *must* be an instance of `java_ex`.
+(This is correctly done for you by both `throw_java_ex` and `throw_openssl`.)
 
 Openssl has its *own* separate error handling in the form of a thread-local queue.
 This has caused bugs in the past where consuming code has not noticed that errors were present on the stack and so later calls incorrectly saw old and irrelevant Openssl errors.
