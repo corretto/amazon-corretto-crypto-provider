@@ -12,6 +12,8 @@ method.
 * Stricter guarantees about which curves are used for EC key generation. [PR #127](https://github.com/corretto/amazon-corretto-crypto-provider/pull/127)
 * Reduce timing signal from trimming zeros of TLSPremasterSecrets from DH KeyAgreement. [PR #129](https://github.com/corretto/amazon-corretto-crypto-provider/pull/129)
 * Reuse state in `MessageDigest` to decrease object allocation rate. [PR #131](https://github.com/corretto/amazon-corretto-crypto-provider/pull/131)
+* Now uses [OpenSSL 1.1.1i](https://www.openssl.org/source/openssl-1.1.1i.tar.gz). [PR #136](https://github.com/corretto/amazon-corretto-crypto-provider/pull/136)
+  (ACCP is not impacted by [CVE-2020-1971](https://www.openssl.org/news/secadv/20201208.txt).)
 
 ### Patches
 * Add version gating to some tests introduced in 1.5.0 [PR #128](https://github.com/corretto/amazon-corretto-crypto-provider/pull/128)
