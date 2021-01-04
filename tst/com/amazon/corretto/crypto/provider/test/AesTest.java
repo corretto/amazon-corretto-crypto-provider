@@ -51,6 +51,10 @@ import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.junit.jupiter.api.parallel.ResourceAccessMode;
 import org.junit.jupiter.api.parallel.ResourceLock;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+
 
 @ExtendWith(TestResultLogger.class)
 @Execution(ExecutionMode.SAME_THREAD)
@@ -205,6 +209,106 @@ public class AesTest {
             }
         }
     }
+
+    public static List<Arguments> estimateOutputParams() {
+        final int[] plaintextSizes = {0, 1, 7, 8, 9, 15, 16};
+        final int[] tagLengthsInBits = {96, 112, 128};
+        List<Arguments> result = new ArrayList<>();
+        for (int tagLengthInBits: tagLengthsInBits) {
+            for (int first: plaintextSizes) {
+                for (int second: plaintextSizes) {
+                    result.add(Arguments.of(first, second, tagLengthInBits));
+                }
+            }
+        }
+        return result;
+    }
+
+    @ParameterizedTest
+    @MethodSource("estimateOutputParams")
+    public void encryptEstimatesCorrectly(int prefixLength, int testInputLength, int tagLengthInBits) throws GeneralSecurityException {
+        assumeMinimumVersion("1.6.0", AmazonCorrettoCryptoProvider.INSTANCE);
+        amznC.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(tagLengthInBits, new byte[12]));
+
+        // We sometimes encrypt a bit before the test case to catch if anything is cached
+        if (prefixLength != 0) {
+            amznC.update(new byte[prefixLength]); // Ignore output as it isn't helpful
+        }
+
+        final int estimatedLength = amznC.getOutputSize(testInputLength);
+        assertEquals(testInputLength + tagLengthInBits / 8, estimatedLength);
+
+        byte[] output = amznC.update(new byte[testInputLength]);
+        if (testInputLength == 0) { // As per the Javadoc for Cipher.update(byte[])
+            assertNull(output);
+        } else {
+            assertEquals(testInputLength, output.length);
+        }
+        byte[] tag = amznC.doFinal();
+        assertEquals(tagLengthInBits / 8, tag.length);
+    }
+
+    @ParameterizedTest
+    @MethodSource("estimateOutputParams")
+    public void encryptEstimatesCorrectlyPlacement(int prefixLength, int testInputLength, int tagLengthInBits) throws GeneralSecurityException {
+        assumeMinimumVersion("1.6.0", AmazonCorrettoCryptoProvider.INSTANCE);
+        amznC.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(tagLengthInBits, new byte[12]));
+
+        // We sometimes encrypt a bit before the test case to catch if anything is cached
+        if (prefixLength != 0) {
+            amznC.update(new byte[prefixLength]); // Ignore output as it isn't helpful
+        }
+
+        final int estimatedLength = amznC.getOutputSize(testInputLength);
+        assertEquals(testInputLength + tagLengthInBits / 8, estimatedLength);
+
+        final byte[] output = new byte[testInputLength]; // AES-GCM should not change the length when encrypting (until doFinal)
+        final int actualOutputLength = amznC.update(new byte[testInputLength], 0, testInputLength, output, 0);
+
+        assertEquals(testInputLength, actualOutputLength);
+
+        byte[] tag = amznC.doFinal();
+        assertEquals(tagLengthInBits / 8, tag.length);
+    }
+
+    @ParameterizedTest
+    @MethodSource("estimateOutputParams")
+    public void encryptEstimatesCorrectlyFinal(int prefixLength, int testInputLength, int tagLengthInBits) throws GeneralSecurityException {
+        assumeMinimumVersion("1.6.0", AmazonCorrettoCryptoProvider.INSTANCE);
+        amznC.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(tagLengthInBits, new byte[12]));
+
+        // We sometimes encrypt a bit before the test case to catch if anything is cached
+        if (prefixLength != 0) {
+            amznC.update(new byte[prefixLength]); // Ignore output as it isn't helpful
+        }
+
+        final int estimatedLength = amznC.getOutputSize(testInputLength);
+        assertEquals(testInputLength + tagLengthInBits / 8, estimatedLength);
+
+        final byte[] output = amznC.doFinal(new byte[testInputLength]);
+        assertEquals(estimatedLength, output.length);
+    }
+
+    @ParameterizedTest
+    @MethodSource("estimateOutputParams")
+    public void encryptEstimatesCorrectlyPlacementFinal(int prefixLength, int testInputLength, int tagLengthInBits) throws GeneralSecurityException {
+        assumeMinimumVersion("1.6.0", AmazonCorrettoCryptoProvider.INSTANCE);
+        amznC.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(tagLengthInBits, new byte[12]));
+
+        // We sometimes encrypt a bit before the test case to catch if anything is cached
+        if (prefixLength != 0) {
+            amznC.update(new byte[prefixLength]); // Ignore output as it isn't helpful
+        }
+
+        final int estimatedLength = amznC.getOutputSize(testInputLength);
+        assertEquals(testInputLength + tagLengthInBits / 8, estimatedLength);
+
+        final byte[] output = new byte[estimatedLength];
+        final int actualOutputLength = amznC.doFinal(new byte[testInputLength], 0, testInputLength, output, 0);
+
+        assertEquals(estimatedLength, actualOutputLength);
+    }
+
 
     @Test
     public void large_overlap_encrypt() {
@@ -400,11 +504,6 @@ public class AesTest {
 
         // Allows room for the final tag
         assertEquals(12345 + 16, sneakyInvoke_int(spi, "engineGetOutputSize", 12345));
-
-        // Allows room for a partial buffered block
-        sneakyInvoke(spi, "engineInit", Cipher.ENCRYPT_MODE, key,
-                new GCMParameterSpec(12 * 8, randomIV()), rnd);
-        assertEquals(12345 + 15, sneakyInvoke_int(spi, "engineGetOutputSize", 12345));
     }
 
     @Test
@@ -538,7 +637,7 @@ public class AesTest {
         sneakyInvoke(spi, "engineInit", Cipher.ENCRYPT_MODE, key,
                 new GCMParameterSpec(128, randomIV()), rnd);
         assertThrows(ShortBufferException.class,
-                () -> sneakyInvoke(spi, "engineUpdate", new byte[16], 0, 16, new byte[32], 16));
+                () -> sneakyInvoke(spi, "engineUpdate", new byte[16], 0, 16, new byte[32], 17));
 
         sneakyInvoke(spi, "engineInit", Cipher.ENCRYPT_MODE, key,
                 new GCMParameterSpec(128, randomIV()), rnd);
