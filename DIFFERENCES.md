@@ -1,8 +1,7 @@
 # Important Differences
-The [JCA/JCE](https://docs.oracle.com/en/java/javase/11/security/java-cryptography-architecture-jca-reference-guide.html) specification does not completely define all behaviors by a given provider.
+The [JCA/JCE](https://docs.oracle.com/en/java/javase/11/security/java-cryptography-architecture-jca-reference-guide.html) specification does not completely define all behaviors of a given provider.
 Although the Amazon Corretto Crypto Provider (ACCP) is fully compliant with the JCE, its behavior differs from the behavior of the default Java providers in several ways.
 The following list of behavioral differences is not exhaustive, but is intended to capture the most important differences.
-As any other differences are noticed or introduced, we will add them to this list.
 
 Despite these differences, ACCP remains a drop-in replacement for the vast majority of Java applications and doesn't change the application behavior, other than improving its performance.
 
@@ -35,12 +34,12 @@ For this reason, regardless of whether you use ACCP or not, we recommend the fol
 Neither the JCE nor the default OpenJDK provider for Elliptic Curve Cryptography (SunEC) specify the effect of calling `KeyPairGenerator.initialize(int keysize)` with an arbitrary value.
 This behavior is fully specified only for values of 192, 224, 256, 384, and 521.
 This means that applications cannot depend on receiving a specific curve for any other value. Also, the application might encounter compatibility issues if SunEC ever changes its behavior or if the application changes to a different JCE provider.
-ACCP removes this unspecified behavior by rejecting use of this method for all values not on the above list (for any ACCP version after 1.5.0) with an `InvalidParameterException`.
+In ACCP (after version 1.5.0), the `KeyPairGenerator.initialize(int keysize)` method fails with an `InvalidParameterException` for `keysize` values other than 192, 224, 256, 384, and 521.
 
 For this reason, even if you don't use ACCP, we recommend that you use only the [KeyPairGenerator.initialize(AlgorithmParameterSpec params)](https://docs.oracle.com/javase/8/docs/api/java/security/KeyPairGenerator.html#initialize-java.security.spec.AlgorithmParameterSpec-) method with an [ECGenParameterSpec](https://docs.oracle.com/javase/8/docs/api/java/security/spec/ECGenParameterSpec.html) to generate EC keys.
-This construction is safe for all known JCE providers and is expected to remain safe even should providers change behavior in other ways.
+This construction is safe for all known JCE providers and is expected to remain safe even if the behavior of a provider changes.
 
-For more information, please see the [changelog](./CHANGELOG.md) notes for version 1.5.0.
+For more information, see the [changelog](./CHANGELOG.md) notes for version 1.5.0.
 
 ## Cipher.getOutputSize() for AES-GCM
 ACCP might overestimate the amount of space needed when encrypted with `AES/GCM/NoPadding`.
@@ -75,7 +74,7 @@ This results in better performance for Static-Ephemeral key agreement protocols.
 ## AES is supported as a target key type for all KeyAgreement algorithms and supports an explicit size
 [KeyAgreement.generateSecret(String)](https://docs.oracle.com/javase/8/docs/api/javax/crypto/KeyAgreement.html#generateSecret-java.lang.String-) can be called with an input of "AES" for all Key Agreement algorithms.
 (The default Java implementation does not support "AES" as input with "ECDH" key agreement.)
-If the string "AES" is passed to this method then ACCP will return the largest possible AES key corresponding to the agreed secret.
+If "AES" is passed to this method, ACCP returns the largest possible AES key corresponding to the agreed secret.
 Alternatively, you can request an AES key of a particular size by appending the size (in bits) surrounded by brackets to this string.
 (Ex: "AES[128]" or "AES[256]")
 This returns a key of the requested strength or an `InvalidKeyException` if the agreed secret is not long enough for the requested AES key length.
