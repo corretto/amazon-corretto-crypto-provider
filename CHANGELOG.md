@@ -12,7 +12,7 @@ method.
 * Stricter guarantees about which curves are used for EC key generation. [PR #127](https://github.com/corretto/amazon-corretto-crypto-provider/pull/127)
 * Reduce timing signal from trimming zeros of TLSPremasterSecrets from DH KeyAgreement. [PR #129](https://github.com/corretto/amazon-corretto-crypto-provider/pull/129)
 * Reuse state in `MessageDigest` to decrease object allocation rate. [PR #131](https://github.com/corretto/amazon-corretto-crypto-provider/pull/131)
-* Now uses [OpenSSL 1.1.1j](https://www.openssl.org/source/openssl-1.1.1j.tar.gz). [PR TODO](https://github.com/corretto/amazon-corretto-crypto-provider/pull/136)
+* Now uses [OpenSSL 1.1.1j](https://www.openssl.org/source/openssl-1.1.1j.tar.gz). [PR #145](https://github.com/corretto/amazon-corretto-crypto-provider/pull/145)
   (ACCP is not impacted by [CVE-2020-1971](https://www.openssl.org/news/secadv/20201208.txt), [CVE-2021-23841](https://www.openssl.org/news/secadv/20210216.txt), or [CVE-2021-23839](https://www.openssl.org/news/secadv/20210216.txt) as ACCP does not use or expose any of the relevant functionality.
   ACCP is not impacted by [CVE-2021-23840](https://www.openssl.org/news/secadv/20210216.txt) as ACCP does not use the relevant functionality under the affected conditions.)
 
