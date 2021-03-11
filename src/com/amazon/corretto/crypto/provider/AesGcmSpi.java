@@ -294,6 +294,10 @@ final class AesGcmSpi extends CipherSpi {
     protected synchronized void engineInit(
         int jceOpMode, Key key, AlgorithmParameterSpec algorithmParameterSpec, SecureRandom secureRandom
     ) throws InvalidKeyException, InvalidAlgorithmParameterException {
+	if (key == null) {
+	    throw new InvalidKeyException("Key can't be null");
+	}
+
         final GCMParameterSpec spec;
         if (algorithmParameterSpec instanceof GCMParameterSpec) {
             spec = (GCMParameterSpec) algorithmParameterSpec;
