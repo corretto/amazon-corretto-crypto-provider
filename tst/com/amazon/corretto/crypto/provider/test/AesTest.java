@@ -584,6 +584,7 @@ public class AesTest {
     @SuppressWarnings("ConstantConditions")
     @Test
     public void test_initNullKey() throws Throwable {
+        assumeMinimumVersion("1.6.0", AmazonCorrettoCryptoProvider.INSTANCE);
         jceC.init(Cipher.ENCRYPT_MODE, key);
 
         Key key = null;
