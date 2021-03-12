@@ -587,7 +587,7 @@ public class AesTest {
         assumeMinimumVersion("1.6.0", AmazonCorrettoCryptoProvider.INSTANCE);
         jceC.init(Cipher.ENCRYPT_MODE, key);
 
-        Key key = null;
+        final Key key = null;
         AlgorithmParameters params = jceC.getParameters();
         AlgorithmParameterSpec spec = params.getParameterSpec(GCMParameterSpec.class);
         SecureRandom random = TestUtil.MISC_SECURE_RANDOM.get();
