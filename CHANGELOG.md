@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.6.0 (Unreleased)
+## 1.6.0
 ### Breaking Change
 In accordance with our [versioning policy](https://github.com/corretto/amazon-corretto-crypto-provider/blob/master/VERSIONING.rst),
 this release contains a low-risk breaking change. For details please see the [1.5.0](#150) section of this document.
@@ -19,7 +19,7 @@ method.
 ### Patches
 * Add version gating to some tests introduced in 1.5.0 [PR #128](https://github.com/corretto/amazon-corretto-crypto-provider/pull/128)
 * More accurate output size estimates from `Cipher.getOutputSize()` [PR #138](https://github.com/corretto/amazon-corretto-crypto-provider/pull/138)
-* Validate that `AesGcmSpi` receives a non-null key on init to prevent unncessarily late NPE [PR #146](https://github.com/corretto/amazon-corretto-crypto-provider/pull/146)
+* Validate that `AesGcmSpi` receives a non-null key on init to prevent unnecessarily late NPE [PR #146](https://github.com/corretto/amazon-corretto-crypto-provider/pull/146)
 * Gracefully handle calling `Cipher.doFinal()` without any input bytes in `RsaCipher` [PR #147](https://github.com/corretto/amazon-corretto-crypto-provider/pull/147)
 
 ## 1.5.0
