@@ -19,6 +19,7 @@ method.
 ### Patches
 * Add version gating to some tests introduced in 1.5.0 [PR #128](https://github.com/corretto/amazon-corretto-crypto-provider/pull/128)
 * More accurate output size estimates from `Cipher.getOutputSize()` [PR #138](https://github.com/corretto/amazon-corretto-crypto-provider/pull/138)
+* Validate that `AesGcmSpi` receives a non-null key on init to prevent unncessarily late NPE [PR #146](https://github.com/corretto/amazon-corretto-crypto-provider/pull/146)
 
 ## 1.5.0
 ### Breaking Change Warning
