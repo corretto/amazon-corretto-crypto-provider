@@ -23,9 +23,11 @@ import java.security.AlgorithmParameters;
 import java.security.GeneralSecurityException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
+import java.security.Key;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.security.spec.AlgorithmParameterSpec;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -577,6 +579,25 @@ public class AesTest {
         byte[] decrypted = amznC.doFinal(ciphertext);
 
         assertArrayEquals(PLAINTEXT, decrypted);
+    }
+
+    @SuppressWarnings("ConstantConditions")
+    @Test
+    public void test_initNullKey() throws Throwable {
+        assumeMinimumVersion("1.6.0", AmazonCorrettoCryptoProvider.INSTANCE);
+        jceC.init(Cipher.ENCRYPT_MODE, key);
+
+        final Key key = null;
+        AlgorithmParameters params = jceC.getParameters();
+        AlgorithmParameterSpec spec = params.getParameterSpec(GCMParameterSpec.class);
+        SecureRandom random = TestUtil.MISC_SECURE_RANDOM.get();
+
+        assertThrows(InvalidKeyException.class, () -> amznC.init(Cipher.ENCRYPT_MODE, key));
+        assertThrows(InvalidKeyException.class, () -> amznC.init(Cipher.ENCRYPT_MODE, key, params));
+        assertThrows(InvalidKeyException.class, () -> amznC.init(Cipher.ENCRYPT_MODE, key, params, random));
+        assertThrows(InvalidKeyException.class, () -> amznC.init(Cipher.ENCRYPT_MODE, key, random));
+        assertThrows(InvalidKeyException.class, () -> amznC.init(Cipher.ENCRYPT_MODE, key, spec));
+        assertThrows(InvalidKeyException.class, () -> amznC.init(Cipher.ENCRYPT_MODE, key, spec, random));
     }
 
     @Test
