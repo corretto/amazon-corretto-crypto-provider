@@ -177,6 +177,14 @@ class RsaCipher extends CipherSpi {
                 inputOffset = 0;
                 inputLen = buffer_.size();
             }
+            // One-shot, no input. Cipher only calls engineDoFinal with null input in doFinal overloads
+            // that don't take an input buffer, and in those cases, inputOffset and inputLen are 0.
+            // We set them here anyways to be safe, because the API makes no such guarantee.
+            else if (input == null) {
+                input = new byte[0];
+                inputOffset = 0;
+                inputLen = 0;
+            }
 
             if (output.length - outputOffset < engineGetOutputSize(inputLen)) {
                 throw new ShortBufferException();
