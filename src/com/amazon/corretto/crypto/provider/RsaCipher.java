@@ -181,7 +181,7 @@ class RsaCipher extends CipherSpi {
             // that don't take an input buffer, and in those cases, inputOffset and inputLen are 0.
             // We set them here anyways to be safe, because the API makes no such guarantee.
             else if (input == null) {
-                input = new byte[0];
+                input = Utils.EMPTY_ARRAY;
                 inputOffset = 0;
                 inputLen = 0;
             }
