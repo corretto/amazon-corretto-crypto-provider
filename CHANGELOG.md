@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.6.0
+### Breaking Change
+In accordance with our [versioning policy](https://github.com/corretto/amazon-corretto-crypto-provider/blob/master/VERSIONING.rst),
+this release contains a low-risk breaking change. For details please see the [1.5.0](#150) section of this document.
+This change only impacts libraries that generate EC keys using the
+[KeyPairGenerator.initialize(int keysize)](https://docs.oracle.com/javase/8/docs/api/java/security/KeyPairGenerator.html#initialize-int-)
+method.
+
+### Improvements
+* Stricter guarantees about which curves are used for EC key generation. [PR #127](https://github.com/corretto/amazon-corretto-crypto-provider/pull/127)
+* Reduce timing signal from trimming zeros of TLSPremasterSecrets from DH KeyAgreement. [PR #129](https://github.com/corretto/amazon-corretto-crypto-provider/pull/129)
+* Reuse state in `MessageDigest` to decrease object allocation rate. [PR #131](https://github.com/corretto/amazon-corretto-crypto-provider/pull/131)
+* Now uses [OpenSSL 1.1.1j](https://www.openssl.org/source/openssl-1.1.1j.tar.gz). [PR #145](https://github.com/corretto/amazon-corretto-crypto-provider/pull/145)
+  (ACCP is not impacted by [CVE-2020-1971](https://www.openssl.org/news/secadv/20201208.txt), [CVE-2021-23841](https://www.openssl.org/news/secadv/20210216.txt), or [CVE-2021-23839](https://www.openssl.org/news/secadv/20210216.txt) as ACCP does not use or expose any of the relevant functionality.
+  ACCP is not impacted by [CVE-2021-23840](https://www.openssl.org/news/secadv/20210216.txt) as ACCP does not use the relevant functionality under the affected conditions.)
+
+### Patches
+* Add version gating to some tests introduced in 1.5.0 [PR #128](https://github.com/corretto/amazon-corretto-crypto-provider/pull/128)
+* More accurate output size estimates from `Cipher.getOutputSize()` [PR #138](https://github.com/corretto/amazon-corretto-crypto-provider/pull/138)
+* Validate that `AesGcmSpi` receives a non-null key on init to prevent unnecessarily late NPE [PR #146](https://github.com/corretto/amazon-corretto-crypto-provider/pull/146)
+* Gracefully handle calling `Cipher.doFinal()` without any input bytes in `RsaCipher` [PR #147](https://github.com/corretto/amazon-corretto-crypto-provider/pull/147)
+
 ## 1.5.0
 ### Breaking Change Warning
 In accordance with our [versioning policy](https://github.com/corretto/amazon-corretto-crypto-provider/blob/master/VERSIONING.rst),

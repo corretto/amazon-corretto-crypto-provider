@@ -74,7 +74,7 @@ public class TestResultLogger implements TestWatcher {
         StringWriter causeText = new StringWriter();
         if (cause != null) {
             try (PrintWriter printWriter = new PrintWriter(causeText)) {
-                printWriter.append(" @ ").append(getFailureLocation(cause).toString());
+                printWriter.append(" @ ").append(String.valueOf(getFailureLocation(cause)));
                 // Don't print out traces for Assert.* failures which throw subclasses of AssertionError.
                 // Just for thrown exceptions
                 if (AssertionError.class.equals(cause.getClass()) ||

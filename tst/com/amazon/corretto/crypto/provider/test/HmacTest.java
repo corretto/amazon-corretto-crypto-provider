@@ -378,8 +378,10 @@ public class HmacTest {
             assertThrows(InvalidAlgorithmParameterException.class, () -> mac.init(validKey, new IvParameterSpec(new byte[0])));
             assertThrows(InvalidKeyException.class, () -> mac.init(pubKey));
             assertThrows(InvalidKeyException.class, () -> mac.init(badFormat));
-            assertThrows(InvalidKeyException.class, () -> mac.init(nullFormat));
             assertThrows(InvalidKeyException.class, () -> mac.init(nullEncoding));
+
+            TestUtil.assumeMinimumVersion("1.5.0", AmazonCorrettoCryptoProvider.INSTANCE);
+            assertThrows(InvalidKeyException.class, () -> mac.init(nullFormat));
         }
     }
 
