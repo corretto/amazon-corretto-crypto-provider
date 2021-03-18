@@ -39,10 +39,12 @@ In decreasing order of importance:
     3. Comment to explain exactly what is intended and, when appropriate, why a particular technique was chosen.
     Examples: ([ConstantTime](https://github.com/corretto/amazon-corretto-crypto-provider/blob/develop/src/com/amazon/corretto/crypto/provider/ConstantTime.java) and its [tests](https://github.com/corretto/amazon-corretto-crypto-provider/blob/develop/tst/com/amazon/corretto/crypto/provider/test/ConstantTimeTests.java), [Janitor](https://github.com/corretto/amazon-corretto-crypto-provider/blob/develop/src/com/amazon/corretto/crypto/provider/Janitor.java) and its [tests](https://github.com/corretto/amazon-corretto-crypto-provider/blob/develop/tst/com/amazon/corretto/crypto/provider/test/JanitorTest.java))
 7. Old code *must* be updated to current best practices.
-    As we extend and improve ACCP, we will create new tools and frameworks to make our code better (cleaner, safer, easier to read, etc.).
+    This doesn't mean that all parts of ACCP need to be constantly updated, checked, and polished.
+    What it does mean is that whenever we improve how we write ACCP code in one place (for example, to reduce the possiblity of errors),
+    we should go back through the rest of the ACCP codebase to make the same improvements everywhere.
+    Ideally, this extends to readability improvements as well.
     Historical examples of this include `java_buffer`, `InputBuffer`, `NativeResource`, `raii_env` and others.
-    Even though old code will continue to work, we must go back and bring old code up to current standards and techniques.
-    This means that just because existing code was acceptable when it was written does not mean it is acceptable now.
+    Just because existing code was acceptable when it was written does not mean it is acceptable now.
     Doing this allows us to continually raise the bar on code quality across the project and combat [bit rot](https://en.wikipedia.org/wiki/Software_rot).
 
 

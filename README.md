@@ -8,7 +8,12 @@ Currently algorithms are primarily backed by OpenSSL's implementations (1.1.1j a
 
 
 ## Build Status
-Please be aware that "Overkill" tests are known to be flakey
+Please be aware that both "Overkill" and "Dieharder" tests are known to be flakey.
+Both of these tests are flakey because they include entropy generation tests
+(specificaly, the [Dieharder tests](http://webhome.phy.duke.edu/~rgb/General/dieharder.php)).
+Entropy tests are unavoidably flakey because there is always a possibility that a high-quality
+random number generator will output data which looks non-random.
+(For example, even a fair coin will come up heads ten times in a row about one in a thousand trials.)
 
 | Build Name | master branch | develop branch |
 | ---------- | ------------- | -------------- |
