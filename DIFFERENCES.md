@@ -42,9 +42,9 @@ This construction is safe for all known JCE providers and is expected to remain 
 For more information, see the [changelog](./CHANGELOG.md) notes for version 1.5.0.
 
 ## Cipher.getOutputSize() for AES-GCM
-ACCP might overestimate the amount of space needed when encrypted with `AES/GCM/NoPadding`.
+ACCP might overestimate the amount of space needed when encrypted with `AES/GCM/NoPadding` on versions prior to 1.6.0.
 While this is compliant with the JCE (which [permits overestimation](https://docs.oracle.com/javase/8/docs/api/javax/crypto/Cipher.html#getOutputSize-int-)) it has caused confusion for some developers.
-We are tracking this as [issue #135](https://github.com/corretto/amazon-corretto-crypto-provider/issues/135) and will improve this behavior.
+
 
 ## SecureRandom is never deterministic
 Some implementation of `SecureRandom` (such as `SHA1PRNG`, provided by the default OpenJDK cryptographic providers) can operate deterministically if `SecureRandom.setSeed(byte[])` is called prior to any other methods.

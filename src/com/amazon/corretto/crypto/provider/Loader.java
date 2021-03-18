@@ -27,6 +27,22 @@ import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * This class owns <em>all</em> logic necessary for loading the native library.
+ * For this reason it must not depend on any other classes from this project (other than Janitor).
+ *
+ * The rough logic flow is as follows:
+ * <ol>
+ * <li>Read library version from embedded properties file
+ * <li>Use some entropy from {@code /dev/urandom} to create a random temporary filename
+ * <li>Copy the shared object from within our own JAR to the temporary file
+ * <li>Load the shared object as a library from the temporary file
+ * <li>Delete the temporary file
+ * <li>If loading the library from above fails, try to load the library from our standard library path
+ * <li>If we have successfully loaded a library, ask it for the version it was compiled with
+ * <li>If the versions match, we mark that we loaded successful, else, we record the error.
+ * </ol>
+ */
 final class Loader {
     private static final String PROPERTY_BASE = "com.amazon.corretto.crypto.provider.";
     private static final String LIBRARY_NAME = "amazonCorrettoCryptoProvider";
