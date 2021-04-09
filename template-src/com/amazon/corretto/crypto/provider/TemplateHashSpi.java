@@ -29,7 +29,6 @@ public final class TemplateHashSpi extends MessageDigestSpi implements Cloneable
     private static final byte[] INITIAL_CONTEXT;
 
     private byte[] myContext;
-    private byte[] oneByteArray = null;
     private InputBuffer<byte[], byte[]> buffer;
 
     static {
