@@ -4,9 +4,12 @@
 package com.amazon.corretto.crypto.provider.test;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
+
+import org.apache.commons.codec.binary.Hex;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assumptions;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import java.io.File;
@@ -58,7 +61,13 @@ public class TestUtil {
         MISC_SECURE_RANDOM.get().nextBytes(result);
         return result;
     }
-    
+
+    public static void assertArraysHexEquals(byte[] expected, byte[] actual) {
+        final String expectedHex = Hex.encodeHexString(expected);
+        final String actualHex = Hex.encodeHexString(actual);
+        assertEquals(expectedHex, actualHex);
+    }
+
     public static void assertThrows(Class<? extends Throwable> expected, ThrowingRunnable callable) {
         try {
             callable.run();

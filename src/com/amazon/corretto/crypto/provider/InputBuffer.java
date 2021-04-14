@@ -138,12 +138,12 @@ public class InputBuffer<T, S> implements Cloneable {
     // provided for specification purposes
     //@ non_null_by_default
     @FunctionalInterface
-    public static interface StateSupplier<S> extends Supplier<S> {
+    public static interface StateSupplier<S> extends Function<S, S> {
         //@ also
         //@ public normal_behavior
         //@   ensures \result != null ==> \fresh(\result);
         //@ pure
-        public /*@ nullable @*/ S get();
+        public /*@ nullable @*/ S apply(S state);
     }
 
     //@ private invariant 0 <= buffSize;
@@ -163,9 +163,7 @@ public class InputBuffer<T, S> implements Cloneable {
     //@ spec_public
     private /*@ nullable @*/ FinalHandlerFunction<S, T> finalHandler;
     //@ spec_public
-    private /*@ { Consumer.Local<S> } @*/ Consumer<S> stateResetter = (ignored) -> { }; // NOP
-    //@ spec_public
-    private StateSupplier<S> stateSupplier = () -> state;
+    private StateSupplier<S> stateSupplier = (oldState) -> oldState;
     //@ spec_public
     private Optional<Function<S, S>> stateCloner = Optional.empty();
     // If absent, delegates to arrayUpdater
@@ -229,7 +227,6 @@ public class InputBuffer<T, S> implements Cloneable {
     public void reset() {
         buff.reset();
         firstData = true;
-        state = null;
         /*@ set bytesReceived = 0;
           @ set bytesProcessed = 0;
           @ set bufferState = ((bufferState == BufferState.Uninitialized)
@@ -308,15 +305,6 @@ public class InputBuffer<T, S> implements Cloneable {
     //@     ensures \result == this && stateCloner.value == cloner;
     public InputBuffer<T, S> withStateCloner(final /*@ nullable @*/ Function<S, S> cloner) {
         stateCloner = Optional.ofNullable(cloner);
-        return this;
-    }
-
-    //@ normal_behavior
-    //@     requires true;
-    //@     assignable stateResetter;
-    //@     ensures \result == this && stateResetter == resetter;
-    public InputBuffer<T, S> withStateResetter(final /*@ { Consumer.Local<S> } @*/ Consumer<S> resetter) {
-        stateResetter = resetter;
         return this;
     }
 
@@ -469,7 +457,7 @@ public class InputBuffer<T, S> implements Cloneable {
                 buff.reset();
                 //@ set bytesProcessed = bytesProcessed + oldSize;
             } else {
-                state = stateSupplier.get();
+                state = stateSupplier.apply(state);
             }
             //@ set bufferState = BufferState.HandlerCalled;
             firstData = false;
@@ -522,7 +510,7 @@ public class InputBuffer<T, S> implements Cloneable {
                 if (initialBufferUpdater.isPresent()) {
                     state = initialBufferUpdater.get().apply(src.slice());
                 } else {
-                    state = stateSupplier.get();
+                    state = stateSupplier.apply(state);
                     bufferUpdater.get().accept(state, src.slice());
                 }
             } else {
@@ -569,7 +557,7 @@ public class InputBuffer<T, S> implements Cloneable {
             if (initialArrayUpdater.isPresent()) {
                 state = initialArrayUpdater.get().apply(src, offset, length);
             } else {
-                state = stateSupplier.get();
+                state = stateSupplier.apply(state);
                 arrayUpdater.accept(state, src, offset, length);
             }
         } else {

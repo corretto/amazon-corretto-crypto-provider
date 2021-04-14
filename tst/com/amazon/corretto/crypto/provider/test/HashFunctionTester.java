@@ -3,6 +3,7 @@
 
 package com.amazon.corretto.crypto.provider.test;
 
+import static com.amazon.corretto.crypto.provider.test.TestUtil.assertArraysHexEquals;;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyInvoke;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -222,6 +223,8 @@ public class HashFunctionTester {
         testBoundsChecks();
         testByteBufferReflectionFallback();
         testClone();
+        testCloneLarge();
+        testDraggedState();
         testDirectBufferSlices();
         testLargeArray();
         testLargeDirectBuffer();
@@ -264,6 +267,76 @@ public class HashFunctionTester {
         expected.update(nativeBuf.duplicate());
 
         assertArrayEquals(expected.digest(), md.digest());
+    }
+
+    private void testDraggedState() throws CloneNotSupportedException {
+        final byte[] base = new byte[4096];
+        final byte[] suffix1 = new byte[4096];
+        final byte[] suffix2 = new byte[4096];
+        for (int x = 0; x < base.length; x++) {
+            base[x] = (byte) x;
+            suffix1[x] = (byte) (x + 1);
+            suffix2[x] = (byte) (x + 2);
+        }
+        MessageDigest defaultInstance = getDefaultInstance();
+        defaultInstance.update(base);
+        final byte[] expected1 = defaultInstance.digest(suffix1);
+
+        defaultInstance.update(base);
+        final byte[] expected2 = defaultInstance.digest(suffix2);
+
+        final MessageDigest original = getAmazonInstance();
+        final MessageDigest duplicate = (MessageDigest) original.clone();
+
+        // First use uses the explicitly cloned state
+        original.update(base);
+        duplicate.update(base);
+
+        assertArraysHexEquals(expected1, original.digest(suffix1));
+        assertArraysHexEquals(expected2, duplicate.digest(suffix2));
+
+        // State has been reset and thus we might no longer be on the explicitly cloned state
+        original.update(base);
+        duplicate.update(base);
+
+        assertArraysHexEquals(expected1, original.digest(suffix1));
+        assertArraysHexEquals(expected2, duplicate.digest(suffix2));
+    }
+
+    private void testCloneLarge() throws CloneNotSupportedException {
+        MessageDigest md = getAmazonInstance();
+
+        final byte[] base = new byte[4096];
+        final byte[] suffix1 = new byte[4096];
+        final byte[] suffix2 = new byte[4096];
+        for (int x = 0; x < base.length; x++) {
+            base[x] = (byte) x;
+            suffix1[x] = (byte) (x + 1);
+            suffix2[x] = (byte) (x + 2);
+        }
+
+        md.update(base);
+
+        MessageDigest md2 = (MessageDigest) md.clone();
+
+        md2.update(suffix1);
+        md.update(suffix2);
+
+        MessageDigest defaultInstance = getDefaultInstance();
+        defaultInstance.update(base);
+        final byte[] expected1 = defaultInstance.digest(suffix1);
+
+        defaultInstance.update(base);
+        final byte[] expected2 = defaultInstance.digest(suffix2);
+
+        assertArraysHexEquals(
+            expected1,
+            md2.digest()
+        );
+        assertArraysHexEquals(
+            expected2,
+            md.digest()
+        );
     }
 
     private void testClone() throws CloneNotSupportedException {
