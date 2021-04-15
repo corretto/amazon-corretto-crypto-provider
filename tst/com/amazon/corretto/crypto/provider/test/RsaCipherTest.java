@@ -924,6 +924,17 @@ public class RsaCipherTest {
         }
     }
 
+    @Test
+    public void noInputDoFinal() throws Exception {
+        assumeMinimumVersion("1.6.0", AmazonCorrettoCryptoProvider.INSTANCE);
+        final Cipher enc = Cipher.getInstance(NO_PADDING, NATIVE_PROVIDER);
+        enc.init(Cipher.ENCRYPT_MODE, PAIR_1024.getPublic());
+        final byte[] result = enc.doFinal();
+        for (final byte b : result) {
+            assertEquals(b, 0);
+        }
+    }
+
     private void testNative2Jce(final String padding, final int keySize) throws GeneralSecurityException {
         final Cipher jceC = Cipher.getInstance(padding);
         final Cipher nativeC = Cipher.getInstance(padding, NATIVE_PROVIDER);
