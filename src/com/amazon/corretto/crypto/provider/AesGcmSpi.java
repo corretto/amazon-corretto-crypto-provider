@@ -193,6 +193,7 @@ final class AesGcmSpi extends CipherSpi {
 
     private static final int BLOCK_SIZE = 128 / 8;
 
+    private final AmazonCorrettoCryptoProvider provider;
     private NativeResource context = null;
     private SecretKey jceKey;
     private byte[] iv, key;
@@ -205,8 +206,8 @@ final class AesGcmSpi extends CipherSpi {
 
     private AccessibleByteArrayOutputStream decryptInputBuf, decryptAADBuf;
 
-    AesGcmSpi() {
-        Loader.checkNativeLibraryAvailability();
+    AesGcmSpi(AmazonCorrettoCryptoProvider provider) {
+        this.provider = provider;
     }
 
     @Override
@@ -237,9 +238,7 @@ final class AesGcmSpi extends CipherSpi {
     protected int engineGetOutputSize(int inputLen) {
         switch (opMode) {
             case NATIVE_MODE_ENCRYPT:
-                // Ensure we have room (on doFinal) for either an extra ciphertext block that was buffered in OpenSSL,
-                // or the final tag (whichever is bigger)
-                return inputLen + Math.max(tagLength, engineGetBlockSize() - 1);
+                return getUpdateOutputSize(inputLen) + tagLength;
             case NATIVE_MODE_DECRYPT:
                 return Math.max(0, decryptInputBuf.size() + inputLen - tagLength);
             default:
@@ -253,7 +252,7 @@ final class AesGcmSpi extends CipherSpi {
     private synchronized int getUpdateOutputSize(int inputLen) {
         switch (opMode) {
             case NATIVE_MODE_ENCRYPT:
-                return inputLen + engineGetBlockSize() - 1;
+                return inputLen;
             case NATIVE_MODE_DECRYPT:
                 // We do not return data from engineUpdate when decrypting - all data is returned from engineDoFinal()
                 return 0;
@@ -296,6 +295,10 @@ final class AesGcmSpi extends CipherSpi {
     protected synchronized void engineInit(
         int jceOpMode, Key key, AlgorithmParameterSpec algorithmParameterSpec, SecureRandom secureRandom
     ) throws InvalidKeyException, InvalidAlgorithmParameterException {
+        if (key == null) {
+            throw new InvalidKeyException("Key can't be null");
+        }
+
         final GCMParameterSpec spec;
         if (algorithmParameterSpec instanceof GCMParameterSpec) {
             spec = (GCMParameterSpec) algorithmParameterSpec;
@@ -722,7 +725,7 @@ final class AesGcmSpi extends CipherSpi {
             throw new IllegalStateException("Cipher must be in WRAP_MODE");
         }
         try {
-            final byte[] encoded = Utils.encodeForWrapping(key);
+            final byte[] encoded = Utils.encodeForWrapping(provider, key);
             return engineDoFinal(encoded, 0, encoded.length);
         } catch (final BadPaddingException ex) {
             throw new InvalidKeyException("Wrapping failed", ex);
@@ -737,7 +740,7 @@ final class AesGcmSpi extends CipherSpi {
         }
         try {
             final byte[] unwrappedKey = engineDoFinal(wrappedKey, 0, wrappedKey.length);
-            return Utils.buildUnwrappedKey(unwrappedKey, wrappedKeyAlgorithm, wrappedKeyType);
+            return Utils.buildUnwrappedKey(provider, unwrappedKey, wrappedKeyAlgorithm, wrappedKeyType);
         } catch (final BadPaddingException | IllegalBlockSizeException | InvalidKeySpecException ex) {
             throw new InvalidKeyException("Unwrapping failed", ex);
         }
@@ -854,6 +857,9 @@ final class AesGcmSpi extends CipherSpi {
     }
 
     private void checkOutputBuffer(int inputLength, byte[] output, int outputOffset) throws ShortBufferException {
+        if (inputLength < 0 || outputOffset < 0 || outputOffset > output.length) {
+            throw new ArrayIndexOutOfBoundsException();
+        }
         if (output.length - outputOffset < getUpdateOutputSize(inputLength)) {
             throw new ShortBufferException("Expected a buffer of at least " + engineGetOutputSize(inputLength) + " bytes; got " + (output.length - outputOffset));
         }

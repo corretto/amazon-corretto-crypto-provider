@@ -4,6 +4,7 @@
 package com.amazon.corretto.crypto.provider;
 
 import java.math.BigInteger;
+import java.security.GeneralSecurityException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.Key;
@@ -33,18 +34,24 @@ class EvpKeyAgreement extends KeyAgreementSpi {
     private final AmazonCorrettoCryptoProvider provider_;
     private final EvpKeyType keyType_;
     private final String algorithm_;
-    private PrivateKey privKey = null;
-    private byte[] privKeyDer = null;
+    private EvpKey privKey = null;
     private byte[] secret = null;
 
-    private static native byte[] agree(byte[] privateKeyDer, byte[] publicKeyDer, int keyType, boolean checkPrivateKey)
-            throws InvalidKeyException;
+    private static native byte[] agree(long privateKeyPtr, long publicKeyPtr) throws InvalidKeyException;
 
     EvpKeyAgreement(AmazonCorrettoCryptoProvider provider, final String algorithm, final EvpKeyType keyType) {
         Loader.checkNativeLibraryAvailability();
         provider_ = provider;
         algorithm_ = algorithm;
         keyType_ = keyType;
+    }
+
+    private byte[] agree(EvpKey pubKey) throws InvalidKeyException {
+        return privKey.use(privatePtr ->
+            pubKey.use(publicPtr -> 
+                agree(privatePtr, publicPtr)
+            )
+        );
     }
 
     @Override
@@ -57,38 +64,31 @@ class EvpKeyAgreement extends KeyAgreementSpi {
         if (!keyType_.publicKeyClass.isAssignableFrom(key.getClass())) {
             throw new InvalidKeyException("Expected key of type " + keyType_.publicKeyClass + " not " + key.getClass());
         }
-        final byte[] pubKeyDer;
+        final EvpKey publicKey = provider_.translateKey(key, keyType_);
         try {
-            pubKeyDer = keyType_.getKeyFactory().getKeySpec(key, X509EncodedKeySpec.class).getEncoded();
-        } catch (final InvalidKeySpecException | NullPointerException ex) {
-            throw new InvalidKeyException(ex);
-        }
-
-        if (lastPhase) {
-            // We do the actual agreement here because that is where key validation and thus exceptions
-            // get thrown.
-            secret = agree(privKeyDer, pubKeyDer, keyType_.nativeValue,
-                provider_.hasExtraCheck(ExtraCheck.PRIVATE_KEY_CONSISTENCY)
-                );
-            return null;
-        } else if ("DH".equals(algorithm_)) {
-            final DHParameterSpec dhParams = ((DHKey) privKey).getParams();
-            try {
-                final Key result = keyType_.getKeyFactory().generatePublic(new DHPublicKeySpec(
-                    new BigInteger(1,
-                        agree(privKeyDer, pubKeyDer, keyType_.nativeValue,
-                            provider_.hasExtraCheck(ExtraCheck.PRIVATE_KEY_CONSISTENCY)
-                            )), // y
-                    dhParams.getP(),
-                    dhParams.getG()
-                ));
-                return result;
-            } catch (final InvalidKeySpecException ex) {
-                throw new RuntimeCryptoException(ex);
+            if (lastPhase) {
+                // We do the actual agreement here because that is where key validation and thus exceptions
+                // get thrown.
+                secret = agree(publicKey);
+                return null;
+            } else if ("DH".equals(algorithm_)) {
+                final DHParameterSpec dhParams = ((DHKey) privKey).getParams();
+                try {
+                    final Key result = provider_.getKeyFactory(keyType_).generatePublic(new DHPublicKeySpec(
+                        new BigInteger(1, agree(publicKey)), // y
+                        dhParams.getP(),
+                        dhParams.getG()
+                    ));
+                    return result;
+                } catch (final InvalidKeySpecException ex) {
+                    throw new RuntimeCryptoException(ex);
+                }
+            } else {
+                secret = null;
+                throw new IllegalStateException("Only single phase agreement is supported");
             }
-        } else {
-            secret = null;
-            throw new IllegalStateException("Only single phase agreement is supported");
+        } finally {
+            publicKey.releaseEphemeral();
         }
     }
 
@@ -173,12 +173,10 @@ class EvpKeyAgreement extends KeyAgreementSpi {
         if (!keyType_.privateKeyClass.isAssignableFrom(key.getClass())) {
             throw new InvalidKeyException("Expected key of type " + keyType_.privateKeyClass + " not " + key.getClass());
         }
-        privKey = (PrivateKey) key;
-        try {
-            privKeyDer = keyType_.getKeyFactory().getKeySpec(key, PKCS8EncodedKeySpec.class).getEncoded();
-        } catch (final InvalidKeySpecException ex) {
-            throw new InvalidKeyException(ex);
+        if (privKey != null) {
+            privKey.releaseEphemeral();
         }
+        privKey = provider_.translateKey(key, keyType_);
         reset();
     }
 

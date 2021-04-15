@@ -9,6 +9,7 @@ import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyConstruct;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyGetField;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyInvoke;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyInvoke_int;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -23,9 +24,11 @@ import java.security.AlgorithmParameters;
 import java.security.GeneralSecurityException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
+import java.security.Key;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.security.spec.AlgorithmParameterSpec;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -41,7 +44,6 @@ import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
-import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -51,6 +53,10 @@ import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.junit.jupiter.api.parallel.ResourceAccessMode;
 import org.junit.jupiter.api.parallel.ResourceLock;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+
 
 @ExtendWith(TestResultLogger.class)
 @Execution(ExecutionMode.SAME_THREAD)
@@ -61,7 +67,6 @@ public class AesTest {
     private static final byte[] PLAINTEXT = "Hello world. Good night moon.".getBytes(StandardCharsets.UTF_8);
     private static final String ALGO_NAME = "AES/GCM/NoPadding";
     private static final String PROVIDER_SUN = "SunJCE";
-    private static final String PROVIDER_AMAZON = "AmazonCorrettoCryptoProvider";
     private byte[] nonce;
     private SecretKeySpec key;
     private Cipher jceC;
@@ -74,11 +79,6 @@ public class AesTest {
         throw new AssertionError(ex);
       }
     }
-
-    @BeforeAll
-    public static void setupProvider() {
-        Security.addProvider(AmazonCorrettoCryptoProvider.INSTANCE);
-    }
     
     @BeforeEach
     public void setup() throws Throwable {
@@ -86,7 +86,7 @@ public class AesTest {
         key = new SecretKeySpec(foo, "AES");
         nonce = TestUtil.getRandomBytes(12);
         jceC = Cipher.getInstance(ALGO_NAME);
-        amznC = Cipher.getInstance(ALGO_NAME, AmazonCorrettoCryptoProvider.INSTANCE);
+        amznC = Cipher.getInstance(ALGO_NAME, NATIVE_PROVIDER);
     }
 
     @AfterEach
@@ -100,7 +100,7 @@ public class AesTest {
     }
 
     private Object getSpiInstance() throws Throwable {
-      return sneakyConstruct(SPI_CLASS.getName());
+      return sneakyConstruct(SPI_CLASS.getName(), NATIVE_PROVIDER);
     }
 
     @Test
@@ -205,6 +205,106 @@ public class AesTest {
             }
         }
     }
+
+    public static List<Arguments> estimateOutputParams() {
+        final int[] plaintextSizes = {0, 1, 7, 8, 9, 15, 16};
+        final int[] tagLengthsInBits = {96, 112, 128};
+        List<Arguments> result = new ArrayList<>();
+        for (int tagLengthInBits: tagLengthsInBits) {
+            for (int first: plaintextSizes) {
+                for (int second: plaintextSizes) {
+                    result.add(Arguments.of(first, second, tagLengthInBits));
+                }
+            }
+        }
+        return result;
+    }
+
+    @ParameterizedTest
+    @MethodSource("estimateOutputParams")
+    public void encryptEstimatesCorrectly(int prefixLength, int testInputLength, int tagLengthInBits) throws GeneralSecurityException {
+        assumeMinimumVersion("1.6.0", NATIVE_PROVIDER);
+        amznC.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(tagLengthInBits, new byte[12]));
+
+        // We sometimes encrypt a bit before the test case to catch if anything is cached
+        if (prefixLength != 0) {
+            amznC.update(new byte[prefixLength]); // Ignore output as it isn't helpful
+        }
+
+        final int estimatedLength = amznC.getOutputSize(testInputLength);
+        assertEquals(testInputLength + tagLengthInBits / 8, estimatedLength);
+
+        byte[] output = amznC.update(new byte[testInputLength]);
+        if (testInputLength == 0) { // As per the Javadoc for Cipher.update(byte[])
+            assertNull(output);
+        } else {
+            assertEquals(testInputLength, output.length);
+        }
+        byte[] tag = amznC.doFinal();
+        assertEquals(tagLengthInBits / 8, tag.length);
+    }
+
+    @ParameterizedTest
+    @MethodSource("estimateOutputParams")
+    public void encryptEstimatesCorrectlyPlacement(int prefixLength, int testInputLength, int tagLengthInBits) throws GeneralSecurityException {
+        assumeMinimumVersion("1.6.0", NATIVE_PROVIDER);
+        amznC.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(tagLengthInBits, new byte[12]));
+
+        // We sometimes encrypt a bit before the test case to catch if anything is cached
+        if (prefixLength != 0) {
+            amznC.update(new byte[prefixLength]); // Ignore output as it isn't helpful
+        }
+
+        final int estimatedLength = amznC.getOutputSize(testInputLength);
+        assertEquals(testInputLength + tagLengthInBits / 8, estimatedLength);
+
+        final byte[] output = new byte[testInputLength]; // AES-GCM should not change the length when encrypting (until doFinal)
+        final int actualOutputLength = amznC.update(new byte[testInputLength], 0, testInputLength, output, 0);
+
+        assertEquals(testInputLength, actualOutputLength);
+
+        byte[] tag = amznC.doFinal();
+        assertEquals(tagLengthInBits / 8, tag.length);
+    }
+
+    @ParameterizedTest
+    @MethodSource("estimateOutputParams")
+    public void encryptEstimatesCorrectlyFinal(int prefixLength, int testInputLength, int tagLengthInBits) throws GeneralSecurityException {
+        assumeMinimumVersion("1.6.0", NATIVE_PROVIDER);
+        amznC.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(tagLengthInBits, new byte[12]));
+
+        // We sometimes encrypt a bit before the test case to catch if anything is cached
+        if (prefixLength != 0) {
+            amznC.update(new byte[prefixLength]); // Ignore output as it isn't helpful
+        }
+
+        final int estimatedLength = amznC.getOutputSize(testInputLength);
+        assertEquals(testInputLength + tagLengthInBits / 8, estimatedLength);
+
+        final byte[] output = amznC.doFinal(new byte[testInputLength]);
+        assertEquals(estimatedLength, output.length);
+    }
+
+    @ParameterizedTest
+    @MethodSource("estimateOutputParams")
+    public void encryptEstimatesCorrectlyPlacementFinal(int prefixLength, int testInputLength, int tagLengthInBits) throws GeneralSecurityException {
+        assumeMinimumVersion("1.6.0", NATIVE_PROVIDER);
+        amznC.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(tagLengthInBits, new byte[12]));
+
+        // We sometimes encrypt a bit before the test case to catch if anything is cached
+        if (prefixLength != 0) {
+            amznC.update(new byte[prefixLength]); // Ignore output as it isn't helpful
+        }
+
+        final int estimatedLength = amznC.getOutputSize(testInputLength);
+        assertEquals(testInputLength + tagLengthInBits / 8, estimatedLength);
+
+        final byte[] output = new byte[estimatedLength];
+        final int actualOutputLength = amznC.doFinal(new byte[testInputLength], 0, testInputLength, output, 0);
+
+        assertEquals(estimatedLength, actualOutputLength);
+    }
+
 
     @Test
     public void large_overlap_encrypt() {
@@ -400,11 +500,6 @@ public class AesTest {
 
         // Allows room for the final tag
         assertEquals(12345 + 16, sneakyInvoke_int(spi, "engineGetOutputSize", 12345));
-
-        // Allows room for a partial buffered block
-        sneakyInvoke(spi, "engineInit", Cipher.ENCRYPT_MODE, key,
-                new GCMParameterSpec(12 * 8, randomIV()), rnd);
-        assertEquals(12345 + 15, sneakyInvoke_int(spi, "engineGetOutputSize", 12345));
     }
 
     @Test
@@ -434,7 +529,7 @@ public class AesTest {
         assertArrayEquals(spec.getIV(), actualSpec.getIV());
         assertEquals(spec.getTLen(), actualSpec.getTLen());
 
-        assumeMinimumVersion("1.0", AmazonCorrettoCryptoProvider.INSTANCE);
+        assumeMinimumVersion("1.0", NATIVE_PROVIDER);
         ThreadLocalRandom.current().nextBytes(iv);
         IvParameterSpec ivSpec = new IvParameterSpec(iv);
         sneakyInvoke(spi, "engineInit", Cipher.ENCRYPT_MODE, key, ivSpec, rnd);
@@ -478,6 +573,25 @@ public class AesTest {
         byte[] decrypted = amznC.doFinal(ciphertext);
 
         assertArrayEquals(PLAINTEXT, decrypted);
+    }
+
+    @SuppressWarnings("ConstantConditions")
+    @Test
+    public void test_initNullKey() throws Throwable {
+        assumeMinimumVersion("1.6.0", NATIVE_PROVIDER);
+        jceC.init(Cipher.ENCRYPT_MODE, key);
+
+        final Key key = null;
+        AlgorithmParameters params = jceC.getParameters();
+        AlgorithmParameterSpec spec = params.getParameterSpec(GCMParameterSpec.class);
+        SecureRandom random = TestUtil.MISC_SECURE_RANDOM.get();
+
+        assertThrows(InvalidKeyException.class, () -> amznC.init(Cipher.ENCRYPT_MODE, key));
+        assertThrows(InvalidKeyException.class, () -> amznC.init(Cipher.ENCRYPT_MODE, key, params));
+        assertThrows(InvalidKeyException.class, () -> amznC.init(Cipher.ENCRYPT_MODE, key, params, random));
+        assertThrows(InvalidKeyException.class, () -> amznC.init(Cipher.ENCRYPT_MODE, key, random));
+        assertThrows(InvalidKeyException.class, () -> amznC.init(Cipher.ENCRYPT_MODE, key, spec));
+        assertThrows(InvalidKeyException.class, () -> amznC.init(Cipher.ENCRYPT_MODE, key, spec, random));
     }
 
     @Test
@@ -538,7 +652,7 @@ public class AesTest {
         sneakyInvoke(spi, "engineInit", Cipher.ENCRYPT_MODE, key,
                 new GCMParameterSpec(128, randomIV()), rnd);
         assertThrows(ShortBufferException.class,
-                () -> sneakyInvoke(spi, "engineUpdate", new byte[16], 0, 16, new byte[32], 16));
+                () -> sneakyInvoke(spi, "engineUpdate", new byte[16], 0, 16, new byte[32], 17));
 
         sneakyInvoke(spi, "engineInit", Cipher.ENCRYPT_MODE, key,
                 new GCMParameterSpec(128, randomIV()), rnd);
@@ -609,7 +723,7 @@ public class AesTest {
         final SecureRandom rnd = TestUtil.MISC_SECURE_RANDOM.get();
 
 
-        Cipher c = Cipher.getInstance(ALGO_NAME, PROVIDER_AMAZON);
+        Cipher c = Cipher.getInstance(ALGO_NAME, NATIVE_PROVIDER);
         c.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, new byte[16]), rnd);
 
         c.update(new byte[1]);
@@ -631,7 +745,7 @@ public class AesTest {
             byte[] corruptData = data.clone();
             corruptData[bit / 8] ^= (1 << (bit % 8));
 
-            Cipher check = Cipher.getInstance(ALGO_NAME, PROVIDER_AMAZON);
+            Cipher check = Cipher.getInstance(ALGO_NAME, NATIVE_PROVIDER);
             check.init(Cipher.DECRYPT_MODE, key, algorithmParameterSpec, rnd);
 
             assertThrows(AEADBadTagException.class, () -> check.doFinal(corruptData));
@@ -640,7 +754,7 @@ public class AesTest {
 
     @Test
     public void testBadAEADTagException_noRelease() throws Throwable {
-        assumeMinimumVersion("1.5.0", AmazonCorrettoCryptoProvider.INSTANCE);
+        assumeMinimumVersion("1.5.0", NATIVE_PROVIDER);
 
         final SecureRandom rnd = TestUtil.MISC_SECURE_RANDOM.get();
 
@@ -656,7 +770,7 @@ public class AesTest {
             byte[] corruptData = data.clone();
             corruptData[bit / 8] ^= (1 << (bit % 8));
 
-            Cipher check = Cipher.getInstance(ALGO_NAME, PROVIDER_AMAZON);
+            Cipher check = Cipher.getInstance(ALGO_NAME, NATIVE_PROVIDER);
             check.init(Cipher.DECRYPT_MODE, key, algorithmParameterSpec, rnd);
 
             assertThrows(AEADBadTagException.class, () -> check.doFinal(corruptData, 0, corruptData.length, output, 0));
@@ -666,7 +780,7 @@ public class AesTest {
 
     @Test
     public void testBadAEADTagException_noReleaseByteBuffer() throws Throwable {
-        assumeMinimumVersion("1.5.0", AmazonCorrettoCryptoProvider.INSTANCE);
+        assumeMinimumVersion("1.5.0", NATIVE_PROVIDER);
 
         final SecureRandom rnd = TestUtil.MISC_SECURE_RANDOM.get();
 
@@ -684,7 +798,7 @@ public class AesTest {
             ByteBuffer corruptBuff = ByteBuffer.wrap(corruptData);
             ByteBuffer outputBuff = ByteBuffer.wrap(output);
 
-            Cipher check = Cipher.getInstance(ALGO_NAME, PROVIDER_AMAZON);
+            Cipher check = Cipher.getInstance(ALGO_NAME, NATIVE_PROVIDER);
             check.init(Cipher.DECRYPT_MODE, key, algorithmParameterSpec, rnd);
 
             assertThrows(AEADBadTagException.class, () -> check.doFinal(corruptBuff, outputBuff));
@@ -696,7 +810,7 @@ public class AesTest {
     public void whenCipherReusedWithoutReinit_throwsIVReuseException() throws Throwable {
         final SecureRandom rnd = TestUtil.MISC_SECURE_RANDOM.get();
 
-        Cipher c = Cipher.getInstance(ALGO_NAME, PROVIDER_AMAZON);
+        Cipher c = Cipher.getInstance(ALGO_NAME, NATIVE_PROVIDER);
         c.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, randomIV()), rnd);
         c.doFinal();
         assertThrows(IllegalStateException.class, c::doFinal);
@@ -711,7 +825,7 @@ public class AesTest {
 
         byte[] data = c.doFinal();
 
-        Cipher d = Cipher.getInstance(ALGO_NAME, PROVIDER_AMAZON);
+        Cipher d = Cipher.getInstance(ALGO_NAME, NATIVE_PROVIDER);
         d.init(Cipher.DECRYPT_MODE, key, c.getParameters(), rnd);
         d.doFinal(data);
         d.doFinal(data);
@@ -727,7 +841,7 @@ public class AesTest {
     public void testLargeIVs() throws Throwable {
         final SecureRandom rnd = TestUtil.MISC_SECURE_RANDOM.get();
 
-        Cipher c = Cipher.getInstance(ALGO_NAME, PROVIDER_AMAZON);
+        Cipher c = Cipher.getInstance(ALGO_NAME, NATIVE_PROVIDER);
         c.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, new byte[1024 * 1024]), rnd);
     }
 
@@ -748,7 +862,7 @@ public class AesTest {
         c.updateAAD(aad);
         byte[] ciphertext = c.doFinal(data);
 
-        Cipher c2 = Cipher.getInstance(ALGO_NAME, PROVIDER_AMAZON);
+        Cipher c2 = Cipher.getInstance(ALGO_NAME, NATIVE_PROVIDER);
         c2.init(Cipher.DECRYPT_MODE, key, params, rnd);
         c2.updateAAD(aad);
         byte[] plaintext = c2.doFinal(ciphertext);
@@ -766,7 +880,7 @@ public class AesTest {
     public void testLargeAAD_encrypt() throws Throwable {
         final SecureRandom rnd = TestUtil.MISC_SECURE_RANDOM.get();
 
-        Cipher c = Cipher.getInstance(ALGO_NAME, PROVIDER_AMAZON);
+        Cipher c = Cipher.getInstance(ALGO_NAME, NATIVE_PROVIDER);
         byte[] aad = new byte[1024 * 1024]; // new byte[1024*1024];
         byte[] data = new byte[1024 * 1024];
 
@@ -813,7 +927,7 @@ public class AesTest {
     public void testShortArrays() throws Throwable {
         final SecureRandom rnd = TestUtil.MISC_SECURE_RANDOM.get();
 
-        Cipher c = Cipher.getInstance(ALGO_NAME, PROVIDER_AMAZON);
+        Cipher c = Cipher.getInstance(ALGO_NAME, NATIVE_PROVIDER);
         c.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(128, new byte[12]), rnd);
 
         assertThrows(AEADBadTagException.class, "Input too short - need tag", () -> c.doFinal());
@@ -834,7 +948,7 @@ public class AesTest {
     @Test
     public void testEmptyPlaintext() throws Throwable {
         GCMParameterSpec spec = new GCMParameterSpec(128, randomIV());
-        Cipher c = Cipher.getInstance(ALGO_NAME, PROVIDER_AMAZON);
+        Cipher c = Cipher.getInstance(ALGO_NAME, NATIVE_PROVIDER);
         c.init(Cipher.ENCRYPT_MODE, key, spec);
         byte[] ciphertext = c.doFinal();
         c.init(Cipher.DECRYPT_MODE, key, spec);
@@ -853,7 +967,7 @@ public class AesTest {
 
     @Test
     public void safeReuse() throws Throwable {
-        Cipher c = Cipher.getInstance(ALGO_NAME, PROVIDER_AMAZON);
+        Cipher c = Cipher.getInstance(ALGO_NAME, NATIVE_PROVIDER);
         final Object spi = sneakyGetField(c, "spi");
         final int keyReuseThreshold = (int) sneakyGetField(spi.getClass(), "KEY_REUSE_THRESHOLD");
         assertEquals(1, keyReuseThreshold, "Test must be re-written for KEY_REUSE_THRESHOLD != 1");
@@ -1000,8 +1114,8 @@ public class AesTest {
             super(name);
             iterations_ = iterations;
             keys_ = keys;
-            enc_ = Cipher.getInstance(ALGO_NAME, PROVIDER_AMAZON);
-            dec_ = Cipher.getInstance(ALGO_NAME, PROVIDER_AMAZON);
+            enc_ = Cipher.getInstance(ALGO_NAME, NATIVE_PROVIDER);
+            dec_ = Cipher.getInstance(ALGO_NAME, NATIVE_PROVIDER);
             plaintext_ = new byte[64];
             rnd_ = SecureRandom.getInstance("SHA1PRNG");
             byte[] seed = new byte[20];

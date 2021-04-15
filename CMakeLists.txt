@@ -110,6 +110,21 @@ set(ACCP_SRC
         src/com/amazon/corretto/crypto/provider/ConstantTime.java
         src/com/amazon/corretto/crypto/provider/EcGen.java
         src/com/amazon/corretto/crypto/provider/EvpKeyAgreement.java
+        src/com/amazon/corretto/crypto/provider/EvpKey.java
+        src/com/amazon/corretto/crypto/provider/EvpDhKey.java
+        src/com/amazon/corretto/crypto/provider/EvpDhPublicKey.java
+        src/com/amazon/corretto/crypto/provider/EvpDhPrivateKey.java
+        src/com/amazon/corretto/crypto/provider/EvpDsaKey.java
+        src/com/amazon/corretto/crypto/provider/EvpDsaPublicKey.java
+        src/com/amazon/corretto/crypto/provider/EvpDsaPrivateKey.java
+        src/com/amazon/corretto/crypto/provider/EvpEcKey.java
+        src/com/amazon/corretto/crypto/provider/EvpEcPublicKey.java
+        src/com/amazon/corretto/crypto/provider/EvpEcPrivateKey.java
+        src/com/amazon/corretto/crypto/provider/EvpRsaKey.java
+        src/com/amazon/corretto/crypto/provider/EvpRsaPublicKey.java
+        src/com/amazon/corretto/crypto/provider/EvpRsaPrivateKey.java
+        src/com/amazon/corretto/crypto/provider/EvpRsaPrivateCrtKey.java
+        src/com/amazon/corretto/crypto/provider/EvpKeyFactory.java
         src/com/amazon/corretto/crypto/provider/EvpKeyType.java
         src/com/amazon/corretto/crypto/provider/EvpSignature.java
         src/com/amazon/corretto/crypto/provider/EvpSignatureBase.java
@@ -121,6 +136,7 @@ set(ACCP_SRC
         src/com/amazon/corretto/crypto/provider/Loader.java
         src/com/amazon/corretto/crypto/provider/AmazonCorrettoCryptoProvider.java
         src/com/amazon/corretto/crypto/provider/NativeResource.java
+        src/com/amazon/corretto/crypto/provider/MiscInterfaces.java
         src/com/amazon/corretto/crypto/provider/ReflectiveTools.java
         src/com/amazon/corretto/crypto/provider/RsaCipher.java
         src/com/amazon/corretto/crypto/provider/RsaGen.java
@@ -237,6 +253,7 @@ add_library(
         csrc/ec_utils.cpp
         csrc/env.cpp
         csrc/keyutils.cpp
+        csrc/java_evp_keys.cpp
         csrc/loader.cpp
         csrc/md5.cpp
         csrc/amazon_corretto_crypto_provider.cpp
@@ -539,6 +556,7 @@ add_jar(
         tst/com/amazon/corretto/crypto/provider/test/HmacTest.java
         tst/com/amazon/corretto/crypto/provider/test/InputBufferTest.java
         tst/com/amazon/corretto/crypto/provider/test/JanitorTest.java
+        tst/com/amazon/corretto/crypto/provider/test/EvpKeyFactoryTest.java
         tst/com/amazon/corretto/crypto/provider/test/MD5Test.java
         tst/com/amazon/corretto/crypto/provider/test/MiscSingleThreadedTests.java
         tst/com/amazon/corretto/crypto/provider/test/NativeTestHooks.java

@@ -1,6 +1,5 @@
 /build
 /.gradle
-/.project
 /.settings/
 /.vscode/
 /.idea/
@@ -10,3 +9,4 @@
 *.iws
 *.iml
 *.orig
+/.classpath

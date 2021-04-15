@@ -231,7 +231,7 @@ public class TemplateHmacSpi extends MacSpi implements Cloneable {
     // None of these fields are final so that we can clone them.
     private byte[] oneByteArray = null;
     private State baseState = new State();
-    private InputBuffer<byte[], Void> buffer;
+    private InputBuffer<byte[], Void, RuntimeException> buffer;
 
 
     public TemplateHmacSpi() {
@@ -242,10 +242,10 @@ public class TemplateHmacSpi extends MacSpi implements Cloneable {
         if (!inSelfTest) {
             SELF_TEST.assertSelfTestPassed();
         }
-        buffer = setLambdas(new InputBuffer<byte[], Void>(1024));
+        buffer = setLambdas(new InputBuffer<byte[], Void, RuntimeException>(1024));
     }
 
-    private InputBuffer<byte[], Void> setLambdas(InputBuffer<byte[], Void> buffer) {
+    private InputBuffer<byte[], Void, RuntimeException> setLambdas(InputBuffer<byte[], Void, RuntimeException> buffer) {
         return buffer.withInitialUpdater((src, offset, length) -> {
             assertInitialized();
             synchronizedUpdateCtxArray(baseState.ctx, baseState.normalKey, src, offset, length);
@@ -287,7 +287,7 @@ public class TemplateHmacSpi extends MacSpi implements Cloneable {
         clonedObject.oneByteArray = null; // This is lazily created if needed
 
         clonedObject.baseState = clonedObject.baseState.copy(); // It's easier not to boostrap from clone in this case
-        clonedObject.buffer = (InputBuffer<byte[], Void>) clonedObject.buffer.clone();
+        clonedObject.buffer = (InputBuffer<byte[], Void, RuntimeException>) clonedObject.buffer.clone();
         clonedObject.setLambdas(clonedObject.buffer);
 
         return clonedObject;

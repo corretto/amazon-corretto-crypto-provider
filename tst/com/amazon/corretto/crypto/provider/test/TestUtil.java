@@ -34,7 +34,7 @@ public class TestUtil {
      */
     public static final String RESOURCE_GLOBAL = "GLOBAL_TEST_LOCK";
     public static final BouncyCastleProvider BC_PROVIDER = new BouncyCastleProvider();
-    public static final Provider NATIVE_PROVIDER = AmazonCorrettoCryptoProvider.INSTANCE;
+    public static final AmazonCorrettoCryptoProvider NATIVE_PROVIDER = AmazonCorrettoCryptoProvider.INSTANCE;
 
     /**
      * Thread local instances of SecureRandom with no further guarantees about implementation or security.

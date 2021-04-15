@@ -18,12 +18,15 @@ import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.SecretKey;
 import javax.crypto.ShortBufferException;
+import javax.crypto.spec.OAEPParameterSpec;
+import javax.crypto.spec.PSource;
 import javax.crypto.spec.SecretKeySpec;
 
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.security.AlgorithmParameters;
 import java.security.GeneralSecurityException;
+import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
@@ -34,6 +37,7 @@ import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
+import java.security.spec.MGF1ParameterSpec;
 import java.security.spec.RSAPrivateCrtKeySpec;
 import java.security.spec.RSAPrivateKeySpec;
 import java.util.ArrayList;
@@ -42,10 +46,8 @@ import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
-import com.amazon.corretto.crypto.provider.ExtraCheck;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
@@ -210,6 +212,18 @@ public class RsaCipherTest {
         } catch (final BadPaddingException ex) {
             // expected
         }
+    }
+
+    // This logic is (and is likely to remain) common to all algorithms
+    // so we only test one.
+    @Test
+    public void overlargeCiphertext() throws GeneralSecurityException {
+        final Cipher nativeEncrypt = Cipher.getInstance(PKCS1_PADDING, NATIVE_PROVIDER);
+        nativeEncrypt.init(Cipher.DECRYPT_MODE, PAIR_1024.getPrivate());
+
+        byte[] ciphertext = new byte[(4096 / 8) + 1];
+        Arrays.fill(ciphertext, (byte) 1); // All zeroes isn't a valid ciphertext
+        assertThrows(IllegalBlockSizeException.class, () -> nativeEncrypt.doFinal(ciphertext));
     }
 
     @Test
@@ -414,6 +428,57 @@ public class RsaCipherTest {
     }
 
     @Test
+    public void oaepParamValidation() throws GeneralSecurityException {
+        Cipher c = Cipher.getInstance(OAEP_PADDING, NATIVE_PROVIDER);
+        final OAEPParameterSpec spec = OAEPParameterSpec.DEFAULT; // SHA-1 for everything
+
+        c.init(Cipher.ENCRYPT_MODE, PAIR_2048.getPublic(), spec);
+
+        // Empty psource (should still work)
+        PSource psource = new PSource.PSpecified(new byte[0]);
+        final OAEPParameterSpec emptySource = new OAEPParameterSpec(
+            OAEPParameterSpec.DEFAULT.getDigestAlgorithm(),
+            OAEPParameterSpec.DEFAULT.getMGFAlgorithm(),
+            OAEPParameterSpec.DEFAULT.getMGFParameters(),
+            psource);
+        c.init(Cipher.ENCRYPT_MODE, PAIR_2048.getPublic(), emptySource);
+
+        // SHA-256 for digest
+        final OAEPParameterSpec badDigest = new OAEPParameterSpec(
+            "SHA-256",
+            OAEPParameterSpec.DEFAULT.getMGFAlgorithm(),
+            OAEPParameterSpec.DEFAULT.getMGFParameters(),
+            OAEPParameterSpec.DEFAULT.getPSource());
+
+        assertThrows(InvalidAlgorithmParameterException.class, () -> c.init(Cipher.ENCRYPT_MODE, PAIR_2048.getPublic(), badDigest));
+
+        // Fake MGF
+        final OAEPParameterSpec badMgf = new OAEPParameterSpec(
+            OAEPParameterSpec.DEFAULT.getDigestAlgorithm(),
+            "FakeMGF",
+            OAEPParameterSpec.DEFAULT.getMGFParameters(),
+            OAEPParameterSpec.DEFAULT.getPSource());
+        assertThrows(InvalidAlgorithmParameterException.class, () -> c.init(Cipher.ENCRYPT_MODE, PAIR_2048.getPublic(), badMgf));
+
+        // SHA-256 for MGF digest
+        final OAEPParameterSpec badMgfDigest = new OAEPParameterSpec(
+            OAEPParameterSpec.DEFAULT.getDigestAlgorithm(),
+            OAEPParameterSpec.DEFAULT.getMGFAlgorithm(),
+            MGF1ParameterSpec.SHA256,
+            OAEPParameterSpec.DEFAULT.getPSource());
+        assertThrows(InvalidAlgorithmParameterException.class, () -> c.init(Cipher.ENCRYPT_MODE, PAIR_2048.getPublic(), badMgfDigest));
+
+        // Non-empty PSource
+        psource = new PSource.PSpecified(new byte[1]);
+        final OAEPParameterSpec badSource = new OAEPParameterSpec(
+            OAEPParameterSpec.DEFAULT.getDigestAlgorithm(),
+            OAEPParameterSpec.DEFAULT.getMGFAlgorithm(),
+            OAEPParameterSpec.DEFAULT.getMGFParameters(),
+            psource);
+        assertThrows(InvalidAlgorithmParameterException.class, () -> c.init(Cipher.ENCRYPT_MODE, PAIR_2048.getPublic(), badSource));
+    }
+
+    @Test
     public void native2jceOaepSha1Padding1024() throws GeneralSecurityException {
         testNative2Jce(OAEP_PADDING, 1024);
     }
@@ -526,32 +591,6 @@ public class RsaCipherTest {
         final byte[] ciphertext = enc.doFinal(plaintext);
         final byte[] decrypted = dec.doFinal(ciphertext);
         assertArrayEquals(plaintext, decrypted);
-    }
-
-    @Test
-    public void badCrt() throws GeneralSecurityException {
-        // Corrupt out the CRT factors
-        final RSAPrivateCrtKeySpec goodSpec = KEY_FACTORY.getKeySpec(PAIR_1024.getPrivate(),
-                RSAPrivateCrtKeySpec.class);
-        final RSAPrivateCrtKeySpec badSpec = new RSAPrivateCrtKeySpec(goodSpec.getModulus(),
-                goodSpec.getPublicExponent(), goodSpec.getPrivateExponent(), goodSpec.getPrimeP(),
-                goodSpec.getPrimeQ(), goodSpec.getPrimeP(),
-                goodSpec.getPrimeExponentQ().add(BigInteger.ONE),
-                goodSpec.getCrtCoefficient());
-        final PrivateKey privateKey = KEY_FACTORY.generatePrivate(badSpec);
-
-        final Cipher enc = Cipher.getInstance(PKCS1_PADDING, NATIVE_PROVIDER);
-        final Cipher dec = Cipher.getInstance(PKCS1_PADDING, NATIVE_PROVIDER);
-        final AmazonCorrettoCryptoProvider prov = (AmazonCorrettoCryptoProvider) dec.getProvider();
-        Assumptions.assumeTrue(prov.hasExtraCheck(ExtraCheck.PRIVATE_KEY_CONSISTENCY));
-
-        final byte[] plaintext = getPlaintext(1024 / 8 - 11);
-        enc.init(Cipher.ENCRYPT_MODE, PAIR_1024.getPublic());
-        dec.init(Cipher.DECRYPT_MODE, privateKey);
-
-        final byte[] ciphertext = enc.doFinal(plaintext);
-
-        TestUtil.assertThrows(GeneralSecurityException.class, () -> dec.doFinal(ciphertext));
     }
 
     @Test
@@ -816,6 +855,24 @@ public class RsaCipherTest {
         assertEquals(2048, sneakyInvoke_int(cipherSpi, "engineGetKeySize", PAIR_2048.getPrivate()));
         assertEquals(4096, sneakyInvoke_int(cipherSpi, "engineGetKeySize", PAIR_4096.getPublic()));
         assertEquals(4096, sneakyInvoke_int(cipherSpi, "engineGetKeySize", PAIR_4096.getPrivate()));
+        assertThrows(InvalidKeyException.class, () ->
+            sneakyInvoke_int(cipherSpi, "engineGetKeySize", new SecretKeySpec(new byte[16], "AES")));
+    }
+
+    @Test
+    public void nullIV() throws GeneralSecurityException {
+        final Cipher dec = Cipher.getInstance(OAEP_PADDING, NATIVE_PROVIDER);
+        // Init because on symmetric ciphers this forces creation of an IV
+        dec.init(Cipher.DECRYPT_MODE, PAIR_2048.getPrivate());
+        assertEquals(null, dec.getIV());
+    }
+
+    @Test
+    public void zeroBlockSize() throws GeneralSecurityException {
+        final Cipher dec = Cipher.getInstance(OAEP_PADDING, NATIVE_PROVIDER);
+        // Init because asymmetric ciphers work in blocks of the key size despite always returning 0 (as per the JCE spec)
+        dec.init(Cipher.DECRYPT_MODE, PAIR_2048.getPrivate());
+        assertEquals(0, dec.getBlockSize());
     }
 
     @Test
@@ -864,6 +921,17 @@ public class RsaCipherTest {
                 ex.addSuppressed(t);
             }
             throw ex;
+        }
+    }
+
+    @Test
+    public void noInputDoFinal() throws Exception {
+        assumeMinimumVersion("1.6.0", AmazonCorrettoCryptoProvider.INSTANCE);
+        final Cipher enc = Cipher.getInstance(NO_PADDING, NATIVE_PROVIDER);
+        enc.init(Cipher.ENCRYPT_MODE, PAIR_1024.getPublic());
+        final byte[] result = enc.doFinal();
+        for (final byte b : result) {
+            assertEquals(b, 0);
         }
     }
 
@@ -924,6 +992,11 @@ public class RsaCipherTest {
         final byte[] ciphertext = encrypt.doFinal(plaintext);
         final byte[] decrypted = decrypt.doFinal(ciphertext);
         assertArrayEquals(plaintext, decrypted);
+
+        // Test otherwised missed lines for a specific update case
+        assertEquals(0, decrypt.update(ciphertext, 0, ciphertext.length / 2, new byte[0], 0));
+        assertEquals(0, decrypt.update(ciphertext, ciphertext.length / 2, ciphertext.length - (ciphertext.length / 2), new byte[0], 0));
+        assertArrayEquals(plaintext, decrypt.doFinal());
 
         // Verify no release of data even on bad padding
         if (!NO_PADDING.equals(padding)) {

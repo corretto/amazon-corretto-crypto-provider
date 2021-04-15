@@ -32,9 +32,9 @@ public class InputBufferTest {
     private static final AmazonCorrettoCryptoProvider PROVIDER = AmazonCorrettoCryptoProvider.INSTANCE; // used for version checks
 
     @SuppressWarnings("unchecked")
-    private <T, S> InputBuffer<T, S> getBuffer(int capacity) {
+    private <T, S> InputBuffer<T, S, RuntimeException> getBuffer(int capacity) {
       try {
-          return (InputBuffer<T, S>) sneakyConstruct(InputBuffer.class.getName(), capacity);
+          return (InputBuffer<T, S, RuntimeException>) sneakyConstruct(InputBuffer.class.getName(), capacity);
       } catch (final Throwable ex) {
           throw new AssertionError(ex);
       }
@@ -53,7 +53,7 @@ public class InputBufferTest {
         byte[] expected = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
         final ByteBuffer result = ByteBuffer.allocate(17);
 
-        final InputBuffer<byte[], ByteBuffer> buffer = getBuffer(4);
+        final InputBuffer<byte[], ByteBuffer, RuntimeException> buffer = getBuffer(4);
         buffer.withInitialStateSupplier(() -> { return result; })
               .withUpdater((ctx, src, offset, length) -> ctx.put(src, offset, length))
               .withDoFinal(ByteBuffer::array);
@@ -92,7 +92,7 @@ public class InputBufferTest {
         final ByteBuffer result = ByteBuffer.allocate(2);
         // In all cases, the byte being processed should be exactly one byte and one byte behind.
 
-        final InputBuffer<byte[], ByteBuffer> buffer = getBuffer(1);
+        final InputBuffer<byte[], ByteBuffer, RuntimeException> buffer = getBuffer(1);
         buffer.withInitialStateSupplier(() -> { return result; })
               .withUpdater((ctx, src, offset, length) -> ctx.put(src, offset, length))
               .withDoFinal(ByteBuffer::array);
@@ -120,7 +120,7 @@ public class InputBufferTest {
     public void prefersSinglePass() {
         byte[] expected = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
         // By leaving other handlers null, I'll force an exception if they are used
-        final InputBuffer<byte[], Void> buffer = getBuffer(64);
+        final InputBuffer<byte[], Void, RuntimeException> buffer = getBuffer(64);
         buffer.withSinglePass(Arrays::copyOfRange);
 
         buffer.update(expected, 0, 1);
@@ -149,7 +149,7 @@ public class InputBufferTest {
         direct.put(expected).flip();
         
         // By leaving other handlers null, I'll force an exception if they are used
-        final InputBuffer<byte[], ByteBuffer> buffer = getBuffer(1);
+        final InputBuffer<byte[], ByteBuffer, RuntimeException> buffer = getBuffer(1);
         buffer.withInitialStateSupplier(() -> { return result;} )
               .withUpdater((ctx, src) -> ctx.put(src))
               .withDoFinal(ByteBuffer::array);
@@ -173,7 +173,7 @@ public class InputBufferTest {
     @Test
     public void cloneDuplicatesBufferAndState() throws Throwable {
         byte[] expected = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
-        final InputBuffer<byte[], ByteArrayOutputStream> buffer1 = getBuffer(16);
+        final InputBuffer<byte[], ByteArrayOutputStream, RuntimeException> buffer1 = getBuffer(16);
         buffer1.withInitialStateSupplier(ByteArrayOutputStream::new)
               .withUpdater((state, src, offset, length) -> { state.write(src, offset, length); })
               .withDoFinal(ByteArrayOutputStream::toByteArray)
@@ -189,8 +189,8 @@ public class InputBufferTest {
         buffer1.update(expected, 0, expected.length);
         buffer1.update(expected, 0, expected.length);
 
-        final InputBuffer<byte[], ByteArrayOutputStream> buffer2 =
-                (InputBuffer<byte[], ByteArrayOutputStream>) TestUtil.sneakyInvoke(buffer1, "clone");
+        final InputBuffer<byte[], ByteArrayOutputStream, RuntimeException> buffer2 =
+                (InputBuffer<byte[], ByteArrayOutputStream, RuntimeException>) TestUtil.sneakyInvoke(buffer1, "clone");
         buffer1.update(expected, 0, expected.length);
         buffer1.update(expected, 0, expected.length);
 
@@ -215,7 +215,7 @@ public class InputBufferTest {
 
     @Test
     public void cantCloneUncloneable() throws Throwable {
-        final InputBuffer<byte[], byte[]> buffer = getBuffer(8);
+        final InputBuffer<byte[], byte[], RuntimeException> buffer = getBuffer(8);
         buffer.withInitialStateSupplier(() -> { return new byte[128]; } )
               .withUpdater((state, src, offset, length) -> { System.arraycopy(src, offset, state, 0, length); })
               .withDoFinal((state) -> state.clone());
@@ -227,7 +227,7 @@ public class InputBufferTest {
 
     @Test
     public void nullStateProperlyHandled() throws Throwable {
-      InputBuffer<byte[], byte[]> buffer = getBuffer(4);
+      InputBuffer<byte[], byte[], RuntimeException> buffer = getBuffer(4);
       buffer.withInitialStateSupplier(() -> {
         return new byte[4];
       }).withUpdater((state, src, offset, length) -> {
