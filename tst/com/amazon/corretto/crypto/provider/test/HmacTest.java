@@ -3,6 +3,7 @@
 
 package com.amazon.corretto.crypto.provider.test;
 
+import static com.amazon.corretto.crypto.provider.test.TestUtil.assertArraysHexEquals;;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyInvoke;
@@ -424,6 +425,96 @@ public class HmacTest {
             assertArrayEquals(msg1ExpectedMac, msg1Clone.doFinal(), algorithm + " msg1");
             assertArrayEquals(msg2ExpectedMac, msg2Clone.doFinal(), algorithm + " msg2");
             assertArrayEquals(prefixExpectedMac, prefixClone.doFinal(), algorithm + " prefix");
+        }
+    }
+
+    @Test
+    public void supportsCloneableLarge() throws Exception {
+        TestUtil.assumeMinimumVersion("1.3.0", NATIVE_PROVIDER);
+        final byte[] prefix = new byte[4096];
+        final byte[] suffix1 = new byte[4096];
+        final byte[] suffix2 = new byte[4096];
+
+        for (int x = 0; x < prefix.length; x++) {
+            prefix[x] = (byte) x;
+            suffix1[x] = (byte) (x + 1);
+            suffix2[x] = (byte) (x + 2);
+        }
+
+        final SecretKeySpec key = new SecretKeySpec(new byte[4096], "Generic");
+        for (final String algorithm : SUPPORTED_HMACS) {
+            final Mac defaultInstance = Mac.getInstance(algorithm, "SunJCE");
+            defaultInstance.init(key);
+            defaultInstance.update(prefix);
+        
+            final byte[] expected1 = defaultInstance.doFinal(suffix1);
+
+            defaultInstance.update(prefix);
+            final byte[] expected2 = defaultInstance.doFinal(suffix2);
+
+
+            final Mac original = Mac.getInstance(algorithm, NATIVE_PROVIDER);
+            original.init(key);
+            original.update(prefix);
+
+            final Mac duplicate = (Mac) original.clone();
+
+            original.update(suffix1);
+            duplicate.update(suffix2);
+
+            assertArraysHexEquals(
+                expected1,
+                original.doFinal()
+            );
+            assertArraysHexEquals(
+                expected2,
+                duplicate.doFinal()
+            );
+        }
+    }
+
+
+    @Test
+    public void testDraggedState() throws Exception {
+        TestUtil.assumeMinimumVersion("1.3.0", NATIVE_PROVIDER);
+        final byte[] prefix = new byte[4096];
+        final byte[] suffix1 = new byte[4096];
+        final byte[] suffix2 = new byte[4096];
+
+        for (int x = 0; x < prefix.length; x++) {
+            prefix[x] = (byte) x;
+            suffix1[x] = (byte) (x + 1);
+            suffix2[x] = (byte) (x + 2);
+        }
+
+        final SecretKeySpec key = new SecretKeySpec(new byte[4096], "Generic");
+        for (final String algorithm : SUPPORTED_HMACS) {
+            final Mac defaultInstance = Mac.getInstance(algorithm, "SunJCE");
+            defaultInstance.init(key);
+            defaultInstance.update(prefix);
+            final byte[] expected1 = defaultInstance.doFinal(suffix1);
+
+            defaultInstance.update(prefix);
+            final byte[] expected2 = defaultInstance.doFinal(suffix2);
+
+            final Mac original = Mac.getInstance(algorithm, NATIVE_PROVIDER);
+            final Mac duplicate = (Mac) original.clone();
+            original.init(key);
+            duplicate.init(key);
+
+            // First use uses the explicitly cloned state
+            original.update(prefix);
+            duplicate.update(prefix);
+
+            assertArraysHexEquals(expected1, original.doFinal(suffix1));
+            assertArraysHexEquals(expected2, duplicate.doFinal(suffix2));
+
+            // State has been reset and thus we might no longer be on the explicitly cloned state
+            original.update(prefix);
+            duplicate.update(prefix);
+
+            assertArraysHexEquals(expected1, original.doFinal(suffix1));
+            assertArraysHexEquals(expected2, duplicate.doFinal(suffix2));
         }
     }
 

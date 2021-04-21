@@ -1,13 +1,15 @@
 // Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+import groovy.xml.*
+
 plugins {
     id 'maven-publish'
     id 'signing'
 }
 
 group = 'software.amazon.cryptools'
-version = '1.6.0'
+version = '1.6.1'
 
 def openssl_version = '1.1.1j'
 def opensslSrcPath = "${buildDir}/openssl/openssl-${openssl_version}"
@@ -454,3 +456,45 @@ task clean(overwrite: true, type: Delete) {
 task deep_clean(type: Delete) {
    delete buildDir
 }
+
+task generateEclipseClasspath {
+    doLast {
+        file(".classpath").withWriter { writer ->
+            // Create MarkupBuilder with 4 space indent
+            def xml = new MarkupBuilder(new IndentPrinter(writer, "    ", true))
+
+            xml.doubleQuotes = true
+            xml.mkp.xmlDeclaration(version: '1.0', encoding: 'utf-8')
+            xml.classpath {
+                classpathentry('kind': 'con', 'path': 'org.eclipse.jdt.launching.JRE_CONTAINER') {
+                    attributes {
+                        attribute('name': 'module', 'value': 'true')
+                    }
+                }
+                classpathentry('kind': 'src', 'output': 'build/eclipse/src', 'path': 'src')
+                classpathentry('kind': 'src', 'output': 'build/eclipse/template-src', 'path': 'template-src')
+                classpathentry('kind': 'src', 'output': 'build/eclipse/tst', 'path': 'tst') {
+                    attributes {
+                        attribute('name': 'test', 'value': 'true')
+                    }
+                }
+                classpathentry('kind': 'src', 'output': 'build/eclipse/src', 'path': 'build/cmake/generated-java') {
+                    attributes {
+                        attribute('name': 'optional', 'value': 'true')
+                    }
+                }
+                classpathentry('kind': 'src', 'output': 'build/eclipse/src', 'path': 'build/coverage-cmake/generated-java') {
+                    attributes {
+                        attribute('name': 'optional', 'value': 'true')
+                    }
+                }
+
+                configurations.testDep.files.each{f ->
+                    classpathentry('kind': 'lib', 'path': f) {
+                        attribute('name': 'test', 'value': 'true')
+                    }
+                }
+            } // xml.classpath
+        } // file.withWriter
+    } // doLast
+} // generateEclipseClasspath

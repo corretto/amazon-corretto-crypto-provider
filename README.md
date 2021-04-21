@@ -8,7 +8,12 @@ Currently algorithms are primarily backed by OpenSSL's implementations (1.1.1j a
 
 
 ## Build Status
-Please be aware that "Overkill" tests are known to be flakey
+Please be aware that both "Overkill" and "Dieharder" tests are known to be flakey.
+Both of these tests are flakey because they include entropy generation tests
+(specificaly, the [Dieharder tests](http://webhome.phy.duke.edu/~rgb/General/dieharder.php)).
+Entropy tests are unavoidably flakey because there is always a possibility that a high-quality
+random number generator will output data which looks non-random.
+(For example, even a fair coin will come up heads ten times in a row about one in a thousand trials.)
 
 | Build Name | master branch | develop branch |
 | ---------- | ------------- | -------------- |
@@ -96,6 +101,8 @@ Whether you're using Maven, Gradle, or some other build system that also pulls
 packages from Maven Central, it's important to specify `linux-x86_64` as the
 classifier. You'll get an empty package otherwise.
 
+Regardless of how you acquire ACCP (Maven, manual build, etc.) you will still need to follow the guidance in the [Configuration section](#configuration) to enable ACCP in your application.
+
 ### Maven
 Add the following to your `pom.xml` or wherever you configure your Maven dependencies.
 This will instruct it to use the most recent 1.x version of ACCP.
@@ -162,6 +169,9 @@ Building this provider requires a 64 bit Linux build system with the following p
 * coverage: Run target `test` and collect both Java and C++ coverage metrics (saved in `build/reports`)
 * release: **Default target** depends on build, test, and coverage
 * overkill: Run **all** tests (no coverage)
+* generateEclipseClasspath: Generates a `.classpath` file which is understandable by Eclipse and VS Code to make development easier. (This should ideally be run prior to opening ACCP in your IDE.)
+* single_test: Runs a single unit test. The test is selected with the Java system property `SINGLE_TEST`. For example: `./gradlew single_test -DSINGLE_TEST=com.amazon.corretto.crypto.provider.test.EcGenTest`
+  (You may need to do a clean build when switching between selected tests.)
 
 ## Configuration
 There are several ways to configure the ACCP as the highest priority provider in Java.
@@ -180,13 +190,13 @@ If you want to check to verify that ACCP is properly working on your system, you
 1. Verify that the highest priority provider actually is ACCP:
 ```java
 if (Cipher.getInstance("AES/GCM/NoPadding").getProvider().getName().equals(AmazonCorrettoCryptoProvider.PROVIDER_NAME)) {
-	// Successfully installed
+    // Successfully installed
 }
 ```
 2. Ask ACCP about its health
 ```java
 if (AmazonCorrettoCryptoProvider.INSTANCE.getLoadingError() == null && AmazonCorrettoCryptoProvider.INSTANCE.runSelfTests().equals(SelfTestStatus.PASSED)) {
-	// Successfully installed
+    // Successfully installed
 }
 ```
 3. Assert that ACCP is healthy and throw a `RuntimeCryptoException` if it isn't.
