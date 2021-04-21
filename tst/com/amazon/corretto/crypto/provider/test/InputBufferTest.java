@@ -54,7 +54,7 @@ public class InputBufferTest {
         final ByteBuffer result = ByteBuffer.allocate(17);
 
         final InputBuffer<byte[], ByteBuffer> buffer = getBuffer(4);
-        buffer.withInitialStateSupplier(() -> { return result; })
+        buffer.withInitialStateSupplier((s) -> { return result; })
               .withUpdater((ctx, src, offset, length) -> ctx.put(src, offset, length))
               .withDoFinal(ByteBuffer::array);
 
@@ -93,7 +93,7 @@ public class InputBufferTest {
         // In all cases, the byte being processed should be exactly one byte and one byte behind.
 
         final InputBuffer<byte[], ByteBuffer> buffer = getBuffer(1);
-        buffer.withInitialStateSupplier(() -> { return result; })
+        buffer.withInitialStateSupplier((s) -> { return result; })
               .withUpdater((ctx, src, offset, length) -> ctx.put(src, offset, length))
               .withDoFinal(ByteBuffer::array);
 
@@ -150,7 +150,7 @@ public class InputBufferTest {
         
         // By leaving other handlers null, I'll force an exception if they are used
         final InputBuffer<byte[], ByteBuffer> buffer = getBuffer(1);
-        buffer.withInitialStateSupplier(() -> { return result;} )
+        buffer.withInitialStateSupplier((s) -> { return result;} )
               .withUpdater((ctx, src) -> ctx.put(src))
               .withDoFinal(ByteBuffer::array);
         
@@ -174,7 +174,7 @@ public class InputBufferTest {
     public void cloneDuplicatesBufferAndState() throws Throwable {
         byte[] expected = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
         final InputBuffer<byte[], ByteArrayOutputStream> buffer1 = getBuffer(16);
-        buffer1.withInitialStateSupplier(ByteArrayOutputStream::new)
+        buffer1.withInitialStateSupplier((s) -> new ByteArrayOutputStream())
               .withUpdater((state, src, offset, length) -> { state.write(src, offset, length); })
               .withDoFinal(ByteArrayOutputStream::toByteArray)
               .withStateCloner((state) -> {
@@ -216,7 +216,7 @@ public class InputBufferTest {
     @Test
     public void cantCloneUncloneable() throws Throwable {
         final InputBuffer<byte[], byte[]> buffer = getBuffer(8);
-        buffer.withInitialStateSupplier(() -> { return new byte[128]; } )
+        buffer.withInitialStateSupplier((s) -> { return new byte[128]; } )
               .withUpdater((state, src, offset, length) -> { System.arraycopy(src, offset, state, 0, length); })
               .withDoFinal((state) -> state.clone());
 
@@ -228,7 +228,7 @@ public class InputBufferTest {
     @Test
     public void nullStateProperlyHandled() throws Throwable {
       InputBuffer<byte[], byte[]> buffer = getBuffer(4);
-      buffer.withInitialStateSupplier(() -> {
+      buffer.withInitialStateSupplier((s) -> {
         return new byte[4];
       }).withUpdater((state, src, offset, length) -> {
         System.arraycopy(src, offset, state, 0, length);
