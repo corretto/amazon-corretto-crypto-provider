@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.1
+### Patches
+* Fix an issue where a race condition can cause ACCP's MessageDigest hashing algorithms to return the same value for different inputs [PR #157](https://github.com/corretto/amazon-corretto-crypto-provider/pull/157)
+
 ## 1.6.0
 ### Breaking Change
 In accordance with our [versioning policy](https://github.com/corretto/amazon-corretto-crypto-provider/blob/master/VERSIONING.rst),
