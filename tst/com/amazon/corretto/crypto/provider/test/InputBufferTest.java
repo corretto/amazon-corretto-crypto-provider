@@ -49,6 +49,7 @@ public class InputBufferTest {
 
     @Test
     public void minimalCase() {
+        assumeMinimumVersion("1.6.1", AmazonCorrettoCryptoProvider.INSTANCE);
         // Just tests the bare minimum configuration and ensures things are properly buffered
         byte[] expected = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
         final ByteBuffer result = ByteBuffer.allocate(17);
@@ -87,7 +88,7 @@ public class InputBufferTest {
 
     @Test
     public void singleByteUpdates() {
-        assumeMinimumVersion("1.1.1", AmazonCorrettoCryptoProvider.INSTANCE);
+        assumeMinimumVersion("1.6.1", AmazonCorrettoCryptoProvider.INSTANCE);
         byte[] expected = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
         final ByteBuffer result = ByteBuffer.allocate(2);
         // In all cases, the byte being processed should be exactly one byte and one byte behind.
@@ -143,6 +144,7 @@ public class InputBufferTest {
     // Suppress redundant cast warnings; they're redundant in java 9 but not java 8
     @SuppressWarnings({"cast", "RedundantCast"})
     public void prefersBufferHandlers() {
+        assumeMinimumVersion("1.6.1", AmazonCorrettoCryptoProvider.INSTANCE);
         byte[] expected = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
         final ByteBuffer result = ByteBuffer.allocate(17);
         final ByteBuffer direct = ByteBuffer.allocateDirect(17);
@@ -172,6 +174,7 @@ public class InputBufferTest {
     @SuppressWarnings("unchecked")
     @Test
     public void cloneDuplicatesBufferAndState() throws Throwable {
+        assumeMinimumVersion("1.6.1", AmazonCorrettoCryptoProvider.INSTANCE);
         byte[] expected = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
         final InputBuffer<byte[], ByteArrayOutputStream> buffer1 = getBuffer(16);
         buffer1.withInitialStateSupplier((s) -> new ByteArrayOutputStream())
@@ -215,6 +218,7 @@ public class InputBufferTest {
 
     @Test
     public void cantCloneUncloneable() throws Throwable {
+        assumeMinimumVersion("1.6.1", AmazonCorrettoCryptoProvider.INSTANCE);
         final InputBuffer<byte[], byte[]> buffer = getBuffer(8);
         buffer.withInitialStateSupplier((s) -> { return new byte[128]; } )
               .withUpdater((state, src, offset, length) -> { System.arraycopy(src, offset, state, 0, length); })
@@ -227,6 +231,7 @@ public class InputBufferTest {
 
     @Test
     public void nullStateProperlyHandled() throws Throwable {
+      assumeMinimumVersion("1.6.1", AmazonCorrettoCryptoProvider.INSTANCE);
       InputBuffer<byte[], byte[]> buffer = getBuffer(4);
       buffer.withInitialStateSupplier((s) -> {
         return new byte[4];
