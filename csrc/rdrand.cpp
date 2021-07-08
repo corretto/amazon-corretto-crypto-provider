@@ -353,7 +353,7 @@ bool rd_into_buf(bool (*rng)(uint64_t *), unsigned char *buf, int len) {
         }
 
         memcpy(buf, &remain, len);
-        secureZero(&remain, 0);
+        secureZero(&remain, sizeof(remain));
     }
 #else
     goto fail;
