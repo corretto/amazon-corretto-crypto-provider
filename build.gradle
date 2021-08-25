@@ -437,7 +437,7 @@ if (project.hasProperty('mavenUser') && project.hasProperty('jcecertAlias')) {
         }
     }
 
-    task sign(overwrite: true) {
+    task sign {
         doFirst {
             ant.fail('Insufficient configuration for signing')
         }
