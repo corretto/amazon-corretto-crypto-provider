@@ -595,6 +595,9 @@ set(TEST_RUNNER_ARGUMENTS
     -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
     -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
     -Dtest.data.dir=${TEST_DATA_DIR}
+    --add-opens java.base/javax.crypto=ALL-UNNAMED
+    --add-opens java.base/java.lang.invoke=ALL-UNNAMED
+    --add-opens java.base/java.security=ALL-UNNAMED
     -Djunit.jupiter.execution.parallel.enabled=true
     -Djunit.jupiter.execution.parallel.mode.default=concurrent
     -Djunit.jupiter.execution.parallel.mode.classes.default=concurrent
