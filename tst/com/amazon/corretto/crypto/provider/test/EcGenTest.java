@@ -203,6 +203,22 @@ public class EcGenTest {
     }
 
     @ParameterizedTest
+    @EnabledForJreRange(min=JRE.JAVA_8, max=JRE.JAVA_14)
+    @ValueSource(ints = {192, 224})
+    public void legacyKnownSizes(int keysize) throws GeneralSecurityException {
+        TestUtil.assumeMinimumVersion("1.2.0", nativeGen.getProvider());
+        nativeGen.initialize(keysize);
+        jceGen.initialize(keysize);
+
+        final KeyPair nativePair = nativeGen.generateKeyPair();
+        final KeyPair jcePair = jceGen.generateKeyPair();
+
+        final ECParameterSpec jceParams = ((ECPublicKey) jcePair.getPublic()).getParams();
+        final ECParameterSpec nativeParams = ((ECPublicKey) nativePair.getPublic()).getParams();
+        assertECEquals(Integer.toString(keysize), jceParams, nativeParams);
+    }
+
+    @ParameterizedTest
     @ValueSource(ints = {256, 384, 521})
     public void knownSizes(int keysize) throws GeneralSecurityException {
         TestUtil.assumeMinimumVersion("1.2.0", nativeGen.getProvider());
