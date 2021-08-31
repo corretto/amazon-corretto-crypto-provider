@@ -31,8 +31,8 @@ import java.util.function.Supplier;
  * InitialUpdate handlers default to calling their Update equivalents.
  * {@link #withSinglePass(ArrayFunction)} defaults to calling the update and doFinal steps.
  *
- * @param T result type
- * @param S state type
+ * @param <T> result type
+ * @param <S> state type
  */
 // Note: Please consult the "How to Read JML" readme to understand the JML annotations
 // in this file (contained in //@ or /*@ @*/ comments).
