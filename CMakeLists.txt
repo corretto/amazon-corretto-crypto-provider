@@ -590,14 +590,22 @@ add_custom_command(
 add_custom_target(tests-jar DEPENDS ${TESTS_JAR})
 set_property(TARGET tests-jar PROPERTY JAR_FILE ${TESTS_JAR})
 
-set(TEST_RUNNER_ARGUMENTS
-    -javaagent:${JACOCO_AGENT_JAR}=destfile=coverage/jacoco.exec,classdumpdir=coverage/classes
-    -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
-    -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
-    -Dtest.data.dir=${TEST_DATA_DIR}
+# These flags are necessary in Java17+ in order for certain unit tests to
+# perform deep reflection on nonpublic members
+if (Java_VERSION_MAJOR VERSION_GREATER_EQUAL 17)
+  set(ADD_OPENS
     --add-opens java.base/javax.crypto=ALL-UNNAMED
     --add-opens java.base/java.lang.invoke=ALL-UNNAMED
     --add-opens java.base/java.security=ALL-UNNAMED
+    )
+endif()
+
+set(TEST_RUNNER_ARGUMENTS
+    -javaagent:${JACOCO_AGENT_JAR}=destfile=coverage/jacoco.exec,classdumpdir=coverage/classes
+    ${ADD_OPENS}
+    -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
+    -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
+    -Dtest.data.dir=${TEST_DATA_DIR}
     -Djunit.jupiter.execution.parallel.enabled=true
     -Djunit.jupiter.execution.parallel.mode.default=concurrent
     -Djunit.jupiter.execution.parallel.mode.classes.default=concurrent
