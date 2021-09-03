@@ -50,6 +50,7 @@ endif()
 
 if (NOT DEFINED TEST_JAVA_HOME)
   set(TEST_JAVA_EXECUTABLE ${Java_JAVA_EXECUTABLE})
+  set(TEST_JAVA_MAJOR_VERSION ${Java_VERSION_MAJOR})
 else()
   set(TEST_JAVA_EXECUTABLE ${TEST_JAVA_HOME}/bin/java)
 endif()
@@ -592,7 +593,7 @@ set_property(TARGET tests-jar PROPERTY JAR_FILE ${TESTS_JAR})
 
 # These flags are necessary in Java17+ in order for certain unit tests to
 # perform deep reflection on nonpublic members
-if (Java_VERSION_MAJOR VERSION_GREATER_EQUAL 17)
+if (TEST_JAVA_MAJOR_VERSION VERSION_GREATER_EQUAL 17)
   set(TEST_ADD_OPENS
     --add-opens java.base/javax.crypto=ALL-UNNAMED
     --add-opens java.base/java.lang.invoke=ALL-UNNAMED
