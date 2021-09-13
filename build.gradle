@@ -83,13 +83,6 @@ task getOpensslSrc(type: Copy) {
     def outputDir = file("${buildDir}/openssl/")
     from tarTree(tarFile)
     into outputDir
-
-    doLast {
-        // Remove this once the patch is incorporated into an official OpenSSL release
-        ant.patch(patchfile: "${projectDir}/arm.patch",
-            dir: opensslSrcPath,
-            strip: 1)
-    }
 }
 
 task buildOpenSsl {
