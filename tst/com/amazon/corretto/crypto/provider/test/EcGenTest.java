@@ -37,6 +37,8 @@ import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledForJreRange;
+import org.junit.jupiter.api.condition.JRE;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
@@ -52,6 +54,13 @@ import org.junit.jupiter.params.provider.ValueSource;
 @ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
 public class EcGenTest {
     public static final String[][] KNOWN_CURVES = new String[][] {
+            new String[]{"secp256r1", "NIST P-256", "X9.62 prime256v1", /* "prime256v1", */ "1.2.840.10045.3.1.7"},
+            new String[]{"secp384r1", "NIST P-384", "1.3.132.0.34"},
+            new String[]{"secp521r1", "NIST P-521", "1.3.132.0.35"},
+            };
+
+    // Not supported in JDK17
+    public static final String[][] LEGACY_CURVES = new String[][] {
             // Prime Curves
             new String[]{"secp112r1", "1.3.132.0.6"},
             new String[]{"secp112r2", "1.3.132.0.7"},
@@ -61,15 +70,10 @@ public class EcGenTest {
             new String[]{"secp160r1", "1.3.132.0.8"},
             new String[]{"secp160r2", "1.3.132.0.30"},
             new String[]{"secp192k1", "1.3.132.0.31"},
-            // Not supported by Openssl
             new String[]{"secp192r1", "NIST P-192", "X9.62 prime192v1", /* "prime192v1", */ "1.2.840.10045.3.1.1"},
             new String[]{"secp224k1", "1.3.132.0.32"},
             new String[]{"secp224r1", "NIST P-224", "1.3.132.0.33"},
             new String[]{"secp256k1", "1.3.132.0.10"},
-            // Not supported by Openssl
-            new String[]{"secp256r1", "NIST P-256", "X9.62 prime256v1", /* "prime256v1", */ "1.2.840.10045.3.1.7"},
-            new String[]{"secp384r1", "NIST P-384", "1.3.132.0.34"},
-            new String[]{"secp521r1", "NIST P-521", "1.3.132.0.35"},
             // Binary Curves
             new String[]{"sect113r1", "1.3.132.0.4"},
             new String[]{"sect113r2", "1.3.132.0.5"},
@@ -98,16 +102,17 @@ public class EcGenTest {
             new String[]{"X9.62 c2tnb359v1", "1.2.840.10045.3.0.18"},
             new String[]{"X9.62 c2tnb431r1", "1.2.840.10045.3.0.20"},
             };
+
     public static final ECParameterSpec EXPLICIT_CURVE;
     private static final KeyFactory KEY_FACTORY;
 
     static {
-        final BigInteger a = new BigInteger("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFFFFFFFFFFFFFFFFFFFE", 16);
-        final BigInteger b = new BigInteger("B4050A850C04B3ABF54132565044B0B7D7BFD8BA270B39432355FFB4", 16);
-        final BigInteger p = new BigInteger("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF000000000000000000000001", 16);
-        final BigInteger order = new BigInteger("FFFFFFFFFFFFFFFFFFFFFFFFFFFF16A2E0B8F03E13DD29455C5C2A3D", 16);
-        final BigInteger gx = new BigInteger("B70E0CBD6BB4BF7F321390B94A03C1D356C21122343280D6115C1D21", 16);
-        final BigInteger gy = new BigInteger("bd376388b5f723fb4c22dfe6cd4375a05a07476444d5819985007e34", 16);
+        final BigInteger a = new BigInteger("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFFFF0000000000000000FFFFFFFC", 16);
+        final BigInteger b = new BigInteger("B3312FA7E23EE7E4988E056BE3F82D19181D9C6EFE8141120314088F5013875AC656398D8A2ED19D2A85C8EDD3EC2AEF", 16);
+        final BigInteger p = new BigInteger("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFFFF0000000000000000FFFFFFFF", 16);
+        final BigInteger order = new BigInteger("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFC7634D81F4372DDF581A0DB248B0A77AECEC196ACCC52973", 16);
+        final BigInteger gx = new BigInteger("AA87CA22BE8B05378EB1C71EF320AD746E1D3B628BA79B9859F741E082542A385502F25DBF55296C3A545E3872760AB7", 16);
+        final BigInteger gy = new BigInteger("3617DE4A96262C6F5D9E98BF9292DC29F8F41DBD289A147CE9DA3113B5F0B8C00A60B1CE1D7E819D7A431D7C90EA0E5F", 16);
 
         final ECFieldFp field = new ECFieldFp(p);
         final EllipticCurve curve = new EllipticCurve(field, a, b);
@@ -138,6 +143,19 @@ public class EcGenTest {
         jceGen = null;
     }
 
+    private static String[][] legacyCurveParams() {
+        return LEGACY_CURVES;
+    }
+
+    @ParameterizedTest
+    @EnabledForJreRange(min=JRE.JAVA_8, max=JRE.JAVA_14)
+    @MethodSource("legacyCurveParams")
+    public void legacyCurves(ArgumentsAccessor arguments) throws GeneralSecurityException {
+        for (final Object name : arguments.toArray()) {
+            testCurveByName((String) name);
+        }
+    }
+
     private static String[][] knownCurveParams() {
         return KNOWN_CURVES;
     }
@@ -146,40 +164,60 @@ public class EcGenTest {
     @MethodSource("knownCurveParams")
     public void knownCurves(ArgumentsAccessor arguments) throws GeneralSecurityException {
         for (final Object name : arguments.toArray()) {
-            ECGenParameterSpec spec = new ECGenParameterSpec((String) name);
-            nativeGen.initialize(spec);
-            KeyPair nativePair = nativeGen.generateKeyPair();
-            jceGen.initialize(spec);
-            KeyPair jcePair = jceGen.generateKeyPair();
-            final ECParameterSpec jceParams = ((ECPublicKey) jcePair.getPublic()).getParams();
-            final ECParameterSpec nativeParams = ((ECPublicKey) nativePair.getPublic()).getParams();
-            assertECEquals((String) name, jceParams, nativeParams);
-
-            // Ensure we can construct the curve using raw numbers rather than the name
-            nativeGen.initialize(jceParams);
-            nativePair = nativeGen.generateKeyPair();
-            assertECEquals(name + "-explicit", jceParams, nativeParams);
-
-            final SubjectPublicKeyInfo publicKeyInfo = SubjectPublicKeyInfo.getInstance(nativePair.getPublic().getEncoded());
-            ASN1Encodable algorithmParameters = publicKeyInfo.getAlgorithm().getParameters();
-            assertTrue(algorithmParameters instanceof ASN1ObjectIdentifier, "Public key uses named curve");
-
-            // PKCS #8 = SEQ [ Integer, AlgorithmIdentifier, Octet String, ???]
-            // AlgorithmIdentifier = SEQ [ OID, {OID | SEQ}]
-            final ASN1Sequence p8 = ASN1Sequence.getInstance(nativePair.getPrivate().getEncoded());
-            final ASN1Sequence algIdentifier = (ASN1Sequence) p8.getObjectAt(1);
-            assertTrue(algIdentifier.getObjectAt(1) instanceof ASN1ObjectIdentifier, "Private key uses named curve");
-
-            // Check encoding/decoding
-            Key bouncedKey = KEY_FACTORY.generatePublic(new X509EncodedKeySpec(nativePair.getPublic().getEncoded()));
-            assertEquals(nativePair.getPublic(), bouncedKey, "Public key survives encoding");
-            bouncedKey = KEY_FACTORY.generatePrivate(new PKCS8EncodedKeySpec(nativePair.getPrivate().getEncoded()));
-            assertEquals(nativePair.getPrivate(), bouncedKey, "Private key survives encoding");
+            testCurveByName((String) name);
         }
     }
 
+    private void testCurveByName(String name) throws GeneralSecurityException {
+        ECGenParameterSpec spec = new ECGenParameterSpec(name);
+        nativeGen.initialize(spec);
+        KeyPair nativePair = nativeGen.generateKeyPair();
+        jceGen.initialize(spec);
+        KeyPair jcePair = jceGen.generateKeyPair();
+        final ECParameterSpec jceParams = ((ECPublicKey) jcePair.getPublic()).getParams();
+        final ECParameterSpec nativeParams = ((ECPublicKey) nativePair.getPublic()).getParams();
+        assertECEquals(name, jceParams, nativeParams);
+
+        // Ensure we can construct the curve using raw numbers rather than the name
+        nativeGen.initialize(jceParams);
+        nativePair = nativeGen.generateKeyPair();
+        assertECEquals(name + "-explicit", jceParams, nativeParams);
+
+        final SubjectPublicKeyInfo publicKeyInfo = SubjectPublicKeyInfo.getInstance(nativePair.getPublic().getEncoded());
+        ASN1Encodable algorithmParameters = publicKeyInfo.getAlgorithm().getParameters();
+        assertTrue(algorithmParameters instanceof ASN1ObjectIdentifier, "Public key uses named curve");
+
+        // PKCS #8 = SEQ [ Integer, AlgorithmIdentifier, Octet String, ???]
+        // AlgorithmIdentifier = SEQ [ OID, {OID | SEQ}]
+        final ASN1Sequence p8 = ASN1Sequence.getInstance(nativePair.getPrivate().getEncoded());
+        final ASN1Sequence algIdentifier = (ASN1Sequence) p8.getObjectAt(1);
+        assertTrue(algIdentifier.getObjectAt(1) instanceof ASN1ObjectIdentifier, "Private key uses named curve");
+
+        // Check encoding/decoding
+        Key bouncedKey = KEY_FACTORY.generatePublic(new X509EncodedKeySpec(nativePair.getPublic().getEncoded()));
+        assertEquals(nativePair.getPublic(), bouncedKey, "Public key survives encoding");
+        bouncedKey = KEY_FACTORY.generatePrivate(new PKCS8EncodedKeySpec(nativePair.getPrivate().getEncoded()));
+        assertEquals(nativePair.getPrivate(), bouncedKey, "Private key survives encoding");
+    }
+
     @ParameterizedTest
-    @ValueSource(ints = {192, 224, 256, 384, 521})
+    @EnabledForJreRange(min=JRE.JAVA_8, max=JRE.JAVA_14)
+    @ValueSource(ints = {192, 224})
+    public void legacyKnownSizes(int keysize) throws GeneralSecurityException {
+        TestUtil.assumeMinimumVersion("1.2.0", nativeGen.getProvider());
+        nativeGen.initialize(keysize);
+        jceGen.initialize(keysize);
+
+        final KeyPair nativePair = nativeGen.generateKeyPair();
+        final KeyPair jcePair = jceGen.generateKeyPair();
+
+        final ECParameterSpec jceParams = ((ECPublicKey) jcePair.getPublic()).getParams();
+        final ECParameterSpec nativeParams = ((ECPublicKey) nativePair.getPublic()).getParams();
+        assertECEquals(Integer.toString(keysize), jceParams, nativeParams);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {256, 384, 521})
     public void knownSizes(int keysize) throws GeneralSecurityException {
         TestUtil.assumeMinimumVersion("1.2.0", nativeGen.getProvider());
         nativeGen.initialize(keysize);
@@ -237,6 +275,7 @@ public class EcGenTest {
     }
 
     @Test
+    @EnabledForJreRange(min=JRE.JAVA_8, max=JRE.JAVA_14)
     public void validBinaryCurve() throws GeneralSecurityException {
         final String name = "sect113r1";
         ECGenParameterSpec spec = new ECGenParameterSpec(name);
@@ -254,6 +293,28 @@ public class EcGenTest {
         // We're purposefully using Java's ECDSA logic, since we trust it to be correct
         final Signature ecdsa = Signature.getInstance("NONEwithECDSA", "SunEC");
             for (final String[] names : KNOWN_CURVES) {
+                for (final String name : names) {
+                nativeGen.initialize(new ECGenParameterSpec(name));
+                final KeyPair keyPair = nativeGen.generateKeyPair();
+
+                ecdsa.initSign(keyPair.getPrivate());
+                ecdsa.update(message);
+                final byte[] signature = ecdsa.sign();
+
+                ecdsa.initVerify(keyPair.getPublic());
+                ecdsa.update(message);
+                assertTrue(ecdsa.verify(signature), name);
+            }
+        }
+    }
+
+    @Test
+    @EnabledForJreRange(min=JRE.JAVA_8, max=JRE.JAVA_14)
+    public void LegacyEcdsaValidation() throws GeneralSecurityException {
+        final byte[] message = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+        // We're purposefully using Java's ECDSA logic, since we trust it to be correct
+        final Signature ecdsa = Signature.getInstance("NONEwithECDSA", "SunEC");
+            for (final String[] names : LEGACY_CURVES) {
                 for (final String name : names) {
                 nativeGen.initialize(new ECGenParameterSpec(name));
                 final KeyPair keyPair = nativeGen.generateKeyPair();
