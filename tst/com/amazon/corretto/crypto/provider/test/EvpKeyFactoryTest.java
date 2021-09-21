@@ -89,7 +89,7 @@ public class EvpKeyFactoryTest {
             List<Arguments> keys = new ArrayList<>();
             if (algorithm.equals("EC")) {
                 // Different curves can excercise different areas of ASN.1/DER and so should all be tested.
-                final int[] keySizes = {192, 224, 256, 384, 521};
+                final int[] keySizes = {256, 384, 521};
 
                 for (int size : keySizes) {
                     kpg.initialize(size);
