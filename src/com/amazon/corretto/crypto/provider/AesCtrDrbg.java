@@ -5,11 +5,7 @@ package com.amazon.corretto.crypto.provider;
 
 import static java.util.logging.Logger.getLogger;
 
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.security.AccessControlContext;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.security.SecureRandom;
 import java.security.SecureRandomSpi;
 import java.util.Arrays;

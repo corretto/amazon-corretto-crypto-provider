@@ -4,28 +4,20 @@
 package com.amazon.corretto.crypto.provider;
 
 import java.io.IOException;
-import java.math.BigInteger;
 import java.security.AlgorithmParameters;
 import java.security.GeneralSecurityException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidParameterException;
-import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGeneratorSpi;
-import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.ECParameterSpec;
-import java.security.spec.ECPoint;
-import java.security.spec.ECPrivateKeySpec;
-import java.security.spec.ECPublicKeySpec;
-import java.security.spec.InvalidKeySpecException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 import com.amazon.corretto.crypto.provider.EcUtils.ECInfo;
-import com.amazon.corretto.crypto.provider.EcUtils.NativeGroup;
 
 class EcGen extends KeyPairGeneratorSpi {
     private static final ECGenParameterSpec DEFAULT_SPEC = new ECGenParameterSpec("secp384r1");

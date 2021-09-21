@@ -6,7 +6,6 @@ package com.amazon.corretto.crypto.provider;
 import static com.amazon.corretto.crypto.provider.Loader.RESOURCE_JANITOR;
 
 import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.LongConsumer;
 import java.util.function.LongFunction;

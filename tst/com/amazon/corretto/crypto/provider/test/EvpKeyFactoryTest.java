@@ -4,7 +4,6 @@
 package com.amazon.corretto.crypto.provider.test;
 
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assumeMinimumVersion;
-import static com.amazon.corretto.crypto.provider.test.TestUtil.versionCompare;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -38,7 +37,6 @@ import java.security.interfaces.ECPrivateKey;
 import java.security.interfaces.ECPublicKey;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPrivateCrtKey;
-import java.security.interfaces.RSAPrivateCrtKey;
 import java.security.interfaces.RSAPublicKey;
 import java.security.spec.DSAPrivateKeySpec;
 import java.security.spec.DSAPublicKeySpec;
@@ -69,8 +67,6 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-
-import org.apache.commons.codec.binary.Hex;
 
 @ExtendWith(TestResultLogger.class)
 @Execution(ExecutionMode.CONCURRENT)
@@ -267,7 +263,6 @@ public class EvpKeyFactoryTest {
 
     @ParameterizedTest(name = "{1}, Translate: {2}")
     @MethodSource("rsaPairsTranslation")
-    @SuppressWarnings("unchecked")
     public void rsaPrivate(final KeyPair keyPair, final String testName, final boolean translate) throws Exception {
         Samples<RSAPrivateKey> keys = getSamples(keyPair, true, translate);
 
@@ -556,7 +551,6 @@ public class EvpKeyFactoryTest {
         return new Samples<T>(nativeSample, jceSample);
     }
 
-    @SuppressWarnings("unchecked")
     private static <T extends KeySpec> Samples<T> getSamples(KeyPair pair, Class<T> specKlass,  boolean isPrivate) throws GeneralSecurityException {
         final String algorithm = pair.getPublic().getAlgorithm();
         final KeyFactory nativeFactory = KeyFactory.getInstance(algorithm, NATIVE_PROVIDER);

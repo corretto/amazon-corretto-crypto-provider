@@ -3,21 +3,14 @@
 
 package com.amazon.corretto.crypto.provider;
 
-import java.math.BigInteger;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidParameterException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGeneratorSpi;
-import java.security.NoSuchAlgorithmException;
-import java.security.PrivateKey;
-import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
-import java.security.spec.InvalidKeySpecException;
 import java.security.spec.RSAKeyGenParameterSpec;
-import java.security.spec.RSAPrivateCrtKeySpec;
-import java.security.spec.RSAPublicKeySpec;
 
 class RsaGen extends KeyPairGeneratorSpi {
     private static final RSAKeyGenParameterSpec DEFAULT_KEYGEN_SPEC = new RSAKeyGenParameterSpec(2048, RSAKeyGenParameterSpec.F4);

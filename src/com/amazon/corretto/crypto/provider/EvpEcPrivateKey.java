@@ -4,7 +4,6 @@
 package com.amazon.corretto.crypto.provider;
 
 import java.math.BigInteger;
-import java.util.Arrays;
 import java.security.interfaces.ECPrivateKey;
 
 class EvpEcPrivateKey extends EvpEcKey implements ECPrivateKey {

@@ -12,7 +12,6 @@ import static java.util.Collections.singletonMap;
 import static java.util.logging.Logger.getLogger;
 
 import java.io.IOException;
-import java.io.ObjectStreamException;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;

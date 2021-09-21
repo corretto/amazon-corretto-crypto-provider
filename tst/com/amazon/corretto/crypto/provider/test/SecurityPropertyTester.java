@@ -25,6 +25,7 @@ public class SecurityPropertyTester {
 
     // We know that Java has the SunEC provider which can generate EC keys.
     // We try to grab it to show that the nothing interfered with proper provider loading.
+    @SuppressWarnings("unused")
     KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC", "SunEC");
 
     // Also ensure that nothing shows up twice

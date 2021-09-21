@@ -15,9 +15,6 @@ import java.security.SignatureException;
 import java.security.SignatureSpi;
 import java.security.interfaces.ECKey;
 import java.security.spec.AlgorithmParameterSpec;
-import java.security.spec.InvalidKeySpecException;
-import java.security.spec.PKCS8EncodedKeySpec;
-import java.security.spec.X509EncodedKeySpec;
 import java.util.Arrays;
 import java.util.Base64;
 

@@ -4,7 +4,6 @@
 package com.amazon.corretto.crypto.provider;
 
 import java.math.BigInteger;
-import java.util.Arrays;
 import java.security.interfaces.ECPublicKey;
 import java.security.spec.ECPoint;
 

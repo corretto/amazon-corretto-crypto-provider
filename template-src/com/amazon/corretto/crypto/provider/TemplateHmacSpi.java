@@ -7,11 +7,9 @@ import static java.util.logging.Logger.getLogger;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.security.DigestException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.Key;
-import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
 import java.security.spec.AlgorithmParameterSpec;
 import java.util.Arrays;
@@ -24,8 +22,6 @@ import javax.crypto.Mac;
 import javax.crypto.MacSpi;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
-
-import com.amazon.corretto.crypto.provider.AesCtrDrbg.SPI;
 
 public class TemplateHmacSpi extends MacSpi implements Cloneable {
     private static final String MAC_NAME = "Hmac@@@SHORT_HASH_NAME@@@";

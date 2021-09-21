@@ -289,7 +289,6 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
         }
 
         @Override
-        @SuppressWarnings("unchecked")
         protected <T extends KeySpec> T engineGetKeySpec(Key key, Class<T> keySpec) throws InvalidKeySpecException {
             if (DHPublicKeySpec.class.isAssignableFrom(keySpec) && key instanceof DHPublicKey) {
                 DHPublicKey dhKey = (DHPublicKey) key;
@@ -333,7 +332,6 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
         }
 
         @Override
-        @SuppressWarnings("unchecked")
         protected <T extends KeySpec> T engineGetKeySpec(Key key, Class<T> keySpec) throws InvalidKeySpecException {
             if (DSAPublicKeySpec.class.isAssignableFrom(keySpec) && key instanceof DSAPublicKey) {
                 DSAPublicKey dsaKey = (DSAPublicKey) key;

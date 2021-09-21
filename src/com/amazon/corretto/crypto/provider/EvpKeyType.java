@@ -3,11 +3,6 @@
 
 package com.amazon.corretto.crypto.provider;
 
-import java.util.function.ToLongBiFunction;
-import java.security.KeyFactory;
-import java.security.NoSuchAlgorithmException;
-import java.security.InvalidKeyException;
-import java.security.Key;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.interfaces.DSAPrivateKey;
