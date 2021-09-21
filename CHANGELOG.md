@@ -1,15 +1,16 @@
 # Changelog
 
-## 2.0.0 (Unreleased)
-We're marking this as a major version release due to new implementions of `KeyFactory`.
-Though these changes are expected to have no visible impact (other than performance) to consumers,
-they do correspond to a significant rearchitecture of ACCP.
+## EVP (Unreleased)
+(Temporarily marking it as 2.0)
 
 ### Improvements
 * Add `KeyFactory` implementations for RSA, EC, DH, and DSA keys. This also includes our own implementations of keys for the same algorithms. [PR #132](https://github.com/corretto/amazon-corretto-crypto-provider/pull/132)
 
 ### Patches
 * Correctly reject non-empty `PSource.PSpecified` values for RSA-OAEP.
+## 1.6.1
+### Patches
+* Fix an issue where a race condition can cause ACCP's MessageDigest hashing algorithms to return the same value for different inputs [PR #157](https://github.com/corretto/amazon-corretto-crypto-provider/pull/157)
 
 ## 1.6.0
 ### Breaking Change

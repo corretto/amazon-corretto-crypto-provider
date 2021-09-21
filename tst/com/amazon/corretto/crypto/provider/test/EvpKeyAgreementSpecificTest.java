@@ -53,7 +53,7 @@ public class EvpKeyAgreementSpecificTest {
           KeyAgreement.getInstance("ECDH", NATIVE_PROVIDER);
 
           KeyPairGenerator gen = KeyPairGenerator.getInstance("EC");
-          gen.initialize(new ECGenParameterSpec("NIST P-224"));
+          gen.initialize(new ECGenParameterSpec("NIST P-256"));
           EC_KEYPAIR = gen.generateKeyPair();
           gen = KeyPairGenerator.getInstance("DH");
           gen.initialize(1024);

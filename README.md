@@ -106,7 +106,7 @@ Whether you're using Maven, Gradle, or some other build system that also pulls
 packages from Maven Central, it's important to specify `linux-x86_64` as the
 classifier. You'll get an empty package otherwise.
 
-Regardless of how you acquire ACCP (Maven, manual build, etc.) you will still need to follow the guidance in the [Configuration section][#configuration] to enable ACCP in your application.
+Regardless of how you acquire ACCP (Maven, manual build, etc.) you will still need to follow the guidance in the [Configuration section](#configuration) to enable ACCP in your application.
 
 ### Maven
 Add the following to your `pom.xml` or wherever you configure your Maven dependencies.
@@ -175,6 +175,8 @@ Building this provider requires a 64 bit Linux build system with the following p
 * release: **Default target** depends on build, test, and coverage
 * overkill: Run **all** tests (no coverage)
 * generateEclipseClasspath: Generates a `.classpath` file which is understandable by Eclipse and VS Code to make development easier. (This should ideally be run prior to opening ACCP in your IDE.)
+* single_test: Runs a single unit test. The test is selected with the Java system property `SINGLE_TEST`. For example: `./gradlew single_test -DSINGLE_TEST=com.amazon.corretto.crypto.provider.test.EcGenTest`
+  (You may need to do a clean build when switching between selected tests.)
 
 ## Configuration
 There are several ways to configure the ACCP as the highest priority provider in Java.

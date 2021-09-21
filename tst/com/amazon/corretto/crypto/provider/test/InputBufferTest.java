@@ -7,6 +7,7 @@ import static java.lang.String.format;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assumeMinimumVersion;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyConstruct;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -17,7 +18,6 @@ import java.util.Arrays;
 
 import org.junit.jupiter.api.Test;
 
-import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import com.amazon.corretto.crypto.provider.InputBuffer;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.parallel.Execution;
@@ -29,8 +29,6 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 @Execution(ExecutionMode.CONCURRENT)
 @ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
 public class InputBufferTest {
-    private static final AmazonCorrettoCryptoProvider PROVIDER = AmazonCorrettoCryptoProvider.INSTANCE; // used for version checks
-
     @SuppressWarnings("unchecked")
     private <T, S> InputBuffer<T, S, RuntimeException> getBuffer(int capacity) {
       try {
@@ -43,18 +41,19 @@ public class InputBufferTest {
     @Test
     public void requiresPositiveCapacity() throws Throwable {
         assertThrows(IllegalArgumentException.class, () -> sneakyConstruct(InputBuffer.class.getName(), Integer.valueOf(-1)));
-        assumeMinimumVersion("1.1.1", AmazonCorrettoCryptoProvider.INSTANCE);
+        assumeMinimumVersion("1.1.1", NATIVE_PROVIDER);
         assertThrows(IllegalArgumentException.class, () -> sneakyConstruct(InputBuffer.class.getName(), Integer.valueOf(0)));
     }
 
     @Test
     public void minimalCase() {
+        assumeMinimumVersion("1.6.1", NATIVE_PROVIDER);
         // Just tests the bare minimum configuration and ensures things are properly buffered
         byte[] expected = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
         final ByteBuffer result = ByteBuffer.allocate(17);
 
         final InputBuffer<byte[], ByteBuffer, RuntimeException> buffer = getBuffer(4);
-        buffer.withInitialStateSupplier(() -> { return result; })
+        buffer.withInitialStateSupplier((s) -> { return result; })
               .withUpdater((ctx, src, offset, length) -> ctx.put(src, offset, length))
               .withDoFinal(ByteBuffer::array);
 
@@ -87,13 +86,13 @@ public class InputBufferTest {
 
     @Test
     public void singleByteUpdates() {
-        assumeMinimumVersion("1.1.1", AmazonCorrettoCryptoProvider.INSTANCE);
+        assumeMinimumVersion("1.6.1", NATIVE_PROVIDER);
         byte[] expected = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
         final ByteBuffer result = ByteBuffer.allocate(2);
         // In all cases, the byte being processed should be exactly one byte and one byte behind.
 
         final InputBuffer<byte[], ByteBuffer, RuntimeException> buffer = getBuffer(1);
-        buffer.withInitialStateSupplier(() -> { return result; })
+        buffer.withInitialStateSupplier((s) -> { return result; })
               .withUpdater((ctx, src, offset, length) -> ctx.put(src, offset, length))
               .withDoFinal(ByteBuffer::array);
 
@@ -143,6 +142,7 @@ public class InputBufferTest {
     // Suppress redundant cast warnings; they're redundant in java 9 but not java 8
     @SuppressWarnings({"cast", "RedundantCast"})
     public void prefersBufferHandlers() {
+        assumeMinimumVersion("1.6.1", NATIVE_PROVIDER);
         byte[] expected = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
         final ByteBuffer result = ByteBuffer.allocate(17);
         final ByteBuffer direct = ByteBuffer.allocateDirect(17);
@@ -150,7 +150,7 @@ public class InputBufferTest {
         
         // By leaving other handlers null, I'll force an exception if they are used
         final InputBuffer<byte[], ByteBuffer, RuntimeException> buffer = getBuffer(1);
-        buffer.withInitialStateSupplier(() -> { return result;} )
+        buffer.withInitialStateSupplier((s) -> { return result;} )
               .withUpdater((ctx, src) -> ctx.put(src))
               .withDoFinal(ByteBuffer::array);
         
@@ -172,9 +172,10 @@ public class InputBufferTest {
     @SuppressWarnings("unchecked")
     @Test
     public void cloneDuplicatesBufferAndState() throws Throwable {
+        assumeMinimumVersion("1.6.1", NATIVE_PROVIDER);
         byte[] expected = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
         final InputBuffer<byte[], ByteArrayOutputStream, RuntimeException> buffer1 = getBuffer(16);
-        buffer1.withInitialStateSupplier(ByteArrayOutputStream::new)
+        buffer1.withInitialStateSupplier((s) -> new ByteArrayOutputStream())
               .withUpdater((state, src, offset, length) -> { state.write(src, offset, length); })
               .withDoFinal(ByteArrayOutputStream::toByteArray)
               .withStateCloner((state) -> {
@@ -215,8 +216,9 @@ public class InputBufferTest {
 
     @Test
     public void cantCloneUncloneable() throws Throwable {
+        assumeMinimumVersion("1.6.1", NATIVE_PROVIDER);
         final InputBuffer<byte[], byte[], RuntimeException> buffer = getBuffer(8);
-        buffer.withInitialStateSupplier(() -> { return new byte[128]; } )
+        buffer.withInitialStateSupplier((s) -> { return new byte[128]; } )
               .withUpdater((state, src, offset, length) -> { System.arraycopy(src, offset, state, 0, length); })
               .withDoFinal((state) -> state.clone());
 
@@ -227,8 +229,9 @@ public class InputBufferTest {
 
     @Test
     public void nullStateProperlyHandled() throws Throwable {
+      assumeMinimumVersion("1.6.1", NATIVE_PROVIDER);
       InputBuffer<byte[], byte[], RuntimeException> buffer = getBuffer(4);
-      buffer.withInitialStateSupplier(() -> {
+      buffer.withInitialStateSupplier((s) -> {
         return new byte[4];
       }).withUpdater((state, src, offset, length) -> {
         System.arraycopy(src, offset, state, 0, length);

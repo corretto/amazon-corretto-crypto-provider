@@ -28,7 +28,6 @@ public final class TemplateHashSpi extends MessageDigestSpi implements Cloneable
     private static final int HASH_SIZE;
     private static final byte[] INITIAL_CONTEXT;
 
-    private byte[] myContext;
     private InputBuffer<byte[], byte[], RuntimeException> buffer;
 
     static {
@@ -108,33 +107,40 @@ public final class TemplateHashSpi extends MessageDigestSpi implements Cloneable
         }
     }
 
-    private byte[] resetContext() {
-        System.arraycopy(INITIAL_CONTEXT, 0, myContext, 0, INITIAL_CONTEXT.length);
-        return myContext;
+    private static byte[] resetContext(byte[] context) {
+	if (context == null) {
+	    context = INITIAL_CONTEXT.clone();
+	} else {
+            System.arraycopy(INITIAL_CONTEXT, 0, context, 0, INITIAL_CONTEXT.length);
+	}
+        return context;
+    }
+
+    private static byte[] doFinal(byte[] context) {
+        final byte[] result = new byte[HASH_SIZE];
+        synchronizedFinish(context, result, 0);
+        return result;
+    }
+
+    private static byte[] singlePass(byte[] src, int offset, int length) {
+        if (offset != 0 || length != src.length) {
+            src = Arrays.copyOf(src, length);
+            offset = 0;
+        }
+        final byte[] result = new byte[HASH_SIZE];
+        fastDigest(result, src, src.length);
+        return result;
     }
 
     public TemplateHashSpi() {
         Loader.checkNativeLibraryAvailability();
-        myContext = INITIAL_CONTEXT.clone();
 
         this.buffer = new InputBuffer<byte[], byte[], RuntimeException>(1024)
-            .withInitialStateSupplier(this::resetContext)
+            .withInitialStateSupplier(TemplateHashSpi::resetContext)
             .withUpdater(TemplateHashSpi::synchronizedUpdateContextByteArray)
             .withUpdater(TemplateHashSpi::synchronizedUpdateNativeByteBuffer)
-            .withDoFinal((context) -> {
-                final byte[] result = new byte[HASH_SIZE];
-                synchronizedFinish(context, result, 0);
-                return result;
-            })
-            .withSinglePass((src, offset, length) -> {
-                if (offset != 0 || length != src.length) {
-                    src = Arrays.copyOf(src, length);
-                    offset = 0;
-                }
-                final byte[] result = new byte[HASH_SIZE];
-                fastDigest(result, src, src.length);
-                return result;
-            })
+            .withDoFinal(TemplateHashSpi::doFinal)
+            .withSinglePass(TemplateHashSpi::singlePass)
             .withStateCloner((context) -> context.clone());
     }
 
@@ -165,7 +171,6 @@ public final class TemplateHashSpi extends MessageDigestSpi implements Cloneable
             TemplateHashSpi clonedObject = (TemplateHashSpi)super.clone();
 
             clonedObject.buffer = (InputBuffer<byte[], byte[], RuntimeException>) buffer.clone();
-            clonedObject.myContext = myContext.clone();
 
             return clonedObject;
         } catch (CloneNotSupportedException e) {
