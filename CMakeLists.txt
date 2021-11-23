@@ -109,6 +109,7 @@ set(ACCP_SRC
         src/com/amazon/corretto/crypto/provider/AesCtrDrbg.java
         src/com/amazon/corretto/crypto/provider/AesGcmSpi.java
         src/com/amazon/corretto/crypto/provider/ConstantTime.java
+        src/com/amazon/corretto/crypto/provider/DebugFlag.java
         src/com/amazon/corretto/crypto/provider/EcGen.java
         src/com/amazon/corretto/crypto/provider/EvpKeyAgreement.java
         src/com/amazon/corretto/crypto/provider/EvpKeyType.java
@@ -656,6 +657,7 @@ add_custom_target(check-junit-SecurityManager
 add_custom_target(check-junit-extra-checks
     COMMAND ${TEST_JAVA_EXECUTABLE}
         -Dcom.amazon.corretto.crypto.provider.extrachecks=ALL
+        -Dcom.amazon.corretto.crypto.provider.debug=ALL
         ${TEST_RUNNER_ARGUMENTS}
         --select-package=com.amazon.corretto.crypto.provider.test
         --exclude-package=com.amazon.corretto.crypto.provider.test.integration
