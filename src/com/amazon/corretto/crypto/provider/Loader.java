@@ -44,7 +44,7 @@ import java.util.regex.Pattern;
  * </ol>
  */
 final class Loader {
-    private static final String PROPERTY_BASE = "com.amazon.corretto.crypto.provider.";
+    static final String PROPERTY_BASE = "com.amazon.corretto.crypto.provider.";
     private static final String LIBRARY_NAME = "amazonCorrettoCryptoProvider";
     private static final Pattern TEST_FILENAME_PATTERN = Pattern.compile("[-a-zA-Z0-9]+(\\.[a-zA-Z0-9]+)*");
     private static final Logger LOG = Logger.getLogger("AmazonCorrettoCryptoProvider");
@@ -176,10 +176,12 @@ final class Loader {
         }
         IS_AVAILABLE = available;
         LOADING_ERROR = error;
-        if (available) {
-            LOG.log(Level.CONFIG, "Successfully loaded native library version " + PROVIDER_VERSION_STR);
-        } else {
-            LOG.log(Level.CONFIG, "Unable to load native library", error);
+        if (DebugFlag.VERBOSELOGS.isEnabled()) {
+            if (available) {
+                LOG.log(Level.CONFIG, "Successfully loaded native library version " + PROVIDER_VERSION_STR);
+            } else {
+                LOG.log(Level.CONFIG, "Unable to load native library", error);
+            }
         }
 
         // Finally start up a cleaning thread if necessary
@@ -270,7 +272,9 @@ final class Loader {
 
                 try {
                     final Path result = Files.createFile(tmpFile, permissions);
-                    LOG.log(Level.FINE, "Created temporary library file after " + attempt + " attempts");
+                    if (DebugFlag.VERBOSELOGS.isEnabled()) {
+                        LOG.log(Level.FINE, "Created temporary library file after " + attempt + " attempts");
+                    }
                     return result;
                 } catch (final FileAlreadyExistsException ex) {
                     // We ignore and retry this exception

@@ -373,7 +373,7 @@ public class EvpSignatureSpecificTest {
             }
             if ("ECDSA".equals(base)) {
                 keyGenAlgorithm = "EC";
-                if (null == shaLength || "1".equals(shaLength) || "512".equals(shaLength)) {
+                if (null == shaLength || "1".equals(shaLength) || "224".equals(shaLength) || "512".equals(shaLength)) {
                     keyGenSpec = new ECGenParameterSpec("NIST P-521");
                 } else {
                     keyGenSpec = new ECGenParameterSpec("NIST P-" + shaLength);

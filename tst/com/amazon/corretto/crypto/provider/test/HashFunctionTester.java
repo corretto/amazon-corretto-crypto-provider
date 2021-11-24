@@ -3,7 +3,7 @@
 
 package com.amazon.corretto.crypto.provider.test;
 
-import static com.amazon.corretto.crypto.provider.test.TestUtil.assertArraysHexEquals;;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.assertArraysHexEquals;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyInvoke;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
