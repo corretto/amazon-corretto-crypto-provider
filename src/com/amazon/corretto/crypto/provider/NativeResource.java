@@ -20,6 +20,12 @@ class NativeResource {
 
     private static final class Cell extends ReentrantLock {
         private static final long serialVersionUID = 1L;
+        // Debug stuff
+        private static final boolean FREE_TRACE_DEBUG = DebugFlag.FREETRACE.isEnabled();
+        private Throwable creationTrace;
+        private Throwable freeTrace;
+        // End debug stuff
+
         // @GuardedBy("this") // Restore once replacement for JSR-305 available
         private final long ptr;
         private final LongConsumer releaser;
@@ -33,6 +39,7 @@ class NativeResource {
             this.ptr = ptr;
             this.releaser = releaser;
             this.released = false;
+            this.creationTrace = buildFreeTrace("Created", null);
         }
 
         public void release() {
@@ -41,6 +48,7 @@ class NativeResource {
                 if (released) return;
 
                 released = true;
+                freeTrace = buildFreeTrace("Freed", creationTrace);
                 releaser.accept(ptr);
             } finally {
                 unlock();
@@ -50,11 +58,9 @@ class NativeResource {
         public long take() {
             lock();
             try {
-                if (released) {
-                    throw new IllegalStateException("Use after free");
-                }
-
+                assertNotFreed();
                 released = true;
+                freeTrace = buildFreeTrace("Freed", creationTrace);
                 return ptr;
             } finally {
                 unlock();
@@ -78,13 +84,24 @@ class NativeResource {
         public <T> T use(LongFunction<T> function) {
             lock();
             try {
-                if (released) {
-                    throw new IllegalStateException("Use after free");
-                }
+                assertNotFreed();
                 return function.apply(ptr);
             } finally {
                 unlock();
             }
+        }
+
+        private void assertNotFreed() {
+            if (released) {
+                throw new IllegalStateException("Use after free", freeTrace);
+            }
+        }
+
+        private static Throwable buildFreeTrace(final String message, final Throwable cause) {
+            if (!FREE_TRACE_DEBUG) {
+                return null;
+            }
+            return new RuntimeCryptoException(message + " in Thread " + Thread.currentThread().getName(), cause);
         }
     }
 

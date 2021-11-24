@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.6.2 (Unreleased)
+
+### Improvements
+* Add "help" value to two of our properties which outputs (to STDERR) valid values.
+   * `com.amazon.corretto.crypto.provider.extrachecks`
+   * `com.amazon.corretto.crypto.provider.debug`
+* Add new `com.amazon.corretto.crypto.provider.debug` property to gate possibly expensive debug logic.
+Current values are:
+   * `FreeTrace` - Enables tracking of allocation and freeing of native objects from java for more detailed exceptions.
+   * `VerboseLogging` - Enables more detailed logging.
+   * `ALL` - Enables all of the above
+(May still require changes to your logging configuration to see the new logs.)
+
 ## 1.6.1
 ### Patches
 * Fix an issue where a race condition can cause ACCP's MessageDigest hashing algorithms to return the same value for different inputs [PR #157](https://github.com/corretto/amazon-corretto-crypto-provider/pull/157)
