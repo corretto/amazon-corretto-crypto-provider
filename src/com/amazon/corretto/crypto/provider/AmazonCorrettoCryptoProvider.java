@@ -12,7 +12,6 @@ import static java.util.Collections.singletonMap;
 import static java.util.logging.Logger.getLogger;
 
 import java.io.IOException;
-import java.io.ObjectStreamException;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
@@ -44,7 +43,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     private transient SelfTestSuite selfTestSuite = new SelfTestSuite();
 
     static {
-        if (!Loader.IS_AVAILABLE) {
+        if (!Loader.IS_AVAILABLE && DebugFlag.VERBOSELOGS.isEnabled()) {
             getLogger("AmazonCorrettoCryptoProvider").fine("Native JCE libraries are unavailable - disabling");
             rdRandSupported_ = false;
         } else {
@@ -268,23 +267,9 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     public AmazonCorrettoCryptoProvider() {
         super("AmazonCorrettoCryptoProvider", PROVIDER_VERSION, "");
 
-        final String[] extraCheckOptions = Loader.getProperty("extrachecks", "").split(",");
-        for (final String check : extraCheckOptions) {
-          if (check.equalsIgnoreCase("all")) {
-            extraChecks.addAll(EnumSet.allOf(ExtraCheck.class));
-            break;
-          }
-          try {
-            final ExtraCheck value = ExtraCheck.valueOf(check.toUpperCase());
-            if (value != null) {
-              extraChecks.add(value);
-            }
-          } catch (Exception ex) {
-            // Ignore
-          }
-        }
+        Utils.optionsFromProperty(ExtraCheck.class, extraChecks, "extrachecks");
 
-        if (!Loader.IS_AVAILABLE) {
+        if (!Loader.IS_AVAILABLE && DebugFlag.VERBOSELOGS.isEnabled()) {
             getLogger("AmazonCorrettoCryptoProvider").fine("Native JCE libraries are unavailable - disabling");
 
             // Don't implement anything
@@ -339,7 +324,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
      * {@link SelfTestStatus#NOT_RUN} will be returned if any tests have not be run.
      * {@link SelfTestStatus#PASSED} will only be returned if all tests have been run and have
      * all passed.
-     * 
+     *
      * <p>Algorithms currently run by this method:
      * <ul>
      * <li>NIST800-90A/AES-CTR-256
@@ -349,7 +334,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
      * <li>HMacSHA1
      * <li>HMacMD5
      * </ul>
-     * 
+     *
      * @see #runSelfTests()
      */
     public SelfTestStatus getSelfTestStatus() {
@@ -361,7 +346,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
      * Please see {@link #getSelfTestStatus()} for the algorithms tested and
      * the possible return values. (though this method will never return
      * {@link SelfTestStatus#NOT_RUN}).
-     * 
+     *
      * @see #getSelfTestStatus()
      */
     public SelfTestStatus runSelfTests() {
@@ -379,7 +364,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     /**
      * <p>Throws an instance of {@link RuntimeCryptoException} if this library is not currently
      * functional. Otherwise does nothing.
-     * 
+     *
      * <p>This library is considered healthy if {@link #getLoadingError()} returns {@code null}
      * and {@link #runSelfTests()} returns {@link SelfTestStatus#PASSED}.
      */

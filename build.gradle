@@ -48,15 +48,15 @@ repositories {
 
 dependencies {
     // Separate so we can extract the jar for the agent specifically
-    jacocoAgent group: 'org.jacoco', name: 'org.jacoco.agent', version: '0.8.3', classifier: 'runtime'
+    jacocoAgent group: 'org.jacoco', name: 'org.jacoco.agent', version: '0.8.7', classifier: 'runtime'
 
     // Separate so we can extract the jar for the runner specifically
     testRunner group: 'org.junit.platform', name: 'junit-platform-console-standalone', version: '1.6.2'
 
     testDep 'org.junit.jupiter:junit-jupiter:5.6.2'
     testDep 'org.junit.vintage:junit-vintage-engine:5.6.2'
-    testDep 'org.bouncycastle:bcprov-debug-jdk15on:1.65'
-    testDep 'org.bouncycastle:bcpkix-jdk15on:1.65'
+    testDep 'org.bouncycastle:bcprov-debug-jdk15on:1.69'
+    testDep 'org.bouncycastle:bcpkix-jdk15on:1.69'
     testDep 'commons-codec:commons-codec:1.12'
     testDep 'org.hamcrest:hamcrest:2.1'
     testDep 'org.jacoco:org.jacoco.core:0.8.3'
@@ -83,13 +83,6 @@ task getOpensslSrc(type: Copy) {
     def outputDir = file("${buildDir}/openssl/")
     from tarTree(tarFile)
     into outputDir
-
-    doLast {
-        // Remove this once the patch is incorporated into an official OpenSSL release
-        ant.patch(patchfile: "${projectDir}/arm.patch",
-            dir: opensslSrcPath,
-            strip: 1)
-    }
 }
 
 task buildOpenSsl {
@@ -159,6 +152,9 @@ task executeCmake(type: Exec) {
 
     if (System.properties['TEST_JAVA_HOME'] != null) {
         args '-DTEST_JAVA_HOME=' + System.properties['TEST_JAVA_HOME']
+    }
+    if (System.properties['TEST_JAVA_MAJOR_VERSION'] != null) {
+        args '-DTEST_JAVA_MAJOR_VERSION=' + System.properties['TEST_JAVA_MAJOR_VERSION']
     }
 
     if (System.properties['SINGLE_TEST'] != null) {
@@ -437,7 +433,7 @@ if (project.hasProperty('mavenUser') && project.hasProperty('jcecertAlias')) {
         }
     }
 
-    task sign(overwrite: true) {
+    task sign {
         doFirst {
             ant.fail('Insufficient configuration for signing')
         }

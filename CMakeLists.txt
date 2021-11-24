@@ -50,6 +50,7 @@ endif()
 
 if (NOT DEFINED TEST_JAVA_HOME)
   set(TEST_JAVA_EXECUTABLE ${Java_JAVA_EXECUTABLE})
+  set(TEST_JAVA_MAJOR_VERSION ${Java_VERSION_MAJOR})
 else()
   set(TEST_JAVA_EXECUTABLE ${TEST_JAVA_HOME}/bin/java)
 endif()
@@ -108,6 +109,7 @@ set(ACCP_SRC
         src/com/amazon/corretto/crypto/provider/AesCtrDrbg.java
         src/com/amazon/corretto/crypto/provider/AesGcmSpi.java
         src/com/amazon/corretto/crypto/provider/ConstantTime.java
+        src/com/amazon/corretto/crypto/provider/DebugFlag.java
         src/com/amazon/corretto/crypto/provider/EcGen.java
         src/com/amazon/corretto/crypto/provider/EvpKeyAgreement.java
         src/com/amazon/corretto/crypto/provider/EvpKeyType.java
@@ -590,8 +592,20 @@ add_custom_command(
 add_custom_target(tests-jar DEPENDS ${TESTS_JAR})
 set_property(TARGET tests-jar PROPERTY JAR_FILE ${TESTS_JAR})
 
+# These flags are necessary in Java17+ in order for certain unit tests to
+# perform deep reflection on nonpublic members
+if (TEST_JAVA_MAJOR_VERSION VERSION_GREATER_EQUAL 17)
+  set(TEST_ADD_OPENS
+    --add-opens java.base/javax.crypto=ALL-UNNAMED
+    --add-opens java.base/java.lang.invoke=ALL-UNNAMED
+    --add-opens java.base/java.security=ALL-UNNAMED
+    --add-exports jdk.crypto.ec/sun.security.ec=java.base
+    )
+endif()
+
 set(TEST_RUNNER_ARGUMENTS
     -javaagent:${JACOCO_AGENT_JAR}=destfile=coverage/jacoco.exec,classdumpdir=coverage/classes
+    ${TEST_ADD_OPENS}
     -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
     -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
     -Dtest.data.dir=${TEST_DATA_DIR}
@@ -643,6 +657,7 @@ add_custom_target(check-junit-SecurityManager
 add_custom_target(check-junit-extra-checks
     COMMAND ${TEST_JAVA_EXECUTABLE}
         -Dcom.amazon.corretto.crypto.provider.extrachecks=ALL
+        -Dcom.amazon.corretto.crypto.provider.debug=ALL
         ${TEST_RUNNER_ARGUMENTS}
         --select-package=com.amazon.corretto.crypto.provider.test
         --exclude-package=com.amazon.corretto.crypto.provider.test.integration

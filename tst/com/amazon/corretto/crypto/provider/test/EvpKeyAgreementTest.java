@@ -73,15 +73,9 @@ public class EvpKeyAgreementTest {
     @BeforeAll
     public static void setupParams() throws GeneralSecurityException, IOException {
         MASTER_PARAMS_LIST = new ArrayList<>();
-        MASTER_PARAMS_LIST.add(buildEcdhParameters(new ECGenParameterSpec("secp112r1"), "secp112r1"));
-        MASTER_PARAMS_LIST.add(buildEcdhParameters(new ECGenParameterSpec("NIST P-224"), "NIST P-224"));
+        MASTER_PARAMS_LIST.add(buildEcdhParameters(new ECGenParameterSpec("NIST P-256"), "NIST P-256"));
         MASTER_PARAMS_LIST.add(buildEcdhParameters(new ECGenParameterSpec("NIST P-384"), "NIST P-384"));
         MASTER_PARAMS_LIST.add(buildEcdhParameters(new ECGenParameterSpec("NIST P-521"), "NIST P-521"));
-        MASTER_PARAMS_LIST.add(buildEcdhParameters(new ECGenParameterSpec("sect113r1"), "sect113r1"));
-        MASTER_PARAMS_LIST.add(buildEcdhParameters(new ECGenParameterSpec("sect163k1"), "sect163k1"));
-        MASTER_PARAMS_LIST.add(buildEcdhParameters(new ECGenParameterSpec("sect283k1"), "sect283k1"));
-        MASTER_PARAMS_LIST.add(buildEcdhParameters(new ECGenParameterSpec("sect571r1"), "sect571r1"));
-        MASTER_PARAMS_LIST.add(buildEcdhParameters(new ECGenParameterSpec("X9.62 c2tnb239v3"), "X9.62 c2tnb239v3"));
         MASTER_PARAMS_LIST.add(buildEcdhParameters(EcGenTest.EXPLICIT_CURVE, "Explicit Curve"));
 
         MASTER_PARAMS_LIST.add(buildDhParameters(512));
@@ -187,8 +181,7 @@ public class EvpKeyAgreementTest {
                 Arrays.asList(
                         buildKeyAtInfinity(pubKey),
                         buildKeyOffCurve(pubKey),
-                        buildKeyOnWrongCurve(pubKey),
-                        buildKeyOnWrongField(pubKey))
+                        buildKeyOnWrongCurve(pubKey))
         );
     }
 
@@ -242,7 +235,7 @@ public class EvpKeyAgreementTest {
             // This is a prime curve
             generator.initialize(new ECGenParameterSpec("NIST P-384"));
             final ECPublicKey pub1 = (ECPublicKey) generator.generateKeyPair().getPublic();
-            generator.initialize(new ECGenParameterSpec("NIST P-224"));
+            generator.initialize(new ECGenParameterSpec("NIST P-256"));
             final ECPublicKey pub2 = (ECPublicKey) generator.generateKeyPair().getPublic();
 
             if (curve.getField().getFieldSize() == pub1.getParams().getCurve().getField().getFieldSize()) {
@@ -262,17 +255,6 @@ public class EvpKeyAgreementTest {
                 return pub1;
             }
         }
-    }
-
-    public static ECPublicKey buildKeyOnWrongField(final ECPublicKey goodKey) throws GeneralSecurityException {
-        final KeyPairGenerator generator = KeyPairGenerator.getInstance("EC");
-        final EllipticCurve curve = goodKey.getParams().getCurve();
-        if (curve.getField() instanceof ECFieldFp) {
-            generator.initialize(new ECGenParameterSpec("sect163k1"));
-        } else {
-            generator.initialize(new ECGenParameterSpec("NIST P-384"));
-        }
-        return (ECPublicKey) generator.generateKeyPair().getPublic();
     }
 
     @ParameterizedTest

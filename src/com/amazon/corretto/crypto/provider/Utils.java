@@ -16,6 +16,7 @@ import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Arrays;
+import java.util.EnumSet;
 
 import javax.crypto.Cipher;
 import javax.crypto.Mac;
@@ -408,6 +409,30 @@ final class Utils {
             src.limit(Math.min(src.remaining(), buffer.remaining()));
 
             buffer.put(src);
+        }
+    }
+
+    static <E extends Enum<E>> void optionsFromProperty(
+        final Class<E> clazz, final EnumSet<E> set, final String propertyName) {
+        final String propertyValue = Loader.getProperty(propertyName, "");
+        if (propertyValue.equalsIgnoreCase("help")) {
+            System.err.format("Valid values for %s%s are: %s or ALL",
+                Loader.PROPERTY_BASE, propertyName, EnumSet.allOf(clazz));
+        }
+        final String[] extraCheckOptions = propertyValue.split(",");
+        for (final String check : extraCheckOptions) {
+            if (check.equalsIgnoreCase("all")) {
+                set.addAll(EnumSet.allOf(clazz));
+                break;
+            }
+            try {
+                final E value = Enum.valueOf(clazz, check.toUpperCase());
+                if (value != null) {
+                    set.add(value);
+                }
+            } catch (Exception ex) {
+                // Ignore
+            }
         }
     }
 }
