@@ -416,7 +416,7 @@ final class Utils {
         final Class<E> clazz, final EnumSet<E> set, final String propertyName) {
         final String propertyValue = Loader.getProperty(propertyName, "");
         if (propertyValue.equalsIgnoreCase("help")) {
-            System.err.format("Valid values for %s%s are: %s",
+            System.err.format("Valid values for %s%s are: %s or ALL",
                 Loader.PROPERTY_BASE, propertyName, EnumSet.allOf(clazz));
         }
         final String[] extraCheckOptions = propertyValue.split(",");

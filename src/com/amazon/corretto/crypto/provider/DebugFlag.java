@@ -6,7 +6,7 @@ package com.amazon.corretto.crypto.provider;
 import java.util.EnumSet;
 
 /**
- * Indicates whether a given debug mode is enabled for ACCP None of these modes
+ * Indicates whether a given debug mode is enabled for ACCP. None of these modes
  * may compromise the security of ACCP but they are permitted to have
  * significant performance costs.
  *

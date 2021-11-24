@@ -10,6 +10,7 @@
 Current values are:
    * `FreeTrace` - Enables tracking of allocation and freeing of native objects from java for more detailed exceptions.
    * `VerboseLogging` - Enables more detailed logging.
+   * `ALL` - Enables all of the above
 (May still require changes to your logging configuration to see the new logs.)
 
 ## 1.6.1
