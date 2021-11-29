@@ -8,6 +8,7 @@ import static com.amazon.corretto.crypto.provider.test.TestUtil.assumeMinimumVer
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import java.math.BigInteger;
@@ -201,6 +202,8 @@ public class RsaGenTest {
         // Do the underlying math
         final BigInteger p = priv.getPrimeP();
         final BigInteger q = priv.getPrimeQ();
+        assertTrue(p.isProbablePrime(128));
+        assertTrue(p.isProbablePrime(128));
         final BigInteger d = priv.getPrivateExponent();
         final BigInteger e = priv.getPublicExponent();
         final BigInteger dp = priv.getPrimeExponentP();
