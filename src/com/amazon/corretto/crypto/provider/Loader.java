@@ -122,13 +122,19 @@ final class Loader {
                 FileSystems.getDefault();
 
                 // First, try to find the library in our own jar
+                final boolean useExternalLib = Boolean.valueOf(getProperty("useExternalLib", "false"));
+                Exception loadingException = null;
+
                 String libraryName = System.mapLibraryName(LIBRARY_NAME);
-                if (libraryName != null) {
+                if (useExternalLib) {
+                    loadingException = new RuntimeCryptoException("Skipping bundled library due to system property");
+                } else if (libraryName != null) {
                     int index = libraryName.lastIndexOf('.');
                     final String prefix = libraryName.substring(0, index);
                     final String suffix = libraryName.substring(index, libraryName.length());
 
                     final Path libPath = createTmpFile(prefix, suffix);
+
                     try (final InputStream is = Loader.class.getResourceAsStream(libraryName);
                          final OutputStream os = Files.newOutputStream(libPath, StandardOpenOption.CREATE,
                                  StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING)) {
@@ -141,18 +147,26 @@ final class Loader {
                         os.flush();
                         System.load(libPath.toAbsolutePath().toString());
                         return true;
+                    } catch (final Exception realException) {
+                        loadingException = realException;
                     } catch (final Throwable realError) {
-                        // We failed to load the library from our JAR but don't know why.
-                        // Try to load it directly off of the system path.
-                        try {
-                            System.loadLibrary(LIBRARY_NAME);
-                            return true;
-                        } catch (final Throwable suppressedError) {
-                            realError.addSuppressed(suppressedError);
-                            throw realError;
-                        }
+                        loadingException = new RuntimeCryptoException("Unable to load native library", realError);
                     } finally {
                         Files.delete(libPath);
+                    }
+                } else {
+                    loadingException = new RuntimeCryptoException("Skipping bundled library null mapped name");
+                }
+
+                if (loadingException != null) {
+                    // We failed to load the library from our JAR but don't know why.
+                    // Try to load it directly off of the system path.
+                    try {
+                        System.loadLibrary(LIBRARY_NAME);
+                        return true;
+                    } catch (final Throwable suppressedError) {
+                        loadingException.addSuppressed(suppressedError);
+                        throw loadingException;
                     }
                 }
 

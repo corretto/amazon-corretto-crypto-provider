@@ -688,6 +688,21 @@ add_custom_target(check-install-via-properties
 
     DEPENDS accp-jar tests-jar)
 
+add_custom_target(check-external-lib
+    # Unfortunately we do not have a way to know where the library is loaded from.
+    # So this test just proves that requesting the external lib does not break things
+    COMMAND ${TEST_JAVA_EXECUTABLE}
+        -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
+        -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
+        -Dcom.amazon.corretto.crypto.provider.useExternalLib=true
+        -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
+        -Dtest.data.dir=${TEST_DATA_DIR}
+        -Djava.security.properties=${ORIG_SRCROOT}/etc/amazon-corretto-crypto-provider.security
+        ${TEST_JAVA_ARGS}
+        com.amazon.corretto.crypto.provider.test.SecurityPropertyTester
+
+    DEPENDS accp-jar tests-jar)
+
 add_custom_target(check-install-via-properties-recursive
     COMMAND ${TEST_JAVA_EXECUTABLE}
         -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
@@ -714,7 +729,7 @@ add_custom_target(check-install-via-properties-with-debug
     DEPENDS accp-jar tests-jar)
 
 add_custom_target(check
-    DEPENDS check-recursive-init check-install-via-properties check-install-via-properties-with-debug check-junit check-junit-SecurityManager)
+    DEPENDS check-recursive-init check-install-via-properties check-install-via-properties-with-debug check-junit check-junit-SecurityManager check-external-lib)
 
 if(ENABLE_NATIVE_TEST_HOOKS)
     if (CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")

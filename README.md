@@ -120,7 +120,7 @@ For more information, please see [VERSIONING.rst](https://github.com/corretto/am
 ### Gradle
 Add the following to your `build.gradle` file. If you already have a
 `dependencies` block in your `build.gradle`, you can add the ACCP line to your
-existing block. 
+existing block.
 This will instruct it to use the most recent 1.x version of ACCP.
 For more information, please see [VERSIONING.rst](https://github.com/corretto/amazon-corretto-crypto-provider/blob/develop/VERSIONING.rst).
 
@@ -184,6 +184,33 @@ Add the following Java property to your programs command line: `-Djava.security.
 
 ### Modify the JVM settings
 Modify the `java.security` file provided by your JVM so that the highest priority provider is the Amazon Corretto Crypto Provider. Look at [amazon-corretto-crypto-provider.security](https://github.com/corretto/amazon-corretto-crypto-provider/blob/master/etc/amazon-corretto-crypto-provider.security) for an example of what this change will look like.
+
+### Other system properties
+ACCP can be configured via several system properties.
+None of these should be needed for standard deployments and we recommend not touching them.
+They are of most use to developers needing to test ACCP or experiment with benchmarking.
+These are all read early in the load process and may be cached so any changes to them made from within Java may not be respected.
+Thus, these should all be set on the JVM command line using `-D`.
+
+* `com.amazon.corretto.crypto.provider.extrachecks`
+   Adds exta cryptographic consistency checks which are not necessary on standard systems.
+   These checks may be computationally expensive and are not normally relevant.
+   See `ExtraCheck.java` for values and more information.
+   (Also accepts "ALL" as a value to enable all flags.)
+* `com.amazon.corretto.crypto.provider.debug`
+   Enables extra debugging behavior.
+   These behaviors may be computationally expensive, produce additional output, or otherwise change the behavior of ACCP.
+   No values here will lower the security of ACCP or cause it to give incorrect results.
+   See `DebugFlag.java` for values and more information.
+   (Also accepts "ALL" as a value to enable all flags.)
+* `com.amazon.corretto.crypto.provider.useExternalLib`
+   Takes in `true` or `false` (defaults to `false`).
+   If `true` then ACCP skips trying to load the native library bundled within its JAR and goes directly to the system library path.
+* `com.amazon.corretto.crypto.provider.janitor.stripes`
+   Takes *positive integer value* which is the requested minimum number of "stripes" used by the `Janitor` for dividing cleaning tasks (messes) among its workers.
+   (Current behavior is to default this value to 4 times the CPU core count and then round the value up to the nearest power of two.)
+   See `Janitor.java` for for more information.
+
 
 ### Verification (Optional)
 If you want to check to verify that ACCP is properly working on your system, you can do any of the following:
