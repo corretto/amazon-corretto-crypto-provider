@@ -8,6 +8,7 @@ import static com.amazon.corretto.crypto.provider.test.TestUtil.assumeMinimumVer
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import java.math.BigInteger;
@@ -189,19 +190,36 @@ public class RsaGenTest {
         assertNotNull(priv);
         assertEquals(pub.getPublicExponent(), priv.getPublicExponent());
         assertNotNull(pub.getModulus());
-        assertEquals(pub.getModulus(), priv.getModulus());
+        BigInteger modulus = priv.getModulus();
+        assertEquals(pub.getModulus(), modulus);
         assertNotNull(priv.getPrivateExponent());
-        assertNotNull(priv.getPrimeExponentP());
-        assertNotNull(priv.getPrimeExponentQ());
+        assertNotNull(priv.getPrimeP());
+        assertNotNull(priv.getPrimeQ());
         assertNotNull(priv.getPrimeExponentP());
         assertNotNull(priv.getPrimeExponentQ());
         assertNotNull(priv.getCrtCoefficient());
 
         // Do the underlying math
-        assertEquals(priv.getModulus(), priv.getPrimeP().multiply(priv.getPrimeQ()));
-        assertEquals(priv.getPrivateExponent().mod(priv.getPrimeP().subtract(BigInteger.ONE)), priv.getPrimeExponentP());
-        assertEquals(priv.getPrivateExponent().mod(priv.getPrimeQ().subtract(BigInteger.ONE)), priv.getPrimeExponentQ());
-        assertEquals(priv.getPrimeQ().modInverse(priv.getPrimeP()), priv.getCrtCoefficient());
+        final BigInteger p = priv.getPrimeP();
+        final BigInteger q = priv.getPrimeQ();
+        assertTrue(p.isProbablePrime(128));
+        assertTrue(p.isProbablePrime(128));
+        final BigInteger d = priv.getPrivateExponent();
+        final BigInteger e = priv.getPublicExponent();
+        final BigInteger dp = priv.getPrimeExponentP();
+        final BigInteger dq = priv.getPrimeExponentQ();
+        final BigInteger qInv = priv.getCrtCoefficient();
+
+        final BigInteger p1 = p.subtract(BigInteger.ONE);
+        final BigInteger q1 = q.subtract(BigInteger.ONE);
+
+        assertEquals(modulus, p.multiply(q));
+        assertEquals(d.mod(p1), dp);
+        assertEquals(d.mod(q1), dq);
+        assertEquals(q.modInverse(p), qInv);
+
+        final BigInteger totient = p1.multiply(q1).divide(p1.gcd(q1));
+        assertEquals(BigInteger.ONE, e.multiply(d).mod(totient));
 
         // Actually use the key
         final Cipher cipher = Cipher.getInstance("RSA");
