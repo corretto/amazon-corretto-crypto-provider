@@ -44,7 +44,7 @@ public class ServiceSelfTestMetaTest {
         // We need RDRAND support for a lot of these tests to work properly
         Assumptions.assumeTrue(AmazonCorrettoCryptoProvider.isRdRandSupported(), "RDRAND is supported");
 
-        // AACP instances cache the self-test status within each Service, so create a new instance to clear that cache.
+        // ACCP instances cache the self-test status within each Service, so create a new instance to clear that cache.
         // This also makes sure the native library is loaded.
         accp = new AmazonCorrettoCryptoProvider();
     }

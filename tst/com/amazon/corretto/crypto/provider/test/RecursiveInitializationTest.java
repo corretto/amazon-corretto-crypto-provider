@@ -21,7 +21,7 @@ import com.amazon.corretto.crypto.provider.AesCtrDrbg;
 /**
  * This test is a special case - it tests a recursive initialization path that looks like:
  *
- * AACP.[ctor] -> Self tests -> Mac.getInstance -> JceSecurity.[static init] -> SecureRandom.[ctor] ->
+ * ACCP.[ctor] -> Self tests -> Mac.getInstance -> JceSecurity.[static init] -> SecureRandom.[ctor] ->
  * BouncyCastle.createBaseRandom -> AesCtrDrbg.[ctor] -> NJCE.[ctor] -> Self tests -> Mac.getInstance ->
  * JceSecurity (uninitialized)
  *
@@ -58,7 +58,7 @@ public class RecursiveInitializationTest {
         }
 
         if (!installProviderAtHighestPriority(AmazonCorrettoCryptoProvider.INSTANCE)) {
-            throw new RuntimeException("Failed to install AACP");
+            throw new RuntimeException("Failed to install ACCP");
         }
     }
 
