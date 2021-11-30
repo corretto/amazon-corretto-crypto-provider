@@ -89,39 +89,8 @@ public class LocalHTTPSIntegrationTest {
                 continue;
             }
 
-            String keyAlgorithm;
-
-            if (cipherSuite.contains("ECDSA")) {
-                keyAlgorithm = "ECDSA";
-            } else if (cipherSuite.contains("DSS")) {
-                keyAlgorithm = "DSA";
-            } else if (cipherSuite.contains("RSA")) {
-                keyAlgorithm = "RSA";
-            } else {
-                // We also want to support TLS 1.3.
-                // At the moment we simply hardcode the known suites and mark a keyAlgorithm of "TLS1.3" since
-                // these suites no longer tie the certificate key type to the suite.
-                switch (cipherSuite) {
-                    case "TLS_AES_128_GCM_SHA256":
-                    case "TLS_AES_256_GCM_SHA384":
-                    case "TLS_CHACHA20_POLY1305_SHA256":
-                    case "TLS_AES_128_CCM_SHA256":
-                    case "TLS_AES_128_CCM_8_SHA256":
-                        keyAlgorithm = "TLS1.3";
-                        break;
-                    default:
-                        // Unsupported suite
-                        continue;
-                }
-            }
-
             for (String method : SIGNATURE_METHODS_TO_TEST) {
-                if (keyAlgorithm.equals("TLS1.3")) {
-                    // TLS 1.3 only support RSA and ECDSA certificates
-                    if (!method.endsWith("withRSA") && !method.endsWith("withECDSA")) {
-                        continue;
-                    }
-                } else if (!method.endsWith("with" + keyAlgorithm)) {
+                if (!HTTPSTestParameters.suiteMatchesSignature(cipherSuite, method)) {
                     // We generate our server certificates in such a way that the key type in the server certificate
                     // matches the key type used to sign the certificate. As such, this key type must _also_ match
                     // the key required by the cipher suite in use. We can't use a server cert showing a DH public key
@@ -208,7 +177,7 @@ public class LocalHTTPSIntegrationTest {
         // actual URL hostname
         conn.setHostnameVerifier((hostname, session) -> true);
 
-        SSLContext context = SSLContext.getInstance("TLS");
+        SSLContext context = SSLContext.getInstance(HTTPSTestParameters.protocolFromSuite(suite));
 
         context.init(null, trustManagerFactory.getTrustManagers(), null);
 
@@ -234,6 +203,7 @@ public class LocalHTTPSIntegrationTest {
                 SSLParameters parameters = socket.getSSLParameters();
                 parameters.setEndpointIdentificationAlgorithm("HTTPS");
                 parameters.setServerNames(singletonList(new SNIHostName(signatureType + "." + keyBits)));
+                parameters.setProtocols(new String[] { HTTPSTestParameters.protocolFromSuite(suite) });
 
                 socket.setSSLParameters(parameters);
 
