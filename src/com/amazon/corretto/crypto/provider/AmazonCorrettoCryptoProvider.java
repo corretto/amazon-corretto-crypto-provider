@@ -211,7 +211,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
                  * end up falling back.
                  */
                 if (!getType().equals("SecureRandom")) {
-                    throw new NoSuchAlgorithmException("Can't use AACP before JAR validation completes");
+                    throw new NoSuchAlgorithmException("Can't use ACCP before JAR validation completes");
                 }
             }
 

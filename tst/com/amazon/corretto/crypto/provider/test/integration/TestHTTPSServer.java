@@ -166,7 +166,7 @@ public class TestHTTPSServer {
         TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
         tmf.init(keyStore);
 
-        SSLContext sslContext = SSLContext.getInstance("TLS");
+        SSLContext sslContext = SSLContext.getInstance("TLSv1.3");
         sslContext.init(new KeyManager[] { new SNIKeyManager() }, tmf.getTrustManagers(), null);
 
         HttpsServer server = HttpsServer.create();
@@ -175,18 +175,19 @@ public class TestHTTPSServer {
         SSLEngine sampleEngine = SSLContext.getDefault().createSSLEngine();
         String[] cipherSuites = sampleEngine.getSupportedCipherSuites();
         String[] protocols = sampleEngine.getSupportedProtocols();
-        SSLParameters defaultParams = SSLContext.getDefault().getDefaultSSLParameters();
+        SSLParameters sslParams = SSLContext.getDefault().getDefaultSSLParameters();
+        sslParams.setNeedClientAuth(false);
+        sslParams.setWantClientAuth(false);
+        sslParams.setProtocols(protocols);
+        // We'll let the client decide which protocols and cipher suites to test, by enabling support
+        // for _everything_, including ones that are obviously a bad idea.
+        sslParams.setCipherSuites(cipherSuites);
 
         server.setHttpsConfigurator(
                 new HttpsConfigurator(sslContext) {
                     @Override public void configure(HttpsParameters params) {
-                        params.setSSLParameters(defaultParams);
-
-                        // We'll let the client decide which protocols and cipher suites to test, by enabling support
-                        // for _everything_, including ones that are obviously a bad idea.
-                        params.setCipherSuites(cipherSuites);
-                        params.setProtocols(protocols);
-                        params.setNeedClientAuth(false);
+                        // Setting the SSL parameters causes everything else to be ignored.
+                        params.setSSLParameters(sslParams);
                     }
                 }
         );

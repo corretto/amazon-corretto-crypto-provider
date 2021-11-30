@@ -11,6 +11,9 @@ import java.util.List;
 import java.util.Map;
 
 public class HTTPSTestParameters {
+    static final String PROTOCOL_TLS_1_2 = "TLSv1.2";
+    static final String PROTOCOL_TLS_1_3 = "TLSv1.3";
+
     // Map of key algorithm ("RSA", "ECDSA", "DSA") to supported key sizes
     private static final Map<String, List<Integer>> ALGO_TO_KEY_BITS;
 
@@ -64,5 +67,50 @@ public class HTTPSTestParameters {
 
     static String getKeyType(String signatureMethod) {
         return signatureMethod.replaceAll(".*with", "");
+    }
+
+    static String protocolFromSuite(final String cipherSuite) {
+        // We only test on 1.3 and 1.2 for now.
+        // Everything older is being deprecated and none of our crypto
+        // should do anything different for older versions anyway.
+        switch (cipherSuite) {
+            case "TLS_AES_128_GCM_SHA256":
+            case "TLS_AES_256_GCM_SHA384":
+            case "TLS_CHACHA20_POLY1305_SHA256":
+            case "TLS_AES_128_CCM_SHA256":
+            case "TLS_AES_128_CCM_8_SHA256":
+                return PROTOCOL_TLS_1_3;
+            default:
+                return PROTOCOL_TLS_1_2;
+        }
+    }
+
+    /**
+     * Returns {@code true} iff the TLS ciphersuite {@code suite} can be used with
+     * certificates signed using
+     * {@code signature}.
+     *
+     * @param suite     the TLS ciphersuite
+     * @param signatureMethod the algorithm used to sign the TLS certificate
+     * @returns true if certificates signed by {@code signature} can be used with
+     *          {@code suite}}
+     * @see https://docs.oracle.com/en/java/javase/17/docs/specs/security/standard-names.html
+     */
+    static boolean suiteMatchesSignature(final String suite, final String signatureMethod) {
+        final String keyType = getKeyType(signatureMethod);
+
+        // TLS 1.3 only supports RSA and ECDSA certificates
+        if (protocolFromSuite(suite).equals(PROTOCOL_TLS_1_3)
+                && (keyType.equals("RSA") || keyType.equals("ECDSA"))) {
+            return true;
+        }
+
+        // DSA is called DSS in ciphersuites
+        if (keyType.equals("DSA")) {
+            return suite.contains("DSS");
+        }
+
+        // Otherwise, everything matches up
+        return suite.contains(keyType);
     }
 }
