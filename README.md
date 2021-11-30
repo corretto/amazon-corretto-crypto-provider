@@ -196,13 +196,13 @@ Thus, these should all be set on the JVM command line using `-D`.
    Adds exta cryptographic consistency checks which are not necessary on standard systems.
    These checks may be computationally expensive and are not normally relevant.
    See `ExtraCheck.java` for values and more information.
-   (Also accepts "ALL" as a value to enable all flags.)
+   (Also accepts "ALL" as a value to enable all flags and "help" to print out all flags to STDERR.)
 * `com.amazon.corretto.crypto.provider.debug`
    Enables extra debugging behavior.
    These behaviors may be computationally expensive, produce additional output, or otherwise change the behavior of ACCP.
    No values here will lower the security of ACCP or cause it to give incorrect results.
    See `DebugFlag.java` for values and more information.
-   (Also accepts "ALL" as a value to enable all flags.)
+   (Also accepts "ALL" as a value to enable all flags and "help" to print out all flags to STDERR.)
 * `com.amazon.corretto.crypto.provider.useExternalLib`
    Takes in `true` or `false` (defaults to `false`).
    If `true` then ACCP skips trying to load the native library bundled within its JAR and goes directly to the system library path.
