@@ -22,6 +22,7 @@ public class RspTestEntry {
   private static final Pattern NAMELESS_HEADER_ENTRY = Pattern.compile("\\[([^=]+)\\]");
   private static final Pattern HEADER_ENTRY = Pattern.compile("\\[(\\S+)\\s*=\\s*(\\S+)\\]");
   private static final Pattern INSTANCE_ENTRY = Pattern.compile("(\\S+)\\s*=\\s*(\\S+)");
+  private static final Pattern NAMELESS_INSTANCE_ENTRY = Pattern.compile("([^=]+)");
 
   private final Map<String, String> header_;
   private final Map<String, String> instance_;
@@ -95,12 +96,16 @@ public class RspTestEntry {
    * <li>Headers for each section consist of Key/Value pairs of the format: {@code [KEY=VALUE]}
    * <li>Test cases within each section consist of Key/Value pairs of the format: {@code KEY=VALUE}
    * </ul>
-   * 
+   *
    * @see <a href="http://csrc.nist.gov/groups/STM/cavp/">NIST - CRYPTOGRAPHIC ALGORITHM VALIDATION
    *      PROGRAM (CAVP)</a>
    */
   public static Iterator<RspTestEntry> iterateOverResource(final InputStream in) {
     return new RspTestEntryIterator(in, false);
+  }
+
+  public static Iterator<RspTestEntry> iterateOverResource(final InputStream in, boolean closeWhenDone) {
+    return new RspTestEntryIterator(in, closeWhenDone);
   }
 
   /**
@@ -126,23 +131,20 @@ public class RspTestEntry {
     }
 
     @Override
-    public boolean hasNext() {
+    public synchronized boolean hasNext() {
       loadNext();
-      if (next_ == null && closeWhenDone_) {
-        in_.close();
-      }
       return next_ != null;
     }
 
     @Override
-    public RspTestEntry next() {
+    public synchronized RspTestEntry next() {
       loadNext();
       final RspTestEntry result = next_;
       next_ = null;
       return result;
     }
 
-    private void loadNext() {
+    private synchronized void loadNext() {
       if (next_ != null) {
         return;
       }
@@ -185,6 +187,17 @@ public class RspTestEntry {
           instance_.put(testMatcher.group(1), testMatcher.group(2));
           continue;
         }
+
+        final Matcher namelessTestMatcher = NAMELESS_INSTANCE_ENTRY.matcher(line);
+        if (namelessTestMatcher.matches()) {
+          if (!inInstance_) {
+            instance_ = new HashMap<>();
+            inInstance_ = true;
+          }
+          instance_.put(namelessTestMatcher.group(1), "");
+          continue;
+        }
+
         if (inInstance_ && line.isEmpty()) {
           inInstance_ = false;
           next_ =
@@ -192,6 +205,9 @@ public class RspTestEntry {
                   Collections.unmodifiableMap(instance_));
           return;
         }
+      }
+      if (closeWhenDone_) {
+        in_.close();
       }
     }
   }
