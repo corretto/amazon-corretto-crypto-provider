@@ -185,6 +185,26 @@ Add the following Java property to your programs command line: `-Djava.security.
 ### Modify the JVM settings
 Modify the `java.security` file provided by your JVM so that the highest priority provider is the Amazon Corretto Crypto Provider. Look at [amazon-corretto-crypto-provider.security](https://github.com/corretto/amazon-corretto-crypto-provider/blob/master/etc/amazon-corretto-crypto-provider.security) for an example of what this change will look like.
 
+### Verification (Optional)
+If you want to check to verify that ACCP is properly working on your system, you can do any of the following:
+1. Verify that the highest priority provider actually is ACCP:
+```java
+if (Cipher.getInstance("AES/GCM/NoPadding").getProvider().getName().equals(AmazonCorrettoCryptoProvider.PROVIDER_NAME)) {
+    // Successfully installed
+}
+```
+2. Ask ACCP about its health
+```java
+if (AmazonCorrettoCryptoProvider.INSTANCE.getLoadingError() == null && AmazonCorrettoCryptoProvider.INSTANCE.runSelfTests().equals(SelfTestStatus.PASSED)) {
+    // Successfully installed
+}
+```
+3. Assert that ACCP is healthy and throw a `RuntimeCryptoException` if it isn't.
+We generally do not recommend this solution as we believe that gracefully falling back to other providers is usually the better option.
+```java
+AmazonCorrettoCryptoProvider.INSTANCE.assertHealthy();
+```
+
 ### Other system properties
 ACCP can be configured via several system properties.
 None of these should be needed for standard deployments and we recommend not touching them.
@@ -211,26 +231,6 @@ Thus, these should all be set on the JVM command line using `-D`.
    (Current behavior is to default this value to 4 times the CPU core count and then round the value up to the nearest power of two.)
    See `Janitor.java` for for more information.
 
-
-### Verification (Optional)
-If you want to check to verify that ACCP is properly working on your system, you can do any of the following:
-1. Verify that the highest priority provider actually is ACCP:
-```java
-if (Cipher.getInstance("AES/GCM/NoPadding").getProvider().getName().equals(AmazonCorrettoCryptoProvider.PROVIDER_NAME)) {
-    // Successfully installed
-}
-```
-2. Ask ACCP about its health
-```java
-if (AmazonCorrettoCryptoProvider.INSTANCE.getLoadingError() == null && AmazonCorrettoCryptoProvider.INSTANCE.runSelfTests().equals(SelfTestStatus.PASSED)) {
-    // Successfully installed
-}
-```
-3. Assert that ACCP is healthy and throw a `RuntimeCryptoException` if it isn't.
-We generally do not recommend this solution as we believe that gracefully falling back to other providers is usually the better option.
-```java
-AmazonCorrettoCryptoProvider.INSTANCE.assertHealthy();
-```
 
 # License
 This library is licensed under the Apache 2.0 license although portions of this product include software licensed under the
