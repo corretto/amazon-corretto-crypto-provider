@@ -89,21 +89,8 @@ public class LocalHTTPSIntegrationTest {
                 continue;
             }
 
-            String keyAlgorithm;
-
-            if (cipherSuite.contains("ECDSA")) {
-                keyAlgorithm = "ECDSA";
-            } else if (cipherSuite.contains("DSS")) {
-                keyAlgorithm = "DSA";
-            } else if (cipherSuite.contains("RSA")) {
-                keyAlgorithm = "RSA";
-            } else {
-                // unsupported
-                continue;
-            }
-
             for (String method : SIGNATURE_METHODS_TO_TEST) {
-                if (!method.endsWith("with" + keyAlgorithm)) {
+                if (!HTTPSTestParameters.suiteMatchesSignature(cipherSuite, method)) {
                     // We generate our server certificates in such a way that the key type in the server certificate
                     // matches the key type used to sign the certificate. As such, this key type must _also_ match
                     // the key required by the cipher suite in use. We can't use a server cert showing a DH public key
@@ -114,7 +101,7 @@ public class LocalHTTPSIntegrationTest {
                 List<Integer> keySizes = HTTPSTestParameters.keySizesForSignatureMethod(method);
 
                 for (int size: keySizes) {
-                    // boolean flags: AACP on server, BC on client
+                    // boolean flags: ACCP on server, BC on client
                     params.add(new Object[] { true, true, cipherSuite, method, size });
                     params.add(new Object[] { false, true, cipherSuite, method, size });
                     params.add(new Object[] { true, false, cipherSuite, method, size });
@@ -127,11 +114,11 @@ public class LocalHTTPSIntegrationTest {
     }
 
     private static TrustManagerFactory trustManagerFactory;
-    private static TestHTTPSServer withAACP, withoutAACP;
+    private static TestHTTPSServer withACCP, withoutACCP;
 
     @BeforeAll
     public static void launchServer() throws Exception {
-        // Do this before setting up providers, as loading BC early in the provider chain (even without AACP) breaks
+        // Do this before setting up providers, as loading BC early in the provider chain (even without ACCP) breaks
         // KeyStore.
         KeyStore keyStore = KeyStore.getInstance("JKS");
         try (InputStream is = TestHTTPSServer.class.getResourceAsStream("test_CA.jks")) {
@@ -140,26 +127,26 @@ public class LocalHTTPSIntegrationTest {
         trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
         trustManagerFactory.init(keyStore);
 
-        withoutAACP = TestHTTPSServer.launch(false);
+        withoutACCP = TestHTTPSServer.launch(false);
         try {
-            withAACP = TestHTTPSServer.launch(true);
+            withACCP = TestHTTPSServer.launch(true);
         } catch (Throwable t) {
-            withoutAACP.kill();
+            withoutACCP.kill();
             throw t;
         }
     }
 
     @AfterAll
     public static void shutdown() {
-        withoutAACP.kill();
-        withAACP.kill();
+        withoutACCP.kill();
+        withACCP.kill();
     }
 
     @BeforeEach
     public void setup() throws Exception {
         resetProviders();
 
-        if (!withoutAACP.isAlive() || !withAACP.isAlive()) {
+        if (!withoutACCP.isAlive() || !withACCP.isAlive()) {
             fail("Server died");
         }
 
@@ -174,14 +161,14 @@ public class LocalHTTPSIntegrationTest {
         resetProviders();
     }
 
-    @ParameterizedTest(name = "ServerAACPEnabled({0}) BCEnabled({1}) Suite({2}) SignatureType({3}) KeyBits({4})")
+    @ParameterizedTest(name = "ServerACCPEnabled({0}) BCEnabled({1}) Suite({2}) SignatureType({3}) KeyBits({4})")
     @MethodSource("data")
-    public void test(boolean serverAACPEnabled, boolean bcEnabled, String suite, String signatureType, int keyBits) throws Exception {
+    public void test(boolean serverACCPEnabled, boolean bcEnabled, String suite, String signatureType, int keyBits) throws Exception {
         if (bcEnabled) {
             Security.insertProviderAt(new BouncyCastleProvider(), 2);
         }
 
-        int port = serverAACPEnabled ? withAACP.getPort() : withoutAACP.getPort();
+        int port = serverACCPEnabled ? withACCP.getPort() : withoutACCP.getPort();
 
         HttpsURLConnection conn = (HttpsURLConnection) new URL("https://127.0.0.1:" + port).openConnection();
         // this has the side effect of disabling the default SNI logic
@@ -190,7 +177,7 @@ public class LocalHTTPSIntegrationTest {
         // actual URL hostname
         conn.setHostnameVerifier((hostname, session) -> true);
 
-        SSLContext context = SSLContext.getInstance("TLS");
+        SSLContext context = SSLContext.getInstance(HTTPSTestParameters.protocolFromSuite(suite));
 
         context.init(null, trustManagerFactory.getTrustManagers(), null);
 
@@ -216,6 +203,7 @@ public class LocalHTTPSIntegrationTest {
                 SSLParameters parameters = socket.getSSLParameters();
                 parameters.setEndpointIdentificationAlgorithm("HTTPS");
                 parameters.setServerNames(singletonList(new SNIHostName(signatureType + "." + keyBits)));
+                parameters.setProtocols(new String[] { HTTPSTestParameters.protocolFromSuite(suite) });
 
                 socket.setSSLParameters(parameters);
 

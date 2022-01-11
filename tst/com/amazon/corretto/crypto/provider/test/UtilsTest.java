@@ -31,7 +31,7 @@ public class UtilsTest {
         try {
             UTILS_CLASS = Class.forName("com.amazon.corretto.crypto.provider.Utils");
         } catch (final ClassNotFoundException ex) {
-            throw new AssertionError(ex); 
+            throw new AssertionError(ex);
         }
     }
 

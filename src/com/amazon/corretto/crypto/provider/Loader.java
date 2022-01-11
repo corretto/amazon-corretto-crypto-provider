@@ -44,7 +44,7 @@ import java.util.regex.Pattern;
  * </ol>
  */
 final class Loader {
-    private static final String PROPERTY_BASE = "com.amazon.corretto.crypto.provider.";
+    static final String PROPERTY_BASE = "com.amazon.corretto.crypto.provider.";
     private static final String LIBRARY_NAME = "amazonCorrettoCryptoProvider";
     private static final Pattern TEST_FILENAME_PATTERN = Pattern.compile("[-a-zA-Z0-9]+(\\.[a-zA-Z0-9]+)*");
     private static final Logger LOG = Logger.getLogger("AmazonCorrettoCryptoProvider");
@@ -122,13 +122,19 @@ final class Loader {
                 FileSystems.getDefault();
 
                 // First, try to find the library in our own jar
+                final boolean useExternalLib = Boolean.valueOf(getProperty("useExternalLib", "false"));
+                Exception loadingException = null;
+
                 String libraryName = System.mapLibraryName(LIBRARY_NAME);
-                if (libraryName != null) {
+                if (useExternalLib) {
+                    loadingException = new RuntimeCryptoException("Skipping bundled library due to system property");
+                } else if (libraryName != null) {
                     int index = libraryName.lastIndexOf('.');
                     final String prefix = libraryName.substring(0, index);
                     final String suffix = libraryName.substring(index, libraryName.length());
 
                     final Path libPath = createTmpFile(prefix, suffix);
+
                     try (final InputStream is = Loader.class.getResourceAsStream(libraryName);
                          final OutputStream os = Files.newOutputStream(libPath, StandardOpenOption.CREATE,
                                  StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING)) {
@@ -141,18 +147,26 @@ final class Loader {
                         os.flush();
                         System.load(libPath.toAbsolutePath().toString());
                         return true;
+                    } catch (final Exception realException) {
+                        loadingException = realException;
                     } catch (final Throwable realError) {
-                        // We failed to load the library from our JAR but don't know why.
-                        // Try to load it directly off of the system path.
-                        try {
-                            System.loadLibrary(LIBRARY_NAME);
-                            return true;
-                        } catch (final Throwable suppressedError) {
-                            realError.addSuppressed(suppressedError);
-                            throw realError;
-                        }
+                        loadingException = new RuntimeCryptoException("Unable to load native library", realError);
                     } finally {
                         Files.delete(libPath);
+                    }
+                } else {
+                    loadingException = new RuntimeCryptoException("Skipping bundled library null mapped name");
+                }
+
+                if (loadingException != null) {
+                    // We failed to load the library from our JAR but don't know why.
+                    // Try to load it directly off of the system path.
+                    try {
+                        System.loadLibrary(LIBRARY_NAME);
+                        return true;
+                    } catch (final Throwable suppressedError) {
+                        loadingException.addSuppressed(suppressedError);
+                        throw loadingException;
                     }
                 }
 
@@ -176,10 +190,12 @@ final class Loader {
         }
         IS_AVAILABLE = available;
         LOADING_ERROR = error;
-        if (available) {
-            LOG.log(Level.CONFIG, "Successfully loaded native library version " + PROVIDER_VERSION_STR);
-        } else {
-            LOG.log(Level.CONFIG, "Unable to load native library", error);
+        if (DebugFlag.VERBOSELOGS.isEnabled()) {
+            if (available) {
+                LOG.log(Level.CONFIG, "Successfully loaded native library version " + PROVIDER_VERSION_STR);
+            } else {
+                LOG.log(Level.CONFIG, "Unable to load native library", error);
+            }
         }
 
         // Finally start up a cleaning thread if necessary
@@ -270,7 +286,9 @@ final class Loader {
 
                 try {
                     final Path result = Files.createFile(tmpFile, permissions);
-                    LOG.log(Level.FINE, "Created temporary library file after " + attempt + " attempts");
+                    if (DebugFlag.VERBOSELOGS.isEnabled()) {
+                        LOG.log(Level.FINE, "Created temporary library file after " + attempt + " attempts");
+                    }
                     return result;
                 } catch (final FileAlreadyExistsException ex) {
                     // We ignore and retry this exception

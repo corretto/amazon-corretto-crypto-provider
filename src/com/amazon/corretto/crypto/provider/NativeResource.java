@@ -21,6 +21,12 @@ class NativeResource {
 
     private static final class Cell extends ReentrantReadWriteLock {
         private static final long serialVersionUID = 1L;
+        // Debug stuff
+        private static final boolean FREE_TRACE_DEBUG = DebugFlag.FREETRACE.isEnabled();
+        private Throwable creationTrace;
+        private Throwable freeTrace;
+        // End debug stuff
+
         // @GuardedBy("this") // Restore once replacement for JSR-305 available
         private final long ptr;
         private final LongConsumer releaser;
@@ -36,6 +42,7 @@ class NativeResource {
             this.releaser = releaser;
             this.released = false;
             this.isThreadSafe = isThreadSafe;
+            this.creationTrace = buildFreeTrace("Created", null);
         }
 
         private CloseableLock getLock(boolean writeLock) {
@@ -52,6 +59,7 @@ class NativeResource {
                 if (released) return;
 
                 released = true;
+                freeTrace = buildFreeTrace("Freed", creationTrace);
                 releaser.accept(ptr);
             }
         }
@@ -59,11 +67,9 @@ class NativeResource {
         @SuppressWarnings("try") // For "unused" lock variable in try-with-resources
         public long take() {
             try (CloseableLock lock = getLock(true)) {
-                if (released) {
-                    throw new IllegalStateException("Use after free");
-                }
-
+                assertNotFreed();
                 released = true;
+                freeTrace = buildFreeTrace("Freed", creationTrace);
                 return ptr;
             }
         }
@@ -83,11 +89,22 @@ class NativeResource {
         @SuppressWarnings("try") // For "unused" lock variable in try-with-resources
         public <T, X extends Throwable> T use(MiscInterfaces.ThrowingLongFunction<T, X> function) throws X {
             try (CloseableLock lock = getLock(false)) {
-                if (released) {
-                    throw new IllegalStateException("Use after free");
-                }
+                assertNotFreed();
                 return function.apply(ptr);
             }
+        }
+
+        private void assertNotFreed() {
+            if (released) {
+                throw new IllegalStateException("Use after free", freeTrace);
+            }
+        }
+
+        private static Throwable buildFreeTrace(final String message, final Throwable cause) {
+            if (!FREE_TRACE_DEBUG) {
+                return null;
+            }
+            return new RuntimeCryptoException(message + " in Thread " + Thread.currentThread().getName(), cause);
         }
     }
 
