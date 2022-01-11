@@ -12,6 +12,7 @@ Current values are:
    * `VerboseLogging` - Enables more detailed logging.
    * `ALL` - Enables all of the above
 (May still require changes to your logging configuration to see the new logs.)
+* Enables skipping the bundled lib by setting the system property `com.amazon.corretto.crypto.provider.useExternalLib` [PR #168](https://github.com/corretto/amazon-corretto-crypto-provider/pull/168)
 
 ### Patches
 * Improve zeroization of DRBG output. [PR #162](https://github.com/corretto/amazon-corretto-crypto-provider/pull/162)
