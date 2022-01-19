@@ -604,8 +604,12 @@ if (TEST_JAVA_MAJOR_VERSION VERSION_GREATER_EQUAL 17)
     )
 endif()
 
-set(TEST_RUNNER_ARGUMENTS
+set(COVERAGE_ARGUMENTS
     -javaagent:${JACOCO_AGENT_JAR}=destfile=coverage/jacoco.exec,classdumpdir=coverage/classes
+)
+
+set(TEST_RUNNER_ARGUMENTS
+    ${COVERAGE_ARGUMENTS}
     ${TEST_ADD_OPENS}
     -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
     -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
@@ -668,6 +672,7 @@ add_custom_target(check-junit-extra-checks
 
 add_custom_target(check-recursive-init
     COMMAND ${TEST_JAVA_EXECUTABLE}
+        ${COVERAGE_ARGUMENTS}
         -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
         -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
         -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
@@ -679,6 +684,7 @@ add_custom_target(check-recursive-init
 
 add_custom_target(check-install-via-properties
     COMMAND ${TEST_JAVA_EXECUTABLE}
+        ${COVERAGE_ARGUMENTS}
         -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
         -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
         -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
@@ -689,8 +695,25 @@ add_custom_target(check-install-via-properties
 
     DEPENDS accp-jar tests-jar)
 
+add_custom_target(check-external-lib
+    # Unfortunately we do not have a way to know where the library is loaded from.
+    # So this test just proves that requesting the external lib does not break things
+    COMMAND ${TEST_JAVA_EXECUTABLE}
+        ${COVERAGE_ARGUMENTS}
+        -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
+        -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
+        -Dcom.amazon.corretto.crypto.provider.useExternalLib=true
+        -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
+        -Dtest.data.dir=${TEST_DATA_DIR}
+        -Djava.security.properties=${ORIG_SRCROOT}/etc/amazon-corretto-crypto-provider.security
+        ${TEST_JAVA_ARGS}
+        com.amazon.corretto.crypto.provider.test.SecurityPropertyTester
+
+    DEPENDS accp-jar tests-jar)
+
 add_custom_target(check-install-via-properties-recursive
     COMMAND ${TEST_JAVA_EXECUTABLE}
+        ${COVERAGE_ARGUMENTS}
         -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
         -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
         -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
@@ -703,6 +726,7 @@ add_custom_target(check-install-via-properties-recursive
 
 add_custom_target(check-install-via-properties-with-debug
     COMMAND ${TEST_JAVA_EXECUTABLE}
+        ${COVERAGE_ARGUMENTS}
         -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
         -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
         -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
@@ -715,7 +739,7 @@ add_custom_target(check-install-via-properties-with-debug
     DEPENDS accp-jar tests-jar)
 
 add_custom_target(check
-    DEPENDS check-recursive-init check-install-via-properties check-install-via-properties-with-debug check-junit check-junit-SecurityManager)
+    DEPENDS check-recursive-init check-install-via-properties check-install-via-properties-with-debug check-junit check-junit-SecurityManager check-external-lib)
 
 if(ENABLE_NATIVE_TEST_HOOKS)
     if (CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
