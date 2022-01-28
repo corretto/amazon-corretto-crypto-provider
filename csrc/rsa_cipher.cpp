@@ -109,10 +109,6 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_RsaCipher_cipher
                 if (!RSA_blinding_on(r, NULL)) {
                     throw_openssl("Unable to enable blinding");
                 }
-            } else {
-                // Blinding isn't supported in this case and must
-                // be explicitly disabled
-                RSA_blinding_off(r);
             }
             break;
         }

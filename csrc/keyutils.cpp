@@ -81,7 +81,6 @@ EVP_PKEY* der2EvpPrivateKey(const unsigned char* der, const int derLen, const bo
             }
             EVP_PKEY_set1_RSA(result, nulled_rsa);
             RSA_free(nulled_rsa); // Decrement reference counter
-            RSA_blinding_off(nulled_rsa);
           }
       }
   }

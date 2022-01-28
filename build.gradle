@@ -11,8 +11,8 @@ plugins {
 group = 'software.amazon.cryptools'
 version = '1.7.0'
 
-def openssl_version = '1.1.1m'
-def opensslSrcPath = "${buildDir}/openssl/openssl-${openssl_version}"
+def openssl_version = '1.0.0'
+def opensslSrcPath = "${buildDir}/openssl/aws-lc-FIPS-${openssl_version}"
 
 configurations {
     openssl
@@ -28,21 +28,13 @@ repositories {
     }
     // Fake Ivy Repository for current OpenSSL sources
     ivy {
-        url 'https://www.openssl.org/source/'
-            patternLayout {
-            artifact '/[module]-[revision].[ext]'
+    // latest release URL: https://github.com/awslabs/aws-lc/archive/refs/tags/FIPS-1.0.0.tar.gz
+        url 'https://github.com/awslabs/aws-lc/archive/refs/tags'
+        patternLayout {
+            artifact '/FIPS-[revision].[ext]'
         }
             metadataSources { artifact() }
             content { includeGroup("openssl-src") }
-    }
-    // Fake Ivy Repository for old OpenSSL sources
-    ivy {
-        url 'https://www.openssl.org/source/old/1.1.1/'
-            patternLayout {
-            artifact '/[module]-[revision].[ext]'
-        }
-        metadataSources { artifact() }
-        content { includeGroup("openssl-src") }
     }
 }
 
@@ -62,13 +54,13 @@ dependencies {
     testDep 'org.jacoco:org.jacoco.core:0.8.3'
     testDep 'org.jacoco:org.jacoco.report:0.8.3'
 
-    openssl "openssl-src:openssl:${openssl_version}@tar.gz"
+    openssl "openssl-src:FIPS:${openssl_version}@tar.gz"
 }
 
 defaultTasks 'release'
 
 task getOpensslSrc(type: Copy) {
-    def tarPath = project.configurations.openssl.find {it.name.startsWith("openssl-") }
+    def tarPath = project.configurations.openssl.find {it.name.startsWith("FIPS") }
     def tarFile = file(tarPath)
 
     doFirst {
@@ -92,24 +84,15 @@ task buildOpenSsl {
     doLast {
         exec {
             workingDir opensslSrcPath
-            executable './config'
-            args '-fPIC', '-ffunction-sections', '-fdata-sections', "--prefix=${buildDir}/openssl/bin"
-            args 'no-autoload-config', 'no-capieng', 'no-cms', 'no-comp', 'no-ct', 'no-dgram', 'no-devcryptoeng'
-            args 'no-gost', 'no-hw-padlock', 'no-nextprotoneg', 'no-ocsp', 'no-psk', 'no-rfc3779', 'no-shared'
-            args 'no-sock', 'no-srp', 'no-srtp', 'threads', 'no-ts',  "no-bf", "no-cast", "no-md2", "no-rc2"
-            args "no-rc4", "no-rc5", "no-srp", 'no-comp', 'no-hw', 'no-mdc2'
+            executable 'cmake'
+            args '-B=build'
+            args '-DBUILD_SHARED_LIBS=ON'
+            args '-DCMAKE_BUILD_TYPE=RelWithDebInfo'
+            args "-DCMAKE_INSTALL_PREFIX=${buildDir}/openssl/bin"
         }
         exec {
             workingDir opensslSrcPath
-            commandLine 'make', 'depend'
-        }
-        exec {
-            workingDir opensslSrcPath
-            commandLine 'make', '-j', Runtime.runtime.availableProcessors()
-        }
-        exec {
-            workingDir opensslSrcPath
-            commandLine 'make', 'install_sw'
+            commandLine 'make', '-j', Runtime.runtime.availableProcessors(), '-C', './build', 'install'
         }
     }
 }
