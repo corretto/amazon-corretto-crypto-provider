@@ -1,0 +1,25 @@
+# Build and run with:
+#
+# docker build -t accp -f Dockerfile.dev .
+# docker run -v $(pwd):/accp --rm -it accp:latest
+
+
+FROM ubuntu:20.04
+
+RUN apt-get update
+RUN apt-get install -y openjdk-11-jdk
+RUN apt-get install -y lcov
+RUN apt-get install -y cmake
+RUN apt-get install -y dieharder
+RUN apt-get install -y build-essential
+
+RUN mkdir /accp
+COPY . /accp
+WORKDIR /accp
+
+RUN ./gradlew build
+RUN ./gradlew generateEclipseClasspath
+
+EXPOSE 8000
+
+ENTRYPOINT /bin/bash
