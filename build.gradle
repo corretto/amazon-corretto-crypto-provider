@@ -9,7 +9,7 @@ plugins {
 }
 
 group = 'software.amazon.cryptools'
-version = '1.7.0'
+version = '2.0.0'
 
 def awslc_version = '1.0.0'
 def awslcSrcPath = "${buildDir}/awslc/aws-lc-FIPS-${awslc_version}"
