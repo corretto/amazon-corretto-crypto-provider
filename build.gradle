@@ -78,9 +78,10 @@ task getAwsLcSrc(type: Copy) {
 }
 
 task buildAwsLc {
-    outputs.dir("${buildDir}/awslc/bin/")
-    dependsOn getAwsLcSrc
+    def sharedObjectOutDir = "${buildDir}/awslc/bin"
     def cMakeBuildDir = "${buildDir}/awslc/build"
+    outputs.dir("${sharedObjectOutDir}")
+    dependsOn getAwsLcSrc
 
     doLast {
         exec {
@@ -89,7 +90,7 @@ task buildAwsLc {
             args "-B${cMakeBuildDir}"
             args '-DBUILD_SHARED_LIBS=ON'
             args '-DCMAKE_BUILD_TYPE=RelWithDebInfo'
-            args "-DCMAKE_INSTALL_PREFIX=${buildDir}/awslc/bin"
+            args "-DCMAKE_INSTALL_PREFIX=${sharedObjectOutDir}"
         }
         exec {
             workingDir awslcSrcPath
