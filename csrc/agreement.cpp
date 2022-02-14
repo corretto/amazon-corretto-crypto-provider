@@ -24,7 +24,7 @@ void checkAgreementResult(int result) {
     unsigned long errCode = drainOpensslErrors();
     std::string msg = formatOpensslError(errCode, "Unexpectected agreement error");
 
-    if (errCode == 0x05066066 // Invalid public key
+    if (errCode == 0x05066065 // Invalid public key
         || errCode == 0x06000068 // Different Parameters
         ) {
         throw_java_ex(EX_INVALID_KEY, msg);
