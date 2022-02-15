@@ -37,7 +37,6 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 public class EvpKeyAgreementSpecificTest {
     private static final Class<?> SPI_CLASS;
     private static final int EC_TYPE = 408;
-    private static final int DH_TYPE = 28;
     private static final KeyPair EC_KEYPAIR;
     private static final KeyPair DH_KEYPAIR;
 
@@ -79,12 +78,6 @@ public class EvpKeyAgreementSpecificTest {
             EC_KEYPAIR.getPrivate().getEncoded(),
             EvpKeyAgreementTest.buildKeyOnWrongCurve((ECPublicKey) EC_KEYPAIR.getPublic()).getEncoded(),
             EC_TYPE));
-
-        assertThrows(InvalidKeyException.class, () -> agree(
-            DH_KEYPAIR.getPrivate().getEncoded(),
-            EvpKeyAgreementTest.buildDhKeyWithRandomParams(1024).getEncoded(),
-            DH_TYPE));
-
     }
 
     @Test
@@ -129,73 +122,6 @@ public class EvpKeyAgreementSpecificTest {
                (ECPublicKey) EC_KEYPAIR.getPublic()).getEncoded(),
             EC_TYPE));
 
-    }
-
-    // This test covers three-way DH
-    @Test
-    public void dh3() throws Throwable {
-        final KeyPairGenerator kg = KeyPairGenerator.getInstance("DH");
-        kg.initialize(1024);
-        final KeyPair alice = kg.generateKeyPair();
-        final KeyPair bob = kg.generateKeyPair();
-        final KeyPair carol = kg.generateKeyPair();
-
-        final KeyAgreement aNativeKA = KeyAgreement.getInstance("DH", NATIVE_PROVIDER);
-        final KeyAgreement bNativeKA = KeyAgreement.getInstance("DH", NATIVE_PROVIDER);
-        final KeyAgreement cNativeKA = KeyAgreement.getInstance("DH", NATIVE_PROVIDER);
-
-        final KeyAgreement aSunKA = KeyAgreement.getInstance("DH", "SunJCE");
-        final KeyAgreement bSunKA = KeyAgreement.getInstance("DH", "SunJCE");
-        final KeyAgreement cSunKA = KeyAgreement.getInstance("DH", "SunJCE");
-
-        aNativeKA.init(alice.getPrivate());
-        aSunKA.init(alice.getPrivate());
-
-        bNativeKA.init(bob.getPrivate());
-        bSunKA.init(bob.getPrivate());
-
-        cNativeKA.init(carol.getPrivate());
-        cSunKA.init(carol.getPrivate());
-
-        // Phase 1
-        final Key acNative = aNativeKA.doPhase(carol.getPublic(), false);
-        final Key acSun = aSunKA.doPhase(carol.getPublic(), false);
-        assertKeyEquals("AC keys", acSun, acNative);
-
-        final Key baNative = bNativeKA.doPhase(alice.getPublic(), false);
-        final Key baSun = bSunKA.doPhase(alice.getPublic(), false);
-        assertKeyEquals("BA keys", baSun, baNative);
-
-        final Key cbNative = cNativeKA.doPhase(bob.getPublic(), false);
-        final Key cbSun = cSunKA.doPhase(bob.getPublic(), false);
-        assertKeyEquals("CB keys", cbSun, cbNative);
-
-        // Complete agreement
-        assertNull(aNativeKA.doPhase(cbNative, true));
-        assertNull(aSunKA.doPhase(cbSun, true));
-
-        assertNull(bNativeKA.doPhase(acNative, true));
-        assertNull(bSunKA.doPhase(acSun, true));
-
-        assertNull(cNativeKA.doPhase(baNative, true));
-        assertNull(cSunKA.doPhase(baSun, true));
-
-        // Get the results and ensure they match the default Java implementation
-        final byte[] aliceNativeSecret = aNativeKA.generateSecret();
-        final byte[] aliceSunSecret = aSunKA.generateSecret();
-        assertArrayEquals(aliceSunSecret, aliceNativeSecret, "Alice secrets");
-
-        final byte[] bobNativeSecret = bNativeKA.generateSecret();
-        final byte[] bobSunSecret = bSunKA.generateSecret();
-        assertArrayEquals(bobSunSecret, bobNativeSecret, "Bob secrets");
-
-        final byte[] carolNativeSecret = cNativeKA.generateSecret();
-        final byte[] carolSunSecret = cSunKA.generateSecret();
-        assertArrayEquals(carolSunSecret, carolNativeSecret, "Carol secrets");
-
-        // Finally ensure that the values all match
-        assertArrayEquals(aliceNativeSecret, bobNativeSecret, "Alice and Bob");
-        assertArrayEquals(aliceNativeSecret, carolNativeSecret, "Alice and Carol");
     }
 
     private static void assertKeyEquals(String message, Key a, Key b) {

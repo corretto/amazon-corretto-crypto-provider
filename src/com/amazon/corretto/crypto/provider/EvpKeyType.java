@@ -22,7 +22,6 @@ import javax.crypto.interfaces.DHPublicKey;
  */
 enum EvpKeyType {
     RSA("RSA", 6, RSAPublicKey.class, RSAPrivateKey.class),
-    DH("DH", 28, DHPublicKey.class, DHPrivateKey.class),
     DSA("DSA", 116, DSAPublicKey.class, DSAPrivateKey.class),
     EC("EC", 408, ECPublicKey.class, ECPrivateKey.class);
 

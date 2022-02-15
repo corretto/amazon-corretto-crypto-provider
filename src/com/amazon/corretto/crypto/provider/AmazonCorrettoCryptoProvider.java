@@ -77,7 +77,6 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
         addService("KeyAgreement", "ECDH", "EvpKeyAgreement$ECDH",
                    singletonMap("SupportedKeyClasses", "java.security.interfaces.ECPublicKey|java.security.interfaces.ECPrivateKey")
         );
-        addService("KeyAgreement", "DH", "EvpKeyAgreement$DH", emptyMap(), "DIFFIEHELLMAN");
 
         if (isRdRandSupported()) {
             addService("SecureRandom", "NIST800-90A/AES-CTR-256", "AesCtrDrbg$SPI",
