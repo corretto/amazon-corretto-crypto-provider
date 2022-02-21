@@ -42,7 +42,7 @@ public class Benchmark {
     }
 
     private static void benchNonEcSignatures() throws GeneralSecurityException {
-        final List<String> bases = Arrays.asList("DSA", "RSA");
+        final List<String> bases = Arrays.asList("RSA");
         final List<String> hashes = Arrays.asList("SHA1", "SHA224", "SHA256", "SHA384", "SHA512");
 
         for (final String base : bases) {

@@ -89,7 +89,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
     private void addSignatures() {
         // Basic signature styles
-        final List<String> bases = asList("DSA", "RSA", "ECDSA");
+        final List<String> bases = asList("RSA", "ECDSA");
         final List<String> hashes = asList("SHA1", "SHA224", "SHA256", "SHA384", "SHA512");
 
         for (final String base : bases) {
@@ -104,7 +104,6 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
         }
 
         addService("Signature", "NONEwithECDSA", "EvpSignatureRaw$NONEwithECDSA");
-        addService("Signature", "NONEwithDSA", "EvpSignatureRaw$NONEwithDSA");
     }
 
     private ACCPService addService(final String type, final String algorithm, final String className) {

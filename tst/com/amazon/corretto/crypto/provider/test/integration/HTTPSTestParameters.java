@@ -14,23 +14,14 @@ public class HTTPSTestParameters {
     static final String PROTOCOL_TLS_1_2 = "TLSv1.2";
     static final String PROTOCOL_TLS_1_3 = "TLSv1.3";
 
-    // Map of key algorithm ("RSA", "ECDSA", "DSA") to supported key sizes
+    // Map of key algorithm ("RSA", "ECDSA") to supported key sizes
     private static final Map<String, List<Integer>> ALGO_TO_KEY_BITS;
 
     public static final List<String> SIGNATURE_METHODS_TO_TEST = Arrays.asList(
-            "SHA256withDSA",
-
-            // Not supported in the built-in JCE provider. Uncomment (and rerun the TestCertificateGenerator) when we
-            // add support for these methods.
-            //"SHA384withDSA",
-            //"SHA512withDSA",
-
             // SHA1with* is rejected outright by BouncyCastle and/or SunJCE, which is reasonable enough at this point.
             // We'll just not test any of the sha1 cert path cases as they'll all be validated and rejected soon enough.
-            //"SHA1withDSA",
             //"SHA1withECDSA",
             //"SHA1withRSA",
-            //"SHA1withDSA",
 
             "SHA256withRSA",
             "SHA384withRSA",
@@ -47,7 +38,6 @@ public class HTTPSTestParameters {
 
         algoKeyBitsMap.put("RSA", Arrays.asList(1024, 2048, 3072, 7680, 15360));
         algoKeyBitsMap.put("ECDSA", Arrays.asList(256, 384, 521));
-        algoKeyBitsMap.put("DSA", Arrays.asList(1024, 2048, 3072));
 
         ALGO_TO_KEY_BITS = Collections.unmodifiableMap(algoKeyBitsMap);
     }
@@ -56,11 +46,6 @@ public class HTTPSTestParameters {
         String keyType = getKeyType(signatureMethod);
 
         ArrayList<Integer> sizes = new ArrayList<>(ALGO_TO_KEY_BITS.get(keyType));
-
-        if (signatureMethod.equals("SHA1withDSA")) {
-            // Java does not allow a keys over 1024 bits to be used with this method
-            sizes.removeIf(size -> size > 1024);
-        }
 
         return sizes;
     }
@@ -103,11 +88,6 @@ public class HTTPSTestParameters {
         if (protocolFromSuite(suite).equals(PROTOCOL_TLS_1_3)
                 && (keyType.equals("RSA") || keyType.equals("ECDSA"))) {
             return true;
-        }
-
-        // DSA is called DSS in ciphersuites
-        if (keyType.equals("DSA")) {
-            return suite.contains("DSS");
         }
 
         // Otherwise, everything matches up
