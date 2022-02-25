@@ -170,9 +170,6 @@ class EcGen extends KeyPairGeneratorSpi {
             // Mapping from OpenJDK
            final String curveName;
            switch (keysize) {
-               case 192:
-                   curveName = "secp192r1"; // NIST P-192
-                   break;
                case 224:
                    curveName = "secp224r1"; // NIST P-224
                    break;
