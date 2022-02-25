@@ -311,14 +311,7 @@ public class EvpSignatureTest {
         params.verifier.update(params.message);
         byte[] badSignature = params.goodSignature.clone();
         badSignature[badSignature.length - 1]++;
-        try {
-            assertFalse(params.verifier.verify(badSignature));
-        } catch (final SignatureException ex) {
-            if (params.algorithm.contains("RSA")) {
-                // RSA is not allowed to fail with an exception
-                throw ex;
-            }
-        }
+        expectInvalidSignature(params, badSignature);
     }
 
     @ParameterizedTest
@@ -327,14 +320,7 @@ public class EvpSignatureTest {
         params.verifier.update(params.message);
         byte[] badSignature = Arrays.copyOf(params.goodSignature, params.goodSignature.length - 1);
         // Truncated signatures will sometime return false and sometimes throw an exception. Both are acceptable
-        try {
-            assertFalse(params.verifier.verify(badSignature));
-        } catch (final SignatureException ex) {
-            if (params.algorithm.contains("RSA")) {
-                // RSA is not allowed to fail with an exception
-                throw ex;
-            }
-        }
+        expectInvalidSignature(params, badSignature);
     }
 
     // Modification of body of the message only works
@@ -349,7 +335,7 @@ public class EvpSignatureTest {
         byte[] msgCopy = params.message.clone();
         msgCopy[0]++;
         params.verifier.update(msgCopy);
-        assertFalse(params.verifier.verify(params.goodSignature));
+        expectInvalidSignature(params, params.goodSignature);
     }
 
     // If we're already beyond the message size limit, we expect truncation to be ignored
@@ -361,7 +347,7 @@ public class EvpSignatureTest {
     @MethodSource("verifyTruncatedMessageParams")
     public void verifyTruncatedMessage(TestParams params) throws Exception {
         params.verifier.update(Arrays.copyOf(params.message, params.message.length - 1));
-        assertFalse(params.verifier.verify(params.goodSignature));
+        expectInvalidSignature(params, params.goodSignature);
     }
 
     // If we're just at the message size limit, any additional bytes will be ignored
@@ -374,8 +360,18 @@ public class EvpSignatureTest {
     public void verifyExtendedMessage(TestParams params) throws Exception {
         params.verifier.update(params.message);
         params.verifier.update((byte) 0x44);
-        assertFalse(params.verifier.verify(params.goodSignature));
+        expectInvalidSignature(params, params.goodSignature);
+    }
 
+    private static void expectInvalidSignature(TestParams params, byte[] signature) throws SignatureException {
+        try {
+            assertFalse(params.verifier.verify(signature));
+        } catch (final SignatureException ex) {
+            if (params.algorithm.contains("RSA")) {
+                // RSA is not allowed to fail with an exception
+                throw ex;
+            }
+        }
     }
 
     @ParameterizedTest
