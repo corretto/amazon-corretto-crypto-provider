@@ -146,13 +146,13 @@ Building this provider requires a 64 bit Linux build system with the following p
 * [lcov](http://ltp.sourceforge.net/coverage/lcov.php) for coverage metrics
 * [dieharder](http://webhome.phy.duke.edu/~rgb/General/dieharder.php) for entropy tests
 
-1. Download the repository through a git clone
+1. Download the repository via `git clone --recurse-submodules`
 2. Run `./gradlew release`
 3. The resulting jar is in `build/lib`
 
 ##### All targets
-* clean: Remove all artifacts except OpenSSL dependencies
-* deep_clean: Remove the entire `build/` directory including OpenSSL dependencies
+* clean: Remove all artifacts except AWS-LC build artifacts
+* deep_clean: Remove the entire `build/` directory including build artifacts from AWS-LC dependencies
 * build: Build the library
 * test: Run unit tests
 * test_extra_checks: Run unit tests with extra (slow) cryptographic checks enabled
