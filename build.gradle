@@ -11,11 +11,9 @@ plugins {
 group = 'software.amazon.cryptools'
 version = '2.0.0'
 
-def awslc_version = '1.0.0'
-def awslcSrcPath = "${buildDir}/awslc/aws-lc-FIPS-${awslc_version}"
+def awslcSrcPath = "aws-lc/"
 
 configurations {
-    awslc
     jacocoAgent
     testDep.extendsFrom(jacocoAgent)
     stagingJar
@@ -23,19 +21,7 @@ configurations {
 }
 
 repositories {
-    mavenCentral {
-        content { excludeGroup("awslc-src") }
-    }
-    // Fake Ivy Repository for current AWS-LC sources
-    ivy {
-    // latest release URL: https://github.com/awslabs/aws-lc/archive/refs/tags/FIPS-1.0.0.tar.gz
-        url 'https://github.com/awslabs/aws-lc/archive/refs/tags'
-        patternLayout {
-            artifact '/FIPS-[revision].[ext]'
-        }
-            metadataSources { artifact() }
-            content { includeGroup("awslc-src") }
-    }
+    mavenCentral {}
 }
 
 dependencies {
@@ -53,35 +39,20 @@ dependencies {
     testDep 'org.hamcrest:hamcrest:2.1'
     testDep 'org.jacoco:org.jacoco.core:0.8.3'
     testDep 'org.jacoco:org.jacoco.report:0.8.3'
-
-    awslc "awslc-src:FIPS:${awslc_version}@tar.gz"
 }
 
 defaultTasks 'release'
-
-task getAwsLcSrc(type: Copy) {
-    def tarPath = project.configurations.awslc.find {it.name.startsWith("FIPS") }
-    def tarFile = file(tarPath)
-
-    doFirst {
-        exec {
-            workingDir tarFile.parent
-            commandLine 'sha256sum', '--check', "${projectDir}/awslc.sha256"
-        }
-
-        mkdir "${buildDir}/awslc/bin"
-    }
-
-    def outputDir = file("${buildDir}/awslc/")
-    from tarTree(tarFile)
-    into outputDir
-}
 
 task buildAwsLc {
     def sharedObjectOutDir = "${buildDir}/awslc/bin"
     def cMakeBuildDir = "${buildDir}/awslc/build"
     outputs.dir("${sharedObjectOutDir}")
-    dependsOn getAwsLcSrc
+
+    doFirst {
+        if (file(awslcSrcPath).list().size() == 0) {
+            throw new GradleException("aws-lc dir empty! run 'git submodule update --init --recursive' to populate.")
+        }
+    }
 
     doLast {
         exec {
