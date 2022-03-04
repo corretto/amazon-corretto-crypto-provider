@@ -85,7 +85,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
         }
 
         addService("SecureRandom", "LibCryptoRng", "LibCryptoRng$SPI",
-                singletonMap("ThreadSafe", "true"), "LibCryptoRng")
+                singletonMap("ThreadSafe", "true"), "DEFAULT")
                 .setSelfTest(LibCryptoRng.SPI.SELF_TEST);
 
         addSignatures();

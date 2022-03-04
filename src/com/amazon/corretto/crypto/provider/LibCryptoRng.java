@@ -14,16 +14,11 @@ public class LibCryptoRng extends SecureRandom {
     private static final long serialVersionUID = 1L;
     private static final int MAX_SINGLE_REQUEST = 8192;
 
-    private static native long instantiate();
-
-    private static native void generate(long ptr, byte[] bytes, int offset, int length);
-
-    private static native void releaseState(long ptr);
+    private static native void generate(byte[] bytes, int offset, int length);
 
     public LibCryptoRng() {
         super(new SPI(), AmazonCorrettoCryptoProvider.INSTANCE);
     }
-
 
     @Override
     public String getAlgorithm() {
@@ -47,24 +42,7 @@ public class LibCryptoRng extends SecureRandom {
             return new SelfTestResult(SelfTestStatus.FAILED);
         }
 
-        private static class NativeDrgbState extends NativeResource {
-            private NativeDrgbState(long ptr) {
-                super(ptr, LibCryptoRng::releaseState);
-            }
-        }
-
-        private static final ThreadLocal<NativeDrgbState> state_ = new ThreadLocal<NativeDrgbState>() {
-            @Override
-            protected NativeDrgbState initialValue() {
-                return new NativeDrgbState(instantiate());
-            }
-        };
-
         SPI() {
-        }
-
-        private NativeDrgbState getState() {
-          return state_.get();
         }
 
         @Override
@@ -80,7 +58,7 @@ public class LibCryptoRng extends SecureRandom {
             while (offset < bytes.length) {
                 final int toGenerate = Math.min(MAX_SINGLE_REQUEST, bytes.length - offset);
                 final int currentOffset = offset;
-                getState().useVoid(ptr ->generate(ptr, bytes, currentOffset, toGenerate));
+                generate(bytes, currentOffset, toGenerate);
                 offset += toGenerate;
             }
         }
@@ -90,7 +68,5 @@ public class LibCryptoRng extends SecureRandom {
             // No way to mix entropy into AWS-LC RNG. No-op.
             return;
         }
-
-
     }
 }
