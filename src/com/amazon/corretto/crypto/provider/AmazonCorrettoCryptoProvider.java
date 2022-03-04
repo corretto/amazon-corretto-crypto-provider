@@ -84,6 +84,10 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
                     .setSelfTest(AesCtrDrbg.SPI.SELF_TEST);
         }
 
+        addService("SecureRandom", "LibCryptoRng", "LibCryptoRng$SPI",
+                singletonMap("ThreadSafe", "true"), "LibCryptoRng")
+                .setSelfTest(LibCryptoRng.SPI.SELF_TEST);
+
         addSignatures();
     }
 

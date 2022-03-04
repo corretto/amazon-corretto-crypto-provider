@@ -120,6 +120,7 @@ set(ACCP_SRC
         src/com/amazon/corretto/crypto/provider/ExtraCheck.java
         src/com/amazon/corretto/crypto/provider/InputBuffer.java
         src/com/amazon/corretto/crypto/provider/Janitor.java
+        src/com/amazon/corretto/crypto/provider/LibCryptoRng.java
         src/com/amazon/corretto/crypto/provider/Loader.java
         src/com/amazon/corretto/crypto/provider/AmazonCorrettoCryptoProvider.java
         src/com/amazon/corretto/crypto/provider/NativeResource.java
@@ -239,6 +240,7 @@ add_library(
         csrc/ec_utils.cpp
         csrc/env.cpp
         csrc/keyutils.cpp
+        csrc/libcrypto_rng.cpp
         csrc/loader.cpp
         csrc/md5.cpp
         csrc/amazon_corretto_crypto_provider.cpp
@@ -541,6 +543,7 @@ add_jar(
         tst/com/amazon/corretto/crypto/provider/test/HmacTest.java
         tst/com/amazon/corretto/crypto/provider/test/InputBufferTest.java
         tst/com/amazon/corretto/crypto/provider/test/JanitorTest.java
+        tst/com/amazon/corretto/crypto/provider/test/LibCryptoRngTest.java
         tst/com/amazon/corretto/crypto/provider/test/MD5Test.java
         tst/com/amazon/corretto/crypto/provider/test/MiscSingleThreadedTests.java
         tst/com/amazon/corretto/crypto/provider/test/NativeTestHooks.java

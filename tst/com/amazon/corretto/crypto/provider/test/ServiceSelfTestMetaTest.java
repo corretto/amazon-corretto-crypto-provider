@@ -88,6 +88,9 @@ public class ServiceSelfTestMetaTest {
         sneakyInvoke(test, "forceFailure");
 
         for (Provider.Service service : accp.getServices()) {
+            if (service.getType().equals("SecureRandom")) {
+                continue;
+            }
             try {
                 Object instance = service.newInstance(null);
 
