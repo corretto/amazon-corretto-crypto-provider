@@ -60,7 +60,7 @@ public class LibCryptoRngTest {
         }
     }
 
-    // A common mistake it when filling arrays to not do it properly and leave
+    // A common mistake is when filling arrays to not do it properly and leave
     // zero gaps. To detect this, we'll generate arrays of different lengths
     // and check to see if certain bytes are always zero
     @Test
