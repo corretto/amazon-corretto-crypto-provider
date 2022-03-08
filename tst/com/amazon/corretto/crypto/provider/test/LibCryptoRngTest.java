@@ -9,6 +9,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import com.amazon.corretto.crypto.provider.LibCryptoRng;
 import com.amazon.corretto.crypto.provider.SelfTestResult;
 import com.amazon.corretto.crypto.provider.SelfTestStatus;
@@ -144,4 +147,63 @@ public class LibCryptoRngTest {
         assertEquals(SelfTestStatus.PASSED, result.getStatus());
     }
 
+    @Test
+    public void manyRequestsTest() throws Throwable {
+        final LibCryptoRng rng = new LibCryptoRng();
+        int MAX_REQUESTS_BEFORE_RESEED = 1 << 12;
+        int MAX_BYTES_BEFORE_RESEED = 1 << 16;
+        int BYTES_PER_REQUEST = Math.max(1, (MAX_BYTES_BEFORE_RESEED / MAX_REQUESTS_BEFORE_RESEED));
+        byte[] rngOutputBuffer = new byte[BYTES_PER_REQUEST];
+
+        // Ensure that we can successfully reseed the RNG a few times
+        int RESEED_COUNT = 3;
+        for(long i = 0; i < (RESEED_COUNT * MAX_REQUESTS_BEFORE_RESEED) + 1; i++) {
+            rng.nextBytes(rngOutputBuffer);
+        }
+    }
+
+    @Test
+    public void forkTest() throws Throwable {
+        final LibCryptoRng sharedRng = new LibCryptoRng();
+        int NUM_THREADS = 100;
+        final long[] sharedRngOutputs = new long[NUM_THREADS];
+        final long[] individualRngOutputs = new long[NUM_THREADS];
+        List<Thread> threadList = new ArrayList<Thread>(NUM_THREADS);
+
+        // Call sharedRng.nextLong() to ensure shared Rng initialization happens in main thread
+        long sharedRngInitialOutput = sharedRng.nextLong();
+
+        // Create our threads, but don't start them yet.
+        for(int i = 0; i < NUM_THREADS; i++) {
+            final int threadId = i;
+            Thread thread = new Thread() {
+                public void run(){
+                    sharedRngOutputs[threadId] = sharedRng.nextLong();
+                    individualRngOutputs[threadId] = (new LibCryptoRng()).nextLong();
+                }
+            };
+            threadList.add(thread);
+        }
+
+        // Start all the threads at once, as close together as possible
+        for(Thread t: threadList){
+            t.start();
+        }
+
+        // Wait for all the threads to complete
+        for (Thread t: threadList) {
+            t.join();
+        }
+
+        // Ensure that none of the Rng output values match one another
+        for(int i = 0; i < NUM_THREADS; i++) {
+            assertTrue(sharedRngOutputs[i] != sharedRngInitialOutput);
+            assertTrue(individualRngOutputs[i] != sharedRngInitialOutput);
+
+            for(int j = i + 1; j < NUM_THREADS; j++) {
+                assertTrue(sharedRngOutputs[i] != sharedRngOutputs[j]);
+                assertTrue(individualRngOutputs[i] != individualRngOutputs[j]);
+            }
+        }
+    }
 }

@@ -26,13 +26,12 @@ using namespace AmazonCorrettoCryptoProvider;
 
 bool libCryptoRngGenerateRandomBytes(uint8_t *buf, int len) noexcept {
     /**
-     * AWS LibCrypto provides a thread local, lazily initialized, FIPS Validated DRBG that is seeded with CPU Jitter
-     * entropy on first use. This API also mixes in more entropy from the fastest available source after every call.
-     * If available it will use x86 RDRAND instruction, or otherwise use the OS system entropy (Eg /dev/urandom/) to
-     * keep prediction resistance.
+     * AWS LibCrypto provides a thread local, lazily initialized, FIPS Validated DRBG.
      *
      * There are purposefully no configuration options to this API around reseeding, mixing in external entropy, or
-     * other options in order to guarantee a simple and safe API to users.
+     * other options since AWS-LC has decided on it's own internal reseeding policies that take into account whether
+     * FIPS mode is enabled, what entropy sources are available (RDRAND vs OS System Entropy), and whether process
+     * fork detection is enabled or not (used to stop the internal DRBG state from being duplicated after a fork).
      *
      * Other LibCrypto's provide the same API, but may not be FIPS validated, and may not have as strong guarantee's
      * as AWS-LC.
