@@ -799,6 +799,42 @@ set_target_properties(run-benchmark PROPERTIES EXCLUDE_FROM_ALL 1)
 
 if (CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
 
+add_custom_target(run-dieharder-libcrypto-rng
+    COMMAND ${TEST_JAVA_EXECUTABLE} -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
+        -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
+        com.amazon.corretto.crypto.provider.test.SecureRandomGenerator 'LibCryptoRng' 8192 1 |
+        ${DIEHARDER_EXECUTABLE} -a -g 200 -Y 1 -k 2 |
+        tee dieharder-results-libcrypto-rng.txt
+
+    DEPENDS accp-jar tests-jar)
+
+add_custom_target(run-dieharder-libcrypto-rng-tail
+    COMMAND ${TEST_JAVA_EXECUTABLE} -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
+        -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
+        com.amazon.corretto.crypto.provider.test.SecureRandomGenerator 'LibCryptoRng' 31 1 |
+        ${DIEHARDER_EXECUTABLE} -d 15 -g 200 -Y 1 -k 2 |
+        tee dieharder-results-libcrypto-rng-tail.txt
+
+    DEPENDS accp-jar tests-jar)
+
+add_custom_target(run-dieharder-libcrypto-rng-threads
+    COMMAND ${TEST_JAVA_EXECUTABLE} -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
+        -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
+        com.amazon.corretto.crypto.provider.test.SecureRandomGenerator 'LibCryptoRng' 128 4 |
+        ${DIEHARDER_EXECUTABLE} -a -g 200 -Y 1 -k 2 |
+        tee dieharder-results-libcrypto-rng-threads.txt
+
+    DEPENDS accp-jar tests-jar)
+
+add_custom_target(run-dieharder-libcrypto-rng-threads-tail
+    COMMAND ${TEST_JAVA_EXECUTABLE} -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
+        -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
+        com.amazon.corretto.crypto.provider.test.SecureRandomGenerator 'LibCryptoRng' 31 4 |
+        ${DIEHARDER_EXECUTABLE} -d 15 -g 200 -Y 1 -k 2 |
+        tee dieharder-results-libcrypto-rng-threads-tail.txt
+
+    DEPENDS accp-jar tests-jar)
+
 add_custom_target(run-dieharder
     COMMAND ${TEST_JAVA_EXECUTABLE} -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
         -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
@@ -872,6 +908,10 @@ add_custom_target(run-dieharder-threads-rdseed-tail
     DEPENDS accp-jar tests-jar)
 
   add_custom_target(check-dieharder
+    COMMAND ! grep -l FAIL dieharder-results-libcrypto-rng.txt
+    COMMAND grep PASSED dieharder-results-libcrypto-rng.txt
+    COMMAND ! grep -l FAIL dieharder-results-libcrypto-rng-tail.txt
+    COMMAND grep PASSED dieharder-results-libcrypto-rng-tail.txt
     COMMAND ! grep -l FAIL dieharder-results.txt
     COMMAND grep PASSED dieharder-results.txt
     COMMAND ! grep -l FAIL dieharder-results-tail.txt
@@ -882,9 +922,13 @@ add_custom_target(run-dieharder-threads-rdseed-tail
     COMMAND ! grep -l FAIL dieharder-results-rdseed-tail.txt
     COMMAND ! grep rdseed /proc/cpuinfo || grep PASSED dieharder-results-rdseed-tail.txt
 
-    DEPENDS run-dieharder-tail run-dieharder-rdrand-tail run-dieharder-rdseed-tail run-dieharder)
+    DEPENDS run-dieharder-tail run-dieharder-rdrand-tail run-dieharder-rdseed-tail run-dieharder run-dieharder-libcrypto-rng run-dieharder-libcrypto-rng-tail)
 
 add_custom_target(check-dieharder-threads
+    COMMAND ! grep -l FAIL dieharder-results-libcrypto-rng-threads.txt
+    COMMAND grep PASSED dieharder-results-libcrypto-rng-threads.txt
+    COMMAND ! grep -l FAIL dieharder-results-libcrypto-rng-threads-tail.txt
+    COMMAND grep PASSED dieharder-results-libcrypto-rng-threads-tail.txt
     COMMAND ! grep -l FAIL dieharder-threads-results.txt
     COMMAND grep PASSED dieharder-threads-results.txt
     COMMAND ! grep -l FAIL dieharder-threads-results-tail.txt
@@ -895,7 +939,7 @@ add_custom_target(check-dieharder-threads
     COMMAND ! grep -l FAIL dieharder-threads-results-rdseed-tail.txt
     COMMAND ! grep rdseed /proc/cpuinfo || grep PASSED dieharder-threads-results-rdseed-tail.txt
 
-    DEPENDS run-dieharder-threads-tail run-dieharder-threads-rdrand-tail run-dieharder-threads-rdseed-tail run-dieharder-threads)
+    DEPENDS run-dieharder-threads-tail run-dieharder-threads-rdrand-tail run-dieharder-threads-rdseed-tail run-dieharder-threads run-dieharder-libcrypto-rng-threads run-dieharder-libcrypto-rng-threads-tail)
 endif() # End of Dieharder targets
 # Do this at the end, after we finish all our feature tests, or it'll be missing flags
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/csrc/config.h.in ${JNI_HEADER_DIR}/config.h)
