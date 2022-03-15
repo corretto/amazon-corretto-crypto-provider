@@ -3,6 +3,7 @@
 
 package com.amazon.corretto.crypto.provider.test;
 
+import static com.amazon.corretto.crypto.provider.test.TestUtil.assumeMinimumVersion;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyGetInternalClass;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyInvoke;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -17,7 +18,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import com.amazon.corretto.crypto.provider.LibCryptoRng;
 import com.amazon.corretto.crypto.provider.SelfTestResult;
 import com.amazon.corretto.crypto.provider.SelfTestStatus;
@@ -47,7 +47,7 @@ public class LibCryptoRngTest {
         rnd = null;
     }
 
-    private void ensureRngGeneratesUniqueValues(SecureRandom rng){
+    private void ensureRngGeneratesUniqueValues(SecureRandom rng) {
         final int initial = rng.nextInt();
         for (int trial = 0; trial < 10; trial++) {
             if (initial != rng.nextInt()) {
@@ -59,14 +59,16 @@ public class LibCryptoRngTest {
 
     @Test
     public void testGetInstance() throws NoSuchAlgorithmException {
-        ensureRngGeneratesUniqueValues(SecureRandom.getInstance("DEFAULT", AmazonCorrettoCryptoProvider.INSTANCE));
-        ensureRngGeneratesUniqueValues(SecureRandom.getInstance("LibCryptoRng", AmazonCorrettoCryptoProvider.INSTANCE));
+        assumeMinimumVersion("2.0.0", TestUtil.NATIVE_PROVIDER);
+        ensureRngGeneratesUniqueValues(SecureRandom.getInstance("DEFAULT", TestUtil.NATIVE_PROVIDER));
+        ensureRngGeneratesUniqueValues(SecureRandom.getInstance("LibCryptoRng", TestUtil.NATIVE_PROVIDER));
     }
     // A common mistake is when filling arrays to not do it properly and leave
     // zero gaps. To detect this, we'll generate arrays of different lengths
     // and check to see if certain bytes are always zero
     @Test
     public void testNextBytes() {
+        assumeMinimumVersion("2.0.0", TestUtil.NATIVE_PROVIDER);
         for (int size = 0; size < 64; size++) {
             final byte[] checkArr = new byte[size];
             final byte[] arr = new byte[size];
@@ -89,6 +91,7 @@ public class LibCryptoRngTest {
     // and check to see if certain bytes are always zero
     @Test
     public void testGenerateSeed() {
+        assumeMinimumVersion("2.0.0", TestUtil.NATIVE_PROVIDER);
         for (int size = 0; size < 64; size++) {
             final byte[] checkArr = new byte[size];
             for (int trial = 0; trial < 4; trial++) {
@@ -110,11 +113,13 @@ public class LibCryptoRngTest {
     // value and don't throw exceptions
     @Test
     public void testInt() {
+        assumeMinimumVersion("2.0.0", TestUtil.NATIVE_PROVIDER);
         ensureRngGeneratesUniqueValues(rnd);
     }
 
     @Test
     public void testLong() {
+        assumeMinimumVersion("2.0.0", TestUtil.NATIVE_PROVIDER);
         final long initial = rnd.nextLong();
         for (int trial = 0; trial < 10; trial++) {
             if (initial != rnd.nextLong()) {
@@ -126,6 +131,7 @@ public class LibCryptoRngTest {
 
     @Test
     public void reseed() {
+        assumeMinimumVersion("2.0.0", TestUtil.NATIVE_PROVIDER);
         // Just ensure this doesn't crash
         rnd.setSeed(new byte[0]);
         rnd.setSeed(new byte[1]);
@@ -139,6 +145,7 @@ public class LibCryptoRngTest {
 
     @Test
     public void largeRequest() {
+        assumeMinimumVersion("2.0.0", TestUtil.NATIVE_PROVIDER);
         // prove we can request very large amounts of data, even if it requires
         // reseeding in the middle
         final byte[] bytes = new byte[12288];
@@ -157,6 +164,7 @@ public class LibCryptoRngTest {
 
     @Test
     public void selfTest() throws Throwable {
+        assumeMinimumVersion("2.0.0", TestUtil.NATIVE_PROVIDER);
         Class<?> spi = sneakyGetInternalClass(LibCryptoRng.class, "SPI");
         SelfTestResult result = (SelfTestResult) sneakyInvoke(spi, "runSelfTest");
         assertEquals(SelfTestStatus.PASSED, result.getStatus());
@@ -164,6 +172,7 @@ public class LibCryptoRngTest {
 
     @Test
     public void manyRequestsTest() throws Throwable {
+        assumeMinimumVersion("2.0.0", TestUtil.NATIVE_PROVIDER);
         final LibCryptoRng rng = new LibCryptoRng();
         int MAX_REQUESTS_BEFORE_RESEED = 1 << 12;
         int MAX_BYTES_BEFORE_RESEED = 1 << 16;
@@ -179,6 +188,7 @@ public class LibCryptoRngTest {
 
     @Test
     public void multithreadedTest() throws Throwable {
+        assumeMinimumVersion("2.0.0", TestUtil.NATIVE_PROVIDER);
         final LibCryptoRng sharedRng = new LibCryptoRng();
         int NUM_THREADS = 100;
         final Set<Long> rngOutputs = Collections.newSetFromMap(new ConcurrentHashMap<Long, Boolean>());
