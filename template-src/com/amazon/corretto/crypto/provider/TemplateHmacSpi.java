@@ -25,8 +25,6 @@ import javax.crypto.MacSpi;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 
-import com.amazon.corretto.crypto.provider.AesCtrDrbg.SPI;
-
 public class TemplateHmacSpi extends MacSpi implements Cloneable {
     private static final String MAC_NAME = "Hmac@@@SHORT_HASH_NAME@@@";
     private static final int HASH_SIZE;

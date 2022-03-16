@@ -78,12 +78,6 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
                    singletonMap("SupportedKeyClasses", "java.security.interfaces.ECPublicKey|java.security.interfaces.ECPrivateKey")
         );
 
-        if (isRdRandSupported()) {
-            addService("SecureRandom", "NIST800-90A/AES-CTR-256", "AesCtrDrbg$SPI",
-                    singletonMap("ThreadSafe", "true"))
-                    .setSelfTest(AesCtrDrbg.SPI.SELF_TEST);
-        }
-
         addService("SecureRandom", "LibCryptoRng", "LibCryptoRng$SPI",
                 singletonMap("ThreadSafe", "true"), "DEFAULT")
                 .setSelfTest(LibCryptoRng.SPI.SELF_TEST);
@@ -292,11 +286,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
         selfTestSuite.addSelfTest(HmacSHA256Spi.SELF_TEST);
         selfTestSuite.addSelfTest(HmacSHA1Spi.SELF_TEST);
         selfTestSuite.addSelfTest(HmacMD5Spi.SELF_TEST);
-
-        if (isRdRandSupported()) {
-            // AES-CTR DRBG requires RDRAND. Run self-test only if RDRAND is supported.
-            selfTestSuite.addSelfTest(AesCtrDrbg.SPI.SELF_TEST);
-        }
+        selfTestSuite.addSelfTest(LibCryptoRng.SPI.SELF_TEST);
 
         // Kick off self-tests in the background. It's vitally important that we don't actually _wait_ for these to
         // complete, as if we do we'll end up recursing through some JCE internals back to attempts to use

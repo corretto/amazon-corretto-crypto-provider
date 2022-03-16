@@ -106,7 +106,6 @@ add_custom_command(
 
 set(ACCP_SRC
         src/com/amazon/corretto/crypto/provider/AccessibleByteArrayOutputStream.java
-        src/com/amazon/corretto/crypto/provider/AesCtrDrbg.java
         src/com/amazon/corretto/crypto/provider/AesGcmSpi.java
         src/com/amazon/corretto/crypto/provider/ConstantTime.java
         src/com/amazon/corretto/crypto/provider/DebugFlag.java
@@ -231,7 +230,6 @@ include_directories(${OPENSSL_INCLUDE_DIR} ${JNI_INCLUDE_DIRS} ${JNI_HEADER_DIR}
 
 add_library(
     amazonCorrettoCryptoProvider SHARED
-        csrc/aes_ctr_drbg.cpp
         csrc/aes_gcm.cpp
         csrc/agreement.cpp
         csrc/bn.cpp
@@ -244,7 +242,6 @@ add_library(
         csrc/loader.cpp
         csrc/md5.cpp
         csrc/amazon_corretto_crypto_provider.cpp
-        csrc/rand.cpp
         csrc/rdrand.cpp
         csrc/rsa_cipher.cpp
         csrc/rsa_gen.cpp
@@ -531,7 +528,6 @@ add_jar(
     SOURCES
         tst/com/amazon/corretto/crypto/provider/test/AccessibleByteArrayOutputStreamTest.java
         tst/com/amazon/corretto/crypto/provider/test/AESGenerativeTest.java
-        tst/com/amazon/corretto/crypto/provider/test/AesCtrDrbgTest.java
         tst/com/amazon/corretto/crypto/provider/test/AesTest.java
         tst/com/amazon/corretto/crypto/provider/test/ConstantTimeTests.java
         tst/com/amazon/corretto/crypto/provider/test/EcGenTest.java
