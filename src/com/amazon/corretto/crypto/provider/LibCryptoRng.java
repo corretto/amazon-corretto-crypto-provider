@@ -34,7 +34,7 @@ public class LibCryptoRng extends SecureRandom {
 
             /* Basic RNG self-test, do we generate different random numbers on repeat calls? */
             final long initialLong = rnd.nextLong();
-            for (int trial = 0; trial < 10; trial++) {
+            for (int trial = 0; trial < 3; trial++) {
                 if (initialLong != rnd.nextLong()) {
                     return new SelfTestResult(SelfTestStatus.PASSED);
                 }
