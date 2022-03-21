@@ -67,9 +67,11 @@ class SelfTestSuite {
         private SelfTestResult runTest0() {
             SelfTestResult localResult = selfTestRunner.get();
 
-            if (localResult.getStatus() == SelfTestStatus.PASSED && DebugFlag.VERBOSELOGS.isEnabled()) {
-                LOGGER.finer(() -> String.format("Self-test result for JCE algo %s: PASSED",
-                                                 getAlgorithmName()));
+            if (localResult.getStatus() == SelfTestStatus.PASSED) {
+                if (DebugFlag.VERBOSELOGS.isEnabled()) {
+                    LOGGER.finer(() -> String.format("Self-test result for JCE algo %s: PASSED",
+                                                     getAlgorithmName()));
+                }
             } else {
                 LOGGER.severe(
                         () -> {
