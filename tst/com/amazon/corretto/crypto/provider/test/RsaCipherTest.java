@@ -519,6 +519,7 @@ public class RsaCipherTest {
         final Cipher enc = Cipher.getInstance(PKCS1_PADDING, NATIVE_PROVIDER);
         final Cipher dec = Cipher.getInstance(PKCS1_PADDING, NATIVE_PROVIDER);
 
+        // -11 for PKCSv1.5 padding: https://datatracker.ietf.org/doc/html/rfc8017#section-7.2
         final byte[] plaintext = getPlaintext(1024 / 8 - 11);
         enc.init(Cipher.ENCRYPT_MODE, PAIR_1024.getPublic());
         dec.init(Cipher.DECRYPT_MODE, strippedKey);

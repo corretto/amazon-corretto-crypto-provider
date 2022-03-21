@@ -58,7 +58,12 @@ EVP_PKEY* der2EvpPrivateKey(const unsigned char* der, const int derLen, const bo
           RSA_get0_key(rsa, &n, &e, &d);
           RSA_get0_factors(rsa, &p, &q);
           RSA_get0_crt_params(rsa, &dmp1, &dmq1, &iqmp);
-          if (e && BN_is_zero(e)) {
+          // If blinding is set and any of the parameters required for blinding
+          // are NULL, rebuild to turn blinding off. Otherwise, rebuild if any
+          // of the params are 0-valued to NULL them out.
+          if (((rsa->flags & RSA_FLAG_NO_BLINDING) == 0) && (!e || !p || !q)) {
+            need_rebuild = true;
+          } else if (e && BN_is_zero(e)) {
             need_rebuild = true;
           } else if (p && BN_is_zero(p)) {
             need_rebuild = true;
@@ -76,8 +81,17 @@ EVP_PKEY* der2EvpPrivateKey(const unsigned char* der, const int derLen, const bo
             // This key likely only has (n, d) set. Very weird, but it happens in java sometimes.
             RSA *nulled_rsa = RSA_new();
 
-            if (!RSA_set0_key(nulled_rsa, BN_dup(n), BN_dup(e), BN_dup(d))) {
+            // Blinding requires |e| and the prime factors |p| and |q|, which we may not have here.
+            nulled_rsa->flags |= RSA_FLAG_NO_BLINDING;
+
+            // |e| might be NULL here, so swap in 0 when calling awslc and
+            // re-NULL it afterwards.
+            if (!RSA_set0_key(nulled_rsa, BN_dup(n), e ? BN_dup(e) : BN_new(), BN_dup(d))) {
               throw_openssl(javaExceptionClass, "Unable to set RSA key parameters");
+            }
+            if (BN_is_zero(nulled_rsa->e)) {
+              BN_free(nulled_rsa->e);
+              nulled_rsa->e = NULL;
             }
             EVP_PKEY_set1_RSA(result, nulled_rsa);
             RSA_free(nulled_rsa); // Decrement reference counter
