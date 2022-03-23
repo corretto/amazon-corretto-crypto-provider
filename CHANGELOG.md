@@ -2,7 +2,7 @@
 
 ## 1.7.0 (Unreleased)
 ### Improvements
-* Now uses [OpenSSL 1.1.1m](https://www.openssl.org/source/openssl-1.1.1m.tar.gz). [PR #173](https://github.com/corretto/amazon-corretto-crypto-provider/pull/173)
+* Now uses [OpenSSL 1.1.1n](https://www.openssl.org/source/openssl-1.1.1n.tar.gz). [PR #181](https://github.com/corretto/amazon-corretto-crypto-provider/pull/181)
 * Add "help" value to two of our properties which outputs (to STDERR) valid values.
    * `com.amazon.corretto.crypto.provider.extrachecks`
    * `com.amazon.corretto.crypto.provider.debug`
