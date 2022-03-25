@@ -29,9 +29,6 @@ void initialize() {
   ERR_load_crypto_strings();
   OpenSSL_add_all_digests();
 
-  // Install our own RNG
-  registerOpensslDrbg();
-
   // seed the PRNG
   RAND_poll();
 }
