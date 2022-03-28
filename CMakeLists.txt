@@ -290,7 +290,7 @@ set(OLD_CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS}")
 ## command line while building a _shared_ library. This works only on certain
 ## platforms, but if successful it gives us a private copy of libcrypto that we
 ## can be sure will not interfere with any other openssl users.
-set(OPENSSL_STATIC_LINK_FLAGS "${OPENSSL_ROOT_DIR}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}crypto${CMAKE_STATIC_LIBRARY_SUFFIX}")
+set(OPENSSL_STATIC_LINK_FLAGS "${OPENSSL_ROOT_DIR}/lib64/${CMAKE_STATIC_LIBRARY_PREFIX}crypto${CMAKE_STATIC_LIBRARY_SUFFIX}")
 
 # This macro helps us perform tests that are not supported through the
 # generic CHECK_CXX_COMPILER_FLAG mechanism. Specifically, these result
