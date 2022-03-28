@@ -110,6 +110,7 @@ set(ACCP_SRC
         src/com/amazon/corretto/crypto/provider/ConstantTime.java
         src/com/amazon/corretto/crypto/provider/DebugFlag.java
         src/com/amazon/corretto/crypto/provider/EcGen.java
+        src/com/amazon/corretto/crypto/provider/EvpHmac.java
         src/com/amazon/corretto/crypto/provider/EvpKeyAgreement.java
         src/com/amazon/corretto/crypto/provider/EvpKeyType.java
         src/com/amazon/corretto/crypto/provider/EvpSignature.java
@@ -237,6 +238,7 @@ add_library(
         csrc/ec_gen.cpp
         csrc/ec_utils.cpp
         csrc/env.cpp
+        csrc/hmac.cpp
         csrc/keyutils.cpp
         csrc/libcrypto_rng.cpp
         csrc/loader.cpp
@@ -252,6 +254,7 @@ add_library(
         csrc/sign.cpp
         csrc/testhooks.cpp
         csrc/util.cpp
+        csrc/util_class.cpp
         ${JNI_HEADER_DIR}/generated-headers.h
 )
 

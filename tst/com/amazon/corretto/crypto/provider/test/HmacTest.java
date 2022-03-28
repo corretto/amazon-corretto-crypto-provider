@@ -5,6 +5,7 @@ package com.amazon.corretto.crypto.provider.test;
 
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assertArraysHexEquals;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER_PACKAGE;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyInvoke;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -104,7 +105,7 @@ public class HmacTest {
 
     @Test
     public void knownValue() throws Throwable {
-        try (final Scanner in = new Scanner(TestUtil.sneakyGetTestData("hmac.txt"), 
+        try (final Scanner in = new Scanner(TestUtil.sneakyGetTestData("hmac.txt"),
                                             StandardCharsets.US_ASCII.name())) {
             while (in.hasNext()) {
                 final String type = in.next();
@@ -133,7 +134,7 @@ public class HmacTest {
     @MethodSource("supportedHmacs")
     // Suppress redundant cast warnings; they're redundant in java 9 but not java 8
     @SuppressWarnings({"cast", "RedundantCast"})
-    public void emptyHmac(String algorithm) throws Exception {
+    public void emptyHmac(final String algorithm) throws Exception {
         final SecretKeySpec key = new SecretKeySpec(
                 "YellowSubmarine".getBytes(StandardCharsets.US_ASCII), "Generic");
         final Mac jceMac = Mac.getInstance(algorithm, "SunJCE");
@@ -159,7 +160,7 @@ public class HmacTest {
     // multiple calls to the native layer.
     @ParameterizedTest
     @MethodSource("supportedHmacs")
-    public void largeArrayMsgs(String algorithm) throws Exception {
+    public void largeArrayMsgs(final String algorithm) throws Exception {
         final byte[] msg = new byte[256];
         for (int x = 0; x < msg.length; x++) {
             msg[x] = (byte) x;
@@ -179,7 +180,7 @@ public class HmacTest {
 
     @ParameterizedTest
     @MethodSource("supportedHmacs")
-    public void largeBufferMsgs(String algorithm) throws Exception {
+    public void largeBufferMsgs(final String algorithm) throws Exception {
         final ByteBuffer msg = ByteBuffer.allocate(256);
         for (int x = 0; x < msg.capacity(); x++) {
             msg.put((byte) x);
@@ -200,7 +201,7 @@ public class HmacTest {
 
     @ParameterizedTest
     @MethodSource("supportedHmacs")
-    public void largeDirectBufferMsgs(String algorithm) throws Exception {
+    public void largeDirectBufferMsgs(final String algorithm) throws Exception {
         final ByteBuffer msg = ByteBuffer.allocateDirect(256);
         for (int x = 0; x < msg.capacity(); x++) {
             msg.put((byte) x);
@@ -221,7 +222,7 @@ public class HmacTest {
 
     @ParameterizedTest
     @MethodSource("supportedHmacs")
-    public void largeChunkArrayMsgs(String algorithm) throws Exception {
+    public void largeChunkArrayMsgs(final String algorithm) throws Exception {
         final byte[] msg = new byte[4096];
         for (int x = 0; x < msg.length; x++) {
             msg[x] = (byte) x;
@@ -241,7 +242,7 @@ public class HmacTest {
 
     @ParameterizedTest
     @MethodSource("supportedHmacs")
-    public void largeChunkBufferMsgs(String algorithm) throws Exception {
+    public void largeChunkBufferMsgs(final String algorithm) throws Exception {
         final ByteBuffer msg = ByteBuffer.allocate(4096);
         for (int x = 0; x < msg.capacity(); x++) {
             msg.put((byte) x);
@@ -262,7 +263,7 @@ public class HmacTest {
 
     @ParameterizedTest
     @MethodSource("supportedHmacs")
-    public void largeChunkDirectBufferMsgs(String algorithm) throws Exception {
+    public void largeChunkDirectBufferMsgs(final String algorithm) throws Exception {
         final ByteBuffer msg = ByteBuffer.allocateDirect(4096);
         for (int x = 0; x < msg.capacity(); x++) {
             msg.put((byte) x);
@@ -315,7 +316,7 @@ public class HmacTest {
 
     @ParameterizedTest
     @MethodSource("supportedHmacs")
-    public void largeKeys(String algorithm) throws Throwable {
+    public void largeKeys(final String algorithm) throws Throwable {
         // This tests keys large enough to require normalization
         final ByteBuffer msg = ByteBuffer.allocateDirect(4096);
         for (int x = 0; x < msg.capacity(); x++) {
@@ -335,8 +336,9 @@ public class HmacTest {
     }
 
     @SuppressWarnings("serial")
-    @Test
-    public void engineInitErrors() throws Exception {
+    @ParameterizedTest
+    @MethodSource("supportedHmacs")
+    public void engineInitErrors(final String algorithm) throws Exception {
         final SecretKey validKey = new SecretKeySpec("yellowsubmarine".getBytes(StandardCharsets.UTF_8), "Generic");
         final PublicKey pubKey = new PublicKey() {
             @Override
@@ -373,21 +375,20 @@ public class HmacTest {
             }
         };
 
-        for (final String algorithm : SUPPORTED_HMACS) {
-            final Mac mac = Mac.getInstance(algorithm, NATIVE_PROVIDER);
+        final Mac mac = Mac.getInstance(algorithm, NATIVE_PROVIDER);
 
-            assertThrows(InvalidAlgorithmParameterException.class, () -> mac.init(validKey, new IvParameterSpec(new byte[0])));
-            assertThrows(InvalidKeyException.class, () -> mac.init(pubKey));
-            assertThrows(InvalidKeyException.class, () -> mac.init(badFormat));
-            assertThrows(InvalidKeyException.class, () -> mac.init(nullEncoding));
+        assertThrows(InvalidAlgorithmParameterException.class, () -> mac.init(validKey, new IvParameterSpec(new byte[0])));
+        assertThrows(InvalidKeyException.class, () -> mac.init(pubKey));
+        assertThrows(InvalidKeyException.class, () -> mac.init(badFormat));
+        assertThrows(InvalidKeyException.class, () -> mac.init(nullEncoding));
 
-            TestUtil.assumeMinimumVersion("1.5.0", AmazonCorrettoCryptoProvider.INSTANCE);
-            assertThrows(InvalidKeyException.class, () -> mac.init(nullFormat));
-        }
+        TestUtil.assumeMinimumVersion("1.5.0", AmazonCorrettoCryptoProvider.INSTANCE);
+        assertThrows(InvalidKeyException.class, () -> mac.init(nullFormat));
     }
 
-    @Test
-    public void supportsCloneable() throws Exception {
+    @ParameterizedTest
+    @MethodSource("supportedHmacs")
+    public void supportsCloneable(final String algorithm) throws Exception {
         TestUtil.assumeMinimumVersion("1.3.0", NATIVE_PROVIDER);
         final byte[] prefix = new byte[123]; // Arbitrary odd size
         for (int x = 0; x < prefix.length; x++) {
@@ -403,33 +404,32 @@ public class HmacTest {
         }
 
         final SecretKeySpec key = new SecretKeySpec(new byte[4096], "Generic");
-        for (final String algorithm : SUPPORTED_HMACS) {
-            final Mac mac = Mac.getInstance(algorithm, NATIVE_PROVIDER);
+        final Mac mac = Mac.getInstance(algorithm, NATIVE_PROVIDER);
 
-            mac.init(key);
-            final byte[] prefixExpectedMac = mac.doFinal(prefix);
-            mac.update(prefix);
-            final byte[] msg1ExpectedMac = mac.doFinal(suffix1);
-            mac.update(prefix);
-            final byte[] msg2ExpectedMac = mac.doFinal(suffix2);
+        mac.init(key);
+        final byte[] prefixExpectedMac = mac.doFinal(prefix);
+        mac.update(prefix);
+        final byte[] msg1ExpectedMac = mac.doFinal(suffix1);
+        mac.update(prefix);
+        final byte[] msg2ExpectedMac = mac.doFinal(suffix2);
 
-            mac.update(prefix, 0, prefix.length);
-            final Mac prefixClone = (Mac) mac.clone();
-            final Mac msg1Clone = (Mac) mac.clone();
-            final Mac msg2Clone = (Mac) msg1Clone.clone();
+        mac.update(prefix, 0, prefix.length);
+        final Mac prefixClone = (Mac) mac.clone();
+        final Mac msg1Clone = (Mac) mac.clone();
+        final Mac msg2Clone = (Mac) msg1Clone.clone();
 
-            msg1Clone.update(suffix1);
-            msg2Clone.update(suffix2);
+        msg1Clone.update(suffix1);
+        msg2Clone.update(suffix2);
 
-            // Purposefully checking the prefix (shortest) one last
-            assertArrayEquals(msg1ExpectedMac, msg1Clone.doFinal(), algorithm + " msg1");
-            assertArrayEquals(msg2ExpectedMac, msg2Clone.doFinal(), algorithm + " msg2");
-            assertArrayEquals(prefixExpectedMac, prefixClone.doFinal(), algorithm + " prefix");
-        }
+        // Purposefully checking the prefix (shortest) one last
+        assertArrayEquals(msg1ExpectedMac, msg1Clone.doFinal(), algorithm + " msg1");
+        assertArrayEquals(msg2ExpectedMac, msg2Clone.doFinal(), algorithm + " msg2");
+        assertArrayEquals(prefixExpectedMac, prefixClone.doFinal(), algorithm + " prefix");
     }
 
-    @Test
-    public void supportsCloneableLarge() throws Exception {
+    @ParameterizedTest
+    @MethodSource("supportedHmacs")
+    public void supportsCloneableLarge(final String algorithm) throws Exception {
         TestUtil.assumeMinimumVersion("1.3.0", NATIVE_PROVIDER);
         final byte[] prefix = new byte[4096];
         final byte[] suffix1 = new byte[4096];
@@ -442,40 +442,39 @@ public class HmacTest {
         }
 
         final SecretKeySpec key = new SecretKeySpec(new byte[4096], "Generic");
-        for (final String algorithm : SUPPORTED_HMACS) {
-            final Mac defaultInstance = Mac.getInstance(algorithm, "SunJCE");
-            defaultInstance.init(key);
-            defaultInstance.update(prefix);
-        
-            final byte[] expected1 = defaultInstance.doFinal(suffix1);
+        final Mac defaultInstance = Mac.getInstance(algorithm, "SunJCE");
+        defaultInstance.init(key);
+        defaultInstance.update(prefix);
 
-            defaultInstance.update(prefix);
-            final byte[] expected2 = defaultInstance.doFinal(suffix2);
+        final byte[] expected1 = defaultInstance.doFinal(suffix1);
+
+        defaultInstance.update(prefix);
+        final byte[] expected2 = defaultInstance.doFinal(suffix2);
 
 
-            final Mac original = Mac.getInstance(algorithm, NATIVE_PROVIDER);
-            original.init(key);
-            original.update(prefix);
+        final Mac original = Mac.getInstance(algorithm, NATIVE_PROVIDER);
+        original.init(key);
+        original.update(prefix);
 
-            final Mac duplicate = (Mac) original.clone();
+        final Mac duplicate = (Mac) original.clone();
 
-            original.update(suffix1);
-            duplicate.update(suffix2);
+        original.update(suffix1);
+        duplicate.update(suffix2);
 
-            assertArraysHexEquals(
-                expected1,
-                original.doFinal()
-            );
-            assertArraysHexEquals(
-                expected2,
-                duplicate.doFinal()
-            );
-        }
+        assertArraysHexEquals(
+            expected1,
+            original.doFinal()
+        );
+        assertArraysHexEquals(
+            expected2,
+            duplicate.doFinal()
+        );
     }
 
 
-    @Test
-    public void testDraggedState() throws Exception {
+    @ParameterizedTest
+    @MethodSource("supportedHmacs")
+    public void testDraggedState(final String algorithm) throws Exception {
         TestUtil.assumeMinimumVersion("1.3.0", NATIVE_PROVIDER);
         final byte[] prefix = new byte[4096];
         final byte[] suffix1 = new byte[4096];
@@ -488,42 +487,39 @@ public class HmacTest {
         }
 
         final SecretKeySpec key = new SecretKeySpec(new byte[4096], "Generic");
-        for (final String algorithm : SUPPORTED_HMACS) {
-            final Mac defaultInstance = Mac.getInstance(algorithm, "SunJCE");
-            defaultInstance.init(key);
-            defaultInstance.update(prefix);
-            final byte[] expected1 = defaultInstance.doFinal(suffix1);
+        final Mac defaultInstance = Mac.getInstance(algorithm, "SunJCE");
+        defaultInstance.init(key);
+        defaultInstance.update(prefix);
+        final byte[] expected1 = defaultInstance.doFinal(suffix1);
 
-            defaultInstance.update(prefix);
-            final byte[] expected2 = defaultInstance.doFinal(suffix2);
+        defaultInstance.update(prefix);
+        final byte[] expected2 = defaultInstance.doFinal(suffix2);
 
-            final Mac original = Mac.getInstance(algorithm, NATIVE_PROVIDER);
-            final Mac duplicate = (Mac) original.clone();
-            original.init(key);
-            duplicate.init(key);
+        final Mac original = Mac.getInstance(algorithm, NATIVE_PROVIDER);
+        final Mac duplicate = (Mac) original.clone();
+        original.init(key);
+        duplicate.init(key);
 
-            // First use uses the explicitly cloned state
-            original.update(prefix);
-            duplicate.update(prefix);
+        // First use uses the explicitly cloned state
+        original.update(prefix);
+        duplicate.update(prefix);
 
-            assertArraysHexEquals(expected1, original.doFinal(suffix1));
-            assertArraysHexEquals(expected2, duplicate.doFinal(suffix2));
+        assertArraysHexEquals(expected1, original.doFinal(suffix1));
+        assertArraysHexEquals(expected2, duplicate.doFinal(suffix2));
 
-            // State has been reset and thus we might no longer be on the explicitly cloned state
-            original.update(prefix);
-            duplicate.update(prefix);
+        // State has been reset and thus we might no longer be on the explicitly cloned state
+        original.update(prefix);
+        duplicate.update(prefix);
 
-            assertArraysHexEquals(expected1, original.doFinal(suffix1));
-            assertArraysHexEquals(expected2, duplicate.doFinal(suffix2));
-        }
+        assertArraysHexEquals(expected1, original.doFinal(suffix1));
+        assertArraysHexEquals(expected2, duplicate.doFinal(suffix2));
     }
 
-    @Test
-    public void selfTest() {
-        assertEquals(SelfTestStatus.PASSED, HmacSHA512Spi.runSelfTest().getStatus());
-        assertEquals(SelfTestStatus.PASSED, HmacSHA384Spi.runSelfTest().getStatus());
-        assertEquals(SelfTestStatus.PASSED, HmacSHA256Spi.runSelfTest().getStatus());
-        assertEquals(SelfTestStatus.PASSED, HmacSHA1Spi.runSelfTest().getStatus());
-        assertEquals(SelfTestStatus.PASSED, HmacMD5Spi.runSelfTest().getStatus());
+    @ParameterizedTest
+    @MethodSource("supportedHmacs")
+    public void selfTest(final String algorithm) throws Throwable {
+        final String hashName = algorithm.substring(4);
+        final Class<?> clazz = Class.forName(NATIVE_PROVIDER_PACKAGE + ".EvpHmac$" + hashName);
+        assertEquals(SelfTestStatus.PASSED, ((SelfTestResult) sneakyInvoke(clazz, "runSelfTest")).getStatus());
     }
 }

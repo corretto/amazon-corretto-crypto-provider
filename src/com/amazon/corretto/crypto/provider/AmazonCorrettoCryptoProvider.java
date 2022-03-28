@@ -71,7 +71,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
         addService("Cipher", "RSA/ECB/OAEPWithSHA-1AndMGF1Padding", "RsaCipher$OAEPSha1");
 
         for (String hash : new String[] { "MD5", "SHA1", "SHA256", "SHA384", "SHA512" }) {
-            addService("Mac", "Hmac" + hash, "Hmac" + hash + "Spi");
+            addService("Mac", "Hmac" + hash, "EvpHmac$" + hash);
         }
 
         addService("KeyAgreement", "ECDH", "EvpKeyAgreement$ECDH",
@@ -281,11 +281,11 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
         if (selfTestSuite == null) {
             selfTestSuite = new SelfTestSuite();
         }
-        selfTestSuite.addSelfTest(HmacSHA512Spi.SELF_TEST);
-        selfTestSuite.addSelfTest(HmacSHA384Spi.SELF_TEST);
-        selfTestSuite.addSelfTest(HmacSHA256Spi.SELF_TEST);
-        selfTestSuite.addSelfTest(HmacSHA1Spi.SELF_TEST);
-        selfTestSuite.addSelfTest(HmacMD5Spi.SELF_TEST);
+        selfTestSuite.addSelfTest(EvpHmac.SHA512.SELF_TEST);
+        selfTestSuite.addSelfTest(EvpHmac.SHA384.SELF_TEST);
+        selfTestSuite.addSelfTest(EvpHmac.SHA256.SELF_TEST);
+        selfTestSuite.addSelfTest(EvpHmac.SHA1.SELF_TEST);
+        selfTestSuite.addSelfTest(EvpHmac.MD5.SELF_TEST);
         selfTestSuite.addSelfTest(LibCryptoRng.SPI.SELF_TEST);
 
         // Kick off self-tests in the background. It's vitally important that we don't actually _wait_ for these to
