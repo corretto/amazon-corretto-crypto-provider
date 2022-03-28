@@ -59,7 +59,7 @@ task buildAwsLc {
             workingDir awslcSrcPath
             executable 'cmake'
             args "-B${cMakeBuildDir}"
-            args '-DBUILD_SHARED_LIBS=ON'
+            args '-DBUILD_SHARED_LIBS=OFF'
             args '-DCMAKE_BUILD_TYPE=RelWithDebInfo'
             args "-DCMAKE_INSTALL_PREFIX=${sharedObjectOutDir}"
         }
