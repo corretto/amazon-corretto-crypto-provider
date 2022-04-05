@@ -123,6 +123,18 @@ final class Utils {
         return (long)o1 + length > (long)o2;
     }
 
+    static void assertValidRange(byte[] array, int offset, int length) {
+        final int arrayLength = array.length;
+        if (offset < 0 || offset > arrayLength || length < 0 || length > arrayLength) {
+            throw new ArrayIndexOutOfBoundsException();
+        }
+        // Since offset <= arrayLength, we know this won't underflow
+        final int remaining = arrayLength - offset;
+        if (remaining > arrayLength) {
+            throw new ArrayIndexOutOfBoundsException();
+        }
+    }
+
     static byte[] encodeForWrapping(final Key key) throws InvalidKeyException {
         try {
             final byte[] encoded;

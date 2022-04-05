@@ -7,8 +7,69 @@
 #include "buffer.h"
 
 #define DO_NOT_INIT -1
+#define DO_NOT_REKEY -2
 
 using namespace AmazonCorrettoCryptoProvider;
+
+// Some of the logic around how to manage arrays is non-standard because HMAC is extremely performance sensitive.
+// For the smaller data-sizes we're using, avoiding GetPrimitiveArrayCritical is worth it.
+
+namespace {
+    void maybe_init_ctx(raii_env &env, HMAC_CTX *ctx, jbyteArray &keyArr, jlong evpMd) {
+        if (DO_NOT_INIT == evpMd) {
+            return;
+        }
+        if (evpMd == DO_NOT_REKEY)
+        {
+            if (unlikely(HMAC_Init_ex(
+                                ctx,
+                                nullptr, // key
+                                0, // keyLen
+                                nullptr, // EVP_MD
+                                nullptr /* ENGINE */) != 1))
+            {
+                throw_openssl("Unable to initialize HMAC_CTX");
+            }
+        }
+        else
+        {
+            java_buffer keyBuf = java_buffer::from_array(env, keyArr);
+            jni_borrow key(env, keyBuf, "key");
+            if (unlikely(HMAC_Init_ex(
+                             ctx,
+                             key.data(),
+                             key.len(),
+                             reinterpret_cast<const EVP_MD *>(evpMd),
+                             nullptr /* ENGINE */) != 1))
+            {
+                throw_openssl("Unable to initialize HMAC_CTX");
+            }
+        }
+    }
+
+    void update_ctx(raii_env &env, HMAC_CTX *ctx, jni_borrow &input) {
+        if (unlikely(HMAC_Update(
+                         ctx,
+                         input.data(),
+                         input.len()) != 1))
+        {
+            throw_openssl("Unable to update HMAC_CTX");
+        }
+    }
+
+    void calculate_mac(raii_env &env, HMAC_CTX *ctx, jbyteArray &result) {
+        uint8_t scratch[EVP_MAX_MD_SIZE];
+        unsigned int macSize =EVP_MAX_MD_SIZE;
+        if (unlikely(HMAC_Final(
+                         ctx,
+                         scratch,
+                         &macSize) != 1))
+        {
+            throw_openssl("Unable to update HMAC_CTX");
+        }
+        env->SetByteArrayRegion(result, 0, macSize, reinterpret_cast<jbyte *>(&scratch));
+    }
+}
 
 #ifdef __cplusplus
 extern "C"
@@ -41,43 +102,14 @@ JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_EvpHmac_updateCt
 {
     try {
         raii_env env(pEnv);
-        java_buffer ctxBuf = java_buffer::from_array(env, ctxArr);
+        bounce_buffer<HMAC_CTX> ctx = bounce_buffer<HMAC_CTX>::from_array(env, ctxArr);
+
         java_buffer inputBuf = java_buffer::from_array(env, inputArr, offset, len);
 
-        if (evpMd != DO_NOT_INIT) {
-            if (keyArr) {
-                java_buffer keyBuf = java_buffer::from_array(env, keyArr);
-                jni_borrow ctx(env, ctxBuf, "context");
-                jni_borrow key(env, keyBuf, "key");
-                if (unlikely(HMAC_Init_ex(
-                                 reinterpret_cast<HMAC_CTX *>(ctx.data()),
-                                 key.data(), key.len(),
-                                 reinterpret_cast<const EVP_MD *>(evpMd),
-                                 nullptr) != 1))
-                {
-                    throw_openssl("Unable to initialize HMAC_CTX");
-                }
-            } else {
-                jni_borrow ctx(env, ctxBuf, "context");
-                if (unlikely(HMAC_Init_ex(
-                                 reinterpret_cast<HMAC_CTX *>(ctx.data()),
-                                 nullptr, 0,
-                                 nullptr,
-                                 nullptr) != 1))
-                {
-                    throw_openssl("Unable to initialize HMAC_CTX");
-                }
-            }
-        }
-        jni_borrow ctx(env, ctxBuf, "context");
+        maybe_init_ctx(env, ctx, keyArr, evpMd);
+
         jni_borrow input(env, inputBuf, "input");
-        if (unlikely(HMAC_Update(
-                         reinterpret_cast<HMAC_CTX *>(ctx.data()),
-                         input.data(),
-                         input.len()) != 1))
-        {
-            throw_openssl("Unable to update HMAC_CTX");
-        }
+        update_ctx(env, ctx, input);
     } catch (java_ex &ex) {
         ex.throw_to_java(pEnv);
     }
@@ -96,17 +128,9 @@ JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_EvpHmac_doFinal(
 {
     try {
         raii_env env(pEnv);
-        java_buffer ctxBuf = java_buffer::from_array(env, ctxArr);
-        java_buffer resultBuf = java_buffer::from_array(env, resultArr);
-        jni_borrow ctx(env, ctxBuf, "context");
-        jni_borrow result(env, resultBuf, "result");
-        if (unlikely(HMAC_Final(
-                         reinterpret_cast<HMAC_CTX *>(ctx.data()),
-                         result.data(),
-                         nullptr) != 1))
-        {
-            throw_openssl("Unable to update HMAC_CTX");
-        }
+        bounce_buffer<HMAC_CTX> ctx = bounce_buffer<HMAC_CTX>::from_array(env, ctxArr);
+
+        calculate_mac(env, ctx, resultArr);
     } catch (java_ex &ex) {
         ex.throw_to_java(pEnv);
     }
@@ -129,24 +153,28 @@ JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_EvpHmac_fastHmac
  jint len,
  jbyteArray resultArr)
 {
-    Java_com_amazon_corretto_crypto_provider_EvpHmac_updateCtxArray(
-        pEnv,
-        clazz,
-        ctxArr,
-        keyArr,
-        evpMd,
-        inputArr,
-        offset,
-        len);
-    if (unlikely(pEnv->ExceptionCheck())) {
-        return;
+    // We do not depend on the other methods because it results in more use to JNI than we want and lower performance
+    try
+    {
+        raii_env env(pEnv);
+        bounce_buffer<HMAC_CTX> ctx = bounce_buffer<HMAC_CTX>::from_array(env, ctxArr);
+        java_buffer inputBuf = java_buffer::from_array(env, inputArr, offset, len);
+
+        maybe_init_ctx(env, ctx, keyArr, evpMd);
+
+        {
+            jni_borrow input(env, inputBuf, "input");
+            update_ctx(env, ctx, input);
+        }
+        {
+            calculate_mac(env, ctx, resultArr);
+        }
+
     }
-    Java_com_amazon_corretto_crypto_provider_EvpHmac_doFinal(
-        pEnv,
-        clazz,
-        ctxArr,
-        resultArr
-    );
+    catch (java_ex &ex)
+    {
+        ex.throw_to_java(pEnv);
+    }
 }
 
 #ifdef __cplusplus

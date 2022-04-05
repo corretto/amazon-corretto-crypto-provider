@@ -28,6 +28,11 @@ class EvpHmac extends MacSpi implements Cloneable {
      * HMAC_Init_ex.
      */
     private static long DO_NOT_INIT = -1;
+    /**
+     * When passed to {@code evpMd} indicates that while {@code HMAC_Init_ex} must
+     * be called, it should be called with NULL for both the key and evpMd parameters.
+     */
+    private static long DO_NOT_REKEY = -2;
 
     /**
      * Returns the size of the array needed to hold the entire HMAC context.
@@ -97,6 +102,9 @@ class EvpHmac extends MacSpi implements Cloneable {
     private InputBuffer<byte[], Void> buffer;
 
     EvpHmac(long evpMd, int digestLength) {
+        if (evpMd == DO_NOT_INIT || evpMd == DO_NOT_REKEY) {
+            throw new AssertionError("Unexpected value for evpMd conflicting with reserved negative value: " + evpMd);
+        }
         this.state = new HmacState(evpMd, digestLength);
         this.buffer =new InputBuffer<byte[], Void>(1024);
         configureLambdas();
@@ -106,13 +114,13 @@ class EvpHmac extends MacSpi implements Cloneable {
         buffer
             .withInitialUpdater((src, offset, length) -> {
                 assertInitialized();
-                byte[] rawKey = null;
-                long evpMd = 0;
+                byte[] rawKey = state.encoded_key;
+                long evpMd = DO_NOT_REKEY;
                 if (state.needsRekey) {
-                    rawKey = state.key.getEncoded();
                     evpMd = state.evpMd;
                 }
                 synchronizedUpdateCtxArray(state.context, rawKey, evpMd, src, offset, length);
+                state.needsRekey = false;
                 return null;
             })
             .withUpdater((ignored, src, offset, length) -> {
@@ -128,13 +136,13 @@ class EvpHmac extends MacSpi implements Cloneable {
             .withSinglePass((src, offset, length) -> {
                 assertInitialized();
                 final byte[] result = new byte[state.digestLength];
-                byte[] rawKey = null;
-                long evpMd = 0;
+                byte[] rawKey = state.encoded_key;
+                long evpMd = DO_NOT_REKEY;
                 if (state.needsRekey) {
-                    rawKey = state.key.getEncoded();
                     evpMd = state.evpMd;
                 }
                 synchronizedFastHmac(state.context, rawKey, evpMd, src, offset, length, result);
+                state.needsRekey = false;
                 return result;
             });
     }
@@ -197,6 +205,7 @@ class EvpHmac extends MacSpi implements Cloneable {
         private final long evpMd;
         private final int digestLength;
         private byte[] context = new byte[CONTEXT_SIZE];
+        private byte[] encoded_key;
         boolean needsRekey = true;
 
         private HmacState(long evpMd, int digestLength) {
@@ -212,13 +221,13 @@ class EvpHmac extends MacSpi implements Cloneable {
             if (!"RAW".equalsIgnoreCase(key.getFormat())) {
                 throw new InvalidKeyException("Key must support RAW encoding");
             }
-            if (key.getEncoded() == null) {
+            byte[] encoded = key.getEncoded();
+            if (encoded == null) {
                 throw new InvalidKeyException("Key encoding must not be null");
             }
-            if (!Objects.equals(this.key, key)) {
-                needsRekey = true;
-                this.key = key;
-            }
+            this.encoded_key = encoded;
+            this.key = key;
+            this.needsRekey = true;
         }
 
         @Override
