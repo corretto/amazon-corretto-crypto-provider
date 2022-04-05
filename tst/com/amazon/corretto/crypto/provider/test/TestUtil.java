@@ -229,8 +229,11 @@ public class TestUtil {
         Arrays.fill(result, b);
         return result;
     }
-    
+
     public static byte[] decodeHex(String hex) {
+        if (hex == null) {
+            return new byte[0];
+        }
         if (hex.length() % 2 != 0) {
             throw new IllegalArgumentException("Input length must be even");
         }
