@@ -217,7 +217,7 @@ class java_buffer {
 
 /**
  * A jni_borrow represents a slice of memory "borrowed" from the JVM.
- * This can either be a direct byte buffer, or an array accessed by an active 
+ * This can either be a direct byte buffer, or an array accessed by an active
  * GetPrimitiveArrayCritical buffer lock.
  */
 class jni_borrow {
@@ -428,7 +428,8 @@ inline void java_buffer::put_bytes(raii_env &env, const uint8_t *src, size_t off
 
 /**
  * A bounce buffer is a buffer that is _copied_ from a Java array or byte buffer.
- * Upon destruction, it is copied back.
+ * Upon destruction, it is copied back. For small amounts of data (where the size is known at compile-time)
+ * it can be more efficient and more flexible than using jni_borrow (which usually enters a critical region).
  *
  * T must have a trivial default constructor and be trivially copyable.
  */

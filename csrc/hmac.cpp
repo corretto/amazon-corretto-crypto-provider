@@ -33,6 +33,8 @@ namespace {
         }
         else
         {
+            // We pass in keyArr as a jbyteArray to avoid even the minimimal JNI costs
+            // of wrapping it in a java_buffer when we don't need it.
             java_buffer keyBuf = java_buffer::from_array(env, keyArr);
             jni_borrow key(env, keyBuf, "key");
             if (unlikely(HMAC_Init_ex(
@@ -57,7 +59,7 @@ namespace {
         }
     }
 
-    void calculate_mac(raii_env &env, HMAC_CTX *ctx, jbyteArray &result) {
+    void calculate_mac(raii_env &env, HMAC_CTX *ctx, java_buffer &result) {
         uint8_t scratch[EVP_MAX_MD_SIZE];
         unsigned int macSize =EVP_MAX_MD_SIZE;
         if (unlikely(HMAC_Final(
@@ -67,7 +69,9 @@ namespace {
         {
             throw_openssl("Unable to update HMAC_CTX");
         }
-        env->SetByteArrayRegion(result, 0, macSize, reinterpret_cast<jbyte *>(&scratch));
+        // When we don't need to read the data in an array but use it strictly for output
+        // it can be faster to use put_bytes rather than convert it into a jni_borrow.
+        result.put_bytes(env, scratch, 0, macSize);
     }
 }
 
@@ -129,8 +133,9 @@ JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_EvpHmac_doFinal(
     try {
         raii_env env(pEnv);
         bounce_buffer<HMAC_CTX> ctx = bounce_buffer<HMAC_CTX>::from_array(env, ctxArr);
+        java_buffer resultBuf = java_buffer::from_array(env, resultArr);
 
-        calculate_mac(env, ctx, resultArr);
+        calculate_mac(env, ctx, resultBuf);
     } catch (java_ex &ex) {
         ex.throw_to_java(pEnv);
     }
@@ -159,6 +164,7 @@ JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_EvpHmac_fastHmac
         raii_env env(pEnv);
         bounce_buffer<HMAC_CTX> ctx = bounce_buffer<HMAC_CTX>::from_array(env, ctxArr);
         java_buffer inputBuf = java_buffer::from_array(env, inputArr, offset, len);
+        java_buffer resultBuf = java_buffer::from_array(env, resultArr);
 
         maybe_init_ctx(env, ctx, keyArr, evpMd);
 
@@ -167,7 +173,7 @@ JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_EvpHmac_fastHmac
             update_ctx(env, ctx, input);
         }
         {
-            calculate_mac(env, ctx, resultArr);
+            calculate_mac(env, ctx, resultBuf);
         }
 
     }
