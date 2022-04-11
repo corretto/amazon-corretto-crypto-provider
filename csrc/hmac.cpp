@@ -61,7 +61,7 @@ namespace {
 
     void calculate_mac(raii_env &env, HMAC_CTX *ctx, java_buffer &result) {
         uint8_t scratch[EVP_MAX_MD_SIZE];
-        unsigned int macSize =EVP_MAX_MD_SIZE;
+        unsigned int macSize = EVP_MAX_MD_SIZE;
         if (unlikely(HMAC_Final(
                          ctx,
                          scratch,

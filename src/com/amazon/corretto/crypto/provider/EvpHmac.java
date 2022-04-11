@@ -162,7 +162,7 @@ class EvpHmac extends MacSpi implements Cloneable {
             throw new InvalidKeyException("Hmac uses expects a SecretKey");
         }
         state.setKey((SecretKey) key);
-        engineReset();;
+        engineReset();
     }
 
     @Override
