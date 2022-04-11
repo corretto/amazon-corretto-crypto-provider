@@ -10,6 +10,7 @@
 #include "env.h"
 #include "bn.h"
 #include "buffer.h"
+#include "keyutils.h"
 
 using namespace AmazonCorrettoCryptoProvider;
 
@@ -159,21 +160,17 @@ JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_EcGen_generateEc
   jbyteArray yArr,
   jbyteArray sArr)
 {
-    // TODO, figure out how to do this with EVP
     std::vector<uint8_t, SecureAlloc<uint8_t> > derBuf;
-    EC_KEY* ecParams = NULL;
+    EC_KEY *ecParams = NULL;
     EC_KEY *key = NULL;
     const EC_GROUP* group;
+
+    EvpKeyContext keyCtx, paramCtx;
 
     try {
         raii_env env(pEnv);
 
         // First, parse the params
-
-        // Since the ecParams object doesn't seem to need freeing,
-        // I am suspicious that it depends on the backing buffer.
-        // So, I don't feel comfortable releasing of freeing it before we're
-        // completely done
         derBuf = java_buffer::from_array(env, paramsDer).to_vector(env);
         const unsigned char* tmp = (const unsigned char*) &derBuf[0]; // necessary due to modification
         if(!likely(ecParams = d2i_ECParameters(NULL, &tmp, derBuf.size()))) {
@@ -183,16 +180,29 @@ JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_EcGen_generateEc
         // Now that we have the params, extract the group from them (all we care about)
         CHECK_OPENSSL(group = EC_KEY_get0_group(ecParams));
 
-        // Build the structure which will hold our result
-        if(!likely(key = EC_KEY_new())) {
-            throw java_ex(EX_OOM, "Out of memory");
+        // Setup the temporary PKEY context with the extracted parameters.
+        if (!paramCtx.setKeyCtx(EVP_PKEY_CTX_new_id(EVP_PKEY_EC, NULL))) {
+            throw_openssl("Unable to create new evp key context");
         }
+        CHECK_OPENSSL(EVP_PKEY_paramgen_init(paramCtx.getKeyCtx()) == 1);
+        CHECK_OPENSSL(EVP_PKEY_CTX_set_ec_paramgen_curve_nid(paramCtx.getKeyCtx(), EC_GROUP_get_curve_name(group)) == 1);
+        // We need to define a temporary pointer to an EVP_PKEY
+        // to be able to call EVP_PKEY_paramgen function.
+        EVP_PKEY *tmpKey0 = NULL;
+        CHECK_OPENSSL(EVP_PKEY_paramgen(paramCtx.getKeyCtx(), &tmpKey0) == 1);
+        paramCtx.setKey(tmpKey0);
 
-        CHECK_OPENSSL(EC_KEY_set_group(key, group));
-
-        if (!likely(EC_KEY_generate_key(key))) {
-            throw_openssl("Unable to generate key");
+        // Generate the actual EC key.
+        if (!keyCtx.setKeyCtx(EVP_PKEY_CTX_new(paramCtx.getKey(), NULL))) {
+            throw_openssl("Unable to create new evp key context");
         }
+        CHECK_OPENSSL(EVP_PKEY_keygen_init(keyCtx.getKeyCtx()) == 1);
+        // We need to define a temporary pointer to an EVP_PKEY
+        // to be able to call EVP_PKEY_keygen function.
+        EVP_PKEY *tmpKey1 = NULL;
+        CHECK_OPENSSL(EVP_PKEY_keygen(keyCtx.getKeyCtx(), &tmpKey1) == 1);
+        keyCtx.setKey(tmpKey1);
+        CHECK_OPENSSL(key = EVP_PKEY_get0_EC_KEY(keyCtx.getKey()));
 
         if (checkConsistency) {
             CHECK_OPENSSL(EC_KEY_check_key(key) == 1);
@@ -204,5 +214,5 @@ JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_EcGen_generateEc
     }
 
     EC_KEY_free(ecParams);
-    EC_KEY_free(key);
 }
+
