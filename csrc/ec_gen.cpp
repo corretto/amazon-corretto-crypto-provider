@@ -159,11 +159,14 @@ JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_EcGen_generateEc
   jbyteArray yArr,
   jbyteArray sArr)
 {
-    // TODO, figure out how to do this with EVP
     std::vector<uint8_t, SecureAlloc<uint8_t> > derBuf;
-    EC_KEY* ecParams = NULL;
+    EC_KEY *ecParams = NULL;
     EC_KEY *key = NULL;
     const EC_GROUP* group;
+
+    EVP_PKEY_CTX *keyCtx = NULL;
+    EVP_PKEY_CTX *tmpCtx = NULL;
+    EVP_PKEY *pkey = NULL;
 
     try {
         raii_env env(pEnv);
@@ -183,16 +186,17 @@ JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_EcGen_generateEc
         // Now that we have the params, extract the group from them (all we care about)
         CHECK_OPENSSL(group = EC_KEY_get0_group(ecParams));
 
-        // Build the structure which will hold our result
-        if(!likely(key = EC_KEY_new())) {
-            throw java_ex(EX_OOM, "Out of memory");
-        }
+        // Setup the temporary PKEY context with the extracted parameters.
+        CHECK_OPENSSL(tmpCtx = EVP_PKEY_CTX_new_id(EVP_PKEY_EC, NULL));
+        CHECK_OPENSSL(EVP_PKEY_paramgen_init(tmpCtx) == 1);
+        CHECK_OPENSSL(EVP_PKEY_CTX_set_ec_paramgen_curve_nid(tmpCtx, EC_GROUP_get_curve_name(group)) == 1);
+        CHECK_OPENSSL(EVP_PKEY_paramgen(tmpCtx, &pkey) == 1);
 
-        CHECK_OPENSSL(EC_KEY_set_group(key, group));
-
-        if (!likely(EC_KEY_generate_key(key))) {
-            throw_openssl("Unable to generate key");
-        }
+        // Generate the actual EC key.
+        CHECK_OPENSSL(keyCtx = EVP_PKEY_CTX_new(pkey, NULL));
+        CHECK_OPENSSL(EVP_PKEY_keygen_init(keyCtx) == 1);
+        CHECK_OPENSSL(EVP_PKEY_keygen(keyCtx, &pkey) == 1);
+        CHECK_OPENSSL(key = EVP_PKEY_get1_EC_KEY(pkey));
 
         if (checkConsistency) {
             CHECK_OPENSSL(EC_KEY_check_key(key) == 1);
@@ -203,6 +207,9 @@ JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_EcGen_generateEc
         ex.throw_to_java(pEnv);
     }
 
-    EC_KEY_free(ecParams);
     EC_KEY_free(key);
+    EC_KEY_free(ecParams);
+    EVP_PKEY_free(pkey);
+    EVP_PKEY_CTX_free(tmpCtx);
+    EVP_PKEY_CTX_free(keyCtx);
 }
