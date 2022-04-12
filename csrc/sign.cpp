@@ -28,21 +28,6 @@ int digestVerifyUpdate(EVP_MD_CTX *ctx, const void *d, size_t cnt) {
     return EVP_DigestVerifyUpdate(ctx, d, cnt);
 }
 
-const EVP_MD* digestFromJstring(raii_env &env, jstring digestName) {
-    if (!digestName) {
-        throw_java_ex(EX_RUNTIME_CRYPTO, "Null Digest name");
-        return NULL;
-    }
-    jni_string name(env, digestName);
-    const EVP_MD* result = EVP_get_digestbyname(name.native_str);
-
-    if (!result) {
-        throw_openssl("Unable to get digest");
-    }
-
-    return result;
-}
-
 bool configurePadding(raii_env &env, EVP_PKEY_CTX* pctx, int paddingType, jstring mgfMdName, int pssSaltLen) {
     if (EVP_PKEY_CTX_set_rsa_padding(pctx, paddingType) <= 0) {
         throw_openssl("Unable to set padding");
@@ -666,7 +651,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatu
 
             signature.resize(sigLength);
         }
-        
+
         return vecToArray(env, signature);
     } catch (java_ex &ex) {
         ex.throw_to_java(pEnv);

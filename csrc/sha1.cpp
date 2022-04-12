@@ -7,4 +7,3 @@
 #define CTX SHA_CTX
 #define DIGEST_BLOCK_SIZE 64
 #include "hash_template.cpp.template"
-#include "hmac_template.cpp.template"

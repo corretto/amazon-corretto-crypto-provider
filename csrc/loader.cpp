@@ -26,6 +26,7 @@ using namespace AmazonCorrettoCryptoProvider;
 
 namespace {
 void initialize() {
+  CRYPTO_library_init();
   ERR_load_crypto_strings();
   OpenSSL_add_all_digests();
 

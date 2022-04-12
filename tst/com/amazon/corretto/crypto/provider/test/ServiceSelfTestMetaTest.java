@@ -3,6 +3,7 @@
 
 package com.amazon.corretto.crypto.provider.test;
 
+import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER_PACKAGE;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyConstruct;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyGetInternalClass;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyInvoke;
@@ -23,7 +24,6 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import com.amazon.corretto.crypto.provider.HmacMD5Spi;
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import com.amazon.corretto.crypto.provider.SelfTestResult;
 import com.amazon.corretto.crypto.provider.SelfTestStatus;
@@ -59,7 +59,8 @@ public class ServiceSelfTestMetaTest {
 
     @Test
     public void whenSelfTestsFail_nothingIsVended_exceptDRBG() throws Throwable {
-        Object selfTest = TestUtil.sneakyGetField(HmacMD5Spi.class, "SELF_TEST");
+        Class<?> spiClass = Class.forName(NATIVE_PROVIDER_PACKAGE + ".EvpHmac$SHA256");
+        Object selfTest = TestUtil.sneakyGetField(spiClass, "SELF_TEST");
 
         sneakyInvoke(selfTest, "forceFailure");
 
