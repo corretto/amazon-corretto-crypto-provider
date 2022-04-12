@@ -43,6 +43,29 @@ set(FORCE_DISABLE_RDRAND NO CACHE BOOL "Force CPUID detection of rdrand support 
 set(TEST_DATA_DIR ${PROJECT_SOURCE_DIR}/test-data/ CACHE STRING "Path to directory containing test data")
 set(ORIG_SRCROOT ${PROJECT_SOURCE_DIR} CACHE STRING "Path to root of original package")
 set(PROVIDER_VERSION_STRING "" CACHE STRING "X.Y.Z formatted version of the provider")
+if (USE_CLANG_TIDY)
+    # https://releases.llvm.org/9.0.0/tools/clang/tools/extra/docs/clang-tidy/checks/list.html
+    # https://clang.llvm.org/extra/clang-tidy/#suppressing-undesired-diagnostics
+    # TODO: Make this enforcing with "-warnings-as-errors=*;" once we're happy with the state
+    set(CMAKE_CXX_CLANG_TIDY "clang-tidy;-checks=-*")
+    # Categories we want
+    set(CMAKE_CXX_CLANG_TIDY ${CMAKE_CXX_CLANG_TIDY},bugprone-*)
+    set(CMAKE_CXX_CLANG_TIDY ${CMAKE_CXX_CLANG_TIDY},cert-*)
+    set(CMAKE_CXX_CLANG_TIDY ${CMAKE_CXX_CLANG_TIDY},cppcoreguidelines-*)
+    set(CMAKE_CXX_CLANG_TIDY ${CMAKE_CXX_CLANG_TIDY},clang-analyzer-*)
+    set(CMAKE_CXX_CLANG_TIDY ${CMAKE_CXX_CLANG_TIDY},performance-*)
+    set(CMAKE_CXX_CLANG_TIDY ${CMAKE_CXX_CLANG_TIDY},portability-*)
+    set(CMAKE_CXX_CLANG_TIDY ${CMAKE_CXX_CLANG_TIDY},readability-*)
+
+    # Things we don't want
+    # We must use reinterpret cast to move things across the JNI boundary
+    set(CMAKE_CXX_CLANG_TIDY ${CMAKE_CXX_CLANG_TIDY},-cppcoreguidelines-pro-type-reinterpret-cast)
+    # We intentionally omit the parameters for jclass
+    set(CMAKE_CXX_CLANG_TIDY ${CMAKE_CXX_CLANG_TIDY},-readability-named-parameter)
+    # We target older styles of C++. We can revisit these after checking all build chains
+    set(CMAKE_CXX_CLANG_TIDY ${CMAKE_CXX_CLANG_TIDY},-cppcoreguidelines-macro-usage)
+    # Anything referencing gsl:: (Guidelines support library) is too new for us
+endif()
 
 if (NOT DEFINED JACOCO_AGENT_JAR)
    set(JACOCO_AGENT_JAR ${JACOCO_ROOT}/jacocoagent.jar)

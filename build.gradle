@@ -162,9 +162,12 @@ task executeCmake(type: Exec) {
     if (System.properties['TEST_JAVA_MAJOR_VERSION'] != null) {
         args '-DTEST_JAVA_MAJOR_VERSION=' + System.properties['TEST_JAVA_MAJOR_VERSION']
     }
-
     if (System.properties['SINGLE_TEST'] != null) {
         args '-DSINGLE_TEST=' + System.properties['SINGLE_TEST']
+
+    }
+    if (System.properties['USE_CLANG_TIDY'] != null) {
+        args '-DUSE_CLANG_TIDY=' + System.properties['USE_CLANG_TIDY']
 
     }
     args projectDir
