@@ -16,6 +16,10 @@ Current values are:
 * External integration tests now skip certificate validation for expired certificates.
    This is to work around external sites which may have allowed their certificates to expire.
    [PR #190](https://github.com/corretto/amazon-corretto-crypto-provider/pull/189)
+* Allows developers to run `clang-tidy` against the source by passing `-DUSE_CLANG_TIDY=true` to gradlew.
+   Example: `./gradlew -DUSE_CLANG_TIDY=true build`
+   This may require deleting `build/cmake` prior to running.
+   [PR #191](https://github.com/corretto/amazon-corretto-crypto-provider/pull/191)
 
 ### Patches
 * Improve zeroization of DRBG output. [PR #162](https://github.com/corretto/amazon-corretto-crypto-provider/pull/162)
