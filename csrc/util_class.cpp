@@ -22,12 +22,16 @@ extern "C" {
 JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_Utils_getNativeBufferOffset
   (JNIEnv *env, jclass, jobject bufA, jobject bufB)
 {
-    jlong no_overlap = (jlong)0x80000000;
+    const jlong JINT_MAX = (1L << 31) - 1L;
+    const jlong JINT_MIN = -(1L << 31);
+    const jlong no_overlap = JINT_MAX + 1L;
 
     void *pA = env->GetDirectBufferAddress(bufA);
     void *pB = env->GetDirectBufferAddress(bufB);
 
-    if (!pA || !pB) return no_overlap;
+    if (!pA || !pB) {
+      return no_overlap;
+    }
 
     jlong lenA = env->GetDirectBufferCapacity(bufA);
     jlong lenB = env->GetDirectBufferCapacity(bufB);
@@ -48,7 +52,9 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_Utils_getNative
 
     // diff should be within jint's bounds now, as direct buffers can't be larger
     // than can be represented by an int
-    assert(diff < (1L << 31) && diff >= -(1L << 31));
+    if (diff < JINT_MIN || diff > JINT_MAX) {
+      throw_java_ex(EX_RUNTIME_CRYPTO, "Overlap outside range of jint");
+    }
 
     return diff;
 }

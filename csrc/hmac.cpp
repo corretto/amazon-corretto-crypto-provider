@@ -19,7 +19,7 @@ namespace {
         if (DO_NOT_INIT == evpMd) {
             return;
         }
-        if (evpMd == DO_NOT_REKEY)
+        if (DO_NOT_REKEY == evpMd)
         {
             if (unlikely(HMAC_Init_ex(
                                 ctx,
