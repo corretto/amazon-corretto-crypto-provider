@@ -18,6 +18,7 @@ configurations {
     testDep.extendsFrom(jacocoAgent)
     stagingJar
     testRunner
+    checkstyle
 }
 
 repositories {
@@ -30,6 +31,9 @@ dependencies {
 
     // Separate so we can extract the jar for the runner specifically
     testRunner group: 'org.junit.platform', name: 'junit-platform-console-standalone', version: '1.6.2'
+
+    // Separate so we can extract the jar for the checker specifically
+    checkstyle group: 'com.puppycrawl.tools', name: 'checkstyle', version: '9.3'
 
     testDep 'org.junit.jupiter:junit-jupiter:5.6.2'
     testDep 'org.junit.vintage:junit-vintage-engine:5.6.2'
@@ -101,6 +105,7 @@ task executeCmake(type: Exec) {
     args 'cmake', "-DTEST_CLASSPATH=${configurations.testDep.asPath}", "-DJACOCO_AGENT_JAR=${configurations.jacocoAgent.singleFile}"
     args "-DOPENSSL_ROOT_DIR=${buildDir}/awslc/bin", '-DCMAKE_BUILD_TYPE=Release', '-DPROVIDER_VERSION_STRING=' + version
     args "-DTEST_RUNNER_JAR=${configurations.testRunner.singleFile}"
+    args "-DCHECKSTYLE_CP=${configurations.checkstyle.asPath}"
 
     if (prebuiltJar != null) {
        args '-DSIGNED_JAR=' + prebuiltJar
@@ -112,9 +117,12 @@ task executeCmake(type: Exec) {
     if (System.properties['TEST_JAVA_MAJOR_VERSION'] != null) {
         args '-DTEST_JAVA_MAJOR_VERSION=' + System.properties['TEST_JAVA_MAJOR_VERSION']
     }
-
     if (System.properties['SINGLE_TEST'] != null) {
         args '-DSINGLE_TEST=' + System.properties['SINGLE_TEST']
+
+    }
+    if (System.properties['USE_CLANG_TIDY'] != null) {
+        args '-DUSE_CLANG_TIDY=' + System.properties['USE_CLANG_TIDY']
 
     }
     args projectDir
@@ -203,6 +211,12 @@ task test(type: Exec) {
     dependsOn executeCmake
     workingDir "${buildDir}/cmake"
     commandLine 'make', 'check'
+}
+
+task checkstyle(type: Exec) {
+    dependsOn executeCmake
+    workingDir "${buildDir}/cmake"
+    commandLine 'make', 'checkstyle'
 }
 
 task single_test(type: Exec) {
@@ -325,7 +339,7 @@ task coverage {
 }
 
 task release {
-    dependsOn build, test, coverage, javadoc, src_jar
+    dependsOn build, test, coverage, javadoc, src_jar, checkstyle
 }
 
 task overkill {
