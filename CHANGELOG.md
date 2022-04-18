@@ -1,8 +1,16 @@
 # Changelog
 
-## 1.7.0 (Unreleased)
+## 2.0.0 (Unreleased)
+### Breaking Changes
+* Use [AWS-LC](https://github.com/awslabs/aws-lc/) as the backing native cryptography library for ACCP
+* Drop support for (non-EC) DSA signatures
+* Drop support for (non-EC) Diffie-Hellman key exchange
+* Drop support for `secp192r1`, as well as most other non-NIST "legacy" curves
+
 ### Improvements
-* Now uses [OpenSSL 1.1.1n](https://www.openssl.org/source/openssl-1.1.1n.tar.gz). [PR #181](https://github.com/corretto/amazon-corretto-crypto-provider/pull/181)
+* Add support for AES Ciphers with specific key sizes (GCM, no padding)
+* Use AWS-LC's DRBG implementation, drop custom java implementation
+* Track the AWS-LC dependency as a git submodule instead of downloaded tarball
 * Add "help" value to two of our properties which outputs (to STDERR) valid values.
    * `com.amazon.corretto.crypto.provider.extrachecks`
    * `com.amazon.corretto.crypto.provider.debug`

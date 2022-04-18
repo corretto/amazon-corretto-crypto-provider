@@ -140,18 +140,20 @@ Each layer from highest level (Java) down:
 Once a [Java Exception](https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/design.html#java_exceptions) has been thrown, there are exceedingly few JNI operations a caller is allowed to perform.
 What's more, it is easy to not notice that there is a Java exception pending.
 So long as you do not interact with `JNIEnv`/`raii_env` directly, you shouldn't need to worry about Java exceptions as the ACCP objects/methods which use them already have appropriate checks which throw C++ exceptions (specifically `java_ex`) instead.
-If you need to throw an exception, it should almost always be a C++ exception and thrown using the `throw_java_ex` or `throw_openssl` methods. (The former is more efficient but the latter MUST be used when the exception is due to an error state reported by OpenSSL.)
+While ACCP was originally developed and built against OpenSSL's `libcrypto` as its native cryptography library, it is currently built against AWS-LC's `libcrypto` (which is itself an indirect fork of OpenSSL).
+So, though many portions of this codebase refer to OpenSSL by name, that is largely vestigial -- AWS-LC exports symbols using that naming convention for backwards compatibility. We don't use the original OpenSSL project in ACCP at all anymore.
+If you need to throw an exception, it should almost always be a C++ exception and thrown using the `throw_java_ex` or `throw_openssl` methods. (The former is more efficient but the latter MUST be used when the exception is due to an error state reported by the native crypto library.)
 If you are throwing a C++ exception then it *must* be an instance of `java_ex`.
 (This is correctly done for you by both `throw_java_ex` and `throw_openssl`.)
 
-Openssl has its *own* separate error handling in the form of a thread-local queue.
-This has caused bugs in the past where consuming code has not noticed that errors were present on the stack and so later calls incorrectly saw old and irrelevant Openssl errors.
-`throw_openssl` correctly checks *and clears* the OpenSSL error queue prior to throwing the C++ exception.
-It also will use the OpenSSL provided error message if available.
-If there is no OpenSSL error or applicable message, it will use the provided default message.
+AWS-LC has its *own* separate error handling in the form of a thread-local queue.
+This has caused bugs in the past where consuming code has not noticed that errors were present on the stack and so later calls incorrectly saw old and irrelevant AWS-LC errors.
+`throw_openssl` correctly checks *and clears* the AWS-LC error queue prior to throwing the C++ exception.
+It also will use the AWS-LC provided error message if available.
+If there is no AWS-LC error or applicable message, it will use the provided default message.
 
-Making sure that the OpenSSL error queue is empty prior to returning from native code is critical.
-This is why *during coverage tests* we enable extra assertions which will terminate the process if any unhandled OpenSSL errors are present.
+Making sure that the AWS-LC error queue is empty prior to returning from native code is critical.
+This is why *during coverage tests* we enable extra assertions which will terminate the process if any unhandled AWS-LC errors are present.
 These assertions are only present during the coverage tests as they can be expensive (especially on multi-threaded systems).
 
 ### Critical Regions
