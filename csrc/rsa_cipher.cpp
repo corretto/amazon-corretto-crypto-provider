@@ -96,23 +96,17 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_RsaCipher_cipher
                 bn_iqmp.releaseOwnership();
             }
 
-            // If it is a private key, we check it for consistency, if possible and requested
-            if (checkPrivateKey && d != NULL && p != NULL && q != NULL) {
-                if (RSA_check_key(r) != 1) {
+            if (d != NULL) {
+                // If it is a private key, we check it for consistency, if possible and requested
+                if (checkPrivateKey && p != NULL && q != NULL && RSA_check_key(r) != 1) {
                     throw_openssl("java/security/InvalidKeyException", "Invalid key");
                 }
-            }
-
-            // Set proper blinding on the key
-            if (e && d) {
-                // We can only blind keys with a public exponent and private parts
-                if (!RSA_blinding_on(r, NULL)) {
-                    throw_openssl("Unable to enable blinding");
+                // Set proper blinding on the key. We can only blind private keys that include
+                // the public. NULL |e|'s pointer if it is present but empty.
+                if (r->e == NULL || BN_num_bits(r->e) == 0) {
+                    r->e = NULL;
+                    r->flags |= RSA_FLAG_NO_BLINDING;
                 }
-            } else {
-                // Blinding isn't supported in this case and must
-                // be explicitly disabled
-                RSA_blinding_off(r);
             }
             break;
         }

@@ -42,7 +42,7 @@ public class Benchmark {
     }
 
     private static void benchNonEcSignatures() throws GeneralSecurityException {
-        final List<String> bases = Arrays.asList("DSA", "RSA");
+        final List<String> bases = Arrays.asList("RSA");
         final List<String> hashes = Arrays.asList("SHA1", "SHA224", "SHA256", "SHA384", "SHA512");
 
         for (final String base : bases) {
@@ -70,7 +70,8 @@ public class Benchmark {
         final List<String> hashes = Arrays.asList("SHA1", "SHA224", "SHA256", "SHA384", "SHA512");
             for (final String hash : hashes) {
                 final String algorithm = format("%swithECDSA", hash);
-                for (String curve : new String[] { "secp192k1", "secp256k1", "secp384r1", "secp521r1" }) {
+                // TODO add secp256k1 below pending https://sim.amazon.com/issues/CryptoAlg-1024
+                for (String curve : new String[] { "secp224r1", "secp256r1", "secp384r1", "secp521r1" }) {
                     for (Provider p : Security.getProviders()) {
                         final KeyPairGenerator kg = KeyPairGenerator.getInstance("EC");
                         kg.initialize(new ECGenParameterSpec(curve));
@@ -98,9 +99,8 @@ public class Benchmark {
     }
 
     private static void benchEcGen() throws NoSuchAlgorithmException, InvalidAlgorithmParameterException {
-        final String[] curves = new String[]{"secp112r1", "secp128r1", "secp160r1", "secp192k1",
-                "secp224r1", "secp256k1", "secp384r1", "secp521r1"};
-
+        // TODO add secp256k1 below pending https://sim.amazon.com/issues/CryptoAlg-1024
+        final String[] curves = new String[]{"secp224r1", "secp256r1", "secp384r1", "secp521r1"};
         for (Provider p : Security.getProviders()) {
             for (String name : curves) {
                 if (p.getService("KeyPairGenerator", "EC") != null) {

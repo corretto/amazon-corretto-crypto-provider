@@ -46,6 +46,16 @@ final class Utils {
     static native long getNativeBufferOffset(ByteBuffer a, ByteBuffer b);
 
     /**
+     * Returns the value of the EVP_MD* object corresponding with the named digest.
+     * Corresponds to a call to @{code EVP_get_digestbyname}.
+     */
+    static native long getEvpMdFromName(String digestName);
+    /**
+     * Returns the output length for a digest in bytes specified by {@code evpMd}.
+     */
+    static native int getDigestLength(long evpMd);
+
+    /**
      * Returns false if the two bytebuffers given definitely don't overlap; true if they do overlap, or if we're unable
      * to determine whether they overlap. Unfortunately it's not possible to determine whether certain bytebuffers
      * overlap (notably, if one buffer is a RO buffer and the other is an array-backed buffer, we cannot check for

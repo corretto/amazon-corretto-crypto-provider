@@ -1,6 +1,9 @@
 // Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+// Contains utility methods and classes for dealing with keys or openssl structures.
+// Unlike util.h, this is intended to capture high-level logic with more internal dependencies.
+
 #ifndef KEYUTILS_H
 #define KEYUTILS_H 1
 
@@ -76,7 +79,7 @@ public:
         return result;
     }
 
-private:    
+private:
     EVP_MD_CTX* digestCtx_;
     EVP_PKEY_CTX* keyCtx_;
     EVP_PKEY* key_;
@@ -96,7 +99,7 @@ class raii_cipher_ctx {
         bool m_owning;
 
     public:
-        raii_cipher_ctx() 
+        raii_cipher_ctx()
         : m_ctx(nullptr), m_owning(false)
         {
         }
@@ -150,6 +153,7 @@ class raii_cipher_ctx {
         }
 };
 
+const EVP_MD *digestFromJstring(raii_env &env, jstring digestName);
 }
 
 #endif

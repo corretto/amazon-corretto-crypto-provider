@@ -18,12 +18,9 @@ import java.util.Arrays;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import javax.crypto.interfaces.DHKey;
 import javax.crypto.KeyAgreementSpi;
 import javax.crypto.SecretKey;
 import javax.crypto.ShortBufferException;
-import javax.crypto.spec.DHParameterSpec;
-import javax.crypto.spec.DHPublicKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 
 class EvpKeyAgreement extends KeyAgreementSpi {
@@ -71,21 +68,6 @@ class EvpKeyAgreement extends KeyAgreementSpi {
                 provider_.hasExtraCheck(ExtraCheck.PRIVATE_KEY_CONSISTENCY)
                 );
             return null;
-        } else if ("DH".equals(algorithm_)) {
-            final DHParameterSpec dhParams = ((DHKey) privKey).getParams();
-            try {
-                final Key result = keyType_.getKeyFactory().generatePublic(new DHPublicKeySpec(
-                    new BigInteger(1,
-                        agree(privKeyDer, pubKeyDer, keyType_.nativeValue,
-                            provider_.hasExtraCheck(ExtraCheck.PRIVATE_KEY_CONSISTENCY)
-                            )), // y
-                    dhParams.getP(),
-                    dhParams.getG()
-                ));
-                return result;
-            } catch (final InvalidKeySpecException ex) {
-                throw new RuntimeCryptoException(ex);
-            }
         } else {
             secret = null;
             throw new IllegalStateException("Only single phase agreement is supported");
@@ -110,12 +92,6 @@ class EvpKeyAgreement extends KeyAgreementSpi {
             NoSuchAlgorithmException, InvalidKeyException {
         byte[] secret = engineGenerateSecret();
         if (algorithm.equalsIgnoreCase("TlsPremasterSecret")) {
-            if (algorithm_.equals("DH")) {
-                // RFC 5246 Section 8.1.2 requires us to remove leading zeros
-                // for DH premaster secrets. These are explicitly /not/ removed
-                // for ECDH (RFC 4492, Section 5.10)
-                secret = trimZeros(secret);
-            }
             return new SecretKeySpec(secret, "TlsPremasterSecret");
         };
         final Matcher matcher = ALGORITHM_WITH_EXPLICIT_KEYSIZE.matcher(algorithm);
@@ -230,12 +206,6 @@ class EvpKeyAgreement extends KeyAgreementSpi {
     static class ECDH extends EvpKeyAgreement {
         ECDH(AmazonCorrettoCryptoProvider provider) {
             super(provider, "ECDH", EvpKeyType.EC);
-        }
-    }
-
-    static class DH extends EvpKeyAgreement {
-        DH(AmazonCorrettoCryptoProvider provider) {
-            super(provider, "DH", EvpKeyType.DH);
         }
     }
 }

@@ -7,8 +7,6 @@ import java.security.KeyFactory;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
-import java.security.interfaces.DSAPrivateKey;
-import java.security.interfaces.DSAPublicKey;
 import java.security.interfaces.ECPrivateKey;
 import java.security.interfaces.ECPublicKey;
 import java.security.interfaces.RSAPrivateKey;
@@ -22,8 +20,6 @@ import javax.crypto.interfaces.DHPublicKey;
  */
 enum EvpKeyType {
     RSA("RSA", 6, RSAPublicKey.class, RSAPrivateKey.class),
-    DH("DH", 28, DHPublicKey.class, DHPrivateKey.class),
-    DSA("DSA", 116, DSAPublicKey.class, DSAPrivateKey.class),
     EC("EC", 408, ECPublicKey.class, ECPrivateKey.class);
 
     final String jceName;

@@ -82,10 +82,4 @@ class EvpSignatureRaw extends EvpSignatureBase {
             super(provider, EvpKeyType.EC, 0);
         }
     }
-
-    static final class NONEwithDSA extends EvpSignatureRaw {
-        NONEwithDSA(AmazonCorrettoCryptoProvider provider) {
-            super(provider, EvpKeyType.DSA, 0);
-        }
-    }
 }

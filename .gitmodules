@@ -1,0 +1,3 @@
+[submodule "aws-lc"]
+	path = aws-lc
+	url = https://github.com/awslabs/aws-lc

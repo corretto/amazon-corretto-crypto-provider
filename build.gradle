@@ -9,13 +9,11 @@ plugins {
 }
 
 group = 'software.amazon.cryptools'
-version = '1.7.0'
+version = '2.0.0'
 
-def openssl_version = '1.1.1n'
-def opensslSrcPath = "${buildDir}/openssl/openssl-${openssl_version}"
+def awslcSrcPath = "aws-lc/"
 
 configurations {
-    openssl
     jacocoAgent
     testDep.extendsFrom(jacocoAgent)
     stagingJar
@@ -24,27 +22,7 @@ configurations {
 }
 
 repositories {
-    mavenCentral {
-        content { excludeGroup("openssl-src") }
-    }
-    // Fake Ivy Repository for current OpenSSL sources
-    ivy {
-        url 'https://www.openssl.org/source/'
-            patternLayout {
-            artifact '/[module]-[revision].[ext]'
-        }
-            metadataSources { artifact() }
-            content { includeGroup("openssl-src") }
-    }
-    // Fake Ivy Repository for old OpenSSL sources
-    ivy {
-        url 'https://www.openssl.org/source/old/1.1.1/'
-            patternLayout {
-            artifact '/[module]-[revision].[ext]'
-        }
-        metadataSources { artifact() }
-        content { includeGroup("openssl-src") }
-    }
+    mavenCentral {}
 }
 
 dependencies {
@@ -65,63 +43,40 @@ dependencies {
     testDep 'org.hamcrest:hamcrest:2.1'
     testDep 'org.jacoco:org.jacoco.core:0.8.3'
     testDep 'org.jacoco:org.jacoco.report:0.8.3'
-
-
-    openssl "openssl-src:openssl:${openssl_version}@tar.gz"
 }
 
 defaultTasks 'release'
 
-task getOpensslSrc(type: Copy) {
-    def tarPath = project.configurations.openssl.find {it.name.startsWith("openssl-") }
-    def tarFile = file(tarPath)
+task buildAwsLc {
+    def sharedObjectOutDir = "${buildDir}/awslc/bin"
+    def cMakeBuildDir = "${buildDir}/awslc/build"
+    outputs.dir("${sharedObjectOutDir}")
 
     doFirst {
-        exec {
-            workingDir tarFile.parent
-            commandLine 'sha256sum', '--check', "${projectDir}/openssl.sha256"
+        if (file(awslcSrcPath).list().size() == 0) {
+            throw new GradleException("aws-lc dir empty! run 'git submodule update --init --recursive' to populate.")
         }
-
-        mkdir "${buildDir}/openssl/bin"
     }
-
-    def outputDir = file("${buildDir}/openssl/")
-    from tarTree(tarFile)
-    into outputDir
-}
-
-task buildOpenSsl {
-    outputs.dir("${buildDir}/openssl/bin/")
-    dependsOn getOpensslSrc
 
     doLast {
         exec {
-            workingDir opensslSrcPath
-            executable './config'
-            args '-fPIC', '-ffunction-sections', '-fdata-sections', "--prefix=${buildDir}/openssl/bin"
-            args 'no-autoload-config', 'no-capieng', 'no-cms', 'no-comp', 'no-ct', 'no-dgram', 'no-devcryptoeng'
-            args 'no-gost', 'no-hw-padlock', 'no-nextprotoneg', 'no-ocsp', 'no-psk', 'no-rfc3779', 'no-shared'
-            args 'no-sock', 'no-srp', 'no-srtp', 'threads', 'no-ts',  "no-bf", "no-cast", "no-md2", "no-rc2"
-            args "no-rc4", "no-rc5", "no-srp", 'no-comp', 'no-hw', 'no-mdc2'
+            workingDir awslcSrcPath
+            executable 'cmake'
+            args "-B${cMakeBuildDir}"
+            args '-DBUILD_SHARED_LIBS=OFF'
+            args '-DCMAKE_BUILD_TYPE=RelWithDebInfo'
+            args "-DCMAKE_INSTALL_PREFIX=${sharedObjectOutDir}"
         }
         exec {
-            workingDir opensslSrcPath
-            commandLine 'make', 'depend'
-        }
-        exec {
-            workingDir opensslSrcPath
-            commandLine 'make', '-j', Runtime.runtime.availableProcessors()
-        }
-        exec {
-            workingDir opensslSrcPath
-            commandLine 'make', 'install_sw'
+            workingDir awslcSrcPath
+            commandLine 'make', '-j', Runtime.runtime.availableProcessors(), '-C', "${cMakeBuildDir}", 'install'
         }
     }
 }
 
 task executeCmake(type: Exec) {
     outputs.dir("${buildDir}/cmake")
-    inputs.dir("${buildDir}/openssl/bin/")
+    inputs.dir("${buildDir}/awslc/bin/")
     inputs.dir("${projectDir}/src")
     inputs.dir("${projectDir}/tst")
     inputs.dir("${projectDir}/csrc")
@@ -131,7 +86,7 @@ task executeCmake(type: Exec) {
     inputs.dir("${projectDir}/test-data")
     inputs.dir("${projectDir}/template-src")
 
-    dependsOn buildOpenSsl
+    dependsOn buildAwsLc
 
     workingDir "${buildDir}/cmake"
     def prebuiltJar = null
@@ -148,7 +103,7 @@ task executeCmake(type: Exec) {
 
     executable 'cmake'
     args 'cmake', "-DTEST_CLASSPATH=${configurations.testDep.asPath}", "-DJACOCO_AGENT_JAR=${configurations.jacocoAgent.singleFile}"
-    args "-DOPENSSL_ROOT_DIR=${buildDir}/openssl/bin", '-DCMAKE_BUILD_TYPE=Release', '-DPROVIDER_VERSION_STRING=' + version
+    args "-DOPENSSL_ROOT_DIR=${buildDir}/awslc/bin", '-DCMAKE_BUILD_TYPE=Release', '-DPROVIDER_VERSION_STRING=' + version
     args "-DTEST_RUNNER_JAR=${configurations.testRunner.singleFile}"
     args "-DCHECKSTYLE_CP=${configurations.checkstyle.asPath}"
 
@@ -306,7 +261,7 @@ task coverage_clean(type: Delete) {
 }
 
 task coverage_cmake(type: Exec) {
-    dependsOn coverage_clean, buildOpenSsl
+    dependsOn coverage_clean, buildAwsLc
     doFirst {
         if (System.properties['prebuiltJar'] != null) {
             ant.fail("Cannot run coverage with a prebuilt jar")
@@ -317,7 +272,7 @@ task coverage_cmake(type: Exec) {
     executable 'cmake'
     args "-DTEST_CLASSPATH=${configurations.testDep.asPath}"
     args "-DJACOCO_AGENT_JAR=${configurations.jacocoAgent.singleFile}"
-    args "-DOPENSSL_ROOT_DIR=${buildDir}/openssl/bin"
+    args "-DOPENSSL_ROOT_DIR=${buildDir}/awslc/bin"
     args '-DCMAKE_BUILD_TYPE=Coverage', '-DCOVERAGE=ON', '-DENABLE_NATIVE_TEST_HOOKS=ON'
     args '-DPROVIDER_VERSION_STRING=' + version, projectDir
     args "-DTEST_RUNNER_JAR=${configurations.testRunner.singleFile}"

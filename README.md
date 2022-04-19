@@ -2,7 +2,7 @@
 The Amazon Corretto Crypto Provider (ACCP) is a collection of high-performance cryptographic implementations exposed via the standard [JCA/JCE](https://docs.oracle.com/en/java/javase/11/security/java-cryptography-architecture-jca-reference-guide.html) interfaces.
 This means that it can be used as a drop in replacement for many different Java applications.
 (Differences from the default OpenJDK implementations are [documented here](./DIFFERENCES.md).)
-Currently algorithms are primarily backed by OpenSSL's implementations (1.1.1n as of ACCP 1.7.0) but this may change in the future.
+As of 2.0.0, algorithms exposed by ACCP are primarily backed by AWS-LC's implementations.
 
 [Security issue notifications](./CONTRIBUTING.md#security-issue-notifications)
 
@@ -39,9 +39,12 @@ Mac algorithms:
 
 Cipher algorithms:
 * AES/GCM/NoPadding
+* AES_128/GCM/NoPadding
+* AES_256/GCM/NoPadding
 * RSA/ECB/NoPadding
 * RSA/ECB/PKCS1Padding
 * RSA/ECB/OAEPWithSHA-1AndMGF1Padding
+
 
 Signature algorithms:
 * SHA1withRSA
@@ -49,11 +52,6 @@ Signature algorithms:
 * SHA256withRSA
 * SHA384withRSA
 * SHA512withRSA
-* NONEwithDSA
-* SHA1withDSA
-* SHA224withDSA
-* SHA256withDSA
-* SHA384withDSA
 * NONEwithECDSA
 * SHA1withECDSA
 * SHA1withECDSAinP1363Format
@@ -71,12 +69,10 @@ KeyPairGenerator algorithms:
 * RSA
 
 KeyAgreement:
-* DH
-* DiffieHellman (same as DH)
 * ECDH
 
 SecureRandom algorithms:
-* NIST800-90A/AES-CTR-256 (Used as the default and only enabled if your CPU supports RDRAND)
+* ACCP's SecureRandom uses AWS-LC's DRBG implementation, which is described [here](https://github.com/awslabs/aws-lc/blob/main/third_party/jitterentropy/README.md) and [here](https://github.com/awslabs/aws-lc/blob/725625435158150ef21e0a4dab6fa3aca1ef2d2c/crypto/fipsmodule/rand/rand.c#L36-L60).
 
 
 # Compatibility & Requirements
@@ -107,6 +103,8 @@ Regardless of how you acquire ACCP (Maven, manual build, etc.) you will still ne
 Add the following to your `pom.xml` or wherever you configure your Maven dependencies.
 This will instruct it to use the most recent 1.x version of ACCP.
 For more information, please see [VERSIONING.rst](https://github.com/corretto/amazon-corretto-crypto-provider/blob/develop/VERSIONING.rst).
+
+The below snippet will pull in all versions of ACCP prior to the 2.0.0 release. Once 2.0.0 is released, we recommend that everyone switch to a specifier of `[2.0,3.0)`.
 
 ```xml
 <dependency>
@@ -151,13 +149,13 @@ Building this provider requires a 64 bit Linux build system with the following p
 * [lcov](http://ltp.sourceforge.net/coverage/lcov.php) for coverage metrics
 * [dieharder](http://webhome.phy.duke.edu/~rgb/General/dieharder.php) for entropy tests
 
-1. Download the repository through a git clone
+1. Download the repository via `git clone --recurse-submodules`
 2. Run `./gradlew release`
 3. The resulting jar is in `build/lib`
 
 ##### All targets
-* clean: Remove all artifacts except OpenSSL dependencies
-* deep_clean: Remove the entire `build/` directory including OpenSSL dependencies
+* clean: Remove all artifacts except AWS-LC build artifacts
+* deep_clean: Remove the entire `build/` directory including build artifacts from AWS-LC dependencies
 * build: Build the library
 * test: Run unit tests
 * test_extra_checks: Run unit tests with extra (slow) cryptographic checks enabled
@@ -233,8 +231,16 @@ Thus, these should all be set on the JVM command line using `-D`.
 
 
 # License
-This library is licensed under the Apache 2.0 license although portions of this product include software licensed under the
-[dual OpenSSL and SSLeay license](https://www.openssl.org/source/license.html).
-Specifically, this product includes software developed by the OpenSSL Project for use in the OpenSSL Toolkit ([http://www.openssl.org](http://www.openssl.org/))
-and this product also includes cryptographic software written by Eric Young (eay@cryptsoft.com).
+This library is licensed under the Apache 2.0 license although portions of this
+product include software licensed under the [dual OpenSSL and SSLeay
+license](https://www.openssl.org/source/license.html).  This product includes
+software developed by the OpenSSL Project for use in the OpenSSL Toolkit
+([http://www.openssl.org](http://www.openssl.org/)), as well as cryptographic
+software written by Eric Young (eay@cryptsoft.com).
 
+As of version 2.0.0, our backing native cryptographic library (now AWS-LC) also
+has some code published under
+[MIT](https://github.com/awslabs/aws-lc/blob/main/LICENSE#L164), [Google's
+ISC](https://github.com/awslabs/aws-lc/blob/main/LICENSE#L147), and [3-clause
+BSD](https://github.com/awslabs/aws-lc/blob/main/LICENSE#L188) licenses (among
+others). Please see AWS-LC's `LICENSE` file for full details.

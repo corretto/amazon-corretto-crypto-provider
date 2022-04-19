@@ -129,11 +129,11 @@ add_custom_command(
 
 set(ACCP_SRC
         src/com/amazon/corretto/crypto/provider/AccessibleByteArrayOutputStream.java
-        src/com/amazon/corretto/crypto/provider/AesCtrDrbg.java
         src/com/amazon/corretto/crypto/provider/AesGcmSpi.java
         src/com/amazon/corretto/crypto/provider/ConstantTime.java
         src/com/amazon/corretto/crypto/provider/DebugFlag.java
         src/com/amazon/corretto/crypto/provider/EcGen.java
+        src/com/amazon/corretto/crypto/provider/EvpHmac.java
         src/com/amazon/corretto/crypto/provider/EvpKeyAgreement.java
         src/com/amazon/corretto/crypto/provider/EvpKeyType.java
         src/com/amazon/corretto/crypto/provider/EvpSignature.java
@@ -143,6 +143,7 @@ set(ACCP_SRC
         src/com/amazon/corretto/crypto/provider/ExtraCheck.java
         src/com/amazon/corretto/crypto/provider/InputBuffer.java
         src/com/amazon/corretto/crypto/provider/Janitor.java
+        src/com/amazon/corretto/crypto/provider/LibCryptoRng.java
         src/com/amazon/corretto/crypto/provider/Loader.java
         src/com/amazon/corretto/crypto/provider/AmazonCorrettoCryptoProvider.java
         src/com/amazon/corretto/crypto/provider/NativeResource.java
@@ -253,7 +254,6 @@ include_directories(${OPENSSL_INCLUDE_DIR} ${JNI_INCLUDE_DIRS} ${JNI_HEADER_DIR}
 
 add_library(
     amazonCorrettoCryptoProvider SHARED
-        csrc/aes_ctr_drbg.cpp
         csrc/aes_gcm.cpp
         csrc/agreement.cpp
         csrc/bn.cpp
@@ -261,11 +261,12 @@ add_library(
         csrc/ec_gen.cpp
         csrc/ec_utils.cpp
         csrc/env.cpp
+        csrc/hmac.cpp
         csrc/keyutils.cpp
+        csrc/libcrypto_rng.cpp
         csrc/loader.cpp
         csrc/md5.cpp
         csrc/amazon_corretto_crypto_provider.cpp
-        csrc/rand.cpp
         csrc/rdrand.cpp
         csrc/rsa_cipher.cpp
         csrc/rsa_gen.cpp
@@ -276,6 +277,7 @@ add_library(
         csrc/sign.cpp
         csrc/testhooks.cpp
         csrc/util.cpp
+        csrc/util_class.cpp
         ${JNI_HEADER_DIR}/generated-headers.h
 )
 
@@ -314,7 +316,7 @@ set(OLD_CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS}")
 ## command line while building a _shared_ library. This works only on certain
 ## platforms, but if successful it gives us a private copy of libcrypto that we
 ## can be sure will not interfere with any other openssl users.
-set(OPENSSL_STATIC_LINK_FLAGS "${OPENSSL_ROOT_DIR}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}crypto${CMAKE_STATIC_LIBRARY_SUFFIX}")
+set(OPENSSL_STATIC_LINK_FLAGS "${OPENSSL_ROOT_DIR}/lib64/${CMAKE_STATIC_LIBRARY_PREFIX}crypto${CMAKE_STATIC_LIBRARY_SUFFIX}")
 
 # This macro helps us perform tests that are not supported through the
 # generic CHECK_CXX_COMPILER_FLAG mechanism. Specifically, these result
@@ -552,8 +554,6 @@ add_jar(
     SOURCES
         tst/com/amazon/corretto/crypto/provider/test/AccessibleByteArrayOutputStreamTest.java
         tst/com/amazon/corretto/crypto/provider/test/AESGenerativeTest.java
-        tst/com/amazon/corretto/crypto/provider/test/AesCtrDrbgTest.java
-        tst/com/amazon/corretto/crypto/provider/test/AesGcmKatTest.java
         tst/com/amazon/corretto/crypto/provider/test/AesTest.java
         tst/com/amazon/corretto/crypto/provider/test/ConstantTimeTests.java
         tst/com/amazon/corretto/crypto/provider/test/EcGenTest.java
@@ -565,6 +565,7 @@ add_jar(
         tst/com/amazon/corretto/crypto/provider/test/HmacTest.java
         tst/com/amazon/corretto/crypto/provider/test/InputBufferTest.java
         tst/com/amazon/corretto/crypto/provider/test/JanitorTest.java
+        tst/com/amazon/corretto/crypto/provider/test/LibCryptoRngTest.java
         tst/com/amazon/corretto/crypto/provider/test/MD5Test.java
         tst/com/amazon/corretto/crypto/provider/test/MiscSingleThreadedTests.java
         tst/com/amazon/corretto/crypto/provider/test/NativeTestHooks.java
@@ -829,103 +830,57 @@ set_target_properties(run-benchmark PROPERTIES EXCLUDE_FROM_ALL 1)
 
 if (CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
 
-add_custom_target(run-dieharder
+add_custom_target(run-dieharder-libcrypto-rng
     COMMAND ${TEST_JAVA_EXECUTABLE} -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
         -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
-        com.amazon.corretto.crypto.provider.test.SecureRandomGenerator 'NIST800-90A/AES-CTR-256' 8192 1 |
+        com.amazon.corretto.crypto.provider.test.SecureRandomGenerator 'LibCryptoRng' 8192 1 |
         ${DIEHARDER_EXECUTABLE} -a -g 200 -Y 1 -k 2 |
-        tee dieharder-results.txt
+        tee dieharder-results-libcrypto-rng.txt
 
     DEPENDS accp-jar tests-jar)
 
-add_custom_target(run-dieharder-tail
+add_custom_target(run-dieharder-libcrypto-rng-tail
     COMMAND ${TEST_JAVA_EXECUTABLE} -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
         -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
-        com.amazon.corretto.crypto.provider.test.SecureRandomGenerator 'NIST800-90A/AES-CTR-256' 31 1 |
+        com.amazon.corretto.crypto.provider.test.SecureRandomGenerator 'LibCryptoRng' 31 1 |
         ${DIEHARDER_EXECUTABLE} -d 15 -g 200 -Y 1 -k 2 |
-        tee dieharder-results-tail.txt
+        tee dieharder-results-libcrypto-rng-tail.txt
 
     DEPENDS accp-jar tests-jar)
 
-add_custom_target(run-dieharder-rdrand-tail
+add_custom_target(run-dieharder-libcrypto-rng-threads
     COMMAND ${TEST_JAVA_EXECUTABLE} -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
         -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
-        com.amazon.corretto.crypto.provider.test.SecureRandomGenerator --rdrand 31 1 |
-        ${DIEHARDER_EXECUTABLE} -d 15 -g 200 -Y 1 -k 2 |
-        tee dieharder-results-rdrand-tail.txt
-
-    DEPENDS accp-jar tests-jar)
-
-add_custom_target(run-dieharder-rdseed-tail
-    COMMAND ${TEST_JAVA_EXECUTABLE} -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
-        -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
-        com.amazon.corretto.crypto.provider.test.SecureRandomGenerator --rdseed 31 1 |
-        ${DIEHARDER_EXECUTABLE} -d 15 -g 200 -Y 1 -k 2 |
-        tee dieharder-results-rdseed-tail.txt
-
-    DEPENDS accp-jar tests-jar)
-
-add_custom_target(run-dieharder-threads
-    COMMAND ${TEST_JAVA_EXECUTABLE} -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
-        -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
-        com.amazon.corretto.crypto.provider.test.SecureRandomGenerator 'NIST800-90A/AES-CTR-256' 128 4 |
+        com.amazon.corretto.crypto.provider.test.SecureRandomGenerator 'LibCryptoRng' 128 4 |
         ${DIEHARDER_EXECUTABLE} -a -g 200 -Y 1 -k 2 |
-        tee dieharder-threads-results.txt
+        tee dieharder-results-libcrypto-rng-threads.txt
 
     DEPENDS accp-jar tests-jar)
 
-add_custom_target(run-dieharder-threads-tail
+add_custom_target(run-dieharder-libcrypto-rng-threads-tail
     COMMAND ${TEST_JAVA_EXECUTABLE} -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
         -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
-        com.amazon.corretto.crypto.provider.test.SecureRandomGenerator 'NIST800-90A/AES-CTR-256' 31 4 |
+        com.amazon.corretto.crypto.provider.test.SecureRandomGenerator 'LibCryptoRng' 31 4 |
         ${DIEHARDER_EXECUTABLE} -d 15 -g 200 -Y 1 -k 2 |
-        tee dieharder-threads-results-tail.txt
-
-    DEPENDS accp-jar tests-jar)
-
-add_custom_target(run-dieharder-threads-rdrand-tail
-    COMMAND ${TEST_JAVA_EXECUTABLE} -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
-        -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
-        com.amazon.corretto.crypto.provider.test.SecureRandomGenerator --rdrand 31 4 |
-        ${DIEHARDER_EXECUTABLE} -d 15 -g 200 -Y 1 -k 2 |
-        tee dieharder-threads-results-rdrand-tail.txt
-
-    DEPENDS accp-jar tests-jar)
-
-add_custom_target(run-dieharder-threads-rdseed-tail
-    COMMAND ${TEST_JAVA_EXECUTABLE} -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
-        -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
-        com.amazon.corretto.crypto.provider.test.SecureRandomGenerator --rdseed 31 4 |
-        ${DIEHARDER_EXECUTABLE} -d 15 -g 200 -Y 1 -k 2 |
-        tee dieharder-threads-results-rdseed-tail.txt
+        tee dieharder-results-libcrypto-rng-threads-tail.txt
 
     DEPENDS accp-jar tests-jar)
 
   add_custom_target(check-dieharder
-    COMMAND ! grep -l FAIL dieharder-results.txt
-    COMMAND grep PASSED dieharder-results.txt
-    COMMAND ! grep -l FAIL dieharder-results-tail.txt
-    COMMAND grep PASSED dieharder-results-tail.txt
-    COMMAND ! grep -l FAIL dieharder-results-rdrand-tail.txt
-    COMMAND grep PASSED dieharder-results-rdrand-tail.txt
-    # Some dev boxes don't have RDSEED, so we only test if it is present
-    COMMAND ! grep -l FAIL dieharder-results-rdseed-tail.txt
-    COMMAND ! grep rdseed /proc/cpuinfo || grep PASSED dieharder-results-rdseed-tail.txt
+    COMMAND ! grep -l FAIL dieharder-results-libcrypto-rng.txt
+    COMMAND grep PASSED dieharder-results-libcrypto-rng.txt
+    COMMAND ! grep -l FAIL dieharder-results-libcrypto-rng-tail.txt
+    COMMAND grep PASSED dieharder-results-libcrypto-rng-tail.txt
 
-    DEPENDS run-dieharder-tail run-dieharder-rdrand-tail run-dieharder-rdseed-tail run-dieharder)
+    DEPENDS run-dieharder-libcrypto-rng run-dieharder-libcrypto-rng-tail)
 
 add_custom_target(check-dieharder-threads
-    COMMAND ! grep -l FAIL dieharder-threads-results.txt
-    COMMAND grep PASSED dieharder-threads-results.txt
-    COMMAND ! grep -l FAIL dieharder-threads-results-tail.txt
-    COMMAND grep PASSED dieharder-threads-results-tail.txt
-    COMMAND ! grep -l FAIL dieharder-threads-results-rdrand-tail.txt
-    COMMAND grep PASSED dieharder-threads-results-rdrand-tail.txt
-    # Some dev boxes don't have RDSEED, so we only test if it is present
-    COMMAND ! grep -l FAIL dieharder-threads-results-rdseed-tail.txt
-    COMMAND ! grep rdseed /proc/cpuinfo || grep PASSED dieharder-threads-results-rdseed-tail.txt
+    COMMAND ! grep -l FAIL dieharder-results-libcrypto-rng-threads.txt
+    COMMAND grep PASSED dieharder-results-libcrypto-rng-threads.txt
+    COMMAND ! grep -l FAIL dieharder-results-libcrypto-rng-threads-tail.txt
+    COMMAND grep PASSED dieharder-results-libcrypto-rng-threads-tail.txt
 
-    DEPENDS run-dieharder-threads-tail run-dieharder-threads-rdrand-tail run-dieharder-threads-rdseed-tail run-dieharder-threads)
+    DEPENDS run-dieharder-libcrypto-rng-threads run-dieharder-libcrypto-rng-threads-tail)
 endif() # End of Dieharder targets
 # Do this at the end, after we finish all our feature tests, or it'll be missing flags
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/csrc/config.h.in ${JNI_HEADER_DIR}/config.h)

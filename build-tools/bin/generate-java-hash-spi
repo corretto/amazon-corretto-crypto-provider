@@ -16,11 +16,10 @@ for i in SHA-512 SHA-384 SHA-256 SHA-1 MD5; do
             mkdir -p $path
 
             sed -e "s/TemplateHashSpi/$CODENAME""Spi/g; s/@@@HASH_NAME@@@/$i/g" < $2/template-src/com/amazon/corretto/crypto/provider/TemplateHashSpi.java > $path/$CODENAME"Spi.java"
-            sed -e "s/TemplateHmacSpi/Hmac$CODENAME""Spi/g; s/@@@HASH_NAME@@@/$i/g; s/@@@SHORT_HASH_NAME@@@/$CODENAME/g; s/TemplateHashSpi/$CODENAME""Spi/g " < $2/template-src/com/amazon/corretto/crypto/provider/TemplateHmacSpi.java > $path/Hmac$CODENAME"Spi.java"
             ;;
         list)
             # Note that cmake will barf if this contains any newlines, so be careful to space separate
-            echo -n "$path/$CODENAME""Spi.java;$path/Hmac$CODENAME""Spi.java;"
+            echo -n "$path/$CODENAME""Spi.java;"
             ;;
         *)
             echo Unknown mode: "$mode" >&2

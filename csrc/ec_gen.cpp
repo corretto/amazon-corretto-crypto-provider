@@ -95,7 +95,7 @@ void opensslEcKey2Jarrs
             CHECK_OPENSSL(EC_POINT_get_affine_coordinates_GFp((EC_GROUP*) group, pubKey, xBN, yBN, NULL) == 1);
             break;
         case NID_X9_62_characteristic_two_field:
-            CHECK_OPENSSL(EC_POINT_get_affine_coordinates_GF2m((EC_GROUP*) group, pubKey, xBN, yBN, NULL) == 1);
+            CHECK_OPENSSL(EC_POINT_get_affine_coordinates_GFp((EC_GROUP*) group, pubKey, xBN, yBN, NULL) == 1);
             break;
         default:
             throw_java_ex(EX_RUNTIME_CRYPTO, "Unknown curve type");

@@ -28,21 +28,6 @@ int digestVerifyUpdate(EVP_MD_CTX *ctx, const void *d, size_t cnt) {
     return EVP_DigestVerifyUpdate(ctx, d, cnt);
 }
 
-const EVP_MD* digestFromJstring(raii_env &env, jstring digestName) {
-    if (!digestName) {
-        throw_java_ex(EX_RUNTIME_CRYPTO, "Null Digest name");
-        return NULL;
-    }
-    jni_string name(env, digestName);
-    const EVP_MD* result = EVP_get_digestbyname(name.native_str);
-
-    if (!result) {
-        throw_openssl("Unable to get digest");
-    }
-
-    return result;
-}
-
 bool configurePadding(raii_env &env, EVP_PKEY_CTX* pctx, int paddingType, jstring mgfMdName, int pssSaltLen) {
     if (EVP_PKEY_CTX_set_rsa_padding(pctx, paddingType) <= 0) {
         throw_openssl("Unable to set padding");
@@ -431,12 +416,16 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatu
     if (unlikely(pEnv->ExceptionCheck())) {
         return NULL;
     }
-    
+
     jbyteArray result = Java_com_amazon_corretto_crypto_provider_EvpSignature_signFinish(
         pEnv,
         clazz,
         ctx,
         ctxHandleArr != NULL);
+
+    if (unlikely(pEnv->ExceptionCheck())) {
+        return NULL;
+    }
 
     if (ctxHandleArr && ctxHandle == 0) {
         pEnv->SetLongArrayRegion(ctxHandleArr, 0, 1, &ctx);
@@ -477,6 +466,13 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
             return true;
         } else {
             unsigned long errorCode = drainOpensslErrors();
+
+            // Mismatched signatures are not an error case, so return false
+            // instead of throwing per JCA convention.
+            if ((errorCode & ECDSA_R_MISMATCHED_SIGNATURE) == ECDSA_R_MISMATCHED_SIGNATURE ||
+                (errorCode & RSA_R_MISMATCHED_SIGNATURE) == RSA_R_MISMATCHED_SIGNATURE) {
+                return false;
+            }
 
             // JCA/JCA requires us to try to throw an exception on corrupted signatures, but only if it isn't an RSA signature
             if (errorCode != 0 && keyType != EVP_PKEY_RSA) {
@@ -585,7 +581,7 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
     if (unlikely(pEnv->ExceptionCheck())) {
         return false;
     }
-    
+
     jboolean result = Java_com_amazon_corretto_crypto_provider_EvpSignature_verifyFinish(
         pEnv,
         clazz,
@@ -594,6 +590,10 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
         sigOff,
         sigLen,
         ctxHandleArr != NULL);
+
+    if (unlikely(pEnv->ExceptionCheck())) {
+        return false;
+    }
 
     if (ctxHandleArr && ctxHandle == 0) {
         pEnv->SetLongArrayRegion(ctxHandleArr, 0, 1, &ctx);
@@ -651,7 +651,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatu
 
             signature.resize(sigLength);
         }
-        
+
         return vecToArray(env, signature);
     } catch (java_ex &ex) {
         ex.throw_to_java(pEnv);
@@ -691,6 +691,13 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
             return true;
         } else {
             unsigned long errorCode = drainOpensslErrors();
+
+            // Mismatched signatures are not an error case, so return false
+            // instead of throwing per JCA convention.
+            if ((errorCode & ECDSA_R_MISMATCHED_SIGNATURE) == ECDSA_R_MISMATCHED_SIGNATURE ||
+                (errorCode & RSA_R_MISMATCHED_SIGNATURE) == RSA_R_MISMATCHED_SIGNATURE) {
+                return false;
+            }
 
             // JCA/JCA requires us to try to throw an exception on corrupted signatures, but only if it isn't an RSA signature
             if (errorCode != 0 && keyType != EVP_PKEY_RSA) {
