@@ -72,8 +72,7 @@ KeyAgreement:
 * ECDH
 
 SecureRandom algorithms:
-* ACCP's SecureRandom uses AWS-LC's DRBG implementation, which is described [here](https://github.com/awslabs/aws-lc/blob/main/third_party/jitterentropy/README.md) and [here](https://github.com/awslabs/aws-lc/blob/725625435158150ef21e0a4dab6fa3aca1ef2d2c/crypto/fipsmodule/rand/rand.c#L36-L60).
-
+* ACCP's SecureRandom uses AWS-LC's DRBG implementation.
 
 # Compatibility & Requirements
 ACCP has the following requirements:
