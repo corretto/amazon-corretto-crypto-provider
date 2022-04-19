@@ -87,7 +87,6 @@ void seed(const void *buf, int num) {
         start += len;
         num -= len;
     }
-    return;
 }
 
 int status() {
