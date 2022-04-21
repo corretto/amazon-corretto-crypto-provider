@@ -68,8 +68,8 @@ public class RsaCipherTest {
     private static final String OAEP_PADDING = "RSA/ECB/OAEPWithSHA-1AndMGF1Padding";
     private static final String PKCS1_PADDING = "RSA/ECB/Pkcs1Padding";
     private static final String NO_PADDING = "RSA/ECB/NoPadding";
-    private static final KeyPairGenerator KEY_GEN;
-    private static final KeyFactory KEY_FACTORY;
+    private static final KeyPairGenerator JCE_KEY_GEN;
+    private static final KeyFactory JCE_KEY_FACTORY;
     private static final KeyPair PAIR_1024;
     private static final KeyPair PAIR_2048;
     private static final KeyPair PAIR_4096;
@@ -77,16 +77,16 @@ public class RsaCipherTest {
 
     static {
         try {
-            KEY_FACTORY = KeyFactory.getInstance("RSA");
-            KEY_GEN = KeyPairGenerator.getInstance("RSA");
-            KEY_GEN.initialize(1024);
-            PAIR_1024 = KEY_GEN.generateKeyPair();
-            KEY_GEN.initialize(2048);
-            PAIR_2048 = KEY_GEN.generateKeyPair();
-            KEY_GEN.initialize(4096);
-            PAIR_4096 = KEY_GEN.generateKeyPair();
-            KEY_GEN.initialize(512);
-            PAIR_512 = KEY_GEN.generateKeyPair();
+            JCE_KEY_FACTORY = KeyFactory.getInstance("RSA");
+            JCE_KEY_GEN = KeyPairGenerator.getInstance("RSA");
+            JCE_KEY_GEN.initialize(1024);
+            PAIR_1024 = JCE_KEY_GEN.generateKeyPair();
+            JCE_KEY_GEN.initialize(2048);
+            PAIR_2048 = JCE_KEY_GEN.generateKeyPair();
+            JCE_KEY_GEN.initialize(4096);
+            PAIR_4096 = JCE_KEY_GEN.generateKeyPair();
+            JCE_KEY_GEN.initialize(512);
+            PAIR_512 = JCE_KEY_GEN.generateKeyPair();
         } catch (final GeneralSecurityException ex) {
             throw new AssertionError(ex);
         }
@@ -435,7 +435,7 @@ public class RsaCipherTest {
         final KeyPair keyPair = getKeyPair(keySize);
         // Strip out the CRT factors
         final RSAPrivateKey prvKey = (RSAPrivateKey) keyPair.getPrivate();
-        final PrivateKey strippedKey = KEY_FACTORY.generatePrivate(
+        final PrivateKey strippedKey = JCE_KEY_FACTORY.generatePrivate(
                 new RSAPrivateKeySpec(prvKey.getModulus(), prvKey.getPrivateExponent()));
 
         final Cipher enc = getNativeCipher(padding);
@@ -453,29 +453,20 @@ public class RsaCipherTest {
     @ParameterizedTest
     @MethodSource("paddingXlengthParams")
     public void badCrt(final String padding, final Integer keySize) throws GeneralSecurityException {
-        Assumptions.assumeTrue(NATIVE_PROVIDER.hasExtraCheck(ExtraCheck.PRIVATE_KEY_CONSISTENCY));
-
         final KeyPair keyPair = getKeyPair(keySize);
         // Corrupt out the CRT factors
-        final RSAPrivateCrtKeySpec goodSpec = KEY_FACTORY.getKeySpec(keyPair.getPrivate(),
+        final RSAPrivateCrtKeySpec goodSpec = JCE_KEY_FACTORY.getKeySpec(keyPair.getPrivate(),
                 RSAPrivateCrtKeySpec.class);
         final RSAPrivateCrtKeySpec badSpec = new RSAPrivateCrtKeySpec(goodSpec.getModulus(),
                 goodSpec.getPublicExponent(), goodSpec.getPrivateExponent(), goodSpec.getPrimeP(),
                 goodSpec.getPrimeQ(), goodSpec.getPrimeP(),
                 goodSpec.getPrimeExponentQ().add(BigInteger.ONE),
                 goodSpec.getCrtCoefficient());
-        final PrivateKey privateKey = KEY_FACTORY.generatePrivate(badSpec);
+        final PrivateKey privateKey = JCE_KEY_FACTORY.generatePrivate(badSpec);
 
-        final Cipher enc = getNativeCipher(padding);
-        final Cipher dec = getNativeCipher(padding);
+        final Cipher cipher = getNativeCipher(padding);
 
-        final byte[] plaintext = getPlaintext(keySize / 8 - getPaddingSize(padding));
-        enc.init(Cipher.ENCRYPT_MODE, keyPair.getPublic());
-        dec.init(Cipher.DECRYPT_MODE, privateKey);
-
-        final byte[] ciphertext = enc.doFinal(plaintext);
-
-        TestUtil.assertThrows(GeneralSecurityException.class, () -> dec.doFinal(ciphertext));
+        TestUtil.assertThrows(InvalidKeyException.class, () -> cipher.init(Cipher.DECRYPT_MODE, privateKey));
     }
 
     @ParameterizedTest

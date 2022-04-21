@@ -332,7 +332,6 @@ public class EvpKeyFactoryTest {
 
     @Test
     public void rsaWithBadCrt() throws GeneralSecurityException {
-        Assumptions.assumeTrue(NATIVE_PROVIDER.hasExtraCheck(ExtraCheck.PRIVATE_KEY_CONSISTENCY));
         // Corrupt out the CRT factors
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA");
         kpg.initialize(2048);
