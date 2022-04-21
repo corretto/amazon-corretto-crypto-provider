@@ -392,8 +392,8 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
 
             // Mismatched signatures are not an error case, so return false
             // instead of throwing per JCA convention.
-            if ((errorCode & ECDSA_R_MISMATCHED_SIGNATURE) == ECDSA_R_MISMATCHED_SIGNATURE ||
-                (errorCode & RSA_R_MISMATCHED_SIGNATURE) == RSA_R_MISMATCHED_SIGNATURE) {
+            if (ECDSA_R_MISMATCHED_SIGNATURE == (errorCode & ECDSA_R_MISMATCHED_SIGNATURE) ||
+                    RSA_R_MISMATCHED_SIGNATURE == (errorCode & RSA_R_MISMATCHED_SIGNATURE)) {
                 return false;
             }
 
@@ -589,8 +589,8 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
 
             // Mismatched signatures are not an error case, so return false
             // instead of throwing per JCA convention.
-            if ((errorCode & ECDSA_R_MISMATCHED_SIGNATURE) == ECDSA_R_MISMATCHED_SIGNATURE ||
-                (errorCode & RSA_R_MISMATCHED_SIGNATURE) == RSA_R_MISMATCHED_SIGNATURE) {
+            if (ECDSA_R_MISMATCHED_SIGNATURE == (errorCode & ECDSA_R_MISMATCHED_SIGNATURE) ||
+                RSA_R_MISMATCHED_SIGNATURE == (errorCode & RSA_R_MISMATCHED_SIGNATURE)) {
                 return false;
             }
 

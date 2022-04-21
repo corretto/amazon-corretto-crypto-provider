@@ -10,7 +10,10 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
+import java.util.List;
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.InvalidAlgorithmParameterException;
@@ -24,24 +27,31 @@ import java.security.Provider;
 import java.security.PublicKey;
 import java.security.Signature;
 import java.security.SignatureException;
+import java.security.interfaces.ECPublicKey;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.PSSParameterSpec;
 import java.security.spec.RSAKeyGenParameterSpec;
 import java.security.spec.RSAPrivateKeySpec;
+import java.util.ArrayList;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.util.Arrays;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.junit.jupiter.api.parallel.ResourceAccessMode;
 import org.junit.jupiter.api.parallel.ResourceLock;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.crypto.AEADBadTagException;
 import javax.crypto.Cipher;
@@ -54,11 +64,11 @@ import javax.crypto.spec.SecretKeySpec;
 @ExtendWith(TestResultLogger.class)
 @Execution(ExecutionMode.CONCURRENT)
 @ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
-public class EvpSignatureSpecificTest {
+public final class EvpSignatureSpecificTest {
     private static final BouncyCastleProvider BOUNCYCASTLE_PROVIDER = new BouncyCastleProvider();
     private static final byte[] MESSAGE = new byte[513];
-    private final static KeyPair RSA_PAIR;
-    private final static KeyPair ECDSA_PAIR;
+    private static final KeyPair RSA_PAIR;
+    private static final KeyPair ECDSA_PAIR;
 
     static {
         for (int x = 0; x < MESSAGE.length; x++) {
@@ -78,7 +88,37 @@ public class EvpSignatureSpecificTest {
         }
     }
 
-    private static void testKeyTypeMismatch(final String algorithm, final String baseType, final KeyPair badKeypair) throws GeneralSecurityException {
+
+    /**
+     * Returns known bad ECDSA signatures which have confused implementations in the past.
+     * (Examples include infinite loops and incorrect acceptance).
+     */
+    public static List<Arguments> ecdsaBadSignatures() {
+        final List<String> algorithms = NATIVE_PROVIDER.getServices().stream()
+            .filter(service -> "Signature".equalsIgnoreCase(service.getType()))
+            .filter(service -> service.getAlgorithm().toUpperCase().contains("ECDSA"))
+            .map(Provider.Service::getAlgorithm)
+            .collect(Collectors.toList());
+        final ECPublicKey pubKey = (ECPublicKey) ECDSA_PAIR.getPublic();
+        final BigInteger order = pubKey.getParams().getOrder();
+
+        final List<Arguments> result = new ArrayList<>();
+        for (final String algorithm : algorithms) {
+            // ECDSA requires that both r and s be within [1, order-1]
+            // These seven cases cover all combinations of having one or both elements outside that range.
+            result.add(Arguments.of(algorithm, BigInteger.ZERO, BigInteger.ZERO));
+            result.add(Arguments.of(algorithm, BigInteger.ZERO, BigInteger.ONE));
+            result.add(Arguments.of(algorithm, BigInteger.ONE, BigInteger.ZERO));
+            result.add(Arguments.of(algorithm, BigInteger.ZERO, order));
+            result.add(Arguments.of(algorithm, order, BigInteger.ZERO));
+            result.add(Arguments.of(algorithm, order, BigInteger.ONE));
+            result.add(Arguments.of(algorithm, BigInteger.ONE, order));
+        }
+        return result;
+    }
+
+    private static void testKeyTypeMismatch(final String algorithm, final String baseType, final KeyPair badKeypair)
+            throws GeneralSecurityException {
         final Signature signature = Signature.getInstance(algorithm, NATIVE_PROVIDER);
 
         assertThrows(InvalidKeyException.class, () -> signature.initSign(badKeypair.getPrivate()));
@@ -95,6 +135,48 @@ public class EvpSignatureSpecificTest {
             fail("Expected exception for fake key");
         } catch (final InvalidKeyException | SignatureException ex) {
             // Expected
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("ecdsaBadSignatures")
+    @SuppressWarnings("unchecked")
+    public void testBadEcdsaSignature(final String algorithm, final BigInteger r, final BigInteger s)
+            throws GeneralSecurityException {
+        final Signature verifier = Signature.getInstance(algorithm, NATIVE_PROVIDER);
+        // We always use the largest key to avoid hash truncation confusion
+        final ECPublicKey pubKey = (ECPublicKey) ECDSA_PAIR.getPublic();
+        final byte[] signature;
+        byte[] rArr = r.toByteArray();
+        if (rArr[0] == 0) { // Trim leading zero byte if present
+            rArr = Arrays.copyOfRange(rArr, 1, rArr.length);
+        }
+        byte[] sArr = s.toByteArray();
+        if (sArr[0] == 0) { // Trim leading zero byte if present
+            sArr = Arrays.copyOfRange(sArr, 1, sArr.length);
+        }
+
+        if (algorithm.endsWith("inP1363Format")) {
+            // Just zeros of the appropriate length
+            final int elementLength = (pubKey.getParams().getOrder().bitLength() + 7) / 8;
+            signature = new byte[elementLength * 2];
+            System.arraycopy(rArr, 0, signature, elementLength - rArr.length, rArr.length);
+            System.arraycopy(sArr, 0, signature, 2 * elementLength - sArr.length, sArr.length);
+        } else {
+            // It isn't worth building full ASN.1 logic here, so we cover the easy cases of ones and zeros
+            // and leave the complicated cases of the full orders to the P1363 tests
+            // (which cover the same implementations) under the hood
+            assumeTrue(rArr.length == 1 && sArr.length == 1, "This test only supports {0,1} for non-P1363 sigs.");
+            signature = new byte[]{0x30, 0x06, 0x02, 0x01, 0x00, 0x02, 0x01, 0x00};
+            signature[4] = rArr[0];
+            signature[7] = sArr[0];
+
+        }
+        verifier.initVerify(pubKey);
+        try {
+            assertFalse(verifier.verify(signature));
+        } catch (final SignatureException ex) {
+            // We also allow a SignatureException.
         }
     }
 

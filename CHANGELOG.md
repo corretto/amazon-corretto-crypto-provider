@@ -9,7 +9,7 @@
 
 ### Improvements
 * Add support for AES Ciphers with specific key sizes (GCM, no padding)
-* Use AWS-LC's DRBG implementation, drop custom java implementation
+* Use AWS-LC's DRBG for `SecureRandom`, drop custom java implementation
 * Track the AWS-LC dependency as a git submodule instead of downloaded tarball
 * Add "help" value to two of our properties which outputs (to STDERR) valid values.
    * `com.amazon.corretto.crypto.provider.extrachecks`

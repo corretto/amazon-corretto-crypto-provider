@@ -77,6 +77,7 @@ SecureRandom algorithms:
 KeyFactory algorithms:
 * EC
 * RSA
+* ACCP's SecureRandom uses AWS-LC's DRBG implementation.
 
 # Compatibility & Requirements
 ACCP has the following requirements:
