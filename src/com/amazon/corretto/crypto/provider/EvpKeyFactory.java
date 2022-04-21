@@ -11,23 +11,12 @@ import java.security.KeyFactorySpi;
 import java.security.Key;
 import java.security.PrivateKey;
 import java.security.PublicKey;
-import javax.crypto.interfaces.DHPublicKey;
-import javax.crypto.interfaces.DHPrivateKey;
-import java.security.interfaces.DSAParams;
-import java.security.interfaces.DSAPublicKey;
-import java.security.interfaces.DSAPrivateKey;
 import java.security.interfaces.ECPublicKey;
 import java.security.interfaces.ECPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPrivateCrtKey;
 import java.security.spec.AlgorithmParameterSpec;
-import javax.crypto.spec.DHParameterSpec;
-import javax.crypto.spec.DHPublicKeySpec;
-import javax.crypto.spec.DHPrivateKeySpec;
-import java.security.spec.DSAParameterSpec;
-import java.security.spec.DSAPublicKeySpec;
-import java.security.spec.DSAPrivateKeySpec;
 import java.security.spec.ECPrivateKeySpec;
 import java.security.spec.ECPublicKeySpec;
 import java.security.spec.InvalidKeySpecException;
@@ -48,8 +37,6 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
 
     private static native long rsa2Evp(byte[] modulus, byte[] publicExponentArr, byte[] privateExponentArr, byte[] crtCoefArr, byte[] expPArr, byte[] expQArr, byte[] primePArr, byte[] primeQArr, boolean checkPrivate);
     private static native long ec2Evp(byte[] s, byte[] wx, byte[] wy, byte[] params, boolean checkPrivate) throws InvalidKeySpecException;
-    private static native long dsa2Evp(byte[] x, byte[] y, byte[] params, boolean checkPrivate);
-    private static native long dh2Evp(byte[] x, byte[] y, byte[] params, boolean checkPrivate) throws InvalidKeySpecException;
 
     protected EvpKeyFactory(EvpKeyType type, AmazonCorrettoCryptoProvider provider) {
         this.type = type;
@@ -258,90 +245,6 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
             if (ECPrivateKeySpec.class.isAssignableFrom(keySpec) && key instanceof ECPrivateKey) {
                 ECPrivateKey ecKey = (ECPrivateKey) key;
                 return keySpec.cast(new ECPrivateKeySpec(ecKey.getS(), ecKey.getParams()));
-            }
-            return super.engineGetKeySpec(key, keySpec);
-        }
-    }
-
-    static class DH extends EvpKeyFactory {
-        DH(AmazonCorrettoCryptoProvider provider) {
-            super(EvpKeyType.DH, provider);
-        }
-
-        @Override
-        protected PrivateKey engineGeneratePrivate(KeySpec keySpec) throws InvalidKeySpecException {
-            if (keySpec instanceof DHPrivateKeySpec) {
-                DHPrivateKeySpec dhSpec = (DHPrivateKeySpec) keySpec;
-                return new EvpDhPrivateKey(dh2Evp(dhSpec.getX().toByteArray(), null, paramsToDer(new DHParameterSpec(dhSpec.getP(), dhSpec.getG())), shouldCheckPrivateKey()));
-            }
-            return super.engineGeneratePrivate(keySpec);
-        }
-
-        @Override
-        protected PublicKey engineGeneratePublic(KeySpec keySpec) throws InvalidKeySpecException {
-            if (keySpec instanceof DHPublicKeySpec) {
-                DHPublicKeySpec dhSpec = (DHPublicKeySpec) keySpec;
-                return new EvpDhPublicKey(dh2Evp(null, dhSpec.getY().toByteArray(),
-                    paramsToDer(new DHParameterSpec(dhSpec.getP(), dhSpec.getG())),
-                    false));
-            }
-            return super.engineGeneratePublic(keySpec);
-        }
-
-        @Override
-        protected <T extends KeySpec> T engineGetKeySpec(Key key, Class<T> keySpec) throws InvalidKeySpecException {
-            if (DHPublicKeySpec.class.isAssignableFrom(keySpec) && key instanceof DHPublicKey) {
-                DHPublicKey dhKey = (DHPublicKey) key;
-                DHParameterSpec params = dhKey.getParams();
-                return keySpec.cast(new DHPublicKeySpec(dhKey.getY(), params.getP(), params.getG()));
-            }
-            if (DHPrivateKeySpec.class.isAssignableFrom(keySpec) && key instanceof DHPrivateKey) {
-                DHPrivateKey dhKey = (DHPrivateKey) key;
-                DHParameterSpec params = dhKey.getParams();
-                return keySpec.cast(new DHPrivateKeySpec(dhKey.getX(), params.getP(), params.getG()));
-            }
-            return super.engineGetKeySpec(key, keySpec);
-        }
-    }
-
-    static class DSA extends EvpKeyFactory {
-        DSA(AmazonCorrettoCryptoProvider provider) {
-            super(EvpKeyType.DSA, provider);
-        }
-
-        @Override
-        protected PrivateKey engineGeneratePrivate(KeySpec keySpec) throws InvalidKeySpecException {
-            if (keySpec instanceof DSAPrivateKeySpec) {
-                DSAPrivateKeySpec dsaSpec = (DSAPrivateKeySpec) keySpec;
-                return new EvpDsaPrivateKey(dsa2Evp(dsaSpec.getX().toByteArray(), null,
-                    paramsToDer(new DSAParameterSpec(dsaSpec.getP(), dsaSpec.getQ(), dsaSpec.getG())),
-                    shouldCheckPrivateKey()));
-            }
-            return super.engineGeneratePrivate(keySpec);
-        }
-
-        @Override
-        protected PublicKey engineGeneratePublic(KeySpec keySpec) throws InvalidKeySpecException {
-            if (keySpec instanceof DSAPublicKeySpec) {
-                DSAPublicKeySpec dsaSpec = (DSAPublicKeySpec) keySpec;
-                return new EvpDsaPublicKey(dsa2Evp(null, dsaSpec.getY().toByteArray(),
-                    paramsToDer(new DSAParameterSpec(dsaSpec.getP(), dsaSpec.getQ(), dsaSpec.getG())),
-                    false));
-            }
-            return super.engineGeneratePublic(keySpec);
-        }
-
-        @Override
-        protected <T extends KeySpec> T engineGetKeySpec(Key key, Class<T> keySpec) throws InvalidKeySpecException {
-            if (DSAPublicKeySpec.class.isAssignableFrom(keySpec) && key instanceof DSAPublicKey) {
-                DSAPublicKey dsaKey = (DSAPublicKey) key;
-                DSAParams params = dsaKey.getParams();
-                return keySpec.cast(new DSAPublicKeySpec(dsaKey.getY(), params.getP(), params.getQ(), params.getG()));
-            }
-            if (DSAPrivateKeySpec.class.isAssignableFrom(keySpec) && key instanceof DSAPrivateKey) {
-                DSAPrivateKey dsaKey = (DSAPrivateKey) key;
-                DSAParams params = dsaKey.getParams();
-                return keySpec.cast(new DSAPrivateKeySpec(dsaKey.getX(), params.getP(), params.getQ(), params.getG()));
             }
             return super.engineGetKeySpec(key, keySpec);
         }

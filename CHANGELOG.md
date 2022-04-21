@@ -1,16 +1,16 @@
 # Changelog
 
-## EVP (Unreleased)
-(Temporarily marking it as 2.0)
+## 2.0.0 (Unreleased)
+### Breaking Changes
+* Use [AWS-LC](https://github.com/awslabs/aws-lc/) as the backing native cryptography library for ACCP
+* Drop support for (non-EC) DSA signatures
+* Drop support for (non-EC) Diffie-Hellman key exchange
+* Drop support for `secp192r1`, as well as most other non-NIST "legacy" curves
 
 ### Improvements
-* Add `KeyFactory` implementations for RSA, EC, DH, and DSA keys. This also includes our own implementations of keys for the same algorithms. [PR #132](https://github.com/corretto/amazon-corretto-crypto-provider/pull/132)
-
-### Patches
-* Correctly reject non-empty `PSource.PSpecified` values for RSA-OAEP.
-## 1.7.0 (Unreleased)
-### Improvements
-* Now uses [OpenSSL 1.1.1m](https://www.openssl.org/source/openssl-1.1.1m.tar.gz). [PR #173](https://github.com/corretto/amazon-corretto-crypto-provider/pull/173)
+* Add support for AES Ciphers with specific key sizes (GCM, no padding)
+* Use AWS-LC's DRBG implementation, drop custom java implementation
+* Track the AWS-LC dependency as a git submodule instead of downloaded tarball
 * Add "help" value to two of our properties which outputs (to STDERR) valid values.
    * `com.amazon.corretto.crypto.provider.extrachecks`
    * `com.amazon.corretto.crypto.provider.debug`
@@ -21,9 +21,18 @@ Current values are:
    * `ALL` - Enables all of the above
 (May still require changes to your logging configuration to see the new logs.)
 * Enables skipping the bundled lib by setting the system property `com.amazon.corretto.crypto.provider.useExternalLib` [PR #168](https://github.com/corretto/amazon-corretto-crypto-provider/pull/168)
+* External integration tests now skip certificate validation for expired certificates.
+   This is to work around external sites which may have allowed their certificates to expire.
+   [PR #190](https://github.com/corretto/amazon-corretto-crypto-provider/pull/189)
+* Allows developers to run `clang-tidy` against the source by passing `-DUSE_CLANG_TIDY=true` to gradlew.
+   Example: `./gradlew -DUSE_CLANG_TIDY=true build`
+   This may require deleting `build/cmake` prior to running.
+   [PR #191](https://github.com/corretto/amazon-corretto-crypto-provider/pull/191)
+* Add `KeyFactory` implementations for RSA and EC keys. This also includes our own implementations of keys for the same algorithms. [PR #132](https://github.com/corretto/amazon-corretto-crypto-provider/pull/132)
 
 ### Patches
 * Improve zeroization of DRBG output. [PR #162](https://github.com/corretto/amazon-corretto-crypto-provider/pull/162)
+* Correctly reject non-empty `PSource.PSpecified` values for RSA-OAEP.
 
 ## 1.6.1
 ### Patches

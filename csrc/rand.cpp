@@ -18,10 +18,10 @@ using namespace AmazonCorrettoCryptoProvider;
 
 namespace {
 
-static int seed(const void *buf, int num);
-static int bytes(unsigned char *buf, int num);
-static int add(const void *buf, int num, double entropy);
-static int pseudorand(unsigned char *buf, int num);
+static void seed(const void *buf, int num);
+static int bytes(uint8_t *buf, size_t num);
+static void add(const void *buf, int num, double entropy);
+static int pseudorand(uint8_t *buf, size_t num);
 static void cleanup();
 static int status();
 
@@ -48,11 +48,11 @@ void cleanup() {
     healthy = false;
 }
 
-int pseudorand(unsigned char *buf, int num) {
+int pseudorand(uint8_t *buf, size_t num) {
     return bytes(buf, num);
 }
 
-int bytes(unsigned char *buf, int num) {
+int bytes(uint8_t *buf, size_t num) {
     pthread_lock_auto lock(&drbg_lock);
     if (!drbg || !healthy) {
         return 0;
@@ -65,14 +65,14 @@ int bytes(unsigned char *buf, int num) {
     }
 }
 
-int add(const void *buf, int num, double entropy) {
-    return seed(buf, num);
+void add(const void *buf, int num, double entropy) {
+    seed(buf, num);
 }
 
-int seed(const void *buf, int num) {
+void seed(const void *buf, int num) {
     pthread_lock_auto lock(&drbg_lock);
     if (!drbg || !healthy) {
-        return 0;
+        return;
     }
 
     SecureBuffer<uint8_t, DRBG_SEED_SIZE> seed;
@@ -82,12 +82,12 @@ int seed(const void *buf, int num) {
         memcpy(seed.buf, start, len);
         if (!drbg->reseed(seed)) {
             healthy = false;
-            return 0;
+            return;
         }
         start += len;
         num -= len;
     }
-    return 1;
+    return;
 }
 
 int status() {

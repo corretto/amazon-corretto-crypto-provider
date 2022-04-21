@@ -164,13 +164,12 @@ public final class TemplateHashSpi extends MessageDigestSpi implements Cloneable
         return HASH_SIZE;
     }
 
-    @SuppressWarnings("unchecked")
     @Override
     public Object clone() {
         try {
             TemplateHashSpi clonedObject = (TemplateHashSpi)super.clone();
 
-            clonedObject.buffer = (InputBuffer<byte[], byte[], RuntimeException>) buffer.clone();
+            clonedObject.buffer = buffer.clone();
 
             return clonedObject;
         } catch (CloneNotSupportedException e) {

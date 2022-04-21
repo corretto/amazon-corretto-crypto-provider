@@ -14,12 +14,9 @@ import java.security.spec.InvalidKeySpecException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import javax.crypto.interfaces.DHKey;
 import javax.crypto.KeyAgreementSpi;
 import javax.crypto.SecretKey;
 import javax.crypto.ShortBufferException;
-import javax.crypto.spec.DHParameterSpec;
-import javax.crypto.spec.DHPublicKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 
 class EvpKeyAgreement extends KeyAgreementSpi {
@@ -43,7 +40,7 @@ class EvpKeyAgreement extends KeyAgreementSpi {
 
     private byte[] agree(EvpKey pubKey) throws InvalidKeyException {
         return privKey.use(privatePtr ->
-            pubKey.use(publicPtr -> 
+            pubKey.use(publicPtr ->
                 agree(privatePtr, publicPtr)
             )
         );
@@ -66,18 +63,6 @@ class EvpKeyAgreement extends KeyAgreementSpi {
                 // get thrown.
                 secret = agree(publicKey);
                 return null;
-            } else if ("DH".equals(algorithm_)) {
-                final DHParameterSpec dhParams = ((DHKey) privKey).getParams();
-                try {
-                    final Key result = provider_.getKeyFactory(keyType_).generatePublic(new DHPublicKeySpec(
-                        new BigInteger(1, agree(publicKey)), // y
-                        dhParams.getP(),
-                        dhParams.getG()
-                    ));
-                    return result;
-                } catch (final InvalidKeySpecException ex) {
-                    throw new RuntimeCryptoException(ex);
-                }
             } else {
                 secret = null;
                 throw new IllegalStateException("Only single phase agreement is supported");
@@ -105,12 +90,6 @@ class EvpKeyAgreement extends KeyAgreementSpi {
             NoSuchAlgorithmException, InvalidKeyException {
         byte[] secret = engineGenerateSecret();
         if (algorithm.equalsIgnoreCase("TlsPremasterSecret")) {
-            if (algorithm_.equals("DH")) {
-                // RFC 5246 Section 8.1.2 requires us to remove leading zeros
-                // for DH premaster secrets. These are explicitly /not/ removed
-                // for ECDH (RFC 4492, Section 5.10)
-                secret = trimZeros(secret);
-            }
             return new SecretKeySpec(secret, "TlsPremasterSecret");
         };
         final Matcher matcher = ALGORITHM_WITH_EXPLICIT_KEYSIZE.matcher(algorithm);
@@ -188,47 +167,9 @@ class EvpKeyAgreement extends KeyAgreementSpi {
         secret = null;
     }
 
-    private static byte[] trimZeros(final byte[] secret) {
-        int bytesToTrim = 0;
-        int foundNonZero = 0;
-        for (int x = 0; x < secret.length; x++) {
-            final int currByte = secret[x];
-            // Have we found something that isn't a zero?
-            foundNonZero |= currByte;
-
-            // foundNonZero == 0 iff we have not see any non-zero bytes
-            // Thus, we should update bytesToTrim iff foundNonZero == 0
-            final int shouldUpdateTrim = ConstantTime.isZero(foundNonZero);
-            bytesToTrim = ConstantTime.select(shouldUpdateTrim, x + 1, bytesToTrim);
-        }
-
-        // Allocating arrays of different lengths always risks non-constant time operation.
-        // There is no way to avoid this.
-        final byte[] result = new byte[secret.length - bytesToTrim];
-
-        // We'll always do the same number of byte copies, but the leading zeros will be overwritten by valid ones.
-        // While the memory access pattern won't be identical, there is no way to completely avoid this.
-        for (int x = 0; x < secret.length; x++) {
-            final int realIndex = x - bytesToTrim;
-
-            final int notYetValid = ConstantTime.isNegative(realIndex);
-
-            final int indexToUpdate = ConstantTime.select(notYetValid, 0, realIndex);
-            result[indexToUpdate] = secret[x];
-        }
-
-        return result;
-    }
-
     static class ECDH extends EvpKeyAgreement {
         ECDH(AmazonCorrettoCryptoProvider provider) {
             super(provider, "ECDH", EvpKeyType.EC);
-        }
-    }
-
-    static class DH extends EvpKeyAgreement {
-        DH(AmazonCorrettoCryptoProvider provider) {
-            super(provider, "DH", EvpKeyType.DH);
         }
     }
 }

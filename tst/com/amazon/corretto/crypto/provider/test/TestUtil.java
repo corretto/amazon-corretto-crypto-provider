@@ -38,6 +38,8 @@ public class TestUtil {
     public static final String RESOURCE_GLOBAL = "GLOBAL_TEST_LOCK";
     public static final BouncyCastleProvider BC_PROVIDER = new BouncyCastleProvider();
     public static final AmazonCorrettoCryptoProvider NATIVE_PROVIDER = AmazonCorrettoCryptoProvider.INSTANCE;
+    public static final String NATIVE_PROVIDER_PACKAGE =
+        NATIVE_PROVIDER.getClass().getName().substring(0, NATIVE_PROVIDER.getClass().getName().lastIndexOf("."));
 
     /**
      * Thread local instances of SecureRandom with no further guarantees about implementation or security.
@@ -229,8 +231,11 @@ public class TestUtil {
         Arrays.fill(result, b);
         return result;
     }
-    
+
     public static byte[] decodeHex(String hex) {
+        if (hex == null) {
+            return new byte[0];
+        }
         if (hex.length() % 2 != 0) {
             throw new IllegalArgumentException("Input length must be even");
         }

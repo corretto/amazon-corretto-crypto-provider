@@ -58,7 +58,6 @@ public class EvpSignatureSpecificTest {
     private static final BouncyCastleProvider BOUNCYCASTLE_PROVIDER = new BouncyCastleProvider();
     private static final byte[] MESSAGE = new byte[513];
     private final static KeyPair RSA_PAIR;
-    private final static KeyPair DSA_PAIR;
     private final static KeyPair ECDSA_PAIR;
 
     static {
@@ -74,10 +73,6 @@ public class EvpSignatureSpecificTest {
             kg = KeyPairGenerator.getInstance("EC");
             kg.initialize(new ECGenParameterSpec("NIST P-384"));
             ECDSA_PAIR = kg.generateKeyPair();
-
-            kg = KeyPairGenerator.getInstance("DSA");
-            kg.initialize(2048);
-            DSA_PAIR = kg.generateKeyPair();
         } catch (final GeneralSecurityException ex) {
             throw new RuntimeException(ex);
         }
@@ -107,9 +102,7 @@ public class EvpSignatureSpecificTest {
     public void signatureCorruptionSweeps() throws Exception {
         // Verify that, for any one-bit manipulation of the signature, we 1) get a bad signature result and 2) don't
         // throw an unexpected exception
-        doCorruptionSweep("NONEwithDSA", DSA_PAIR);
         doCorruptionSweep("NONEwithECDSA", ECDSA_PAIR);
-        doCorruptionSweep("SHA1withDSA", DSA_PAIR);
         doCorruptionSweep("SHA1withECDSA", ECDSA_PAIR);
         doCorruptionSweep("SHA1withRSA", RSA_PAIR);
     }
@@ -144,31 +137,19 @@ public class EvpSignatureSpecificTest {
     }
 
     @Test
-    public void rsaWithDsaKey() throws GeneralSecurityException {
-        testKeyTypeMismatch("SHA1withRSA", "RSA", DSA_PAIR);    }
+    public void rsaWithEcdsaKey() throws GeneralSecurityException {
+        testKeyTypeMismatch("SHA1withRSA", "RSA", ECDSA_PAIR);    }
 
     @Test
-    public void ecdsaWithDsaKey() throws GeneralSecurityException {
-        testKeyTypeMismatch("SHA1withECDSA", "EC", DSA_PAIR);
+    public void ecdsaWithRsaKey() throws GeneralSecurityException {
+        testKeyTypeMismatch("SHA1withECDSA", "EC", RSA_PAIR);
     }
-
-    @Test
-    public void dsaWithRsaKey() throws GeneralSecurityException {
-        testKeyTypeMismatch("SHA1withDSA", "DSA", ECDSA_PAIR);    }
 
     @Test
     public void pssParametersForNonPssAlgorithm() throws GeneralSecurityException {
         Signature signature = Signature.getInstance("SHA1withRSA", NATIVE_PROVIDER);
         assertNull(signature.getParameters());
 
-        try {
-            signature.setParameter(PSSParameterSpec.DEFAULT);
-            fail(signature.getAlgorithm());
-        } catch (final InvalidAlgorithmParameterException ex) {
-            // expected
-        }
-
-        signature = Signature.getInstance("SHA1withDSA", NATIVE_PROVIDER);
         try {
             signature.setParameter(PSSParameterSpec.DEFAULT);
             fail(signature.getAlgorithm());
@@ -354,7 +335,7 @@ public class EvpSignatureSpecificTest {
             final String base = m.group(3);
             final String ieeeFormat = m.group(4);
 
-            int ffSize = 0; // Finite field size used with RSA and DSA
+            int ffSize = 0; // Finite field size used with RSA
             switch (m.group(1)) {
                 case "SHA1":
                 case "SHA224":
@@ -384,9 +365,6 @@ public class EvpSignatureSpecificTest {
                 }
             } else {
                 keyGenAlgorithm = base;
-                if (base.equals("DSA")) {
-                    ffSize = Math.min(ffSize, 3072);
-                }
             }
 
             final KeyPairGenerator kg = KeyPairGenerator.getInstance(keyGenAlgorithm);

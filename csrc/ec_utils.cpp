@@ -82,7 +82,7 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_curveNam
         EC_GROUP_auto group = EC_GROUP_auto::from(EC_GROUP_new_by_curve_name(nid));
         if (unlikely(!group.isInitialized())) {
             unsigned long errCode = drainOpensslErrors();
-            if (errCode == ERR_PACK(ERR_LIB_EC, EC_F_EC_GROUP_NEW_BY_CURVE_NAME, EC_R_UNKNOWN_GROUP)) {
+            if (ERR_GET_LIB(errCode) == ERR_LIB_EC && ERR_GET_REASON(errCode) == EC_R_UNKNOWN_GROUP) {
                 throw_java_ex(EX_ILLEGAL_ARGUMENT, "Unknown curve");
             } else {
                 throw_java_ex(EX_RUNTIME_CRYPTO,
@@ -130,10 +130,10 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_curveNam
                 }
                 break;
             case NID_X9_62_characteristic_two_field:
-                if (EC_GROUP_get_curve_GF2m(group, pBN, aBN, bBN, NULL) != 1) {
+                if (EC_GROUP_get_curve_GFp(group, pBN, aBN, bBN, NULL) != 1) {
                     throw_openssl("Unable to get group information");
                 }
-                if (EC_POINT_get_affine_coordinates_GF2m(group, generator, gxBN, gyBN, NULL) != 1) {
+                if (EC_POINT_get_affine_coordinates_GFp(group, generator, gxBN, gyBN, NULL) != 1) {
                     throw_openssl("Unable to get generator coordinates");
                 }
                 m = EC_GROUP_get_degree(group);

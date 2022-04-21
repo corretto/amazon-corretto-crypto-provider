@@ -16,13 +16,11 @@ import java.util.List;
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import org.bouncycastle.crypto.prng.BasicEntropySourceProvider;
 
-import com.amazon.corretto.crypto.provider.AesCtrDrbg;
-
 /**
  * This test is a special case - it tests a recursive initialization path that looks like:
  *
  * ACCP.[ctor] -> Self tests -> Mac.getInstance -> JceSecurity.[static init] -> SecureRandom.[ctor] ->
- * BouncyCastle.createBaseRandom -> AesCtrDrbg.[ctor] -> NJCE.[ctor] -> Self tests -> Mac.getInstance ->
+ * BouncyCastle.createBaseRandom -> LibCryptoRng.[ctor] -> NJCE.[ctor] -> Self tests -> Mac.getInstance ->
  * JceSecurity (uninitialized)
  *
  * As this path only occurs when static initializers for JceSecurity are incomplete, it _must_ run on a fresh JVM to be
@@ -86,26 +84,22 @@ public class RecursiveInitializationTest {
      */
     public static final class FastEntropySourceProvider extends BasicEntropySourceProvider {
         private static final List<String> PREFERRED_SOURCES = Arrays.asList(
-                "NIST800-90A/AES-CTR-256", "NativePRNGNonBlocking", "Windows-PRNG");
+                "LibCryptoRng", "NativePRNGNonBlocking", "Windows-PRNG");
 
         public FastEntropySourceProvider() throws NoSuchAlgorithmException {
             super(selectSecureRandom(), true);
         }
 
         private static SecureRandom selectSecureRandom() throws NoSuchAlgorithmException {
-            if (AmazonCorrettoCryptoProvider.isRdRandSupported()) {
-                return new AesCtrDrbg();
-            } else {
-                for (final String algorithm : PREFERRED_SOURCES) {
-                    try {
-                        final SecureRandom rng = SecureRandom.getInstance(algorithm);
-                        return rng;
-                    } catch (final NoSuchAlgorithmException ex) {
-                        // Expected
-                    }
+            for (final String algorithm : PREFERRED_SOURCES) {
+                try {
+                    final SecureRandom rng = SecureRandom.getInstance(algorithm);
+                    return rng;
+                } catch (final NoSuchAlgorithmException ex) {
+                    // Expected
                 }
-                throw new AssertionError("No acceptable EntropySource found.");
             }
+            throw new AssertionError("No acceptable EntropySource found.");
         }
     }
 }

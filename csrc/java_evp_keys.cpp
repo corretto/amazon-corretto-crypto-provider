@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <openssl/asn1t.h>
-#include <openssl/dh.h>
-#include <openssl/dsa.h>
 #include <openssl/ec.h>
 #include <openssl/evp.h>
 #include <openssl/err.h>
@@ -243,7 +241,7 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_e
                     const EC_GROUP *group = EC_KEY_get0_group(ec);
                     CHECK_OPENSSL(group);
                     CHECK_OPENSSL(point.set(EC_POINT_new(group)));
-                    CHECK_OPENSSL(bn_ctx.set(BN_CTX_secure_new()));
+                    CHECK_OPENSSL(bn_ctx.set(BN_CTX_new()));
 
                     CHECK_OPENSSL(EC_POINT_mul(group, point, s, NULL, NULL, bn_ctx) == 1);
 
@@ -252,7 +250,7 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_e
                     unsigned int oldFlags = EC_KEY_get_enc_flags(ec);
                     EC_KEY_set_enc_flags(ec, oldFlags | EC_PKEY_NO_PUBKEY);
                 }
-                if (shouldCheckPrivate && !checkPrivateKey(ctx.getKey())) {
+                if (shouldCheckPrivate && !checkKey(ctx.getKey())) {
                     throw_openssl(EX_INVALID_KEY_SPEC, "Key fails check");
                 }
             }
@@ -304,12 +302,6 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpKey_get
         {
         case EVP_PKEY_EC:
             derLen = i2d_ECParameters(EVP_PKEY_get0_EC_KEY(ctx->getKey()), &der);
-            break;
-        case EVP_PKEY_DH:
-            derLen = i2d_DHparams(EVP_PKEY_get0_DH(ctx->getKey()), &der);
-            break;
-        case EVP_PKEY_DSA:
-            derLen = i2d_DSAparams(EVP_PKEY_get0_DSA(ctx->getKey()), &der);
             break;
         default:
             throw_java_ex(EX_RUNTIME_CRYPTO, "Unsupported key type for parameters");
@@ -553,225 +545,6 @@ JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_EvpRsaPrivateCrt
     }
 }
 
-JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_dh2Evp(
-    JNIEnv *pEnv, jclass, jbyteArray xArr, jbyteArray yArr, jbyteArray paramsDer, jboolean shouldCheckPrivate)
-// x = Private, y = Public
-{
-    DH_auto dh;
-    EvpKeyContext ctx;
-    try
-    {
-        raii_env env(pEnv);
-
-        {
-            // Parse the parameters
-            java_buffer paramsBuff = java_buffer::from_array(env, paramsDer);
-            size_t paramsLength = paramsBuff.len();
-            jni_borrow borrow(env, paramsBuff, "params");
-
-            const unsigned char *derPtr = borrow.data();
-            const unsigned char *derMutablePtr = derPtr;
-
-            dh.set(d2i_DHparams(NULL, &derMutablePtr, paramsLength));
-            if (!dh.isInitialized())
-            {
-                throw_openssl(EX_INVALID_KEY_SPEC, "Invalid parameters");
-            }
-            if (derPtr + paramsLength != derMutablePtr)
-            {
-                throw_openssl(EX_INVALID_KEY_SPEC, "Extra key information");
-            }
-
-            ctx.setKey(EVP_PKEY_new());
-            if (!EVP_PKEY_set1_DH(ctx.getKey(), dh))
-            {
-                throw_openssl(EX_INVALID_KEY_SPEC, "Could not convert to EVP_PKEY");
-            }
-        }
-
-        // Set the key pieces
-        {
-
-            BigNumObj x = BigNumObj::fromJavaArray(env, xArr);
-            BigNumObj y = BigNumObj::fromJavaArray(env, yArr);
-
-            BIGNUM *xBN = NULL; // Do not FREE!
-            BIGNUM *yBN = NULL; // Do not FREE!
-            if (xArr)
-            {
-                xBN = x;
-            }
-            if (yArr)
-            {
-                yBN = y;
-            }
-            if (!DH_set0_key(dh, yBN, xBN))
-            {
-                throw_openssl(EX_RUNTIME_CRYPTO, "Error setting DH key");
-            }
-            x.releaseOwnership();
-            y.releaseOwnership();
-
-            // !!x means that this is a private key
-            if (shouldCheckPrivate && !!x && !checkPrivateKey(ctx.getKey()))
-            {
-                throw_openssl(EX_INVALID_KEY_SPEC, "Key fails check");
-            }
-        }
-
-        return reinterpret_cast<jlong>(ctx.moveToHeap());
-    }
-    catch (java_ex &ex)
-    {
-        ex.throw_to_java(pEnv);
-        return 0;
-    }
-}
-
-/*
- * Class:     com_amazon_corretto_crypto_provider_EvpDhPublicKey
- * Method:    getY
- * Signature: (J)[B
- */
-JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpDhPublicKey_getY(
-    JNIEnv *pEnv,
-    jclass,
-    jlong ctxP)
-{
-    try
-    {
-        raii_env env(pEnv);
-
-        EvpKeyContext *ctx = reinterpret_cast<EvpKeyContext *>(ctxP);
-
-        DH *dh = EVP_PKEY_get0_DH(ctx->getKey()); // Does not need to be freed
-        if (!dh)
-        {
-            throw_openssl(EX_RUNTIME_CRYPTO, "Could not retrieve DH key");
-        }
-
-        const BIGNUM *y = DH_get0_pub_key(dh);
-        if (!y)
-        {
-            throw_java_ex(EX_RUNTIME_CRYPTO, "Could not retrieve Y");
-        }
-
-        return bn2jarr(env, y);
-    }
-    catch (java_ex &ex)
-    {
-        ex.throw_to_java(pEnv);
-        return NULL;
-    }
-}
-
-/*
- * Class:     com_amazon_corretto_crypto_provider_EvpDhPrivateKey
- * Method:    getX
- * Signature: (J)[B
- */
-JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpDhPrivateKey_getX(
-    JNIEnv *pEnv,
-    jclass,
-    jlong ctxP)
-{
-    try
-    {
-        raii_env env(pEnv);
-
-        EvpKeyContext *ctx = reinterpret_cast<EvpKeyContext *>(ctxP);
-
-        DH *dh = EVP_PKEY_get0_DH(ctx->getKey()); // Does not need to be freed
-        if (!dh)
-        {
-            throw_openssl(EX_RUNTIME_CRYPTO, "Could not retrieve DH key");
-        }
-
-        const BIGNUM *x = DH_get0_priv_key(dh);
-        if (!x)
-        {
-            throw_java_ex(EX_RUNTIME_CRYPTO, "Could not retrieve X");
-        }
-
-        return bn2jarr(env, x);
-    }
-    catch (java_ex &ex)
-    {
-        ex.throw_to_java(pEnv);
-        return NULL;
-    }
-}
-
-/*
- * Class:     com_amazon_corretto_crypto_provider_EvpDsaPublicKey
- * Method:    getY
- * Signature: (J)[B
- */
-JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpDsaPublicKey_getY(
-    JNIEnv *pEnv,
-    jclass,
-    jlong ctxP)
-{
-    try {
-        raii_env env(pEnv);
-
-        EvpKeyContext *ctx = reinterpret_cast<EvpKeyContext *>(ctxP);
-
-        DSA *dsa = EVP_PKEY_get0_DSA(ctx->getKey()); // Does not need to be freed
-        if (!dsa) {
-            throw_openssl(EX_RUNTIME_CRYPTO, "Could not retrieve DH key");
-        }
-
-        const BIGNUM *y = DSA_get0_pub_key(dsa);
-        if (!y)
-        {
-            throw_java_ex(EX_RUNTIME_CRYPTO, "Could not retrieve Y");
-        }
-
-        return bn2jarr(env, y);
-    } catch (java_ex & ex)
-    {
-        ex.throw_to_java(pEnv);
-        return NULL;
-    }
-}
-
-/*
- * Class:     com_amazon_corretto_crypto_provider_EvpDsaPrivateKey
- * Method:    getX
- * Signature: (J)[B
- */
-JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpDsaPrivateKey_getX(
-    JNIEnv *pEnv,
-    jclass,
-    jlong ctxP)
-{
-    try
-    {
-        raii_env env(pEnv);
-
-        EvpKeyContext *ctx = reinterpret_cast<EvpKeyContext *>(ctxP);
-
-        DSA *dsa = EVP_PKEY_get0_DSA(ctx->getKey()); // Does not need to be freed
-        if (!dsa)
-        {
-            throw_openssl(EX_RUNTIME_CRYPTO, "Could not retrieve DH key");
-        }
-
-        const BIGNUM *x = DSA_get0_priv_key(dsa);
-        if (!x)
-        {
-            throw_java_ex(EX_RUNTIME_CRYPTO, "Could not retrieve X");
-        }
-
-        return bn2jarr(env, x);
-    } catch (java_ex & ex)
-    {
-        ex.throw_to_java(pEnv);
-        return NULL;
-    }
-}
-
 /*
  * Class:     com_amazon_corretto_crypto_provider_EvpKeyFactory
  * Method:    rsa2Evp
@@ -872,8 +645,7 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_r
             throw_openssl(EX_OOM, "Unable to assign RSA key");
         }
         // We can only check consistency if the CRT parameters are present
-        if (shouldCheckPrivate && !!crtCoefArr && !checkPrivateKey(ctx.getKey()))
-        {
+        if (shouldCheckPrivate && !!crtCoefArr && !checkKey(ctx.getKey())) {
             throw_openssl(EX_INVALID_KEY_SPEC, "Key fails check");
         }
         return reinterpret_cast<jlong>(ctx.moveToHeap());
@@ -908,14 +680,20 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpRsaPriv
         const BIGNUM *n = NULL;
         CHECK_OPENSSL(rsaKey = EVP_PKEY_get0_RSA(ctx->getKey()));
         RSA_get0_key(rsaKey, &n, &e, &d);
-        if (BN_is_zero(e)) {
+        if (BN_null_or_zero(e)) {
+
             EvpKeyContext stackContext;
             RSA_auto zeroed_rsa;
 
             // Key is lacking the public exponent so we must encode manually
             // Fortunately, this must be the most boring type of key (no params)
+            BIGNUM *zeroedE = BN_dup(e);
+            if (nullptr == zeroedE) {
+                CHECK_OPENSSL(zeroedE = BN_new());
+            }
+
             CHECK_OPENSSL(zeroed_rsa.set(RSA_new()));
-            if (!RSA_set0_key(zeroed_rsa, BN_dup(n), BN_dup(e), BN_dup(d))) {
+            if (!RSA_set0_key(zeroed_rsa, BN_dup(n), zeroedE, BN_dup(d))) {
               throw_openssl(EX_RUNTIME_CRYPTO, "Unable to set RSA components");
             }
             if (!RSA_set0_factors(zeroed_rsa, BN_new(), BN_new())) {
@@ -953,104 +731,3 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpRsaPriv
     return result;
 }
 
-/*
- * Class:     com_amazon_corretto_crypto_provider_EvpKeyFactory
- * Method:    dsa2Evp
- * Signature: ([B[B[B)J
- */
-JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_dsa2Evp(
-    JNIEnv *pEnv,
-    jclass,
-    jbyteArray xArr,
-    jbyteArray yArr,
-    jbyteArray paramsArr,
-    jboolean shouldCheckPrivate)
-{
-    try
-    {
-        raii_env env(pEnv);
-        EvpKeyContext ctx;
-        DSA_auto dsa;
-
-        {
-            // Parse the parameters
-            java_buffer paramsBuff = java_buffer::from_array(env, paramsArr);
-            size_t paramsLength = paramsBuff.len();
-            jni_borrow borrow(env, paramsBuff, "params");
-
-            const unsigned char *derPtr = borrow.data();
-            const unsigned char *derMutablePtr = derPtr;
-
-            dsa.set(d2i_DSAparams(NULL, &derMutablePtr, paramsLength));
-            if (!dsa.isInitialized())
-            {
-                throw_openssl(EX_INVALID_KEY_SPEC, "Invalid parameters");
-            }
-            if (derPtr + paramsLength != derMutablePtr)
-            {
-                throw_openssl(EX_INVALID_KEY_SPEC, "Extra key information");
-            }
-
-            ctx.setKey(EVP_PKEY_new());
-            if (!EVP_PKEY_set1_DSA(ctx.getKey(), dsa))
-            {
-                throw_openssl(EX_INVALID_KEY_SPEC, "Could not convert to EVP_PKEY");
-            }
-        }
-
-        // Set the key pieces
-        {
-            if (yArr && !xArr) // Public only
-            {
-                BigNumObj y = BigNumObj::fromJavaArray(env, yArr);
-                if (DSA_set0_key(dsa, y, NULL) != 1) // Takes ownership
-                {
-                    throw_openssl(EX_RUNTIME_CRYPTO, "Unable to set public key");
-                }
-                y.releaseOwnership();
-            } else if (xArr) {
-                BigNumObj x = BigNumObj::fromJavaArray(env, xArr);
-                BigNumObj y;
-                if (yArr) {
-                    jarr2bn(env, yArr, y);
-                } else {
-                    // We need to calculate this ourselves
-                    BigNumObj xConstTime; // Must be freed before we do anything else with x
-                    BN_with_flags(xConstTime, x, BN_FLG_CONSTTIME);
-
-                    const BIGNUM *p = NULL;
-                    const BIGNUM *g = NULL;
-
-                    DSA_get0_pqg(dsa, &p, NULL, &g);
-
-                    BN_CTX_auto bn_ctx;
-                    CHECK_OPENSSL(bn_ctx.set(BN_CTX_secure_new()));
-                    CHECK_OPENSSL(BN_mod_exp(y, g, xConstTime, p, bn_ctx) == 1);
-                } // End of scope frees xConstTime
-
-
-                if (DSA_set0_key(dsa, y, x) != 1) // Takes ownership
-                {
-                    throw_openssl(EX_RUNTIME_CRYPTO, "Unable to set private key");
-                }
-
-                y.releaseOwnership();
-                x.releaseOwnership();
-
-                if (shouldCheckPrivate && !checkPrivateKey(ctx.getKey()))
-                {
-                    throw_openssl(EX_INVALID_KEY_SPEC, "Key fails check");
-                }
-            } else {
-                throw_java_ex(EX_RUNTIME_CRYPTO, "DSA lacks both public and private parts");
-            }
-        }
-
-        return reinterpret_cast<jlong>(ctx.moveToHeap());
-    }
-    catch (java_ex &ex)
-    {
-        ex.throw_to_java(pEnv);
-        return 0;
-    }
-}

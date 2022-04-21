@@ -516,34 +516,4 @@ class EvpSignature extends EvpSignatureBase {
             super(provider, EvpKeyType.EC, 0, "sha512");
         }
     }
-
-    static final class SHA1withDSA extends EvpSignature {
-        SHA1withDSA(AmazonCorrettoCryptoProvider provider) {
-            super(provider, EvpKeyType.DSA, 0, "sha1");
-        }
-    }
-
-    static final class SHA224withDSA extends EvpSignature {
-        SHA224withDSA(AmazonCorrettoCryptoProvider provider) {
-            super(provider, EvpKeyType.DSA, 0, "sha224");
-        }
-    }
-
-    static final class SHA256withDSA extends EvpSignature {
-        SHA256withDSA(AmazonCorrettoCryptoProvider provider) {
-            super(provider, EvpKeyType.DSA, 0, "sha256");
-        }
-    }
-
-    static final class SHA384withDSA extends EvpSignature {
-        SHA384withDSA(AmazonCorrettoCryptoProvider provider) {
-            super(provider, EvpKeyType.DSA, 0, "sha384");
-        }
-    }
-
-    static final class SHA512withDSA extends EvpSignature {
-        SHA512withDSA(AmazonCorrettoCryptoProvider provider) {
-            super(provider, EvpKeyType.DSA, 0, "sha512");
-        }
-    }
 }

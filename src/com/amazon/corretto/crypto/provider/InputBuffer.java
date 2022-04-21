@@ -49,7 +49,7 @@ public class InputBuffer<T, S, X extends Throwable> implements Cloneable {
       @     Finalized      // doFinal has been called, cannot take more data until reset
       @ }
       @*/
-    
+
     //@ // safe to call update() except after doFinal() or before setting handlers
     /*@ public normal_behavior
       @     requires true;
@@ -58,29 +58,29 @@ public class InputBuffer<T, S, X extends Throwable> implements Cloneable {
       @              || s == BufferState.HandlerCalled) <==> \result;
       @ public static model pure boolean canTakeData(BufferState s);
       @*/
-    
+
     //@ // safe to reset handlers before taking data or after finishing
     /*@ public normal_behavior
       @     requires true;
-      @     ensures (s == BufferState.Uninitialized 
-      @              || s == BufferState.Ready 
+      @     ensures (s == BufferState.Uninitialized
+      @              || s == BufferState.Ready
       @              || s == BufferState.Finalized) <==> \result;
       @ public static model pure boolean canSetHandler(BufferState s);
       @*/
-        
+
     //@ // note: final handler and single array pass can always safely be set
-    
+
     //@ // if firstData is true, then no handler can have been called
     /*@ public normal_behavior
       @   requires true;
       @   ensures s == BufferState.Finalized ==> \result; // we don't care about final state
       @   ensures (s == BufferState.HandlerCalled) ==> \result == !firstData;
-      @   ensures (s == BufferState.Uninitialized 
+      @   ensures (s == BufferState.Uninitialized
       @            || s == BufferState.Ready
       @            || s == BufferState.DataIn) ==> \result == firstData;
       @ public static model pure helper boolean bufferStateConsistent(BufferState s, boolean firstData);
       @*/
-    
+
     //@ non_null_by_default
     @FunctionalInterface
     public static interface ArrayStateConsumer<S> {
@@ -132,7 +132,7 @@ public class InputBuffer<T, S, X extends Throwable> implements Cloneable {
         //@   ensures bb.position == bb.limit;
         public void accept(/*@ nullable @*/ S state, ByteBuffer bb);
     }
-    
+
     // provided for specification purposes
     //@ non_null_by_default
     @FunctionalInterface
@@ -176,18 +176,17 @@ public class InputBuffer<T, S, X extends Throwable> implements Cloneable {
     // If absent, delegates to firstArrayUpdater+finalHandler
     //@ spec_public
     private Optional<ArrayFunction<T, X>> singlePassArray = Optional.empty();
-    
     //@ // Additional state needed in specifications:
     //@ public ghost int bytesReceived;  // total # bytes given to InputBuffer
     //@ public ghost int bytesProcessed; // total # bytes InputBuffer has passed to handlers
-    
+
     //@ public ghost BufferState bufferState;
-    
+
     // should use buff.size() rather than count directly but this appears to be some odd JML bug
     //@ public invariant bytesReceived == bytesProcessed + buff.count;
-    
+
     //@ public invariant bufferStateConsistent(bufferState, firstData);
-    
+
     //@ normal_behavior
     //@   requires 0 < capacity;
     //@   ensures bytesReceived == 0;
@@ -211,7 +210,7 @@ public class InputBuffer<T, S, X extends Throwable> implements Cloneable {
 
     /*@ public normal_behavior
       @   requires true;
-      @   assignable buff.count, state, state.*, firstData, 
+      @   assignable buff.count, state, state.*, firstData,
       @              bytesProcessed, bytesReceived, bufferState;
       @   ensures bytesReceived == 0;
       @   ensures \old(bufferState) == BufferState.Uninitialized
@@ -245,15 +244,15 @@ public class InputBuffer<T, S, X extends Throwable> implements Cloneable {
     /*@ normal_behavior
       @   requires canSetHandler(bufferState);
       @   assignable arrayUpdater, bufferState;
-      @   ensures \result == this && arrayUpdater == handler;    
-      @   ensures (\old(bufferState) == BufferState.Uninitialized && handler != null) 
+      @   ensures \result == this && arrayUpdater == handler;
+      @   ensures (\old(bufferState) == BufferState.Uninitialized && handler != null)
       @           ==> bufferState == BufferState.Ready;
       @   ensures (\old(bufferState) != BufferState.Uninitialized || handler == null)
       @           ==> bufferState == \old(bufferState);
       @*/
     public InputBuffer<T, S, X> withUpdater(final /*@ nullable @*/ ArrayStateConsumer<S> handler) {
         arrayUpdater = handler;
-        /*@ set bufferState = (bufferState == BufferState.Uninitialized && handler != null) 
+        /*@ set bufferState = (bufferState == BufferState.Uninitialized && handler != null)
           @                    ? BufferState.Ready : bufferState;
           @*/
         return this;
@@ -268,7 +267,7 @@ public class InputBuffer<T, S, X extends Throwable> implements Cloneable {
         initialBufferUpdater = Optional.ofNullable(handler);
         return this;
     }
-    
+
     //@ // because buffer updaters are optional, does not change bufferState
     //@ normal_behavior
     //@     requires canSetHandler(bufferState);
@@ -325,7 +324,7 @@ public class InputBuffer<T, S, X extends Throwable> implements Cloneable {
       @       ensures \result;
       @       ensures bytesReceived == \old(bytesReceived) + length;
       @       ensures buff.count == \old(buff.count) + length;
-      @       ensures \old(bufferState) == BufferState.Ready 
+      @       ensures \old(bufferState) == BufferState.Ready
       @                ==> bufferState == BufferState.DataIn;
       @       ensures \old(bufferState) != BufferState.Ready
       @                ==> bufferState == \old(bufferState);
@@ -351,7 +350,7 @@ public class InputBuffer<T, S, X extends Throwable> implements Cloneable {
         // that later.
         if (buffSize - buff.size() < length) {
             return false;
-        }        
+        }
         try {
             buff.write(arr, offset, length);
         } catch (IndexOutOfBoundsException ex) {
@@ -392,7 +391,7 @@ public class InputBuffer<T, S, X extends Throwable> implements Cloneable {
       @       ensures bytesReceived == \old(bytesReceived) + length;
       @       ensures buff.count == \old(buff.count) + length;
       @       ensures src.position == src.limit;
-      @       ensures \old(bufferState) == BufferState.Ready 
+      @       ensures \old(bufferState) == BufferState.Ready
       @                ==> bufferState == BufferState.DataIn;
       @       ensures \old(bufferState) != BufferState.Ready
       @                ==> bufferState == \old(bufferState);
@@ -443,7 +442,7 @@ public class InputBuffer<T, S, X extends Throwable> implements Cloneable {
      * and empties {@link #buff}. If {@link #buff} is empty then this method is a NOP <em>unless</em>
      * no data has been previously passed to a handler (e.g., {@link #firstData} is {@code true}) and
      * {@code forceInit} is also {@code true}.
-     * 
+     *
      * @param forceInit if {@code true} guarantees that {@link #state} will be initialized (if
      *        appropriate) by the time this method returns.
      */
@@ -471,7 +470,7 @@ public class InputBuffer<T, S, X extends Throwable> implements Cloneable {
     /*@ public normal_behavior
       @   requires canTakeData(bufferState);
       @   requires arrayUpdater != null && bufferUpdater.isPresent();
-      @   assignable src.position, state, state.*, bytesProcessed, 
+      @   assignable src.position, state, state.*, bytesProcessed,
       @              bytesReceived, firstData, buff.count, bufferState;
       @   ensures bytesReceived == \old(bytesReceived + src.remaining());
       @   ensures src.position == src.limit;
@@ -527,7 +526,7 @@ public class InputBuffer<T, S, X extends Throwable> implements Cloneable {
       @   requires canTakeData(bufferState);
       @   requires 0 <= offset && 0 <= length && length <= src.length - offset;
       @   requires arrayUpdater != null;
-      @   assignable state, state.*, buff.count, firstData, bytesProcessed, 
+      @   assignable state, state.*, buff.count, firstData, bytesProcessed,
       @              bytesReceived, bufferState;
       @   ensures bytesReceived == \old(bytesReceived) + length;
       @   ensures canTakeData(bufferState);
@@ -614,7 +613,7 @@ public class InputBuffer<T, S, X extends Throwable> implements Cloneable {
     //@   signals_only CloneNotSupportedException;
     //@ pure
     @Override
-    protected Object clone() throws CloneNotSupportedException {
+    protected InputBuffer<T, S, X> clone() throws CloneNotSupportedException {
         if (state != null && !stateCloner.isPresent()) {
             throw new CloneNotSupportedException("No stateCloner configured");
         }

@@ -20,7 +20,6 @@ import java.security.Provider;
 import java.security.PublicKey;
 import java.security.Signature;
 import java.security.SignatureException;
-import java.security.interfaces.DSAKey;
 import java.security.interfaces.ECKey;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.RSAKeyGenParameterSpec;
@@ -44,7 +43,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 public class EvpSignatureTest {
     private static final Provider NATIVE_PROVIDER = AmazonCorrettoCryptoProvider.INSTANCE;
     private static final int[] LENGTHS = new int[] { 1, 3, 4, 7, 8, 16, 32, 48, 64, 128, 256, 1024, 1536, 2049 };
-    private static final List<String> BASES = Arrays.asList("DSA", "RSA", "ECDSA");
+    private static final List<String> BASES = Arrays.asList("RSA", "ECDSA");
     private static final List<String> HASHES = Arrays.asList("NONE", "SHA1", "SHA224", "SHA256", "SHA384", "SHA512");
     private static final int[] MESSAGE_LENGTHS = new int[] { 0, 1, 16, 32, 2047, 2048, 2049, 4100 };
     private static List<TestParams> MASTER_PARAMS_LIST;
@@ -115,17 +114,12 @@ public class EvpSignatureTest {
         }
 
         public int getMessageSizeLimit() {
-            // For DSA and ECDSA raw algorithms, there is a limit to which the "digest" is truncated. We need to make sure
+            // For ECDSA raw algorithms, there is a limit to which the "digest" is truncated. We need to make sure
             // we're not past that limit.
 
-            // Note that ignoring the extension is per the spec - see FIPS.186-4 for both DSA and ECDSA specifying that the
+            // Note that ignoring the extension is per the spec - see FIPS.186-4 for ECDSA specifying that the
             // leftmost min(N, outlen) bits of Hash(M) be used, for values of N depending on the domain parameters
             switch (algorithm) {
-                case "NONEwithDSA": {
-                    DSAKey dsaKey = (DSAKey) keyPair.getPublic();
-
-                    return dsaKey.getParams().getQ().bitLength() / 8;
-                }
                 case "NONEwithECDSA": {
                     ECKey ecKey = (ECKey) keyPair.getPublic();
 
@@ -159,19 +153,12 @@ public class EvpSignatureTest {
         kg.initialize(new ECGenParameterSpec("NIST P-521"));
         KeyPair ecPair = kg.generateKeyPair();
 
-        kg = KeyPairGenerator.getInstance("DSA");
-        kg.initialize(2048);
-        KeyPair dsaPair = kg.generateKeyPair();
-
         MASTER_PARAMS_LIST = new ArrayList<>();
         for (final String base : BASES) {
             KeyPair currentPair;
             switch (base) {
                 case "RSA":
                     currentPair = rsaPair;
-                    break;
-                case "DSA":
-                    currentPair = dsaPair;
                     break;
                 case "ECDSA":
                     currentPair = ecPair;
@@ -186,11 +173,6 @@ public class EvpSignatureTest {
                         case "RSA":
                             // RSA with NONE is not supported, as RSA padding requires that the hash be known
                             continue next_hash;
-                        case "DSA":
-                            // DSA raw messages are truncated when they exceed the bit length of Q (XX bits) so there's no
-                            // point in testing much larger
-                            lengths = new int[] { 0, 1, 16, 24, 25, 26, 27, 28, 29 };
-                            break;
                         case "ECDSA":
                             // Similarly, ECDSA raw messages are truncated at the modulus size (384 bits in our case -
                             // so 48 bytes).

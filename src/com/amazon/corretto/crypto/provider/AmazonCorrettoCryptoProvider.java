@@ -68,8 +68,6 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
         addService("Cipher", "AES_256/GCM/NoPadding", "AesGcmSpi");
 
         addService("KeyFactory", "RSA", "EvpKeyFactory$RSA");
-        addService("KeyFactory", "DSA", "EvpKeyFactory$DSA");
-        addService("KeyFactory", "DH", "EvpKeyFactory$DH");
         addService("KeyFactory", "EC", "EvpKeyFactory$EC");
 
         addService("KeyPairGenerator", "RSA", "RsaGen");
@@ -80,26 +78,23 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
         addService("Cipher", "RSA/ECB/OAEPWithSHA-1AndMGF1Padding", "RsaCipher$OAEPSha1");
 
         for (String hash : new String[] { "MD5", "SHA1", "SHA256", "SHA384", "SHA512" }) {
-            addService("Mac", "Hmac" + hash, "Hmac" + hash + "Spi");
+            addService("Mac", "Hmac" + hash, "EvpHmac$" + hash);
         }
 
         addService("KeyAgreement", "ECDH", "EvpKeyAgreement$ECDH",
                    singletonMap("SupportedKeyClasses", "java.security.interfaces.ECPublicKey|java.security.interfaces.ECPrivateKey")
         );
-        addService("KeyAgreement", "DH", "EvpKeyAgreement$DH", emptyMap(), "DIFFIEHELLMAN");
 
-        if (isRdRandSupported()) {
-            addService("SecureRandom", "NIST800-90A/AES-CTR-256", "AesCtrDrbg$SPI",
-                    singletonMap("ThreadSafe", "true"))
-                    .setSelfTest(AesCtrDrbg.SPI.SELF_TEST);
-        }
+        addService("SecureRandom", "LibCryptoRng", "LibCryptoRng$SPI",
+                singletonMap("ThreadSafe", "true"), "DEFAULT")
+                .setSelfTest(LibCryptoRng.SPI.SELF_TEST);
 
         addSignatures();
     }
 
     private void addSignatures() {
         // Basic signature styles
-        final List<String> bases = asList("DSA", "RSA", "ECDSA");
+        final List<String> bases = asList("RSA", "ECDSA");
         final List<String> hashes = asList("SHA1", "SHA224", "SHA256", "SHA384", "SHA512");
 
         for (final String base : bases) {
@@ -114,7 +109,6 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
         }
 
         addService("Signature", "NONEwithECDSA", "EvpSignatureRaw$NONEwithECDSA");
-        addService("Signature", "NONEwithDSA", "EvpSignatureRaw$NONEwithDSA");
     }
 
     private ACCPService addService(final String type, final String algorithm, final String className) {
@@ -294,16 +288,12 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
         if (selfTestSuite == null) {
             selfTestSuite = new SelfTestSuite();
         }
-        selfTestSuite.addSelfTest(HmacSHA512Spi.SELF_TEST);
-        selfTestSuite.addSelfTest(HmacSHA384Spi.SELF_TEST);
-        selfTestSuite.addSelfTest(HmacSHA256Spi.SELF_TEST);
-        selfTestSuite.addSelfTest(HmacSHA1Spi.SELF_TEST);
-        selfTestSuite.addSelfTest(HmacMD5Spi.SELF_TEST);
-
-        if (isRdRandSupported()) {
-            // AES-CTR DRBG requires RDRAND. Run self-test only if RDRAND is supported.
-            selfTestSuite.addSelfTest(AesCtrDrbg.SPI.SELF_TEST);
-        }
+        selfTestSuite.addSelfTest(EvpHmac.SHA512.SELF_TEST);
+        selfTestSuite.addSelfTest(EvpHmac.SHA384.SELF_TEST);
+        selfTestSuite.addSelfTest(EvpHmac.SHA256.SELF_TEST);
+        selfTestSuite.addSelfTest(EvpHmac.SHA1.SELF_TEST);
+        selfTestSuite.addSelfTest(EvpHmac.MD5.SELF_TEST);
+        selfTestSuite.addSelfTest(LibCryptoRng.SPI.SELF_TEST);
 
         // Kick off self-tests in the background. It's vitally important that we don't actually _wait_ for these to
         // complete, as if we do we'll end up recursing through some JCE internals back to attempts to use
@@ -428,8 +418,6 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     // for ACCP use only. This way we only create one of each and do not touch the expensive
     // Provider.getService logic.
     private transient volatile KeyFactory rsaFactory;
-    private transient volatile KeyFactory dhFactory;
-    private transient volatile KeyFactory dsaFactory;
     private transient volatile KeyFactory ecFactory;
 
     KeyFactory getKeyFactory(EvpKeyType keyType) {
@@ -440,16 +428,6 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
                         rsaFactory = KeyFactory.getInstance(keyType.jceName, this);
                     }
                     return rsaFactory;
-                case DH:
-                    if (dhFactory == null) {
-                        dhFactory = KeyFactory.getInstance(keyType.jceName, this);
-                    }
-                    return dhFactory;
-                case DSA:
-                    if (dsaFactory == null) {
-                        dsaFactory = KeyFactory.getInstance(keyType.jceName, this);
-                    }
-                    return dsaFactory;
                 case EC:
                     if (ecFactory == null) {
                         ecFactory = KeyFactory.getInstance(keyType.jceName, this);

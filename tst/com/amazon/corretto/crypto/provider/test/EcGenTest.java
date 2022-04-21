@@ -55,45 +55,9 @@ public class EcGenTest {
     // Not supported in JDK17
     public static final String[][] LEGACY_CURVES = new String[][] {
             // Prime Curves
-            new String[]{"secp112r1", "1.3.132.0.6"},
-            new String[]{"secp112r2", "1.3.132.0.7"},
-            new String[]{"secp128r1", "1.3.132.0.28"},
-            new String[]{"secp128r2", "1.3.132.0.29"},
-            new String[]{"secp160k1", "1.3.132.0.9"},
-            new String[]{"secp160r1", "1.3.132.0.8"},
-            new String[]{"secp160r2", "1.3.132.0.30"},
-            new String[]{"secp192k1", "1.3.132.0.31"},
-            new String[]{"secp192r1", "NIST P-192", "X9.62 prime192v1", /* "prime192v1", */ "1.2.840.10045.3.1.1"},
-            new String[]{"secp224k1", "1.3.132.0.32"},
             new String[]{"secp224r1", "NIST P-224", "1.3.132.0.33"},
-            new String[]{"secp256k1", "1.3.132.0.10"},
-            // Binary Curves
-            new String[]{"sect113r1", "1.3.132.0.4"},
-            new String[]{"sect113r2", "1.3.132.0.5"},
-            new String[]{"sect131r1", "1.3.132.0.22"},
-            new String[]{"sect131r2", "1.3.132.0.23"},
-            new String[]{"sect163k1", "NIST K-163", "1.3.132.0.1"},
-            new String[]{"sect163r1", "1.3.132.0.2"},
-            new String[]{"sect163r2", "NIST B-163", "1.3.132.0.15"},
-            new String[]{"sect193r1", "1.3.132.0.24"},
-            new String[]{"sect193r2", "1.3.132.0.25"},
-            new String[]{"sect233k1", "NIST K-233", "1.3.132.0.26"},
-            new String[]{"sect233r1", "NIST B-233", "1.3.132.0.27"},
-            new String[]{"sect239k1", "1.3.132.0.3"},
-            new String[]{"sect283k1", "NIST K-283", "1.3.132.0.16"},
-            new String[]{"sect283r1", "NIST B-283", "1.3.132.0.17"},
-            new String[]{"sect409k1", "NIST K-409", "1.3.132.0.36"},
-            new String[]{"sect409r1", "NIST B-409", "1.3.132.0.37"},
-            new String[]{"sect571k1", "NIST K-571", "1.3.132.0.38"},
-            new String[]{"sect571r1", "NIST B-571", "1.3.132.0.39"},
-            new String[]{"X9.62 c2tnb191v1", "1.2.840.10045.3.0.5"},
-            new String[]{"X9.62 c2tnb191v2", "1.2.840.10045.3.0.6"},
-            new String[]{"X9.62 c2tnb191v3", "1.2.840.10045.3.0.7"},
-            new String[]{"X9.62 c2tnb239v1", "1.2.840.10045.3.0.11"},
-            new String[]{"X9.62 c2tnb239v2", "1.2.840.10045.3.0.12"},
-            new String[]{"X9.62 c2tnb239v3", "1.2.840.10045.3.0.13"},
-            new String[]{"X9.62 c2tnb359v1", "1.2.840.10045.3.0.18"},
-            new String[]{"X9.62 c2tnb431r1", "1.2.840.10045.3.0.20"},
+            // TODO uncomment below pending https://sim.amazon.com/issues/CryptoAlg-1024
+            // new String[]{"secp256k1", "1.3.132.0.10"},
             };
 
     public static final ECParameterSpec EXPLICIT_CURVE;
@@ -195,7 +159,7 @@ public class EcGenTest {
 
     @ParameterizedTest
     @EnabledForJreRange(min=JRE.JAVA_8, max=JRE.JAVA_14)
-    @ValueSource(ints = {192, 224})
+    @ValueSource(ints = {224})
     public void legacyKnownSizes(int keysize) throws GeneralSecurityException {
         TestUtil.assumeMinimumVersion("1.2.0", nativeGen.getProvider());
         nativeGen.initialize(keysize);
@@ -265,19 +229,6 @@ public class EcGenTest {
         TestUtil.assertThrows(InvalidAlgorithmParameterException.class, exMsg, () -> {
             nativeGen.initialize(spec);
         });
-    }
-
-    @Test
-    @EnabledForJreRange(min=JRE.JAVA_8, max=JRE.JAVA_14)
-    public void validBinaryCurve() throws GeneralSecurityException {
-        final String name = "sect113r1";
-        ECGenParameterSpec spec = new ECGenParameterSpec(name);
-        jceGen.initialize(spec);
-        KeyPair jcePair = jceGen.generateKeyPair();
-        nativeGen.initialize(spec);
-        KeyPair nativePair = nativeGen.generateKeyPair();
-        assertECEquals(name, ((ECPublicKey) jcePair.getPublic()).getParams(),
-                ((ECPublicKey) nativePair.getPublic()).getParams());
     }
 
     @Test

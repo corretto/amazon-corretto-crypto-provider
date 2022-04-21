@@ -37,10 +37,7 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 @ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
 public class EvpKeyAgreementSpecificTest {
     private static final Class<?> SPI_CLASS;
-    private static final int EC_TYPE = 408;
-    private static final int DH_TYPE = 28;
     private static final KeyPair EC_KEYPAIR;
-    private static final KeyPair DH_KEYPAIR;
 
     static {
       try {
@@ -52,25 +49,23 @@ public class EvpKeyAgreementSpecificTest {
           KeyPairGenerator gen = KeyPairGenerator.getInstance("EC");
           gen.initialize(new ECGenParameterSpec("NIST P-256"));
           EC_KEYPAIR = gen.generateKeyPair();
-          gen = KeyPairGenerator.getInstance("DH");
-          gen.initialize(1024);
-          DH_KEYPAIR = gen.generateKeyPair();
       } catch (final Exception ex) {
           throw new AssertionError(ex);
       }
     }
 
     @Test
-    public void wrongKeyTypes() {
+    public void wrongKeyTypes() throws Exception {
+        final KeyPairGenerator gen = KeyPairGenerator.getInstance("RSA");
+        gen.initialize(2048);
+        final KeyPair rsaPair = gen.generateKeyPair();
         assertThrows(InvalidKeyException.class, () -> agree(
             EC_KEYPAIR.getPrivate(),
-            DH_KEYPAIR.getPublic(),
-            EC_TYPE));
+            rsaPair.getPublic()));
 
         assertThrows(InvalidKeyException.class, () -> agree(
-            DH_KEYPAIR.getPrivate(),
-            EC_KEYPAIR.getPublic(),
-            EC_TYPE));
+            rsaPair.getPrivate(),
+            EC_KEYPAIR.getPublic()));
 
     }
 
@@ -78,81 +73,22 @@ public class EvpKeyAgreementSpecificTest {
     public void paramMismatch() {
         assertThrows(InvalidKeyException.class, () -> agree(
             EC_KEYPAIR.getPrivate(),
-            EvpKeyAgreementTest.buildKeyOnWrongCurve((ECPublicKey) EC_KEYPAIR.getPublic()),
-            EC_TYPE));
-
-        assertThrows(InvalidKeyException.class, () -> agree(
-            DH_KEYPAIR.getPrivate(),
-            EvpKeyAgreementTest.buildDhKeyWithRandomParams(1024),
-            DH_TYPE));
-
+            EvpKeyAgreementTest.buildKeyOnWrongCurve((ECPublicKey) EC_KEYPAIR.getPublic())));
     }
 
-     // This test covers three-way DH
     @Test
-    public void dh3() throws Throwable {
-        final KeyPairGenerator kg = KeyPairGenerator.getInstance("DH");
-        kg.initialize(1024);
-        final KeyPair alice = kg.generateKeyPair();
-        final KeyPair bob = kg.generateKeyPair();
-        final KeyPair carol = kg.generateKeyPair();
+    public void evilEcKeys() {
+        final Key privKey = EC_KEYPAIR.getPrivate();
+        assertThrows(InvalidKeyException.class, () -> agree(
+            privKey,
+            EvpKeyAgreementTest.buildKeyAtInfinity(
+                (ECPublicKey) EC_KEYPAIR.getPublic())));
 
-        final KeyAgreement aNativeKA = KeyAgreement.getInstance("DH", NATIVE_PROVIDER);
-        final KeyAgreement bNativeKA = KeyAgreement.getInstance("DH", NATIVE_PROVIDER);
-        final KeyAgreement cNativeKA = KeyAgreement.getInstance("DH", NATIVE_PROVIDER);
+        assertThrows(InvalidKeyException.class, () -> agree(
+            privKey,
+            EvpKeyAgreementTest.buildKeyOffCurve(
+               (ECPublicKey) EC_KEYPAIR.getPublic())));
 
-        final KeyAgreement aSunKA = KeyAgreement.getInstance("DH", "SunJCE");
-        final KeyAgreement bSunKA = KeyAgreement.getInstance("DH", "SunJCE");
-        final KeyAgreement cSunKA = KeyAgreement.getInstance("DH", "SunJCE");
-
-        aNativeKA.init(alice.getPrivate());
-        aSunKA.init(alice.getPrivate());
-
-        bNativeKA.init(bob.getPrivate());
-        bSunKA.init(bob.getPrivate());
-
-        cNativeKA.init(carol.getPrivate());
-        cSunKA.init(carol.getPrivate());
-
-        // Phase 1
-        final Key acNative = aNativeKA.doPhase(carol.getPublic(), false);
-        final Key acSun = aSunKA.doPhase(carol.getPublic(), false);
-        assertKeyEquals("AC keys", acSun, acNative);
-
-        final Key baNative = bNativeKA.doPhase(alice.getPublic(), false);
-        final Key baSun = bSunKA.doPhase(alice.getPublic(), false);
-        assertKeyEquals("BA keys", baSun, baNative);
-
-        final Key cbNative = cNativeKA.doPhase(bob.getPublic(), false);
-        final Key cbSun = cSunKA.doPhase(bob.getPublic(), false);
-        assertKeyEquals("CB keys", cbSun, cbNative);
-
-        // Complete agreement
-        assertNull(aNativeKA.doPhase(cbNative, true));
-        assertNull(aSunKA.doPhase(cbSun, true));
-
-        assertNull(bNativeKA.doPhase(acNative, true));
-        assertNull(bSunKA.doPhase(acSun, true));
-
-        assertNull(cNativeKA.doPhase(baNative, true));
-        assertNull(cSunKA.doPhase(baSun, true));
-
-        // Get the results and ensure they match the default Java implementation
-        final byte[] aliceNativeSecret = aNativeKA.generateSecret();
-        final byte[] aliceSunSecret = aSunKA.generateSecret();
-        assertArrayEquals(aliceSunSecret, aliceNativeSecret, "Alice secrets");
-
-        final byte[] bobNativeSecret = bNativeKA.generateSecret();
-        final byte[] bobSunSecret = bSunKA.generateSecret();
-        assertArrayEquals(bobSunSecret, bobNativeSecret, "Bob secrets");
-
-        final byte[] carolNativeSecret = cNativeKA.generateSecret();
-        final byte[] carolSunSecret = cSunKA.generateSecret();
-        assertArrayEquals(carolSunSecret, carolNativeSecret, "Carol secrets");
-
-        // Finally ensure that the values all match
-        assertArrayEquals(aliceNativeSecret, bobNativeSecret, "Alice and Bob");
-        assertArrayEquals(aliceNativeSecret, carolNativeSecret, "Alice and Carol");
     }
 
     private static void assertKeyEquals(String message, Key a, Key b) {
@@ -160,19 +96,9 @@ public class EvpKeyAgreementSpecificTest {
         assertArrayEquals(a.getEncoded(), b.getEncoded(), message);
     }
 
-    private static byte[] agree(Key privateKeyRaw, Key publicKeyRaw, int keyType)
+    private static byte[] agree(Key privateKeyRaw, Key publicKeyRaw)
       throws Throwable {
-        KeyFactory kf;
-        switch (keyType) {
-            case EC_TYPE:
-                kf = KeyFactory.getInstance("EC", NATIVE_PROVIDER);
-                break;
-            case DH_TYPE:
-                kf = KeyFactory.getInstance("DH", NATIVE_PROVIDER);
-                break;
-            default:
-                throw new IllegalArgumentException();
-        }
+        KeyFactory kf = KeyFactory.getInstance("EC", NATIVE_PROVIDER);
 
         Key privateKey = kf.translateKey(privateKeyRaw);
         Key publicKey = kf.translateKey(publicKeyRaw);

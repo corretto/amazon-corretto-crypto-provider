@@ -39,9 +39,6 @@ import java.util.stream.Stream;
 import javax.crypto.KeyAgreement;
 import javax.crypto.SecretKey;
 import javax.crypto.ShortBufferException;
-import javax.crypto.interfaces.DHPublicKey;
-import javax.crypto.spec.DHParameterSpec;
-import javax.crypto.spec.DHPublicKeySpec;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
@@ -77,10 +74,6 @@ public class EvpKeyAgreementTest {
         MASTER_PARAMS_LIST.add(buildEcdhParameters(new ECGenParameterSpec("NIST P-384"), "NIST P-384"));
         MASTER_PARAMS_LIST.add(buildEcdhParameters(new ECGenParameterSpec("NIST P-521"), "NIST P-521"));
         MASTER_PARAMS_LIST.add(buildEcdhParameters(EcGenTest.EXPLICIT_CURVE, "Explicit Curve"));
-
-        MASTER_PARAMS_LIST.add(buildDhParameters(512));
-        MASTER_PARAMS_LIST.add(buildDhParameters(1024));
-        MASTER_PARAMS_LIST.add(buildDhParameters(2048));
     }
 
     // No need to keep these in memory
@@ -148,24 +141,6 @@ public class EvpKeyAgreementTest {
         }
     }
 
-    private static TestParams buildDhParameters(final int keySize) throws GeneralSecurityException {
-        final KeyPairGenerator generator = KeyPairGenerator.getInstance("DH");
-        generator.initialize(keySize);
-        final DHPublicKey pubKey = (DHPublicKey) generator.generateKeyPair().getPublic();
-        final List<DHPublicKey> badKeys = new ArrayList<>();
-        badKeys.addAll(buildWeakDhKeys(pubKey));
-        badKeys.add(buildDhKeyWithRandomParams(keySize));
-        return new TestParams(
-                "DH",
-                "DH(" + keySize + ")",
-                generator,
-                NATIVE_PROVIDER,
-                BC_PROV,
-                badKeys
-        );
-
-    }
-
     private static TestParams buildEcdhParameters(final AlgorithmParameterSpec genSpec, final String name)
             throws GeneralSecurityException, IOException {
         final KeyPairGenerator generator = KeyPairGenerator.getInstance("EC", NATIVE_PROVIDER);
@@ -183,30 +158,6 @@ public class EvpKeyAgreementTest {
                         buildKeyOffCurve(pubKey),
                         buildKeyOnWrongCurve(pubKey))
         );
-    }
-
-    static List<DHPublicKey> buildWeakDhKeys(final DHPublicKey goodKey) throws GeneralSecurityException {
-        final KeyFactory factory = KeyFactory.getInstance("DH", "SunJCE"); // Lets us bypass some checks in ACCP
-        final List<DHPublicKey> badKeys = new ArrayList<>();
-        final BigInteger p = goodKey.getParams().getP();
-        final BigInteger g = goodKey.getParams().getG();
-        badKeys.add((DHPublicKey) factory.generatePublic(new DHPublicKeySpec(BigInteger.ZERO, p, g)));
-        badKeys.add((DHPublicKey) factory.generatePublic(new DHPublicKeySpec(BigInteger.ONE, p, g)));
-        badKeys.add((DHPublicKey) factory.generatePublic(new DHPublicKeySpec(p.subtract(BigInteger.ONE), p, g)));
-        badKeys.add((DHPublicKey) factory.generatePublic(new DHPublicKeySpec(p, p, g)));
-        badKeys.add((DHPublicKey) factory.generatePublic(new DHPublicKeySpec(p.add(BigInteger.ONE), p, g)));
-        badKeys.add((DHPublicKey) factory.generatePublic(new DHPublicKeySpec(BigInteger.ONE.negate(), p, g)));
-        return badKeys;
-    }
-
-    static DHPublicKey buildDhKeyWithRandomParams(final int keySize) throws GeneralSecurityException {
-        final AlgorithmParameterGenerator paramGen = AlgorithmParameterGenerator.getInstance("DH");
-        paramGen.init(keySize);
-        final AlgorithmParameters params = paramGen.generateParameters();
-        final DHParameterSpec spec = params.getParameterSpec(DHParameterSpec.class);
-        final KeyPairGenerator kg = KeyPairGenerator.getInstance("DH");
-        kg.initialize(spec);
-        return (DHPublicKey) kg.generateKeyPair().getPublic();
     }
 
     static ECPublicKey buildKeyOffCurve(final ECPublicKey goodKey) throws GeneralSecurityException {
@@ -417,11 +368,9 @@ public class EvpKeyAgreementTest {
 
         agree.init(params.pairs[0].getPrivate(), (AlgorithmParameterSpec) null);
 
-        // This test doesn't apply to DH
-        if (!params.algorithm.equals("DH")) {
-            assertThrows(IllegalStateException.class, "Only single phase agreement is supported",
-                    () -> agree.doPhase(params.pairs[0].getPublic(), false));
-        }
+        assertThrows(IllegalStateException.class, "Only single phase agreement is supported",
+                () -> agree.doPhase(params.pairs[0].getPublic(), false));
+
         assertThrows(IllegalStateException.class, "KeyAgreement has not been completed", agree::generateSecret);
 
         assertThrows(InvalidKeyException.class,

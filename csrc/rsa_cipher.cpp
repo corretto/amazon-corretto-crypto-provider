@@ -25,7 +25,7 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_RsaCipher_cipher
     jint outOff
 )
 {
-    
+
     try {
         raii_env env(pEnv);
 

@@ -4,10 +4,9 @@
 #ifndef AUTO_FREE_H
 #define AUTO_FREE_H
 
-#include <openssl/dh.h>
-#include <openssl/dsa.h>
 #include <openssl/ec.h>
 #include <openssl/evp.h>
+#include <openssl/mem.h>
 #include <openssl/rsa.h>
 #include <openssl/x509.h>
 #include "env.h"
@@ -117,8 +116,6 @@
         }                                               \
     }
 
-OPENSSL_auto(DH);
-OPENSSL_auto(DSA);
 OPENSSL_auto(RSA);
 OPENSSL_auto(PKCS8_PRIV_KEY_INFO);
 OPENSSL_auto(EC_GROUP);

@@ -5,8 +5,6 @@ package com.amazon.corretto.crypto.provider;
 
 import java.security.PrivateKey;
 import java.security.PublicKey;
-import java.security.interfaces.DSAPrivateKey;
-import java.security.interfaces.DSAPublicKey;
 import java.security.interfaces.ECPrivateKey;
 import java.security.interfaces.ECPublicKey;
 import java.security.interfaces.RSAPrivateKey;
@@ -14,16 +12,11 @@ import java.security.interfaces.RSAPublicKey;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 
-import javax.crypto.interfaces.DHPrivateKey;
-import javax.crypto.interfaces.DHPublicKey;
-
 /**
  * Corresponds to native constants in OpenSSL which represent keytypes.
  */
 enum EvpKeyType {
     RSA("RSA", 6, RSAPublicKey.class, RSAPrivateKey.class),
-    DH("DH", 28, DHPublicKey.class, DHPrivateKey.class),
-    DSA("DSA", 116, DSAPublicKey.class, DSAPrivateKey.class),
     EC("EC", 408, ECPublicKey.class, ECPrivateKey.class);
 
     final String jceName;
@@ -43,10 +36,6 @@ enum EvpKeyType {
         switch (this) {
             case RSA:
                 return EvpRsaPrivateCrtKey.buildProperKey(fn.applyAsLong(der.getEncoded(), nativeValue));
-            case DH:
-                return new EvpDhPrivateKey(fn.applyAsLong(der.getEncoded(), nativeValue));
-            case DSA:
-                return new EvpDsaPrivateKey(fn.applyAsLong(der.getEncoded(), nativeValue));
             case EC:
                 return new EvpEcPrivateKey(fn.applyAsLong(der.getEncoded(), nativeValue));
             default:
@@ -58,10 +47,6 @@ enum EvpKeyType {
         switch (this) {
             case RSA:
                 return new EvpRsaPublicKey(fn.applyAsLong(der.getEncoded(), nativeValue));
-            case DH:
-                return new EvpDhPublicKey(fn.applyAsLong(der.getEncoded(), nativeValue));
-            case DSA:
-                return new EvpDsaPublicKey(fn.applyAsLong(der.getEncoded(), nativeValue));
             case EC:
                 return new EvpEcPublicKey(fn.applyAsLong(der.getEncoded(), nativeValue));
             default:
