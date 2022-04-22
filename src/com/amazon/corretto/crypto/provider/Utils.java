@@ -4,6 +4,7 @@
 package com.amazon.corretto.crypto.provider;
 
 import java.nio.ByteBuffer;
+import java.security.AccessController;
 import java.security.GeneralSecurityException;
 import java.security.InvalidKeyException;
 import java.security.Key;
@@ -11,12 +12,14 @@ import java.security.KeyFactory;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
+import java.security.PrivilegedAction;
 import java.security.PublicKey;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.logging.Logger;
 
 import javax.crypto.Cipher;
 import javax.crypto.Mac;
@@ -31,6 +34,7 @@ final class Utils {
         // Prevent instantiation
     }
     static final byte[] EMPTY_ARRAY = new byte[0];
+    private static final Logger LOG = Logger.getLogger("AmazonCorrettoCryptoProvider");
 
     /**
      * Returns the difference between the native pointers of a and b. That is, if overlap > 0, then
@@ -456,6 +460,28 @@ final class Utils {
                 // Ignore
             }
         }
+    }
+
+    private static int JAVA_VERSION = 0;
+    static int getJavaVersion() {
+        if (JAVA_VERSION > 0) {
+            return JAVA_VERSION;
+        }
+        final String strVersion = AccessController.doPrivileged((PrivilegedAction<String>) () ->
+            System.getProperty("java.specification.version")
+        );
+        try {
+            final String[] parts = strVersion.split("\\.");
+            if (parts[0].equals("1")) {
+                JAVA_VERSION = Integer.parseInt(parts[1]);
+            } else {
+                JAVA_VERSION = Integer.parseInt(parts[0]);
+            }
+        } catch (final RuntimeException ex) {
+            LOG.warning("Unable to parse version string: " + strVersion);
+            JAVA_VERSION = 8; // fallback to something safe
+        }
+        return JAVA_VERSION;
     }
 }
 

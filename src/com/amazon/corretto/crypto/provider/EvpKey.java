@@ -11,6 +11,7 @@ import java.security.Key;
 import java.security.MessageDigest;
 import java.security.PublicKey;
 import java.security.spec.AlgorithmParameterSpec;
+import java.util.Arrays;
 import java.util.Base64;
 import javax.security.auth.Destroyable;
 
@@ -146,7 +147,7 @@ abstract class EvpKey implements Key, Destroyable {
         if (cachedHashCode == null) {
             synchronized (this) {
                 initEncoded();
-                // Selected to match implementations of sun.security.pkcs.PKCS8Key and sun.security.pkcs.X509Key
+                // Selected to match implementations of sun.security.pkcs.PKCS8Key and sun.security.x509.X509Key
                 int workingValue = 0;
                 if (isPublicKey) {
                     workingValue = encoded.length;
@@ -154,8 +155,12 @@ abstract class EvpKey implements Key, Destroyable {
                         workingValue += (b & 0xff) * 37;
                     }
                 } else {
-                    for (int idx = 0; idx < encoded.length; idx++) {
-                        workingValue += encoded[idx] * idx;
+                    if (Utils.getJavaVersion() >= 17) {
+                        workingValue = Arrays.hashCode(encoded);
+                    } else {
+                        for (int idx = 0; idx < encoded.length; idx++) {
+                            workingValue += encoded[idx] * idx;
+                        }
                     }
                 }
                 cachedHashCode = workingValue;
