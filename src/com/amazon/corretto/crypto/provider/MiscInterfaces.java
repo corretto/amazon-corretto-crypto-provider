@@ -10,6 +10,11 @@ final class MiscInterfaces {
     }
 
     @FunctionalInterface
+    interface ThrowingLongConsumer<X extends Throwable> {
+        void accept(long value) throws X;
+    }
+
+    @FunctionalInterface
     interface ThrowingToLongBiFunction<T, U, X extends Throwable> {
         long applyAsLong(T t, U u) throws X;
     }

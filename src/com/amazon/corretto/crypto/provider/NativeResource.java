@@ -150,9 +150,9 @@ class NativeResource {
     }
 
     /**
-     * Calls the supplied {@link LongConsumer} passing in the raw handle as a parameter.
+     * Calls the supplied {@link MiscInterfaces.ThrowingLongConsumer} passing in the raw handle as a parameter.
      */
-    void useVoid(LongConsumer function) {
+    public <X extends Throwable> void useVoid(MiscInterfaces.ThrowingLongConsumer<X> function) throws X {
         @SuppressWarnings("unused")
         Object unused = cell.use(ptr -> {
             function.accept(ptr);

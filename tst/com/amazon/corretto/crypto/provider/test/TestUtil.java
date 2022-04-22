@@ -165,7 +165,7 @@ public class TestUtil {
             }
             klass = klass.getSuperclass();
         }
-        throw new Error("Can't find match for method");
+        throw new NoSuchMethodException("Can't find match for method");
     }
 
     public static Object sneakyConstruct(String className, Object... args) throws Throwable {

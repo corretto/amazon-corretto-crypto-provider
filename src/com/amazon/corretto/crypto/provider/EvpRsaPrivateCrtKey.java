@@ -6,7 +6,9 @@ package com.amazon.corretto.crypto.provider;
 import java.math.BigInteger;
 import java.security.interfaces.RSAPrivateCrtKey;
 
-class EvpRsaPrivateCrtKey extends EvpRsaPrivateKey implements RSAPrivateCrtKey {
+import com.amazon.corretto.crypto.provider.EvpKey.CanDerivePublicKey;
+
+class EvpRsaPrivateCrtKey extends EvpRsaPrivateKey implements RSAPrivateCrtKey, CanDerivePublicKey<EvpRsaPublicKey> {
     private static final long serialVersionUID = 1;
 
     protected BigInteger crtCoef;
@@ -33,10 +35,12 @@ class EvpRsaPrivateCrtKey extends EvpRsaPrivateKey implements RSAPrivateCrtKey {
         super(new InternalKey(ptr));
     }
 
-    EvpRsaPublicKey getPublicKey() {
+    @Override
+    public EvpRsaPublicKey getPublicKey() {
+        ephemeral = false; // Once our internal key could be elsewhere, we can no longer safely release it when done
         return new EvpRsaPublicKey(internalKey);
     }
-    
+
     @Override
     public BigInteger getPublicExponent() {
         synchronized (this) {

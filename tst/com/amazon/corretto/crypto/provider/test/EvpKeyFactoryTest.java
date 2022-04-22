@@ -8,6 +8,7 @@ import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -58,6 +59,9 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
+/**
+ * This not only tests {@code EvpKeyFactory} but implicitly also tests all of our key implementations as well.
+ */
 @ExtendWith(TestResultLogger.class)
 @Execution(ExecutionMode.CONCURRENT)
 @ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
@@ -355,18 +359,22 @@ public class EvpKeyFactoryTest {
     }
 
     @SuppressWarnings("unchecked")
-    private static <T extends Key> Samples<T> getSamples(KeyPair pair, boolean isPrivate, boolean isTranslated) throws GeneralSecurityException {
+    private static <T extends Key> Samples<T> getSamples(
+            final KeyPair pair, final boolean isPrivate, final boolean isTranslated) throws GeneralSecurityException {
         final String algorithm = pair.getPublic().getAlgorithm();
         final KeyFactory nativeFactory = KeyFactory.getInstance(algorithm, NATIVE_PROVIDER);
         final KeyFactory jceFactory = KeyFactory.getInstance(algorithm);
         final T nativeSample;
+        final T secondNativeSample; // Used for somer equality tests.
         final T jceSample;
         if (isTranslated) {
             if (isPrivate) {
                 nativeSample = (T) nativeFactory.translateKey(pair.getPrivate());
+                secondNativeSample = (T) nativeFactory.translateKey(pair.getPrivate());
                 jceSample = (T) jceFactory.translateKey(pair.getPrivate());
             } else {
                 nativeSample = (T) nativeFactory.translateKey(pair.getPublic());
+                secondNativeSample = (T) nativeFactory.translateKey(pair.getPublic());
                 jceSample = (T) jceFactory.translateKey(pair.getPublic());
             }
             assertNotSame(nativeSample, jceSample);
@@ -376,10 +384,12 @@ public class EvpKeyFactoryTest {
             if (isPrivate) {
                 final PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(pair.getPrivate().getEncoded());
                 nativeSample = (T) nativeFactory.generatePrivate(spec);
+                secondNativeSample = (T) nativeFactory.generatePrivate(spec);
                 jceSample = (T) jceFactory.generatePrivate(spec);
             } else {
                 final X509EncodedKeySpec spec = new X509EncodedKeySpec(pair.getPublic().getEncoded());
                 nativeSample = (T) nativeFactory.generatePublic(spec);
+                secondNativeSample = (T) nativeFactory.generatePublic(spec);
                 jceSample = (T) jceFactory.generatePublic(spec);
             }
         }
@@ -389,10 +399,42 @@ public class EvpKeyFactoryTest {
         assertEquals(jceSample.getAlgorithm(), nativeSample.getAlgorithm(), "Algorithm");
         assertEquals(jceSample.getFormat(), nativeSample.getFormat(), "Format");
         assertArrayEquals(jceSample.getEncoded(), nativeSample.getEncoded(), "Encoded");
+        // This next check is fragile since the JDK might change how it calculates hashcodes,
+        // but we'll try to match it so that us being equal to them will imply equal hash codes.
+        assertEquals(jceSample.hashCode(), nativeSample.hashCode());
+
+        // We have special logic for equality checks within our own provider. Try to cover some of that
+        assertEquals(nativeSample, nativeSample);
+        assertEquals(nativeSample, secondNativeSample);
+        assertEquals(nativeSample.hashCode(), secondNativeSample.hashCode());
+
+        // Using getPublicKey() let's us acquire multiple EvpKeys which are backed by the same native resource
+        // but are different Java objects. This is very useful for testing.
+        try {
+            final PublicKey pub1 = TestUtil.sneakyInvoke(nativeSample, "getPublicKey");
+            final PublicKey pub2 = TestUtil.sneakyInvoke(nativeSample, "getPublicKey");
+
+            assertNotSame(pub1, pub2, "We expect getPublicKey() to return distinct instances for testsing purposes");
+            assertEquals(pub1, pub2);
+            assertEquals(pub2, pub1);
+            assertEquals(pub1.hashCode(), pub2.hashCode());
+
+            if (nativeSample instanceof PublicKey) {
+                assertEquals(nativeSample, pub1);
+                assertEquals(nativeSample.hashCode(), pub1.hashCode());
+            } else {
+                assertNotEquals(nativeSample, pub1);
+            }
+        } catch (final NoSuchMethodException ex) {
+            // This is how we indicate that getPublicKey() isn't there, so just skip these tests.
+        } catch (final Throwable t) {
+            throw new RuntimeException(t);
+        }
         return new Samples<T>(nativeSample, jceSample);
     }
 
-    private static <T extends KeySpec> Samples<T> getSamples(KeyPair pair, Class<T> specKlass,  boolean isPrivate) throws GeneralSecurityException {
+    private static <T extends KeySpec> Samples<T> getSamples(
+            final KeyPair pair, final Class<T> specKlass, final boolean isPrivate) throws GeneralSecurityException {
         final String algorithm = pair.getPublic().getAlgorithm();
         final KeyFactory nativeFactory = KeyFactory.getInstance(algorithm, NATIVE_PROVIDER);
         final KeyFactory jceFactory = KeyFactory.getInstance(algorithm);
@@ -415,10 +457,12 @@ public class EvpKeyFactoryTest {
         assertEquals(jceKey.getAlgorithm(), nativeKey.getAlgorithm(), "Algorithm");
         assertEquals(jceKey.getFormat(), nativeKey.getFormat(), "Format");
 
-        // We don't check this for RSAPrivateKeySpec because ACCP *does* act slightly differently from the other JCE providers.
-        // Since RSAPrivateCrtKeySpec extends RSAPrivateKeySpec, we return it whenever possible, even when RSAPrivateKeySpec is requested.
-        // By doing this we can preserve the CRT parameters through code which may not be aware of them and thus still have the higher
-        // CRT performance after the key is regenerated from them.
+        // We don't check this for RSAPrivateKeySpec
+        // because ACCP *does* act slightly differently from the other JCE providers.
+        // Since RSAPrivateCrtKeySpec extends RSAPrivateKeySpec, we return it whenever possible,
+        // even when RSAPrivateKeySpec is requested.
+        // By doing this we can preserve the CRT parameters through code which may not be aware of them
+        // and thus still have the higher CRT performance after the key is regenerated from them.
         if (!RSAPrivateKeySpec.class.equals(specKlass)) {
             assertArrayEquals(jceKey.getEncoded(), nativeKey.getEncoded(), "Encoded");
         }
