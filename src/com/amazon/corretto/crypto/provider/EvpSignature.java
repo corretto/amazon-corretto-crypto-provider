@@ -308,10 +308,10 @@ class EvpSignature extends EvpSignatureBase {
 
     /**
      * Creates a new instances of this class.
-     * @param keyType the keyType as recongized by OpenSSL for this algorithm. 
+     * @param keyType the keyType as recongized by OpenSSL for this algorithm.
      * @param paddingType the paddingType as recognized by OpenSSL for this algorithm or {@code 0} if N/A.
      * @param digestName the long digest name as recognized by OpenSSL for this algorithm.
-     * 
+     *
      * @see <a
      *      href="https://www.openssl.org/docs/man1.1.0/crypto/EVP_PKEY_CTX_set_rsa_padding.html">EVP_PKEY_CTX_ctrl</a>
      * @see <a
@@ -326,13 +326,13 @@ class EvpSignature extends EvpSignatureBase {
 
         signingBuffer = new InputBuffer<byte[], EvpContext, RuntimeException>(1024)
             .withInitialUpdater((src, offset, length) ->
-                new EvpContext(key_.use(ptr -> 
+                new EvpContext(key_.use(ptr ->
                     signStart(ptr,
                         digestName_, paddingType_, null, 0,
                         src, offset, length)))
             )
             .withInitialUpdater((src) ->
-                new EvpContext(key_.use(ptr -> 
+                new EvpContext(key_.use(ptr ->
                     signStartBuffer(ptr,
                         digestName_, paddingType_, null, 0, src)))
             )
@@ -346,7 +346,7 @@ class EvpSignature extends EvpSignatureBase {
                 signFinish(ctx.take())
             )
             .withSinglePass((src, offset, length) ->
-                key_.use(ptr -> 
+                key_.use(ptr ->
                     sign(ptr,
                             digestName_, paddingType, null, 0,
                             src, offset, length))
@@ -359,7 +359,7 @@ class EvpSignature extends EvpSignatureBase {
                         src, offset, length)))
             )
             .withInitialUpdater((src) ->
-                new EvpContext(key_.use(ptr -> 
+                new EvpContext(key_.use(ptr ->
                     verifyStartBuffer(ptr,
                         digestName_, paddingType_, null, 0, src)))
             )
@@ -390,11 +390,12 @@ class EvpSignature extends EvpSignatureBase {
 
     @Override
     protected synchronized void engineUpdate(final byte val) throws SignatureException {
-        if (oneByteArray_ == null) {
-            oneByteArray_ = new byte[1];
+        ensureInitialized(null);
+        if (signMode) {
+            signingBuffer.update(val);
+        } else {
+            verifyingBuffer.update(val);
         }
-        oneByteArray_[0] = val;
-        engineUpdate(oneByteArray_, 0, 1);
     }
 
     @Override
@@ -445,7 +446,7 @@ class EvpSignature extends EvpSignatureBase {
                 .withDoFinal((ctx) ->
                     verifyFinish(ctx.take(), finalSigBytes, finalOff, finalLen)
                 )
-                .withSinglePass((src, offset, length) -> 
+                .withSinglePass((src, offset, length) ->
                     key_.use(ptr -> verify(ptr,
                         digestName_, paddingType_, null, 0,
                         src, offset, length, finalSigBytes, finalOff, finalLen))

@@ -60,8 +60,7 @@ namespace AmazonCorrettoCryptoProvider
         {
             throw_java_ex(EX_ERROR, "Bad bignum length");
         }
-        std::vector<uint8_t, SecureAlloc<uint8_t>> tmp;
-        tmp.resize(bnLen);
+        std::vector<uint8_t, SecureAlloc<uint8_t>> tmp(static_cast<size_t>(bnLen));
 
         BN_bn2bin(bn, &tmp[0]);
 
