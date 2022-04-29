@@ -17,7 +17,6 @@
 
 #include "generated-headers.h"
 #include "util.h"
-#include "rdrand.h"
 #include "env.h"
 #include "buffer.h"
 

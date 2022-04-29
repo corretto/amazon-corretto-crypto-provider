@@ -41,33 +41,11 @@ public class SecureRandomGenerator {
         final ArrayBlockingQueue<byte[]> queue = new ArrayBlockingQueue<>(threads * 4);
         final ThrowingSupplier coreGetRandom;
 
-        switch (algorithm) {
-          case "--rdrand":
-            if (useSeed) {
-              printUsage();
-              return;
-            }
-            coreGetRandom = convert(NativeTestHooks::rdrand, chunkSize);
-            break;
-
-          case "--rdseed":
-            if (useSeed) {
-              printUsage();
-              return;
-            }
-            if (!NativeTestHooks.hasRdseed()) {
-              throw new RuntimeException("RDSEED not supported");
-            }
-            coreGetRandom = convert(NativeTestHooks::rdseed, chunkSize);
-            break;
-
-          default:
-            final SecureRandom rnd = SecureRandom.getInstance(algorithm);
-            if (useSeed) {
-              coreGetRandom = () -> rnd.generateSeed(chunkSize);
-            } else {
-              coreGetRandom = convert((Consumer<byte[]>)rnd::nextBytes, chunkSize);
-            }
+        final SecureRandom rnd = SecureRandom.getInstance(algorithm);
+        if (useSeed) {
+          coreGetRandom = () -> rnd.generateSeed(chunkSize);
+        } else {
+          coreGetRandom = convert((Consumer<byte[]>)rnd::nextBytes, chunkSize);
         }
 
 
@@ -95,8 +73,7 @@ public class SecureRandomGenerator {
     }
 
     private static void printUsage() {
-        System.out.println("CMD <algorithm|--rdseed|--rdrand> <chunk size> <thread count> [--seed]");
-        System.out.println("\t--seed must not be used with --rdseed or --rdrand");
+        System.out.println("CMD <algorithm> <chunk size> <thread count> [--seed]");
         System.out.println();
         System.out.println("Algorithms:");
         for (final Provider p : Security.getProviders()) {

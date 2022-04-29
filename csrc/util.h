@@ -80,47 +80,6 @@ namespace AmazonCorrettoCryptoProvider
     virtual void zeroize() { secureZero(buf, sizeof(buf)); }
   };
 
-  class pthread_lock_auto
-  {
-  public:
-    pthread_mutex_t *lock;
-
-    pthread_lock_auto(pthread_mutex_t *mutex)
-    {
-      lock = mutex;
-      isLocked_ = (pthread_mutex_lock(lock) == 0);
-      if (!isLocked_)
-      {
-        abort();
-      }
-    }
-
-    ~pthread_lock_auto()
-    {
-      if (isLocked_)
-      {
-        pthread_mutex_unlock(lock);
-      }
-    }
-
-    bool isLocked()
-    {
-      return isLocked_;
-    }
-
-    bool unlock()
-    {
-      if (isLocked_)
-      {
-        isLocked_ = (pthread_mutex_unlock(lock) != 0);
-      }
-      return !isLocked_;
-    }
-
-  private:
-    bool isLocked_;
-  };
-
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 #if defined(__x86_64__)
   // We need to continue supporting some old x86_64 build-chains, so we use a hand-rolled version of bswap64

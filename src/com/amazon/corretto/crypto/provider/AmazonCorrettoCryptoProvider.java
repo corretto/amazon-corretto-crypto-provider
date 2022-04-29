@@ -39,19 +39,12 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     public static final AmazonCorrettoCryptoProvider INSTANCE;
     public static final String PROVIDER_NAME = "AmazonCorrettoCryptoProvider";
 
-    private static final boolean rdRandSupported_;
-
-    private static native boolean nativeRdRandSupported();
-
     private final EnumSet<ExtraCheck> extraChecks = EnumSet.noneOf(ExtraCheck.class);
     private transient SelfTestSuite selfTestSuite = new SelfTestSuite();
 
     static {
         if (!Loader.IS_AVAILABLE && DebugFlag.VERBOSELOGS.isEnabled()) {
             getLogger("AmazonCorrettoCryptoProvider").fine("Native JCE libraries are unavailable - disabling");
-            rdRandSupported_ = false;
-        } else {
-            rdRandSupported_ = nativeRdRandSupported();
         }
         INSTANCE = new AmazonCorrettoCryptoProvider();
     }
@@ -311,10 +304,6 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
      */
     public static void install() {
         Security.insertProviderAt(INSTANCE, 1);
-    }
-
-    public static boolean isRdRandSupported() {
-        return rdRandSupported_;
     }
 
     /**

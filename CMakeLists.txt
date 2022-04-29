@@ -39,7 +39,6 @@ set(TEST_CLASSPATH "" CACHE STRING "Classpath to be included at test build and t
 set(SIGNED_JAR "" CACHE STRING "Path to a pre-signed JAR file, to be used instead of compiling the java source")
 set(DIEHARDER_EXECUTABLE "dieharder" CACHE STRING "Path to the dieharder executable")
 set(ENABLE_NATIVE_TEST_HOOKS NO CACHE BOOL "Enable debugging hooks in the RNG. Disable for production use.")
-set(FORCE_DISABLE_RDRAND NO CACHE BOOL "Force CPUID detection of rdrand support to fail. For testing purposes.")
 set(TEST_DATA_DIR ${PROJECT_SOURCE_DIR}/test-data/ CACHE STRING "Path to directory containing test data")
 set(ORIG_SRCROOT ${PROJECT_SOURCE_DIR} CACHE STRING "Path to root of original package")
 set(PROVIDER_VERSION_STRING "" CACHE STRING "X.Y.Z formatted version of the provider")
@@ -277,8 +276,6 @@ add_library(
         csrc/libcrypto_rng.cpp
         csrc/loader.cpp
         csrc/md5.cpp
-        csrc/amazon_corretto_crypto_provider.cpp
-        csrc/rdrand.cpp
         csrc/rsa_cipher.cpp
         csrc/rsa_gen.cpp
         csrc/sha1.cpp
@@ -304,14 +301,6 @@ add_custom_command(
 add_custom_target(accp-jar-source DEPENDS ${ACCP_JAR_SOURCE})
 
 if(ENABLE_NATIVE_TEST_HOOKS)
-  if (CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
-    add_executable(test_rdrand EXCLUDE_FROM_ALL
-        csrc/test_rdrand.cpp
-    )
-
-    target_link_libraries(test_rdrand amazonCorrettoCryptoProvider)
-  endif ()
-
   add_executable(test_keyutils EXCLUDE_FROM_ALL
         csrc/test_keyutils.cpp
     )
@@ -787,12 +776,6 @@ add_custom_target(checkstyle
 )
 
 if(ENABLE_NATIVE_TEST_HOOKS)
-    if (CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
-      add_custom_target(check-rdrand
-            COMMAND $<TARGET_FILE:test_rdrand>
-        )
-      add_dependencies(check check-rdrand)
-    endif()
     add_custom_target(check-keyutils
         COMMAND $<TARGET_FILE:test_keyutils>
     )

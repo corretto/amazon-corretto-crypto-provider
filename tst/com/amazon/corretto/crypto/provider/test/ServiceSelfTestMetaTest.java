@@ -13,6 +13,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
+import java.security.SecureRandom;
 import java.security.SecureRandomSpi;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicReference;
@@ -41,9 +42,6 @@ public class ServiceSelfTestMetaTest {
 
     @BeforeEach
     public void setUp() throws Throwable {
-        // We need RDRAND support for a lot of these tests to work properly
-        Assumptions.assumeTrue(AmazonCorrettoCryptoProvider.isRdRandSupported(), "RDRAND is supported");
-
         // ACCP instances cache the self-test status within each Service, so create a new instance to clear that cache.
         // This also makes sure the native library is loaded.
         accp = new AmazonCorrettoCryptoProvider();
@@ -79,7 +77,8 @@ public class ServiceSelfTestMetaTest {
             }
         }
 
-        assertEquals(AmazonCorrettoCryptoProvider.isRdRandSupported(), drbgWasUsable);
+        // Check to see if we can get an instance of SecureRandom
+        SecureRandom.getInstance("DEFAULT", accp);
     }
 
     @Test
@@ -89,9 +88,6 @@ public class ServiceSelfTestMetaTest {
         sneakyInvoke(test, "forceFailure");
 
         for (Provider.Service service : accp.getServices()) {
-            if (service.getType().equals("SecureRandom")) {
-                continue;
-            }
             try {
                 Object instance = service.newInstance(null);
 
