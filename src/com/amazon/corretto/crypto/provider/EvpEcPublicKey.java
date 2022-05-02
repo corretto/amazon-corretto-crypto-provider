@@ -17,24 +17,26 @@ class EvpEcPublicKey extends EvpEcKey implements ECPublicKey {
     EvpEcPublicKey(long ptr) {
         this(new InternalKey(ptr));
     }
-    
+
     EvpEcPublicKey(InternalKey key) {
         super(key, true);
     }
 
     @Override
     public ECPoint getW() {
-        synchronized (this) {
-            if (w == null) {
-                final int fieldSizeBits = getParams().getCurve().getField().getFieldSize();
-                final int fieldSizeBytes = (fieldSizeBits + 7) / 8;
+        if (w == null){
+            synchronized (this) {
+                if (w == null) {
+                    final int fieldSizeBits = getParams().getCurve().getField().getFieldSize();
+                    final int fieldSizeBytes = (fieldSizeBits + 7) / 8;
 
-                final byte[] x = new byte[fieldSizeBytes];
-                final byte[] y = new byte[fieldSizeBytes];
+                    final byte[] x = new byte[fieldSizeBytes];
+                    final byte[] y = new byte[fieldSizeBytes];
 
-                useVoid(ptr -> getPublicPointCoords(ptr, x, y));
+                    useVoid(ptr -> getPublicPointCoords(ptr, x, y));
 
-                w = new ECPoint(new BigInteger(1, x), new BigInteger(1, y));
+                    w = new ECPoint(new BigInteger(1, x), new BigInteger(1, y));
+                }
             }
         }
         return w;

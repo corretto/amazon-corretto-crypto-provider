@@ -14,12 +14,14 @@ abstract class EvpEcKey extends EvpKey implements ECKey {
     EvpEcKey(InternalKey key, boolean isPublicKey) {
         super(key, EvpKeyType.EC, isPublicKey);
     }
-    
+
     @Override
     public ECParameterSpec getParams() {
-        synchronized (this) {
-            if (params == null) {
-                params = nativeParams(ECParameterSpec.class);
+        if (params == null) {
+            synchronized (this) {
+                if (params == null) {
+                    params = nativeParams(ECParameterSpec.class);
+                }
             }
         }
         return params;

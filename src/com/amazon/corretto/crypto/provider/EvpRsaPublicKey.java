@@ -11,19 +11,21 @@ class EvpRsaPublicKey extends EvpRsaKey implements RSAPublicKey {
 
     private BigInteger publicExponent;
 
-    EvpRsaPublicKey(long ptr) {
+    EvpRsaPublicKey(final long ptr) {
         this(new InternalKey(ptr));
     }
 
-    EvpRsaPublicKey(InternalKey key) {
+    EvpRsaPublicKey(final InternalKey key) {
         super(key, true);
     }
 
     @Override
     public BigInteger getPublicExponent() {
-        synchronized (this) {
-            if (publicExponent == null) {
-                publicExponent = nativeBN(EvpRsaKey::getPublicExponent);
+        if (publicExponent == null) {
+            synchronized (this) {
+                if (publicExponent == null) {
+                    publicExponent = nativeBN(EvpRsaKey::getPublicExponent);
+                }
             }
         }
         return publicExponent;

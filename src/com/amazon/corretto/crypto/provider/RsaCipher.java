@@ -80,18 +80,6 @@ class RsaCipher extends CipherSpi {
     // @GuardedBy("lock_") // Restore once replacement for JSR-305 available
     private AccessibleByteArrayOutputStream buffer_;
 
-    // Most cipher object will either be used only once (with a given key)
-    // or many times with the same key. To avoid leaving potentially large
-    // amounts of native memory allocated for our keys, we only cache the
-    // native key after its _second_ use (meaning we do free it after its
-    // first). reUseKey_ being false means that we _should_ free the native
-    // key after use. reUseKey_ being true means that we should not free the
-    // native key after use. In order to achieve our simple caching patterns,
-    // whenever we free a key, we set reUseKey_ to true so that the next time
-    // we use it, we keep it around. (We also set reUseKey_ to false if the
-    // key is changed.)
-    private boolean reUseKey_ = false;
-
     RsaCipher(AmazonCorrettoCryptoProvider provider, final Padding padding) {
         Loader.checkNativeLibraryAvailability();
         provider_ = provider;
@@ -236,7 +224,6 @@ class RsaCipher extends CipherSpi {
                 nativeKey_.releaseEphemeral();
                 nativeKey_ = null;
               }
-              reUseKey_ = false;
 
               key_ = (RSAKey) key;
               keySizeBytes_ = (key_.getModulus().bitLength() + 7) / 8;

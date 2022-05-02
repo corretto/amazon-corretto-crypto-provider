@@ -43,39 +43,59 @@ class EvpRsaPrivateCrtKey extends EvpRsaPrivateKey implements RSAPrivateCrtKey, 
 
     @Override
     public BigInteger getPublicExponent() {
-        synchronized (this) {
-            if (publicExponent == null) {
-                publicExponent = nativeBN(EvpRsaKey::getPublicExponent);
+        if (publicExponent == null){
+            synchronized (this) {
+                if (publicExponent == null) {
+                    publicExponent = nativeBN(EvpRsaKey::getPublicExponent);
+                }
             }
         }
         return publicExponent;
     }
 
-    protected synchronized void initBNs() {
+    protected void initBNs() {
+        // Since we use privateExponent to indicate that we are initialized it must be set last
         if (privateExponent != null) {
             return;
         }
-        // Everything will be no larger than the modulus.
-        final BigInteger modulus = getModulus();
-        final int byteLength = (modulus.bitLength() + 7) / 8;
 
-        final byte[] crtCoefArr = new byte[byteLength];
-        final byte[] expPArr = new byte[byteLength];
-        final byte[] expQArr = new byte[byteLength];
-        final byte[] primePArr = new byte[byteLength];
-        final byte[] primeQArr = new byte[byteLength];
-        final byte[] publicExponentArr = new byte[byteLength];
-        final byte[] privateExponentArr = new byte[byteLength];
+        synchronized (this) {
+            // Since we use privateExponent to indicate that we are initialized it must be set last
+            if (privateExponent != null) {
+                return;
+            }
 
-        useVoid(p -> getCrtParams(p, crtCoefArr, expPArr, expQArr, primePArr, primeQArr, publicExponentArr, privateExponentArr));
+            // Everything will be no larger than the modulus.
+            final BigInteger modulus = getModulus();
+            final int byteLength = (modulus.bitLength() + 7) / 8;
 
-        crtCoef = new BigInteger(1, crtCoefArr);
-        expP = new BigInteger(1, expPArr);
-        expQ = new BigInteger(1, expQArr);
-        primeP = new BigInteger(1, primePArr);
-        primeQ = new BigInteger(1, primeQArr);
-        publicExponent = new BigInteger(1, publicExponentArr);
-        privateExponent = new BigInteger(1, privateExponentArr);
+            final byte[] crtCoefArr = new byte[byteLength];
+            final byte[] expPArr = new byte[byteLength];
+            final byte[] expQArr = new byte[byteLength];
+            final byte[] primePArr = new byte[byteLength];
+            final byte[] primeQArr = new byte[byteLength];
+            final byte[] publicExponentArr = new byte[byteLength];
+            final byte[] privateExponentArr = new byte[byteLength];
+
+            useVoid(p -> getCrtParams(
+                p,
+                crtCoefArr,
+                expPArr,
+                expQArr,
+                primePArr,
+                primeQArr,
+                publicExponentArr,
+                privateExponentArr));
+
+            crtCoef = new BigInteger(1, crtCoefArr);
+            expP = new BigInteger(1, expPArr);
+            expQ = new BigInteger(1, expQArr);
+            primeP = new BigInteger(1, primePArr);
+            primeQ = new BigInteger(1, primeQArr);
+            publicExponent = new BigInteger(1, publicExponentArr);
+            // Since we use privateExponent to indicate that we are initialized it must be set last
+            privateExponent = new BigInteger(1, privateExponentArr);
+        }
     }
 
     @Override

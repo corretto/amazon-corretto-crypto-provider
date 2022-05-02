@@ -76,9 +76,13 @@ abstract class EvpKey implements Key, Destroyable {
         return encoded != null ? encoded.clone() : encoded;
     }
 
-    protected synchronized void initEncoded() {
+    protected void initEncoded() {
         if (encoded == null) {
-            encoded = isPublicKey ? use(EvpKey::encodePublicKey) : use(EvpKey::encodePrivateKey);
+            synchronized (this) {
+                if (encoded == null) {
+                    encoded = isPublicKey ? use(EvpKey::encodePublicKey) : use(EvpKey::encodePrivateKey);
+                }
+            }
         }
     }
 
@@ -146,6 +150,9 @@ abstract class EvpKey implements Key, Destroyable {
         // TODO: Consider ways to avoid exposing the entire encoded object ot Java for private keys just for a hashCode
         if (cachedHashCode == null) {
             synchronized (this) {
+                if (cachedHashCode != null) {
+                    return cachedHashCode;
+                }
                 initEncoded();
                 // Selected to match implementations of sun.security.pkcs.PKCS8Key and sun.security.x509.X509Key
                 int workingValue = 0;

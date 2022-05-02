@@ -14,19 +14,21 @@ class EvpRsaPrivateKey extends EvpRsaKey implements RSAPrivateKey {
 
     protected static native byte[] getPrivateExponent(long ptr);
 
-    EvpRsaPrivateKey(long ptr) {
+    EvpRsaPrivateKey(final long ptr) {
         this(new InternalKey(ptr));
     }
 
-    EvpRsaPrivateKey(InternalKey key) {
+    EvpRsaPrivateKey(final InternalKey key) {
         super(key, false);
     }
 
     @Override
     public BigInteger getPrivateExponent() {
-        synchronized (this) {
-            if (privateExponent == null) {
-                privateExponent = nativeBN(EvpRsaPrivateKey::getPrivateExponent);
+        if (privateExponent == null) {
+            synchronized (this) {
+                if (privateExponent == null) {
+                    privateExponent = nativeBN(EvpRsaPrivateKey::getPrivateExponent);
+                }
             }
         }
 
@@ -40,10 +42,14 @@ class EvpRsaPrivateKey extends EvpRsaKey implements RSAPrivateKey {
     }
 
     @Override
-    protected synchronized void initEncoded() {
+    protected void initEncoded() {
         // RSA private keys in Java may lack CRT parameters and thus need custom serialization
         if (encoded == null) {
-            encoded = use(EvpRsaPrivateKey::encodeRsaPrivateKey);
+            synchronized (this) {
+                if (encoded == null) {
+                    encoded = use(EvpRsaPrivateKey::encodeRsaPrivateKey);
+                }
+            }
         }
     }
 }

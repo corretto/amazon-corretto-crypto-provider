@@ -15,11 +15,11 @@ class EvpEcPrivateKey extends EvpEcKey implements ECPrivateKey, CanDerivePublicK
 
     protected BigInteger s;
 
-    EvpEcPrivateKey(long ptr) {
+    EvpEcPrivateKey(final long ptr) {
         this(new InternalKey(ptr));
     }
 
-    EvpEcPrivateKey(InternalKey key) {
+    EvpEcPrivateKey(final InternalKey key) {
         super(key, false);
     }
 
@@ -31,9 +31,11 @@ class EvpEcPrivateKey extends EvpEcKey implements ECPrivateKey, CanDerivePublicK
 
     @Override
     public BigInteger getS() {
-        synchronized (this) {
-            if (s == null) {
-                s = nativeBN(EvpEcPrivateKey::getPrivateValue);
+        if (s == null) {
+            synchronized (this) {
+                if (s == null) {
+                    s = nativeBN(EvpEcPrivateKey::getPrivateValue);
+                }
             }
         }
         return s;
