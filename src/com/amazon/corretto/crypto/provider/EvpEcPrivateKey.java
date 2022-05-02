@@ -13,7 +13,7 @@ class EvpEcPrivateKey extends EvpEcKey implements ECPrivateKey, CanDerivePublicK
 
     private static native byte[] getPrivateValue(long ptr);
 
-    protected BigInteger s;
+    protected volatile BigInteger s;
 
     EvpEcPrivateKey(final long ptr) {
         this(new InternalKey(ptr));
@@ -31,14 +31,17 @@ class EvpEcPrivateKey extends EvpEcKey implements ECPrivateKey, CanDerivePublicK
 
     @Override
     public BigInteger getS() {
-        if (s == null) {
+        BigInteger result = s;
+        if (result == null) {
             synchronized (this) {
-                if (s == null) {
-                    s = nativeBN(EvpEcPrivateKey::getPrivateValue);
+                result = s;
+                if (result == null) {
+                    result = nativeBN(EvpEcPrivateKey::getPrivateValue);
+                    s = result;
                 }
             }
         }
-        return s;
+        return result;
     }
 
     @Override

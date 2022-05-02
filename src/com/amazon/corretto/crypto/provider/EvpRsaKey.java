@@ -9,7 +9,7 @@ import java.security.interfaces.RSAKey;
 abstract class EvpRsaKey extends EvpKey implements RSAKey {
     private static final long serialVersionUID = 1;
 
-    protected BigInteger modulus;
+    protected volatile BigInteger modulus;
 
     protected static native byte[] getModulus(long ptr);
     protected static native byte[] getPublicExponent(long ptr);
@@ -20,15 +20,18 @@ abstract class EvpRsaKey extends EvpKey implements RSAKey {
 
     @Override
     public BigInteger getModulus() {
-        if (modulus == null) {
+        BigInteger result = modulus;
+        if (result == null) {
             synchronized (this) {
-                if (modulus == null) {
-                    modulus = nativeBN(EvpRsaKey::getModulus);
+                result = modulus;
+                if (result == null) {
+                    result = nativeBN(EvpRsaKey::getModulus);
+                    modulus = result;
                 }
             }
         }
 
-        return modulus;
+        return result;
     }
 
 }

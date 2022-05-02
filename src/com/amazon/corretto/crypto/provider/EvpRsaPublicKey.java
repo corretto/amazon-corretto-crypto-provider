@@ -9,7 +9,7 @@ import java.security.interfaces.RSAPublicKey;
 class EvpRsaPublicKey extends EvpRsaKey implements RSAPublicKey {
     private static final long serialVersionUID = 1;
 
-    private BigInteger publicExponent;
+    private volatile BigInteger publicExponent;
 
     EvpRsaPublicKey(final long ptr) {
         this(new InternalKey(ptr));
@@ -21,13 +21,16 @@ class EvpRsaPublicKey extends EvpRsaKey implements RSAPublicKey {
 
     @Override
     public BigInteger getPublicExponent() {
-        if (publicExponent == null) {
+        BigInteger result = publicExponent;
+        if (result == null) {
             synchronized (this) {
-                if (publicExponent == null) {
-                    publicExponent = nativeBN(EvpRsaKey::getPublicExponent);
+                result = publicExponent;
+                if (result == null) {
+                    result = nativeBN(EvpRsaKey::getPublicExponent);
+                    publicExponent = result;
                 }
             }
         }
-        return publicExponent;
+        return result;
     }
 }

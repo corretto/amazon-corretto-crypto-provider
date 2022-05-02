@@ -23,8 +23,8 @@ abstract class EvpKey implements Key, Destroyable {
     protected final boolean isPublicKey;
     protected boolean ephemeral = false;
 
-    protected byte[] encoded;
-    protected Integer cachedHashCode;
+    protected volatile byte[] encoded;
+    protected volatile Integer cachedHashCode;
 
     private static native void releaseKey(long ptr);
     private static native byte[] encodePublicKey(long ptr);
@@ -72,18 +72,22 @@ abstract class EvpKey implements Key, Destroyable {
 
     @Override
     public byte[] getEncoded() {
-        initEncoded();
-        return encoded != null ? encoded.clone() : encoded;
+        final byte[] internalCopy = internalGetEncoded();
+        return internalCopy != null ? internalCopy.clone() : null;
     }
 
-    protected void initEncoded() {
-        if (encoded == null) {
+    protected byte[] internalGetEncoded() {
+        byte[] result = encoded;
+        if (result == null) {
             synchronized (this) {
-                if (encoded == null) {
-                    encoded = isPublicKey ? use(EvpKey::encodePublicKey) : use(EvpKey::encodePrivateKey);
+                result = encoded;
+                if (result == null) {
+                    result = isPublicKey ? use(EvpKey::encodePublicKey) : use(EvpKey::encodePrivateKey);
+                    encoded = result;
                 }
             }
         }
+        return result;
     }
 
     protected <X extends Throwable> BigInteger nativeBN(final MiscInterfaces.ThrowingLongFunction<byte[], X> fn)
@@ -134,46 +138,47 @@ abstract class EvpKey implements Key, Destroyable {
                 return true;
             }
             // If it is also an EvpKey then we can grab the other encoded value without copying it
-            evpOther.initEncoded();
-            otherEncoded = evpOther.encoded;
+            otherEncoded = evpOther.internalGetEncoded();
         } else {
             otherEncoded = other.getEncoded();
         }
 
         // Constant time equality check
-        initEncoded();
-        return MessageDigest.isEqual(encoded, otherEncoded);
+        return MessageDigest.isEqual(internalGetEncoded(), otherEncoded);
     }
 
     @Override
     public int hashCode() {
         // TODO: Consider ways to avoid exposing the entire encoded object ot Java for private keys just for a hashCode
-        if (cachedHashCode == null) {
+        Integer result = cachedHashCode;
+        if (result == null) {
             synchronized (this) {
+                result = cachedHashCode;
                 if (cachedHashCode != null) {
                     return cachedHashCode;
                 }
-                initEncoded();
+                final byte[] internalEncoded = internalGetEncoded();
                 // Selected to match implementations of sun.security.pkcs.PKCS8Key and sun.security.x509.X509Key
                 int workingValue = 0;
                 if (isPublicKey) {
-                    workingValue = encoded.length;
-                    for (final byte b : encoded) {
+                    workingValue = internalEncoded.length;
+                    for (final byte b : internalEncoded) {
                         workingValue += (b & 0xff) * 37;
                     }
                 } else {
                     if (Utils.getJavaVersion() >= 17) {
-                        workingValue = Arrays.hashCode(encoded);
+                        workingValue = Arrays.hashCode(internalEncoded);
                     } else {
-                        for (int idx = 0; idx < encoded.length; idx++) {
-                            workingValue += encoded[idx] * idx;
+                        for (int idx = 0; idx < internalEncoded.length; idx++) {
+                            workingValue += internalEncoded[idx] * idx;
                         }
                     }
                 }
-                cachedHashCode = workingValue;
+                result = workingValue;
+                cachedHashCode = result;
             }
         }
-        return cachedHashCode;
+        return result;
     }
 
     @Override

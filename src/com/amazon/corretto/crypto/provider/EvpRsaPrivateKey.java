@@ -10,7 +10,7 @@ class EvpRsaPrivateKey extends EvpRsaKey implements RSAPrivateKey {
     private static final long serialVersionUID = 1;
     private static native byte[] encodeRsaPrivateKey(long ptr);
 
-    protected BigInteger privateExponent;
+    protected volatile BigInteger privateExponent;
 
     protected static native byte[] getPrivateExponent(long ptr);
 
@@ -24,15 +24,18 @@ class EvpRsaPrivateKey extends EvpRsaKey implements RSAPrivateKey {
 
     @Override
     public BigInteger getPrivateExponent() {
-        if (privateExponent == null) {
+        BigInteger result = privateExponent;
+        if (result == null) {
             synchronized (this) {
-                if (privateExponent == null) {
-                    privateExponent = nativeBN(EvpRsaPrivateKey::getPrivateExponent);
+                result = privateExponent;
+                if (result == null) {
+                    result = nativeBN(EvpRsaPrivateKey::getPrivateExponent);
+                    privateExponent = result;
                 }
             }
         }
 
-        return privateExponent;
+        return result;
     }
 
     @Override
@@ -42,14 +45,18 @@ class EvpRsaPrivateKey extends EvpRsaKey implements RSAPrivateKey {
     }
 
     @Override
-    protected void initEncoded() {
+    protected byte[] internalGetEncoded() {
         // RSA private keys in Java may lack CRT parameters and thus need custom serialization
-        if (encoded == null) {
+        byte[] result = encoded;
+        if (result == null) {
             synchronized (this) {
-                if (encoded == null) {
-                    encoded = use(EvpRsaPrivateKey::encodeRsaPrivateKey);
+                result = encoded;
+                if (result == null) {
+                    result = use(EvpRsaPrivateKey::encodeRsaPrivateKey);
+                    encoded = result;
                 }
             }
         }
+        return result;
     }
 }

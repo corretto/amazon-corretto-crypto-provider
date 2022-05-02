@@ -9,21 +9,24 @@ import java.security.spec.ECParameterSpec;
 abstract class EvpEcKey extends EvpKey implements ECKey {
     private static final long serialVersionUID = 1;
 
-    protected ECParameterSpec params;
+    protected volatile ECParameterSpec params;
 
-    EvpEcKey(InternalKey key, boolean isPublicKey) {
+    EvpEcKey(final InternalKey key, final boolean isPublicKey) {
         super(key, EvpKeyType.EC, isPublicKey);
     }
 
     @Override
     public ECParameterSpec getParams() {
-        if (params == null) {
+        ECParameterSpec result = params;
+        if (result == null) {
             synchronized (this) {
-                if (params == null) {
-                    params = nativeParams(ECParameterSpec.class);
+                result = params;
+                if (result == null) {
+                    result = nativeParams(ECParameterSpec.class);
+                    params = result;
                 }
             }
         }
-        return params;
+        return result;
     }
 }

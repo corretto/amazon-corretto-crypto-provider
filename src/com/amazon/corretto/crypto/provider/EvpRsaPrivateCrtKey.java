@@ -11,12 +11,12 @@ import com.amazon.corretto.crypto.provider.EvpKey.CanDerivePublicKey;
 class EvpRsaPrivateCrtKey extends EvpRsaPrivateKey implements RSAPrivateCrtKey, CanDerivePublicKey<EvpRsaPublicKey> {
     private static final long serialVersionUID = 1;
 
-    protected BigInteger crtCoef;
-    protected BigInteger expP;
-    protected BigInteger expQ;
-    protected BigInteger primeP;
-    protected BigInteger primeQ;
-    protected BigInteger publicExponent;
+    protected volatile BigInteger crtCoef;
+    protected volatile BigInteger expP;
+    protected volatile BigInteger expQ;
+    protected volatile BigInteger primeP;
+    protected volatile BigInteger primeQ;
+    protected volatile BigInteger publicExponent;
 
     protected static native void getCrtParams(long ptr, byte[] crtCoefArr, byte[] expPArr, byte[] expQArr, byte[] primePArr, byte[] primeQArr, byte[] publicExponentArr, byte[] privateExponentArr);
     protected static native boolean hasCrtParams(long ptr);
@@ -43,14 +43,17 @@ class EvpRsaPrivateCrtKey extends EvpRsaPrivateKey implements RSAPrivateCrtKey, 
 
     @Override
     public BigInteger getPublicExponent() {
-        if (publicExponent == null){
+        BigInteger result = publicExponent;
+        if (result == null){
             synchronized (this) {
-                if (publicExponent == null) {
-                    publicExponent = nativeBN(EvpRsaKey::getPublicExponent);
+                result = publicExponent;
+                if (result == null) {
+                    result = nativeBN(EvpRsaKey::getPublicExponent);
+                    publicExponent = result;
                 }
             }
         }
-        return publicExponent;
+        return result;
     }
 
     protected void initBNs() {

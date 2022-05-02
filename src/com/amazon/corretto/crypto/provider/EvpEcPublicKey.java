@@ -12,21 +12,23 @@ class EvpEcPublicKey extends EvpEcKey implements ECPublicKey {
 
     private static native void getPublicPointCoords(long ptr, byte[] x, byte[] y);
 
-    protected ECPoint w;
+    protected volatile ECPoint w;
 
-    EvpEcPublicKey(long ptr) {
+    EvpEcPublicKey(final long ptr) {
         this(new InternalKey(ptr));
     }
 
-    EvpEcPublicKey(InternalKey key) {
+    EvpEcPublicKey(final InternalKey key) {
         super(key, true);
     }
 
     @Override
     public ECPoint getW() {
-        if (w == null){
+        ECPoint result = w;
+        if (result == null){
             synchronized (this) {
-                if (w == null) {
+                result = w;
+                if (result == null) {
                     final int fieldSizeBits = getParams().getCurve().getField().getFieldSize();
                     final int fieldSizeBytes = (fieldSizeBits + 7) / 8;
 
@@ -35,10 +37,11 @@ class EvpEcPublicKey extends EvpEcKey implements ECPublicKey {
 
                     useVoid(ptr -> getPublicPointCoords(ptr, x, y));
 
-                    w = new ECPoint(new BigInteger(1, x), new BigInteger(1, y));
+                    result = new ECPoint(new BigInteger(1, x), new BigInteger(1, y));
+                    w = result;
                 }
             }
         }
-        return w;
+        return result;
     }
 }
