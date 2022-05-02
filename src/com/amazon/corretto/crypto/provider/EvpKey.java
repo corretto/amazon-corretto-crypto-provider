@@ -154,7 +154,7 @@ abstract class EvpKey implements Key, Destroyable {
         if (result == null) {
             synchronized (this) {
                 result = cachedHashCode;
-                if (cachedHashCode != null) {
+                if (result != null) {
                     return cachedHashCode;
                 }
                 final byte[] internalEncoded = internalGetEncoded();
