@@ -11,6 +11,9 @@ import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Corresponds to native constants in OpenSSL which represent keytypes.
@@ -24,12 +27,25 @@ enum EvpKeyType {
     final Class<? extends PublicKey> publicKeyClass;
     final Class<? extends PrivateKey> privateKeyClass;
 
+    private final static Map<String, EvpKeyType> jceNameMapping = new HashMap<>();
+
+    static {
+        for (final EvpKeyType type : EnumSet.allOf(EvpKeyType.class)) {
+            jceNameMapping.put(type.jceName, type);
+        }
+    }
+
     private EvpKeyType(final String jceName, final int nativeValue, final Class<? extends PublicKey> publicKeyClass,
             final Class<? extends PrivateKey> privateKeyClass) {
         this.jceName = jceName;
         this.nativeValue = nativeValue;
         this.publicKeyClass = publicKeyClass;
         this.privateKeyClass = privateKeyClass;
+    }
+
+
+    static EvpKeyType fromJceName(final String jceName) {
+        return jceNameMapping.get(jceName);
     }
 
     <X extends Throwable> PrivateKey buildPrivateKey(MiscInterfaces.ThrowingToLongBiFunction<byte[], Integer, X> fn, PKCS8EncodedKeySpec der) throws X {

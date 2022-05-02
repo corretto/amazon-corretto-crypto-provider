@@ -407,6 +407,9 @@ final class Utils {
         }
     }
 
+    /**
+     * A byte buffer guaranteed to have nothing but zeros to allow for faster zerorization.
+     */
     private static final ByteBuffer ZERO_BYTE_BUF = ByteBuffer.allocate(8192).asReadOnlyBuffer();
 
     /**
@@ -426,15 +429,13 @@ final class Utils {
         }
     }
 
-    private static KeyFactory getKeyFactory(AmazonCorrettoCryptoProvider provider, String algorithm) throws NoSuchAlgorithmException {
-        // Manual listing of supported algorithms for fast-path KeyFactory creation
-        switch (algorithm) {
-            case "RSA":
-                return provider.getKeyFactory(EvpKeyType.RSA);
-            case "EC":
-                return provider.getKeyFactory(EvpKeyType.EC);
-            default:
-                return KeyFactory.getInstance(algorithm);
+    private static KeyFactory getKeyFactory(final AmazonCorrettoCryptoProvider provider, final String algorithm)
+            throws NoSuchAlgorithmException {
+        final EvpKeyType type = EvpKeyType.fromJceName(algorithm);
+        if (type != null) {
+            return provider.getKeyFactory(type);
+        } else {
+            return KeyFactory.getInstance(algorithm);
         }
     }
 
