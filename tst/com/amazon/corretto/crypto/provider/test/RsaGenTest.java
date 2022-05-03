@@ -214,10 +214,6 @@ public class RsaGenTest {
         final BigInteger totient = p1.multiply(q1).divide(p1.gcd(q1));
         assertEquals(BigInteger.ONE, e.multiply(d).mod(totient));
 
-        final BigInteger phiGCD = p1.gcd(q1);
-        final BigInteger phi = p1.multiply(q1).divide(phiGCD);
-        assertEquals(BigInteger.ONE, (priv.getPrivateExponent().multiply(priv.getPublicExponent())).mod(phi));
-
         // Actually use the key
         final Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
         cipher.init(Cipher.ENCRYPT_MODE, pub);
