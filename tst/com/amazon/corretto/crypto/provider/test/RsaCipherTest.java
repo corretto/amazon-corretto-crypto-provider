@@ -11,9 +11,12 @@ import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyInvoke_int
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
+
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -26,6 +29,10 @@ import javax.crypto.spec.SecretKeySpec;
 
 import com.amazon.corretto.crypto.provider.ExtraCheck;
 
+import java.lang.Class;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.security.AlgorithmParameters;
@@ -48,6 +55,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
 
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
@@ -96,6 +105,28 @@ public class RsaCipherTest {
         return Arrays.asList(OAEP_PADDING, PKCS1_PADDING, NO_PADDING);
     }
 
+    public static List<String> messageDigestParams() {
+        List<String> digests = new ArrayList<>();
+        try {
+            for (Field f : MGF1ParameterSpec.class.getDeclaredFields()) {
+                if (Modifier.isStatic(f.getModifiers())
+                        && f.getType().isAssignableFrom(MGF1ParameterSpec.class)) {
+                    Object o = f.get(null); // static field, so null "instance"
+                    Method m = MGF1ParameterSpec.class.getDeclaredMethod("getDigestAlgorithm");
+                    String digest = (String) m.invoke(o);
+                    // NOTE: AWS-LC doesn't support SHA-512/224
+                    if ("SHA-512/224".equals(digest)) {
+                        continue;
+                    }
+                    digests.add(digest);
+                }
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        return digests;
+    }
+
     public static List<Integer> lengthParams() {
         return Arrays.asList(512, 1024, 2048, 4096);
     }
@@ -105,6 +136,18 @@ public class RsaCipherTest {
         for (String padding : paddingParams()) {
             for (Integer length : lengthParams()) {
                 result.add(Arguments.of(padding, length));
+            }
+        }
+        return result;
+    }
+
+    public static List<Arguments> digestsXdigestsXlengthParams() {
+        final List<Arguments> result = new ArrayList<>();
+        for (String md1 : messageDigestParams()) {
+            for (String md2 : messageDigestParams()) {
+                for (Integer length : lengthParams()) {
+                    result.add(Arguments.of(md1, md2, length));
+                }
             }
         }
         return result;
@@ -241,15 +284,6 @@ public class RsaCipherTest {
             psource);
         c.init(Cipher.ENCRYPT_MODE, PAIR_2048.getPublic(), emptySource);
 
-        // SHA-256 for digest
-        final OAEPParameterSpec badDigest = new OAEPParameterSpec(
-            "SHA-256",
-            OAEPParameterSpec.DEFAULT.getMGFAlgorithm(),
-            OAEPParameterSpec.DEFAULT.getMGFParameters(),
-            OAEPParameterSpec.DEFAULT.getPSource());
-
-        assertThrows(InvalidAlgorithmParameterException.class, () -> c.init(Cipher.ENCRYPT_MODE, PAIR_2048.getPublic(), badDigest));
-
         // Fake MGF
         final OAEPParameterSpec badMgf = new OAEPParameterSpec(
             OAEPParameterSpec.DEFAULT.getDigestAlgorithm(),
@@ -257,14 +291,6 @@ public class RsaCipherTest {
             OAEPParameterSpec.DEFAULT.getMGFParameters(),
             OAEPParameterSpec.DEFAULT.getPSource());
         assertThrows(InvalidAlgorithmParameterException.class, () -> c.init(Cipher.ENCRYPT_MODE, PAIR_2048.getPublic(), badMgf));
-
-        // SHA-256 for MGF digest
-        final OAEPParameterSpec badMgfDigest = new OAEPParameterSpec(
-            OAEPParameterSpec.DEFAULT.getDigestAlgorithm(),
-            OAEPParameterSpec.DEFAULT.getMGFAlgorithm(),
-            MGF1ParameterSpec.SHA256,
-            OAEPParameterSpec.DEFAULT.getPSource());
-        assertThrows(InvalidAlgorithmParameterException.class, () -> c.init(Cipher.ENCRYPT_MODE, PAIR_2048.getPublic(), badMgfDigest));
 
         // Non-empty PSource
         psource = new PSource.PSpecified(new byte[1]);
@@ -274,6 +300,50 @@ public class RsaCipherTest {
             OAEPParameterSpec.DEFAULT.getMGFParameters(),
             psource);
         assertThrows(InvalidAlgorithmParameterException.class, () -> c.init(Cipher.ENCRYPT_MODE, PAIR_2048.getPublic(), badSource));
+
+        // Bad message digest parameters
+        final OAEPParameterSpec badMd = new OAEPParameterSpec(
+            "nonsense",
+            OAEPParameterSpec.DEFAULT.getMGFAlgorithm(),
+            OAEPParameterSpec.DEFAULT.getMGFParameters(),
+            OAEPParameterSpec.DEFAULT.getPSource());
+        assertThrows(InvalidAlgorithmParameterException.class, () -> c.init(Cipher.ENCRYPT_MODE, PAIR_2048.getPublic(), badMd));
+        final OAEPParameterSpec badMgfMd = new OAEPParameterSpec(
+            OAEPParameterSpec.DEFAULT.getDigestAlgorithm(),
+            OAEPParameterSpec.DEFAULT.getMGFAlgorithm(),
+            new MGF1ParameterSpec("nonsense"),
+            OAEPParameterSpec.DEFAULT.getPSource());
+        assertThrows(InvalidAlgorithmParameterException.class, () -> c.init(Cipher.ENCRYPT_MODE, PAIR_2048.getPublic(), badMgfMd));
+
+        // SHA1 + MGF1 + SHA1 is the only supported String parameter, need to use OAEPParameterSpec in
+        // init(...) to specify other digest algorithms.
+        String sha256ParamString = OAEP_PADDING.replace("SHA-1", "SHA-256");
+        assertThrows(NoSuchAlgorithmException.class, () -> getNativeCipher(sha256ParamString));
+    }
+
+    @Test
+    public void modifyOaepParameterSpec() throws GeneralSecurityException {
+        // Correct default
+        Cipher c = getNativeCipher(OAEP_PADDING);
+        OAEPParameterSpec params = c.getParameters().getParameterSpec(OAEPParameterSpec.class);
+        assertOAEPParamSpecsEqual(OAEPParameterSpec.DEFAULT, params);
+
+        // Update with default is still default
+        c.init(Cipher.ENCRYPT_MODE, PAIR_2048.getPublic(), OAEPParameterSpec.DEFAULT);
+        params = c.getParameters().getParameterSpec(OAEPParameterSpec.class);
+        assertOAEPParamSpecsEqual(OAEPParameterSpec.DEFAULT, params);
+
+        // Ensure that different digest configurations persist
+        for (String digest : messageDigestParams()) {
+            final OAEPParameterSpec newParams = new OAEPParameterSpec(
+                digest,
+                OAEPParameterSpec.DEFAULT.getMGFAlgorithm(),
+                OAEPParameterSpec.DEFAULT.getMGFParameters(),
+                OAEPParameterSpec.DEFAULT.getPSource());
+            c.init(Cipher.ENCRYPT_MODE, PAIR_2048.getPublic(), newParams);
+            params = c.getParameters().getParameterSpec(OAEPParameterSpec.class);
+            assertOAEPParamSpecsEqual(newParams, params);
+        }
     }
 
     @ParameterizedTest
@@ -508,8 +578,8 @@ public class RsaCipherTest {
     @ParameterizedTest
     @MethodSource("lengthParams")
     public void native2jceOaepParams(final Integer keySize) throws GeneralSecurityException {
-        // TODO: Extend once we support more OAEP Paddings
         final Cipher nativeC = getNativeCipher(OAEP_PADDING);
+        // NOTE: asserting here that nativeC has proper default params
         final AlgorithmParameters params = nativeC.getParameters();
         assertNotNull(params);
         assertEquals("OAEP", params.getAlgorithm());
@@ -518,11 +588,52 @@ public class RsaCipherTest {
         nativeC.init(Cipher.ENCRYPT_MODE, keyPair.getPublic(), params);
         jceC.init(Cipher.DECRYPT_MODE, keyPair.getPrivate(), params);
 
-        final byte[] plaintext = getPlaintext(keySize / 8 - 42);
+        final int paddingSize = getPaddingSize(params.getParameterSpec(OAEPParameterSpec.class));
+        final byte[] plaintext = getPlaintext(keySize / 8 - paddingSize);
 
         final byte[] ciphertext = nativeC.doFinal(plaintext);
         final byte[] decrypted = jceC.doFinal(ciphertext);
         assertArrayEquals(plaintext, decrypted);
+    }
+
+    @ParameterizedTest
+    @MethodSource("digestsXdigestsXlengthParams")
+    public void native2jceOaepParamSpecs(final String md1, final String md2, final Integer keySizeBits) throws GeneralSecurityException {
+        final int keySize = keySizeBits / 8;
+        final OAEPParameterSpec paramSpec = new OAEPParameterSpec(
+            md1,
+            "MGF1",
+            new MGF1ParameterSpec(md2),
+            PSource.PSpecified.DEFAULT
+        );
+        final int paddingSize = getPaddingSize(paramSpec);
+        assumeTrue(
+            keySize - paddingSize > 0,
+            String.format("Padding len %d greater >= key size %d", paddingSize, keySize)
+        );
+        final KeyPair keyPair = getKeyPair(keySizeBits);
+        final Cipher nativeC = getNativeCipher(OAEP_PADDING);
+        nativeC.init(Cipher.ENCRYPT_MODE, keyPair.getPublic(), paramSpec);
+
+        // verify that the OAEPParameterSpec is set properly.
+        final OAEPParameterSpec nativeSpec = nativeC.getParameters().getParameterSpec(OAEPParameterSpec.class);
+        assertOAEPParamSpecsEqual(paramSpec, nativeSpec);
+
+        final Cipher jceC = Cipher.getInstance(OAEP_PADDING);
+        jceC.init(Cipher.DECRYPT_MODE, keyPair.getPrivate(), paramSpec);
+        final byte[] plaintext = getPlaintext(keySize - paddingSize);
+        final byte[] ciphertext = nativeC.doFinal(plaintext);
+        final byte[] decrypted = jceC.doFinal(ciphertext);
+        assertArrayEquals(plaintext, decrypted);
+    }
+
+    // Inspect each field, as for some reason the OAEPParameterSpec.equals method seems
+    // to compare object hash code instead of individual members.
+    private static void assertOAEPParamSpecsEqual(OAEPParameterSpec a, OAEPParameterSpec b) {
+        assertEquals(a.getDigestAlgorithm(), b.getDigestAlgorithm());
+        assertEquals(a.getMGFAlgorithm(), b.getMGFAlgorithm());
+        assertEquals(a.getMGFParameters(), b.getMGFParameters());
+        assertEquals(a.getPSource().getAlgorithm(), b.getPSource().getAlgorithm());
     }
 
     @ParameterizedTest
@@ -785,21 +896,30 @@ public class RsaCipherTest {
     }
 
     private int getPaddingSize(final String padding) {
-        final int paddingSize;
         switch (padding) {
             case NO_PADDING:
-                paddingSize = 0;
-                break;
+                return 0;
             case PKCS1_PADDING:
-                paddingSize = 11;
-                break;
+                return 11;
             case OAEP_PADDING:
-                paddingSize = 42;
-                break;
+                return 42;
             default:
                 throw new IllegalArgumentException("Bad padding: " + padding);
         }
-        return paddingSize;
+    }
+
+    private int getPaddingSize(final OAEPParameterSpec params) {
+        final String md =  params.getDigestAlgorithm();
+        assertTrue(md.startsWith("SHA"));  // JCE only supports SHA digests for OAEP
+        final int mdSize;
+        if (md.startsWith("SHA-1")) {
+            mdSize = 20;    // 20 bytes == 160 bits
+        } else {
+            Matcher m = Pattern.compile("[\\d]+$").matcher(md);
+            assertTrue(m.find());
+            mdSize = (Integer.parseInt(m.group()) + 7) / 8;
+        }
+        return 2 * mdSize + 2;
     }
 
     private KeyPair getKeyPair(final int keySize) {
