@@ -4,6 +4,10 @@
 package com.amazon.corretto.crypto.provider;
 
 import java.io.IOException;
+import java.io.NotSerializableException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.ObjectStreamException;
 import java.math.BigInteger;
 import java.security.AlgorithmParameters;
 import java.security.GeneralSecurityException;
@@ -203,5 +207,24 @@ abstract class EvpKey implements Key, Destroyable {
 
     protected interface CanDerivePublicKey<T extends EvpKey & PublicKey> {
         T getPublicKey();
+    }
+
+    // The Key interface requires us to be serializable.
+    // However, we are not easily serializable because we have native state which won't be captured.
+    // So, we prevent any attempt to serialize ourselves by throwing an exception.
+    // If we discover that we actually need to support this functionality, we can manage it through serializing an
+    // encoded copy of the key and decoding that upon deserialization.
+    // Doing that will require changing out InternalKey from being a final field to a transient one and this feels
+    // like a bad tradeoff if we can avoid it.
+    private void writeObject(final ObjectOutputStream out) throws IOException {
+        throw new NotSerializableException("EvpKey");
+    }
+
+    private void readObject(final ObjectInputStream in) throws IOException, ClassNotFoundException {
+        throw new NotSerializableException("EvpKey");
+    }
+
+    private void readObjectNoData() throws ObjectStreamException {
+        throw new NotSerializableException("EvpKey");
     }
 }

@@ -5,10 +5,14 @@ package com.amazon.corretto.crypto.provider;
 
 import static com.amazon.corretto.crypto.provider.Loader.RESOURCE_JANITOR;
 
+import java.io.IOException;
+import java.io.NotSerializableException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.ObjectStreamException;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.LongConsumer;
-import java.util.function.LongFunction;
 
 class NativeResource {
     /**
@@ -105,6 +109,22 @@ class NativeResource {
                 return null;
             }
             return new RuntimeCryptoException(message + " in Thread " + Thread.currentThread().getName(), cause);
+        }
+
+        // ReentrantReadWriteLock is serializable which forces us to pretend to be serializable.
+        // We inherit from ReentrantReadWriteLock because it is supposedly a lower-cost way of managing locks.
+        // However, we cannot be savely serialized because there is no safe way to save our native state.
+        // So, we prevent any attempt to serialize ourselves by throwing an exception.
+        private void writeObject(final ObjectOutputStream out) throws IOException {
+            throw new NotSerializableException("NativeResource");
+        }
+
+        private void readObject(final ObjectInputStream in) throws IOException, ClassNotFoundException {
+            throw new NotSerializableException("NativeResource");
+        }
+
+        private void readObjectNoData() throws ObjectStreamException {
+            throw new NotSerializableException("NativeResource");
         }
     }
 
