@@ -364,11 +364,14 @@ public class EvpKeyFactoryTest {
     @ParameterizedTest(name = "{1}")
     @MethodSource("allPairs")
     public void cannotSerializeKeys(final KeyPair pair, final String testName) throws Exception {
+        final KeyFactory nativeFactory = KeyFactory.getInstance(pair.getPublic().getAlgorithm(), NATIVE_PROVIDER);
+        final Key publicKey = nativeFactory.translateKey(pair.getPublic());
+        final Key privateKey = nativeFactory.translateKey(pair.getPrivate());
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
              ObjectOutputStream out = new ObjectOutputStream(baos)) {
 
-            assertThrows(NotSerializableException.class, () -> out.writeObject(pair.getPublic()));
-            assertThrows(NotSerializableException.class, () -> out.writeObject(pair.getPrivate()));
+            assertThrows(NotSerializableException.class, () -> out.writeObject(publicKey));
+            assertThrows(NotSerializableException.class, () -> out.writeObject(privateKey));
         }
     }
 
