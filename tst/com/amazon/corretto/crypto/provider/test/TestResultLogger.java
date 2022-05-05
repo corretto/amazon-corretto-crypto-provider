@@ -5,7 +5,6 @@ import org.junit.jupiter.api.extension.TestWatcher;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.util.Arrays;
 import java.util.Optional;
 
 public class TestResultLogger implements TestWatcher {
@@ -28,6 +27,7 @@ public class TestResultLogger implements TestWatcher {
     private static final String NORMAL_TEXT = maybeColor("0");
     private static final String NOT_YET_FAILED_NOTICE = " ";
     private static final String ALREADY_FAILED_NOTICE = BRIGHT_RED_TEXT + "!" + NORMAL_TEXT;
+    @SuppressWarnings("unused")
     private static final String STARTED_NOTICE = BRIGHT_TEXT +                "[STARTED]         " + NORMAL_TEXT;
     private static final String PASSED_NOTICE = BRIGHT_GREEN_TEXT +           "[PASSED]          " + NORMAL_TEXT;
     private static final String ASSUMPTION_FAILED_NOTICE = BRIGHT_CYAN_TEXT + "[FALSE_ASSUMPTION]" + NORMAL_TEXT;

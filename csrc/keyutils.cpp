@@ -1,22 +1,15 @@
 // Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-#include <openssl/dh.h>
 #include <openssl/ec.h>
+#include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/rsa.h>
 #include "keyutils.h"
 
 namespace AmazonCorrettoCryptoProvider {
 
-#define BN_null_if_zero(x) do { \
-  if ((x) && BN_is_zero(x)) { \
-    BN_clear_free(x); \
-    x = nullptr; \
-  } \
-} while(0)
-
-EVP_PKEY* der2EvpPrivateKey(const unsigned char* der, const int derLen, const bool checkPrivateKey, const char* javaExceptionClass) {
+EVP_PKEY* der2EvpPrivateKey(const unsigned char* der, const int derLen, bool shouldCheckPrivate, const char* javaExceptionClass) {
   const unsigned char* der_mutable_ptr = der; // openssl modifies the input pointer
 
   PKCS8_PRIV_KEY_INFO* pkcs8Key = d2i_PKCS8_PRIV_KEY_INFO(NULL, &der_mutable_ptr, derLen);
@@ -33,11 +26,6 @@ EVP_PKEY* der2EvpPrivateKey(const unsigned char* der, const int derLen, const bo
   PKCS8_PRIV_KEY_INFO_free(pkcs8Key);
   if (!result) {
       throw_openssl(javaExceptionClass, "Unable to convert PKCS8_PRIV_KEY_INFO to EVP_PKEY");
-  }
-
-  if (checkPrivateKey && !checkKey(result)) {
-      EVP_PKEY_free(result);
-      throw_openssl(javaExceptionClass, "Key fails check");
   }
 
   if (EVP_PKEY_base_id(result) == EVP_PKEY_RSA) {
@@ -95,9 +83,16 @@ EVP_PKEY* der2EvpPrivateKey(const unsigned char* der, const int derLen, const bo
             }
             EVP_PKEY_set1_RSA(result, nulled_rsa);
             RSA_free(nulled_rsa); // Decrement reference counter
+            shouldCheckPrivate = false; // We cannot check private keys without CRT parameters
           }
       }
   }
+
+  if (shouldCheckPrivate && !checkKey(result)) {
+      EVP_PKEY_free(result);
+      throw_openssl(javaExceptionClass, "Key fails check");
+  }
+
 
   return result;
 }
@@ -123,13 +118,14 @@ EVP_PKEY* der2EvpPublicKey(const unsigned char* der, const int derLen, const cha
   return result;
 }
 
-bool checkKey(EVP_PKEY* key) {
+bool checkKey(const EVP_PKEY* key)
+{
     int keyType = EVP_PKEY_base_id(key);
     bool result = false;
 
     const RSA* rsaKey;
-    const BIGNUM *p;
-    const BIGNUM *q;
+    const BIGNUM* p;
+    const BIGNUM* q;
     const EC_KEY* ecKey;
 
     switch (keyType) {
@@ -152,11 +148,11 @@ bool checkKey(EVP_PKEY* key) {
         break;
     default:
         // Keys we can't check, we just claim are fine, because there is nothing else we can do.
-        // DH keys appear to be properly checked upon use (and unit test confirm this behavior).
         result = true;
     }
     return result;
 }
+
 
 
 const EVP_MD* digestFromJstring(raii_env &env, jstring digestName) {

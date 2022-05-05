@@ -7,6 +7,7 @@
 #ifndef KEYUTILS_H
 #define KEYUTILS_H 1
 
+#include <openssl/bn.h>
 #include <openssl/evp.h>
 #include <openssl/x509.h>
 #include "util.h"
@@ -34,6 +35,11 @@ public:
     EVP_MD_CTX* getDigestCtx() const { return digestCtx_; }
     EVP_PKEY_CTX* getKeyCtx() const { return keyCtx_; }
     EVP_PKEY* getKey() const { return key_; }
+    EVP_PKEY* get1Key() const {
+        EVP_PKEY_up_ref(key_);
+        return key_;
+    }
+    EVP_PKEY** getKeyPtr() { return &key_; }
 
     // If there was an old ctx, it is freed
     EVP_MD_CTX* setDigestCtx(EVP_MD_CTX* digestCtx) {
@@ -91,11 +97,12 @@ private:
 
 EVP_PKEY* der2EvpPrivateKey(const unsigned char* der, const int derLen, const bool checkPrivateKey, const char* javaExceptionClass);
 EVP_PKEY* der2EvpPublicKey(const unsigned char* der, const int derLen, const char* javaExceptionClass);
-bool checkKey(EVP_PKEY* key);
+bool checkKey(const EVP_PKEY* key);
+static bool inline BN_null_or_zero(const BIGNUM* bn) { return nullptr == bn || BN_is_zero(bn); }
 
 class raii_cipher_ctx {
     private:
-        EVP_CIPHER_CTX* m_ctx;
+        EVP_CIPHER_CTX *m_ctx;
         bool m_owning;
 
     public:
@@ -104,54 +111,65 @@ class raii_cipher_ctx {
         {
         }
 
-        void clean() {
-            if (m_ctx && m_owning) {
+        void clean()
+        {
+            if (m_ctx && m_owning)
+            {
                 EVP_CIPHER_CTX_free(m_ctx);
             }
         }
 
-        ~raii_cipher_ctx() {
+        ~raii_cipher_ctx()
+        {
             clean();
         }
 
-        void init() {
+        void init()
+        {
             move(EVP_CIPHER_CTX_new());
         }
 
-        void borrow(EVP_CIPHER_CTX *ctx) {
+        void borrow(EVP_CIPHER_CTX *ctx)
+        {
             clean();
             m_owning = false;
             m_ctx = ctx;
         }
 
-        void move(EVP_CIPHER_CTX *ctx) {
+        void move(EVP_CIPHER_CTX *ctx)
+        {
             clean();
             m_owning = true;
             m_ctx = ctx;
         }
 
-        operator EVP_CIPHER_CTX*() {
+        operator EVP_CIPHER_CTX *()
+        {
             return m_ctx;
         }
 
-        operator const EVP_CIPHER_CTX*() const {
+        operator const EVP_CIPHER_CTX *() const
+        {
             return m_ctx;
         }
 
-        EVP_CIPHER_CTX& operator*() {
+        EVP_CIPHER_CTX &operator*()
+        {
             return *m_ctx;
         }
 
-        const EVP_CIPHER_CTX& operator*() const {
+        const EVP_CIPHER_CTX &operator*() const
+        {
             return *m_ctx;
         }
 
-        EVP_CIPHER_CTX* take() {
-            EVP_CIPHER_CTX* result = m_ctx;
+        EVP_CIPHER_CTX *take()
+        {
+            EVP_CIPHER_CTX *result = m_ctx;
             m_ctx = nullptr;
             return result;
         }
-};
+    };
 
 const EVP_MD *digestFromJstring(raii_env &env, jstring digestName);
 }

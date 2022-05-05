@@ -63,39 +63,16 @@ bool initializeContext
  raii_env &env,
  EvpKeyContext* ctx,
  bool signMode,
- jbyteArray derArr,
- jint keyType,
- bool checkPrivateKey,
+ jlong pKey,
  jstring digestName,
  jint paddingType,
  jstring mgfMdName,
  jint pssSaltLen
  )
 {
-    int derLen = 0;
     EVP_PKEY_CTX* pctx; // Logically owned by the ctx so doesn't need to be freed separately
 
-    if (!ctx->getKey()) {
-        java_buffer derBuf = java_buffer::from_array(env, derArr);
-
-        jni_borrow der(env, derBuf, "der");
-
-        derLen = derBuf.len();
-
-        if (signMode) {
-            ctx->setKey(der2EvpPrivateKey(der.data(), derLen, checkPrivateKey, EX_SIGNATURE_EXCEPTION));
-        } else {
-            ctx->setKey(der2EvpPublicKey(der.data(), derLen, EX_SIGNATURE_EXCEPTION));
-        }
-    }
-
-    if (!ctx->getKey()) {
-        throw_openssl("Unable to convert key");
-    }
-
-    if (EVP_PKEY_base_id(ctx->getKey()) != keyType) {
-        throw_java_ex(EX_SIGNATURE_EXCEPTION, "Unexpected key type for algorithm");
-    }
+    ctx->setKey(reinterpret_cast<EvpKeyContext*>(pKey)->get1Key());
 
     if (digestName) {
         const EVP_MD *md = NULL;
@@ -132,7 +109,7 @@ bool initializeContext
         }
     }
 
-    if (keyType == EVP_PKEY_RSA) {
+    if (EVP_PKEY_base_id(ctx->getKey()) == EVP_PKEY_RSA) {
         if (!configurePadding(env, pctx, paddingType, mgfMdName, pssSaltLen)) {
             throw_openssl("Unable to configure padding");
         }
@@ -198,10 +175,7 @@ void bufferUpdate(
 JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_signStart
 (JNIEnv *pEnv,
  jclass,
- jbyteArray derArr,
- jlong ctxHandle,
- jint keyType,
- jboolean checkPrivateKey,
+ jlong pKey,
  jstring digestName,
  jint paddingType,
  jstring mgfMdName,
@@ -214,16 +188,12 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_si
     try {
         raii_env env(pEnv);
 
-        EvpKeyContext newCtx;
-        EvpKeyContext* ctx = ctxHandle ? (EvpKeyContext*) ctxHandle : &newCtx;
+        EvpKeyContext ctx;
 
-        initializeContext(env, ctx, true, derArr, keyType, checkPrivateKey, digestName, paddingType, mgfMdName, pssSaltLen);
-        update(env, ctx, digestSignUpdate, java_buffer::from_array(env, message, offset, length));
+        initializeContext(env, &ctx, true, pKey, digestName, paddingType, mgfMdName, pssSaltLen);
+        update(env, &ctx, digestSignUpdate, java_buffer::from_array(env, message, offset, length));
 
-        if (ctx == &newCtx) {
-            ctx = newCtx.moveToHeap();
-        }
-        return (jlong) ctx;
+        return reinterpret_cast<jlong>(ctx.moveToHeap());
     } catch (java_ex &ex) {
         ex.throw_to_java(pEnv);
         return 0;
@@ -233,10 +203,7 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_si
 JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_signStartBuffer
 (JNIEnv *pEnv,
  jclass,
- jbyteArray derArr,
- jlong ctxHandle,
- jint keyType,
- jboolean checkPrivateKey,
+ jlong pKey,
  jstring digestName,
  jint paddingType,
  jstring mgfMdName,
@@ -247,16 +214,12 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_si
     try {
         raii_env env(pEnv);
 
-        EvpKeyContext newCtx;
-        EvpKeyContext* ctx = ctxHandle ? (EvpKeyContext*) ctxHandle : &newCtx;
+        EvpKeyContext ctx;
 
-        initializeContext(env, ctx, true, derArr, keyType, checkPrivateKey, digestName, paddingType, mgfMdName, pssSaltLen);
-        update(env, ctx, digestSignUpdate, java_buffer::from_direct(env, message));
+        initializeContext(env, &ctx, true, pKey, digestName, paddingType, mgfMdName, pssSaltLen);
+        update(env, &ctx, digestSignUpdate, java_buffer::from_direct(env, message));
 
-        if (ctx == &newCtx) {
-            ctx = newCtx.moveToHeap();
-        }
-        return (jlong) ctx;
+        return reinterpret_cast<jlong>(ctx.moveToHeap());
     } catch (java_ex &ex) {
         ex.throw_to_java(pEnv);
         return 0;
@@ -266,9 +229,7 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_si
 JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_verifyStart
 (JNIEnv *pEnv,
  jclass,
- jbyteArray derArr,
- jlong ctxHandle,
- jint keyType,
+ jlong pKey,
  jstring digestName,
  jint paddingType,
  jstring mgfMdName,
@@ -281,16 +242,12 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_ve
     try {
         raii_env env(pEnv);
 
-        EvpKeyContext newCtx;
-        EvpKeyContext* ctx = ctxHandle ? (EvpKeyContext*) ctxHandle : &newCtx;
+        EvpKeyContext ctx;
 
-        initializeContext(env, ctx, false, derArr, keyType, false, digestName, paddingType, mgfMdName, pssSaltLen);
-        update(env, ctx, digestVerifyUpdate, java_buffer::from_array(env, message, offset, length));
+        initializeContext(env, &ctx, false, pKey, digestName, paddingType, mgfMdName, pssSaltLen);
+        update(env, &ctx, digestVerifyUpdate, java_buffer::from_array(env, message, offset, length));
 
-        if (ctx == &newCtx) {
-            ctx = newCtx.moveToHeap();
-        }
-        return (jlong) ctx;
+        return reinterpret_cast<jlong>(ctx.moveToHeap());
     } catch (java_ex &ex) {
         ex.throw_to_java(pEnv);
         return 0;
@@ -300,9 +257,7 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_ve
 JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_verifyStartBuffer
 (JNIEnv *pEnv,
  jclass,
- jbyteArray derArr,
- jlong ctxHandle,
- jint keyType,
+ jlong pKey,
  jstring digestName,
  jint paddingType,
  jstring mgfMdName,
@@ -313,16 +268,12 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_ve
     try {
         raii_env env(pEnv);
 
-        EvpKeyContext newCtx;
-        EvpKeyContext* ctx = ctxHandle ? (EvpKeyContext*) ctxHandle : &newCtx;
+        EvpKeyContext ctx;
 
-        initializeContext(env, ctx, false, derArr, keyType, false, digestName, paddingType, mgfMdName, pssSaltLen);
-        update(env, ctx, digestVerifyUpdate, java_buffer::from_direct(env, message));
+        initializeContext(env, &ctx, false, pKey, digestName, paddingType, mgfMdName, pssSaltLen);
+        update(env, &ctx, digestVerifyUpdate, java_buffer::from_direct(env, message));
 
-        if (ctx == &newCtx) {
-            ctx = newCtx.moveToHeap();
-        }
-        return (jlong) ctx;
+        return reinterpret_cast<jlong>(ctx.moveToHeap());
     } catch (java_ex &ex) {
         ex.throw_to_java(pEnv);
         return 0;
@@ -376,10 +327,7 @@ JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_ver
 JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_sign
 (JNIEnv *pEnv,
  jclass clazz,
- jbyteArray derArr,
- jlongArray ctxHandleArr,
- jint keyType,
- jboolean checkPrivateKey,
+ jlong pKey,
  jstring digestName,
  jint paddingType,
  jstring mgfMdName,
@@ -389,22 +337,10 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatu
  jint length
 )
 {
-    jlong ctxHandle = 0;
-    // Yes, this is outside our standard environment handling
-    if (ctxHandleArr != NULL) {
-        pEnv->GetLongArrayRegion(ctxHandleArr, 0, 1, &ctxHandle);
-        if (pEnv->ExceptionCheck()) {
-            return NULL;
-        }
-    }
-
     jlong ctx = Java_com_amazon_corretto_crypto_provider_EvpSignature_signStart(
             pEnv,
             clazz,
-            derArr,
-            ctxHandle,
-            keyType,
-            checkPrivateKey,
+            pKey,
             digestName,
             paddingType,
             mgfMdName,
@@ -417,20 +353,10 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatu
         return NULL;
     }
 
-    jbyteArray result = Java_com_amazon_corretto_crypto_provider_EvpSignature_signFinish(
+    return Java_com_amazon_corretto_crypto_provider_EvpSignature_signFinish(
         pEnv,
         clazz,
-        ctx,
-        ctxHandleArr != NULL);
-
-    if (unlikely(pEnv->ExceptionCheck())) {
-        return NULL;
-    }
-
-    if (ctxHandleArr && ctxHandle == 0) {
-        pEnv->SetLongArrayRegion(ctxHandleArr, 0, 1, &ctx);
-    }
-    return result;
+        ctx);
 }
 
 JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_verifyFinish
@@ -439,8 +365,7 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
  jlong ctxPtr,
  jbyteArray signature,
  jint sigOff,
- jint sigLen,
- jboolean preserveCtx)
+ jint sigLen)
 {
     EvpKeyContext* ctx = (EvpKeyContext*) ctxPtr;
 
@@ -458,9 +383,7 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
 
         int result = EVP_DigestVerifyFinal(ctx->getDigestCtx(), sigBorrow.data(), sigBorrow.len());
 
-        if (!preserveCtx) {
-            delete ctx;
-        }
+        delete ctx;
 
         if (likely(result == 1)) {
             return true;
@@ -491,8 +414,7 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
 JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_signFinish
 (JNIEnv *pEnv,
  jclass,
- jlong ctxPtr,
- jboolean preserveCtx)
+ jlong ctxPtr)
 {
     EvpKeyContext* ctx = (EvpKeyContext*) ctxPtr;
     jbyteArray signature = NULL;
@@ -523,9 +445,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatu
         // This may throw, if it does we'll just keep the exception state as we return.
         env->SetByteArrayRegion(signature, 0, sigLength, (jbyte*) &tmpSig[0]);
 
-        if (!preserveCtx) {
-            delete ctx;
-        }
+        delete ctx;
     } catch (java_ex &ex) {
         ex.throw_to_java(pEnv);
     }
@@ -542,9 +462,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatu
 JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_verify
 (JNIEnv *pEnv,
  jclass clazz,
- jbyteArray derArr,
- jlongArray ctxHandleArr,
- jint keyType,
+ jlong pKey,
  jstring digestName,
  jint paddingType,
  jstring mgfMdName,
@@ -556,20 +474,10 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
  jint sigOff,
  jint sigLen)
 {
-    jlong ctxHandle = 0;
-    // Yes, this is outside our standard environment handling
-    if (ctxHandleArr != NULL) {
-        pEnv->GetLongArrayRegion(ctxHandleArr, 0, 1, &ctxHandle);
-        if (pEnv->ExceptionCheck()) {
-            return 0;
-        }
-    }
     jlong ctx = Java_com_amazon_corretto_crypto_provider_EvpSignature_verifyStart(
             pEnv,
             clazz,
-            derArr,
-            ctxHandle,
-            keyType,
+            pKey,
             digestName,
             paddingType,
             mgfMdName,
@@ -582,23 +490,13 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
         return false;
     }
 
-    jboolean result = Java_com_amazon_corretto_crypto_provider_EvpSignature_verifyFinish(
+    return Java_com_amazon_corretto_crypto_provider_EvpSignature_verifyFinish(
         pEnv,
         clazz,
         ctx,
         signature,
         sigOff,
-        sigLen,
-        ctxHandleArr != NULL);
-
-    if (unlikely(pEnv->ExceptionCheck())) {
-        return false;
-    }
-
-    if (ctxHandleArr && ctxHandle == 0) {
-        pEnv->SetLongArrayRegion(ctxHandleArr, 0, 1, &ctx);
-    }
-    return result;
+        sigLen);
 }
 
 JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatureBase_destroyContext
@@ -612,9 +510,7 @@ JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatureBase
 JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatureRaw_signRaw
 (JNIEnv *pEnv,
  jclass clazz,
- jbyteArray derArr,
- jint keyType,
- jboolean checkPrivateKey,
+ jlong pKey,
  jint paddingType,
  jstring mgfMdName,
  jint pssSaltLen,
@@ -628,7 +524,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatu
         java_buffer messageBuf = java_buffer::from_array(env, messageArr, offset, length);
 
         EvpKeyContext ctx;
-        initializeContext(env, &ctx, true, derArr, keyType, checkPrivateKey, NULL, paddingType, mgfMdName, pssSaltLen);
+        initializeContext(env, &ctx, true, pKey, NULL, paddingType, mgfMdName, pssSaltLen);
 
         std::vector<uint8_t, SecureAlloc<uint8_t> > signature;
         {
@@ -662,8 +558,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatu
 JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatureRaw_verifyRaw
 (JNIEnv *pEnv,
  jclass clazz,
- jbyteArray derArr,
- jint keyType,
+ jlong pKey,
  jint paddingType,
  jstring mgfMdName,
  jint pssSaltLen,
@@ -680,7 +575,7 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
         java_buffer signatureBuf = java_buffer::from_array(env, signatureArr, sigOff, sigLen);
 
         EvpKeyContext ctx;
-        initializeContext(env, &ctx, false, derArr, keyType, false, NULL, paddingType, mgfMdName, pssSaltLen);
+        initializeContext(env, &ctx, false, pKey, NULL, paddingType, mgfMdName, pssSaltLen);
 
         jni_borrow message(env, messageBuf, "message");
         jni_borrow signature(env, signatureBuf, "signature");
@@ -700,7 +595,7 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
             }
 
             // JCA/JCA requires us to try to throw an exception on corrupted signatures, but only if it isn't an RSA signature
-            if (errorCode != 0 && keyType != EVP_PKEY_RSA) {
+            if (errorCode != 0 && EVP_PKEY_base_id(ctx.getKey()) != EVP_PKEY_RSA) {
               throw_java_ex(EX_SIGNATURE_EXCEPTION, formatOpensslError(errorCode, "Unknown error verifying signature"));
             }
 

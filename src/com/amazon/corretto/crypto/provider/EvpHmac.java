@@ -99,14 +99,14 @@ class EvpHmac extends MacSpi implements Cloneable {
 
     // These must be explicitly cloned
     private HmacState state;
-    private InputBuffer<byte[], Void> buffer;
+    private InputBuffer<byte[], Void, RuntimeException> buffer;
 
     EvpHmac(long evpMd, int digestLength) {
         if (evpMd == DO_NOT_INIT || evpMd == DO_NOT_REKEY) {
             throw new AssertionError("Unexpected value for evpMd conflicting with reserved negative value: " + evpMd);
         }
         this.state = new HmacState(evpMd, digestLength);
-        this.buffer =new InputBuffer<byte[], Void>(1024);
+        this.buffer = new InputBuffer<byte[], Void, RuntimeException>(1024);
         configureLambdas();
     }
 

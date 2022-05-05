@@ -4,28 +4,20 @@
 package com.amazon.corretto.crypto.provider;
 
 import java.io.IOException;
-import java.math.BigInteger;
 import java.security.AlgorithmParameters;
 import java.security.GeneralSecurityException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidParameterException;
-import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGeneratorSpi;
-import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.ECParameterSpec;
-import java.security.spec.ECPoint;
-import java.security.spec.ECPrivateKeySpec;
-import java.security.spec.ECPublicKeySpec;
-import java.security.spec.InvalidKeySpecException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 import com.amazon.corretto.crypto.provider.EcUtils.ECInfo;
-import com.amazon.corretto.crypto.provider.EcUtils.NativeGroup;
 
 class EcGen extends KeyPairGeneratorSpi {
     private static final ECGenParameterSpec DEFAULT_SPEC = new ECGenParameterSpec("secp384r1");
@@ -43,7 +35,7 @@ class EcGen extends KeyPairGeneratorSpi {
     private static native void freeEcParams(long ptr);
 
     /**
-     * Generates a new EC key and returns it in {@code x}, {@code y}, and {@code s}.
+     * Generates a new EC key and returns a pointer to it.
      *
      * @param params
      *            a native pointer created by {@link #buildEcParams(int)}
@@ -51,45 +43,28 @@ class EcGen extends KeyPairGeneratorSpi {
      *            a native pointer returned by {@link ECInfo#groupPtr()}
      * @param checkConsistency
      *            Run additional consistency checks on the generated keypair
-     * @param x
-     *            an array which will hold the returned BigInteger value. Must be sufficiently long.
-     * @param y
-     *            an array which will hold the returned BigInteger value. Must be sufficiently long.
-     * @param s
-     *            an array which will hold the returned BigInteger value. Must be sufficiently long.
      */
-    private static native void generateEcKey(long params, long curve, boolean checkConsistency, byte[] x, byte[] y, byte[] s);
+    private static native long generateEvpEcKey(long params, boolean checkConsistency);
 
     /**
-     * Generates a new EC key and returns it in {@code x}, {@code y}, and {@code s}.
+     * Generates a new EC key and returns a pointer to it.
      *
      * @param spec
      *            an ASN.1 encoded {@link ECParameterSpec}
      * @param checkConsistency
      *            Run additional consistency checks on the generated keypair
-     * @param x
-     *            an array which will hold the returned BigInteger value. Must be sufficiently long.
-     * @param y
-     *            an array which will hold the returned BigInteger value. Must be sufficiently long.
-     * @param s
-     *            an array which will hold the returned BigInteger value. Must be sufficiently long.
      */
-    private static native void generateEcKeyFromSpec(byte[] spec, boolean checkConsistency, byte[] x, byte[] y, byte[] s);
+    private static native long generateEvpEcKeyFromSpec(byte[] spec, boolean checkConsistency);
 
     private final AmazonCorrettoCryptoProvider provider_;
-    private final KeyFactory keyFactory;
     private ECParameterSpec spec = null;
     private byte[] encodedSpec = null;
     private ECInfo ecInfo = null;
 
     EcGen(AmazonCorrettoCryptoProvider provider) {
         provider_ = provider;
-        try {
-            keyFactory = KeyFactory.getInstance("EC");
-        } catch (final NoSuchAlgorithmException ex) {
-            throw new AssertionError(ex);
-        }
     }
+
 
     @Override
     public KeyPair generateKeyPair() {
@@ -100,31 +75,20 @@ class EcGen extends KeyPairGeneratorSpi {
                 throw new RuntimeCryptoException(ex);
             }
         }
-        // This will work for all curves up to unreasonably large sizes.
-        // We do have bounds checking at the C++ level.
-        final byte[] x = new byte[128];
-        final byte[] y = new byte[128];
-        final byte[] s = new byte[128];
 
+        final EvpEcPrivateKey privateKey;
         final boolean keyGenConsistency = provider_.hasExtraCheck(ExtraCheck.KEY_PAIR_GENERATION_CONSISTENCY);
         if (encodedSpec != null) {
-            generateEcKeyFromSpec(encodedSpec, keyGenConsistency, x, y, s);
+            privateKey = new EvpEcPrivateKey(generateEvpEcKeyFromSpec(encodedSpec, keyGenConsistency));
         } else {
-            final NativeGroup group = ecInfo.getGroup();
             final NativeParams ecParams = getParams(ecInfo);
-            group.useVoid(groupPtr ->
-              ecParams.useVoid(ptr ->
-                generateEcKey(ptr, groupPtr, keyGenConsistency, x, y, s)));
+            privateKey = new EvpEcPrivateKey((long)
+                ecParams.use(ptr ->
+                    generateEvpEcKey(ptr, keyGenConsistency)));
         }
-        final ECPoint w = new ECPoint(new BigInteger(x), new BigInteger(y));
-        final ECPrivateKeySpec privSpec = new ECPrivateKeySpec(new BigInteger(s), spec);
-        final ECPublicKeySpec pubSpec = new ECPublicKeySpec(w, spec);
-        try {
-            return new KeyPair(keyFactory.generatePublic(pubSpec),
-                    keyFactory.generatePrivate(privSpec));
-        } catch (final InvalidKeySpecException ex) {
-            throw new AssertionError(ex);
-        }
+        final EvpEcPublicKey publicKey = privateKey.getPublicKey();
+
+        return new KeyPair(publicKey, privateKey);
     }
 
     @Override

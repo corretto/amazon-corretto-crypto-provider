@@ -20,7 +20,7 @@ public class SecureRandomBench {
             @SuppressWarnings("unchecked")
             Class<? extends SecureRandom> clazz = (Class<? extends SecureRandom>) Class
                     .forName(args[0]);
-            final SecureRandom tmp = clazz.newInstance();
+            final SecureRandom tmp = clazz.getDeclaredConstructor().newInstance();
             bench(tmp);
             for (int size : SIZES) {
                 benchThreads(clazz, size, 128);
@@ -52,15 +52,15 @@ public class SecureRandomBench {
     }
 
     private static void benchThreads(Class<? extends SecureRandom> clazz, final int size,
-            final int threadCnt) throws InstantiationException, IllegalAccessException,
+            final int threadCnt) throws ReflectiveOperationException,
             InterruptedException {
         if (size < 16) {
             return;
         }
         TestThread[] threads = new TestThread[threadCnt];
         for (int x = 0; x < threads.length; x++) {
-            threads[x] = new TestThread(clazz.newInstance(), size, 256 * 1024 * 1024 / size
-                    / threadCnt);
+            threads[x] = new TestThread(clazz.getDeclaredConstructor().newInstance(),
+                    size, 256 * 1024 * 1024 / size / threadCnt);
         }
         long start = System.nanoTime();
         for (int x = 0; x < threads.length; x++) {
@@ -70,8 +70,8 @@ public class SecureRandomBench {
             threads[x].join();
         }
         long stop = System.nanoTime();
-        System.out.println(String.format("%s: %d threads in increments of %d (256MB):\t%dms", clazz
-                .newInstance().getAlgorithm(), threadCnt, size, ((stop - start) / 1_000_000L)));
+        System.out.println(String.format("%s: %d threads in increments of %d (256MB):\t%dms",
+                clazz.getDeclaredConstructor().newInstance(), threadCnt, size, ((stop - start) / 1_000_000L)));
     }
 
     private static void benchThreads(String alg, Provider p, final int size, final int threadCnt)

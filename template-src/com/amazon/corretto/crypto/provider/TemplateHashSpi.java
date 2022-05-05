@@ -28,7 +28,7 @@ public final class TemplateHashSpi extends MessageDigestSpi implements Cloneable
     private static final int HASH_SIZE;
     private static final byte[] INITIAL_CONTEXT;
 
-    private InputBuffer<byte[], byte[]> buffer;
+    private InputBuffer<byte[], byte[], RuntimeException> buffer;
 
     static {
         Loader.checkNativeLibraryAvailability();
@@ -135,7 +135,7 @@ public final class TemplateHashSpi extends MessageDigestSpi implements Cloneable
     public TemplateHashSpi() {
         Loader.checkNativeLibraryAvailability();
 
-        this.buffer = new InputBuffer<byte[], byte[]>(1024)
+        this.buffer = new InputBuffer<byte[], byte[], RuntimeException>(1024)
             .withInitialStateSupplier(TemplateHashSpi::resetContext)
             .withUpdater(TemplateHashSpi::synchronizedUpdateContextByteArray)
             .withUpdater(TemplateHashSpi::synchronizedUpdateNativeByteBuffer)

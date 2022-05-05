@@ -5,9 +5,14 @@ package com.amazon.corretto.crypto.provider;
 
 import static com.amazon.corretto.crypto.provider.Loader.RESOURCE_JANITOR;
 
-import java.util.concurrent.locks.ReentrantLock;
+import java.io.IOException;
+import java.io.NotSerializableException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.ObjectStreamException;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.LongConsumer;
-import java.util.function.LongFunction;
 
 class NativeResource {
     /**
@@ -18,7 +23,7 @@ class NativeResource {
         RESOURCE_JANITOR.wake();
     }
 
-    private static final class Cell extends ReentrantLock {
+    private static final class Cell extends ReentrantReadWriteLock {
         private static final long serialVersionUID = 1L;
         // Debug stuff
         private static final boolean FREE_TRACE_DEBUG = DebugFlag.FREETRACE.isEnabled();
@@ -29,50 +34,54 @@ class NativeResource {
         // @GuardedBy("this") // Restore once replacement for JSR-305 available
         private final long ptr;
         private final LongConsumer releaser;
+        private final boolean isThreadSafe;
         // @GuardedBy("this") // Restore once replacement for JSR-305 available
         private boolean released;
 
-        private Cell(final long ptr, final LongConsumer releaser) {
+        private Cell(final long ptr, final LongConsumer releaser, boolean isThreadSafe) {
             if (ptr == 0) {
               throw new AssertionError("ptr must not be equal to zero");
             }
             this.ptr = ptr;
             this.releaser = releaser;
             this.released = false;
+            this.isThreadSafe = isThreadSafe;
             this.creationTrace = buildFreeTrace("Created", null);
         }
 
+        private CloseableLock getLock(boolean writeLock) {
+            if (!isThreadSafe || writeLock) {
+                return new CloseableLock(writeLock());
+            } else {
+                return new CloseableLock(readLock());
+            }
+        }
+
+        @SuppressWarnings("try") // For "unused" lock variable in try-with-resources
         public void release() {
-            lock();
-            try {
+            try (CloseableLock lock = getLock(true)) {
                 if (released) return;
 
                 released = true;
                 freeTrace = buildFreeTrace("Freed", creationTrace);
                 releaser.accept(ptr);
-            } finally {
-                unlock();
             }
         }
 
+        @SuppressWarnings("try") // For "unused" lock variable in try-with-resources
         public long take() {
-            lock();
-            try {
+            try (CloseableLock lock = getLock(true)) {
                 assertNotFreed();
                 released = true;
                 freeTrace = buildFreeTrace("Freed", creationTrace);
                 return ptr;
-            } finally {
-                unlock();
             }
         }
 
+        @SuppressWarnings("try") // For "unused" lock variable in try-with-resources
         public boolean isReleased() {
-            lock();
-            try {
+            try (CloseableLock lock = getLock(true)) {
                 return released;
-            } finally {
-                unlock();
             }
         }
 
@@ -81,13 +90,11 @@ class NativeResource {
          * the result.
          */
         // @CheckReturnValue // Restore once replacement for JSR-305 available
-        public <T> T use(LongFunction<T> function) {
-            lock();
-            try {
+        @SuppressWarnings("try") // For "unused" lock variable in try-with-resources
+        public <T, X extends Throwable> T use(MiscInterfaces.ThrowingLongFunction<T, X> function) throws X {
+            try (CloseableLock lock = getLock(false)) {
                 assertNotFreed();
                 return function.apply(ptr);
-            } finally {
-                unlock();
             }
         }
 
@@ -103,13 +110,48 @@ class NativeResource {
             }
             return new RuntimeCryptoException(message + " in Thread " + Thread.currentThread().getName(), cause);
         }
+
+        // ReentrantReadWriteLock is serializable which forces us to pretend to be serializable.
+        // We inherit from ReentrantReadWriteLock because it is supposedly a lower-cost way of managing locks.
+        // However, we cannot be savely serialized because there is no safe way to save our native state.
+        // So, we prevent any attempt to serialize ourselves by throwing an exception.
+        private void writeObject(final ObjectOutputStream out) throws IOException {
+            throw new NotSerializableException("NativeResource");
+        }
+
+        private void readObject(final ObjectInputStream in) throws IOException, ClassNotFoundException {
+            throw new NotSerializableException("NativeResource");
+        }
+
+        private void readObjectNoData() throws ObjectStreamException {
+            throw new NotSerializableException("NativeResource");
+        }
+    }
+
+    private static final class CloseableLock implements AutoCloseable {
+        private final Lock lock;
+
+        CloseableLock(Lock lock) {
+            this.lock = lock;
+            this.lock.lock();
+        }
+
+        @Override
+        public void close() {
+            lock.unlock();
+        }
+
     }
 
     private final Cell cell;
     private final Janitor.Mess mess;
 
     protected NativeResource(long ptr, LongConsumer releaser) {
-        cell = new Cell(ptr, releaser);
+        this(ptr, releaser, false);
+    }
+
+    protected NativeResource(long ptr, LongConsumer releaser, boolean isThreadSafe) {
+        cell = new Cell(ptr, releaser, isThreadSafe);
 
         mess = RESOURCE_JANITOR.register(this, cell::release);
     }
@@ -119,18 +161,18 @@ class NativeResource {
     }
 
     /**
-     * Calls the supplied {@link LongFunction} passing in the raw handle as a parameter and return
+     * Calls the supplied {@link MiscInterfaces.ThrowingLongFunction} passing in the raw handle as a parameter and return
      * the result.
      */
     // @CheckReturnValue // Restore once replacement for JSR-305 available
-    <T> T use(LongFunction<T> function) {
+    public <T, X extends Throwable> T use(MiscInterfaces.ThrowingLongFunction<T, X> function) throws X {
         return cell.use(function);
     }
 
     /**
-     * Calls the supplied {@link LongConsumer} passing in the raw handle as a parameter.
+     * Calls the supplied {@link MiscInterfaces.ThrowingLongConsumer} passing in the raw handle as a parameter.
      */
-    void useVoid(LongConsumer function) {
+    public <X extends Throwable> void useVoid(MiscInterfaces.ThrowingLongConsumer<X> function) throws X {
         @SuppressWarnings("unused")
         Object unused = cell.use(ptr -> {
             function.accept(ptr);

@@ -7,7 +7,6 @@
 #include <openssl/err.h>
 #include "generated-headers.h"
 #include "util.h"
-#include "rand.h"
 #include "env.h"
 
 #define OPENSSL_THREAD_DEFINES

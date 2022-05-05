@@ -6,9 +6,7 @@ package com.amazon.corretto.crypto.provider;
 import java.nio.ByteBuffer;
 import java.util.Optional;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 /**
  * <p>
@@ -33,13 +31,14 @@ import java.util.function.Supplier;
  *
  * @param <T> result type
  * @param <S> state type
+ * @param <X> exception which can be thrown upon completion
  */
 // Note: Please consult the "How to Read JML" readme to understand the JML annotations
 // in this file (contained in //@ or /*@ @*/ comments).
 
 //@ non_null_by_default
 // @NotThreadSafe // Restore once replacement for JSR-305 available
-public class InputBuffer<T, S> implements Cloneable {
+public class InputBuffer<T, S, X extends Throwable> implements Cloneable {
 
     //@ // represents initialization state of buffer
     /*@ public model enum BufferState {
@@ -94,22 +93,21 @@ public class InputBuffer<T, S> implements Cloneable {
 
     //@ non_null_by_default
     @FunctionalInterface
-    public static interface ArrayFunction<T> {
+    public static interface ArrayFunction<T, X extends Throwable> {
         //@ public normal_behavior
         //@   requires 0 <= offset && offset <= src.length && length <= src.length - offset;
     	//@   ensures \result != null ==> \fresh(\result);
         //@ pure
-        public /*@ nullable @*/ T apply(byte[] src, int offset, int length);
+        public /*@ nullable @*/ T apply(byte[] src, int offset, int length) throws X;
     }
 
-    // provided for specification purposes
     //@ non_null_by_default
-    public static interface FinalHandlerFunction<T, R> extends Function<T,R> {
+    public static interface FinalHandlerFunction<T, R, X extends Throwable> {
         //@ also
         //@ public normal_behavior
         //@   ensures \result != null ==>\fresh(\result);
         //@ pure
-	public /*@ nullable @*/ R apply(/*@ nullable @*/ T t);
+	public /*@ nullable @*/ R apply(/*@ nullable @*/ T t) throws X;
     }
 
     // provided for specification purposes
@@ -161,7 +159,7 @@ public class InputBuffer<T, S> implements Cloneable {
     //@ spec_public
     private /*@ nullable @*/ ArrayStateConsumer<S> arrayUpdater;
     //@ spec_public
-    private /*@ nullable @*/ FinalHandlerFunction<S, T> finalHandler;
+    private /*@ nullable @*/ FinalHandlerFunction<S, T, X> finalHandler;
     //@ spec_public
     private StateSupplier<S> stateSupplier = (oldState) -> oldState;
     //@ spec_public
@@ -171,14 +169,13 @@ public class InputBuffer<T, S> implements Cloneable {
     private Optional<ByteBufferBiConsumer<S>> bufferUpdater = Optional.empty();
     // If absent, delegates to arrayUpdater
     //@ spec_public
-    private Optional<ArrayFunction<S>> initialArrayUpdater = Optional.empty();
+    private Optional<ArrayFunction<S, RuntimeException>> initialArrayUpdater = Optional.empty();
     // If absent, delegates to bufferUpdater or initialArrayUpdater
     //@ spec_public
     private Optional<ByteBufferFunction<S>> initialBufferUpdater = Optional.empty();
     // If absent, delegates to firstArrayUpdater+finalHandler
     //@ spec_public
-    private Optional<ArrayFunction<T>> singlePassArray = Optional.empty();
-
+    private Optional<ArrayFunction<T, X>> singlePassArray = Optional.empty();
     //@ // Additional state needed in specifications:
     //@ public ghost int bytesReceived;  // total # bytes given to InputBuffer
     //@ public ghost int bytesProcessed; // total # bytes InputBuffer has passed to handlers
@@ -239,7 +236,7 @@ public class InputBuffer<T, S> implements Cloneable {
     //@   requires canSetHandler(bufferState);
     //@   assignable initialArrayUpdater;
     //@   ensures \result == this && initialArrayUpdater.value == handler;
-    public InputBuffer<T, S> withInitialUpdater(final /*@ nullable @*/ ArrayFunction<S> handler) {
+    public InputBuffer<T, S, X> withInitialUpdater(final /*@ nullable @*/ ArrayFunction<S, RuntimeException> handler) {
         initialArrayUpdater = Optional.ofNullable(handler);
         return this;
     }
@@ -253,7 +250,7 @@ public class InputBuffer<T, S> implements Cloneable {
       @   ensures (\old(bufferState) != BufferState.Uninitialized || handler == null)
       @           ==> bufferState == \old(bufferState);
       @*/
-    public InputBuffer<T, S> withUpdater(final /*@ nullable @*/ ArrayStateConsumer<S> handler) {
+    public InputBuffer<T, S, X> withUpdater(final /*@ nullable @*/ ArrayStateConsumer<S> handler) {
         arrayUpdater = handler;
         /*@ set bufferState = (bufferState == BufferState.Uninitialized && handler != null)
           @                    ? BufferState.Ready : bufferState;
@@ -266,7 +263,7 @@ public class InputBuffer<T, S> implements Cloneable {
     //@     requires canSetHandler(bufferState);
     //@     assignable initialBufferUpdater;
     //@     ensures \result == this && initialBufferUpdater.value == handler;
-    public InputBuffer<T, S> withInitialUpdater(final /*@ nullable @*/ ByteBufferFunction<S> handler) {
+    public InputBuffer<T, S, X> withInitialUpdater(final /*@ nullable @*/ ByteBufferFunction<S> handler) {
         initialBufferUpdater = Optional.ofNullable(handler);
         return this;
     }
@@ -276,7 +273,7 @@ public class InputBuffer<T, S> implements Cloneable {
     //@     requires canSetHandler(bufferState);
     //@     assignable bufferUpdater;
     //@     ensures \result == this && bufferUpdater.value == handler;
-    public InputBuffer<T, S> withUpdater(final /*@ nullable @*/ ByteBufferBiConsumer<S> handler) {
+    public InputBuffer<T, S, X> withUpdater(final /*@ nullable @*/ ByteBufferBiConsumer<S> handler) {
         bufferUpdater = Optional.ofNullable(handler);
         return this;
     }
@@ -285,7 +282,7 @@ public class InputBuffer<T, S> implements Cloneable {
     //@     requires true;
     //@     assignable finalHandler;
     //@     ensures \result == this && finalHandler == handler;
-    public InputBuffer<T, S> withDoFinal(final FinalHandlerFunction<S, T> handler) {
+    public InputBuffer<T, S, X> withDoFinal(final FinalHandlerFunction<S, T, X> handler) {
         finalHandler = handler;
         return this;
     }
@@ -294,7 +291,7 @@ public class InputBuffer<T, S> implements Cloneable {
     //@     requires true;
     //@     assignable singlePassArray;
     //@     ensures \result == this && singlePassArray.value == handler;
-    public InputBuffer<T, S> withSinglePass(final /*@ nullable @*/ ArrayFunction<T> handler) {
+    public InputBuffer<T, S, X> withSinglePass(final /*@ nullable @*/ ArrayFunction<T, X> handler) {
         singlePassArray = Optional.ofNullable(handler);
         return this;
     }
@@ -303,7 +300,7 @@ public class InputBuffer<T, S> implements Cloneable {
     //@     requires true;
     //@     assignable stateCloner;
     //@     ensures \result == this && stateCloner.value == cloner;
-    public InputBuffer<T, S> withStateCloner(final /*@ nullable @*/ Function<S, S> cloner) {
+    public InputBuffer<T, S, X> withStateCloner(final /*@ nullable @*/ Function<S, S> cloner) {
         stateCloner = Optional.ofNullable(cloner);
         return this;
     }
@@ -313,7 +310,7 @@ public class InputBuffer<T, S> implements Cloneable {
       @     assignable stateSupplier;
       @     ensures \result == this && stateSupplier == supplier;
       @*/
-    public InputBuffer<T, S> withInitialStateSupplier(final StateSupplier<S> supplier) {
+    public InputBuffer<T, S, X> withInitialStateSupplier(final StateSupplier<S> supplier) {
         stateSupplier = supplier;
         return this;
     }
@@ -593,7 +590,7 @@ public class InputBuffer<T, S> implements Cloneable {
     //@   // This is okay, since if bufferState is Finalized, more data cannot be entered anyway.
     //@   ensures \old(firstData && singlePassArray.isPresent()) ==> bytesProcessed == 0;
     //@   ensures bufferState == BufferState.Finalized;
-    public /*@ nullable @*/ T doFinal() {
+    public /*@ nullable @*/ T doFinal() throws X {
         if (!firstData || !singlePassArray.isPresent()) {
             processBuffer(true);
             //@ set bufferState = BufferState.Finalized;
@@ -616,12 +613,12 @@ public class InputBuffer<T, S> implements Cloneable {
     //@   signals_only CloneNotSupportedException;
     //@ pure
     @Override
-    protected InputBuffer<T, S> clone() throws CloneNotSupportedException {
+    protected InputBuffer<T, S, X> clone() throws CloneNotSupportedException {
         if (state != null && !stateCloner.isPresent()) {
             throw new CloneNotSupportedException("No stateCloner configured");
         }
         @SuppressWarnings("unchecked")
-        final InputBuffer<T, S> clonedObject = (InputBuffer<T, S>) super.clone();
+        final InputBuffer<T, S, X> clonedObject = (InputBuffer<T, S, X>) super.clone();
 
         clonedObject.state = state != null ? stateCloner.get().apply(state) : null;
         clonedObject.buff = buff.clone();

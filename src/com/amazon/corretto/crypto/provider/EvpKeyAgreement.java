@@ -8,13 +8,9 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.Key;
 import java.security.NoSuchAlgorithmException;
-import java.security.PrivateKey;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.InvalidKeySpecException;
-import java.security.spec.PKCS8EncodedKeySpec;
-import java.security.spec.X509EncodedKeySpec;
-import java.util.Arrays;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -30,18 +26,24 @@ class EvpKeyAgreement extends KeyAgreementSpi {
     private final AmazonCorrettoCryptoProvider provider_;
     private final EvpKeyType keyType_;
     private final String algorithm_;
-    private PrivateKey privKey = null;
-    private byte[] privKeyDer = null;
+    private EvpKey privKey = null;
     private byte[] secret = null;
 
-    private static native byte[] agree(byte[] privateKeyDer, byte[] publicKeyDer, int keyType, boolean checkPrivateKey)
-            throws InvalidKeyException;
+    private static native byte[] agree(long privateKeyPtr, long publicKeyPtr) throws InvalidKeyException;
 
     EvpKeyAgreement(AmazonCorrettoCryptoProvider provider, final String algorithm, final EvpKeyType keyType) {
         Loader.checkNativeLibraryAvailability();
         provider_ = provider;
         algorithm_ = algorithm;
         keyType_ = keyType;
+    }
+
+    private byte[] agree(EvpKey pubKey) throws InvalidKeyException {
+        return privKey.use(privatePtr ->
+            pubKey.use(publicPtr ->
+                agree(privatePtr, publicPtr)
+            )
+        );
     }
 
     @Override
@@ -54,23 +56,19 @@ class EvpKeyAgreement extends KeyAgreementSpi {
         if (!keyType_.publicKeyClass.isAssignableFrom(key.getClass())) {
             throw new InvalidKeyException("Expected key of type " + keyType_.publicKeyClass + " not " + key.getClass());
         }
-        final byte[] pubKeyDer;
+        final EvpKey publicKey = provider_.translateKey(key, keyType_);
         try {
-            pubKeyDer = keyType_.getKeyFactory().getKeySpec(key, X509EncodedKeySpec.class).getEncoded();
-        } catch (final InvalidKeySpecException | NullPointerException ex) {
-            throw new InvalidKeyException(ex);
-        }
-
-        if (lastPhase) {
-            // We do the actual agreement here because that is where key validation and thus exceptions
-            // get thrown.
-            secret = agree(privKeyDer, pubKeyDer, keyType_.nativeValue,
-                provider_.hasExtraCheck(ExtraCheck.PRIVATE_KEY_CONSISTENCY)
-                );
-            return null;
-        } else {
-            secret = null;
-            throw new IllegalStateException("Only single phase agreement is supported");
+            if (lastPhase) {
+                // We do the actual agreement here because that is where key validation and thus exceptions
+                // get thrown.
+                secret = agree(publicKey);
+                return null;
+            } else {
+                secret = null;
+                throw new IllegalStateException("Only single phase agreement is supported");
+            }
+        } finally {
+            publicKey.releaseEphemeral();
         }
     }
 
@@ -149,12 +147,10 @@ class EvpKeyAgreement extends KeyAgreementSpi {
         if (!keyType_.privateKeyClass.isAssignableFrom(key.getClass())) {
             throw new InvalidKeyException("Expected key of type " + keyType_.privateKeyClass + " not " + key.getClass());
         }
-        privKey = (PrivateKey) key;
-        try {
-            privKeyDer = keyType_.getKeyFactory().getKeySpec(key, PKCS8EncodedKeySpec.class).getEncoded();
-        } catch (final InvalidKeySpecException ex) {
-            throw new InvalidKeyException(ex);
+        if (privKey != null) {
+            privKey.releaseEphemeral();
         }
+        privKey = provider_.translateKey(key, keyType_);
         reset();
     }
 
@@ -169,38 +165,6 @@ class EvpKeyAgreement extends KeyAgreementSpi {
 
     protected void reset() {
         secret = null;
-    }
-
-    private static byte[] trimZeros(final byte[] secret) {
-        int bytesToTrim = 0;
-        int foundNonZero = 0;
-        for (int x = 0; x < secret.length; x++) {
-            final int currByte = secret[x];
-            // Have we found something that isn't a zero?
-            foundNonZero |= currByte;
-
-            // foundNonZero == 0 iff we have not see any non-zero bytes
-            // Thus, we should update bytesToTrim iff foundNonZero == 0
-            final int shouldUpdateTrim = ConstantTime.isZero(foundNonZero);
-            bytesToTrim = ConstantTime.select(shouldUpdateTrim, x + 1, bytesToTrim);
-        }
-
-        // Allocating arrays of different lengths always risks non-constant time operation.
-        // There is no way to avoid this.
-        final byte[] result = new byte[secret.length - bytesToTrim];
-
-        // We'll always do the same number of byte copies, but the leading zeros will be overwritten by valid ones.
-        // While the memory access pattern won't be identical, there is no way to completely avoid this.
-        for (int x = 0; x < secret.length; x++) {
-            final int realIndex = x - bytesToTrim;
-
-            final int notYetValid = ConstantTime.isNegative(realIndex);
-
-            final int indexToUpdate = ConstantTime.select(notYetValid, 0, realIndex);
-            result[indexToUpdate] = secret[x];
-        }
-
-        return result;
     }
 
     static class ECDH extends EvpKeyAgreement {

@@ -4,20 +4,13 @@
 package com.amazon.corretto.crypto.provider.test;
 
 import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigInteger;
-import java.security.GeneralSecurityException;
-import java.security.InvalidAlgorithmParameterException;
-import java.security.InvalidParameterException;
-import java.security.Key;
-import java.security.KeyFactory;
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
-import java.security.Signature;
+import java.security.*;
+import java.security.interfaces.ECPrivateKey;
 import java.security.interfaces.ECPublicKey;
 import java.security.spec.ECFieldFp;
 import java.security.spec.ECGenParameterSpec;
@@ -126,7 +119,7 @@ public class EcGenTest {
 
     @ParameterizedTest
     @MethodSource("knownCurveParams")
-    public void knownCurves(ArgumentsAccessor arguments) throws GeneralSecurityException {
+    public void knownCurves(ArgumentsAccessor arguments) throws Exception {
         for (final Object name : arguments.toArray()) {
             testCurveByName((String) name);
         }
@@ -330,7 +323,25 @@ public class EcGenTest {
         }
     }
 
-    private static void assertECEquals(final String message, final ECParameterSpec expected,
+    public static void assertECEquals(final String message, final ECPrivateKey expected,
+                                       final ECPrivateKey actual) {
+        assertEquals(expected.getAlgorithm(), actual.getAlgorithm(), message);
+        assertEquals(expected.getFormat(), actual.getFormat(), message);
+        assertArrayEquals(expected.getEncoded(), actual.getEncoded(), message);
+        assertEquals(expected.getS(), actual.getS(), message);
+        assertECEquals(message, expected.getParams(), actual.getParams());
+    }
+
+    public static void assertECEquals(final String message, final ECPublicKey expected,
+                                       final ECPublicKey actual) {
+        assertEquals(expected.getAlgorithm(), actual.getAlgorithm(), message);
+        assertEquals(expected.getFormat(), actual.getFormat(), message);
+        assertArrayEquals(expected.getEncoded(), actual.getEncoded(), message);
+        assertEquals(expected.getW(), actual.getW(), message);
+        assertECEquals(message, expected.getParams(), actual.getParams());
+    }
+
+    public static void assertECEquals(final String message, final ECParameterSpec expected,
             final ECParameterSpec actual) {
         assertEquals(expected.getCofactor(), actual.getCofactor(), message);
         assertEquals(expected.getOrder(), actual.getOrder(), message);

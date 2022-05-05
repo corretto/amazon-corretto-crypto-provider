@@ -235,8 +235,6 @@ public class JanitorTest {
                                     System.gc();
                                 }
 
-                                long newRefId = ThreadLocalRandom.current().nextLong();
-
                                 // We use this lock to ensure that the mess cleanup routine doesn't run before we add
                                 // the mess to the outstandingMesses map.
                                 Object messLock = new Object();
@@ -249,8 +247,6 @@ public class JanitorTest {
                                                 new Referent(),
                                                 (Runnable) () -> {
                                                     synchronized (messLock) {
-                                                        //outstandingMesses.remove(newRefId);
-                                                        //if (outstandingMesses.remove(newRefId) == null) {
                                                         if (doubleRemoval.getAndSet(true)) {
                                                             sawExtraCleanup.set(true);
                                                         } else {

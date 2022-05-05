@@ -15,6 +15,9 @@ import java.io.IOException;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.security.InvalidKeyException;
+import java.security.Key;
+import java.security.KeyFactory;
 import java.security.NoSuchAlgorithmException;
 import java.security.Security;
 import java.util.Arrays;
@@ -26,6 +29,7 @@ import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
 import java.util.function.Supplier;
 
+
 public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     private static final MethodHandles.Lookup LOOKUP = MethodHandles.lookup();
 
@@ -35,19 +39,12 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     public static final AmazonCorrettoCryptoProvider INSTANCE;
     public static final String PROVIDER_NAME = "AmazonCorrettoCryptoProvider";
 
-    private static final boolean rdRandSupported_;
-
-    private static native boolean nativeRdRandSupported();
-
     private final EnumSet<ExtraCheck> extraChecks = EnumSet.noneOf(ExtraCheck.class);
     private transient SelfTestSuite selfTestSuite = new SelfTestSuite();
 
     static {
         if (!Loader.IS_AVAILABLE && DebugFlag.VERBOSELOGS.isEnabled()) {
             getLogger("AmazonCorrettoCryptoProvider").fine("Native JCE libraries are unavailable - disabling");
-            rdRandSupported_ = false;
-        } else {
-            rdRandSupported_ = nativeRdRandSupported();
         }
         INSTANCE = new AmazonCorrettoCryptoProvider();
     }
@@ -62,6 +59,9 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
         addService("Cipher", "AES/GCM/NoPadding", "AesGcmSpi");
         addService("Cipher", "AES_128/GCM/NoPadding", "AesGcmSpi");
         addService("Cipher", "AES_256/GCM/NoPadding", "AesGcmSpi");
+
+        addService("KeyFactory", "RSA", "EvpKeyFactory$RSA");
+        addService("KeyFactory", "EC", "EvpKeyFactory$EC");
 
         addService("KeyPairGenerator", "RSA", "RsaGen");
         addService("KeyPairGenerator", "EC", "EcGen");
@@ -306,10 +306,6 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
         Security.insertProviderAt(INSTANCE, 1);
     }
 
-    public static boolean isRdRandSupported() {
-        return rdRandSupported_;
-    }
-
     /**
      * Queries (but does not run) all available self-test functionality and returns the result.
      * {@link SelfTestStatus#FAILED} will be returned if any tests have failed. Otherwise,
@@ -395,5 +391,58 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     private void readObjectNoData() {
         initializeSelfTests();
     }
+
+    // This next block of code is a micro-optimization around getting instances of KeyFactories.
+    // It turns out the KeyFactory.getInstance(String, Provider) can be expensive
+    // (primarily due to synchronization of Provider.getService).
+    // The JDK tries to speed up the fast-path by remembering the last service retrieved
+    // for a given Provider and returning it quickly if it is retrieved again.
+    //
+    // With the move to EVP keys many of our SPIs require an instance of KeyFactory that they can
+    // use (primarily for translateKey). Since this means that retrieving a non-KeyFactory SPI
+    // shortly thereafter results in retrieving a KeyFactory SPI, there is real churn in
+    // Provider.getService which can massively slow-down performance.
+    //
+    // This method will do a lazy-init (to avoid circular dependencies) of KeyFactories
+    // for ACCP use only. This way we only create one of each and do not touch the expensive
+    // Provider.getService logic.
+    private transient volatile KeyFactory rsaFactory;
+    private transient volatile KeyFactory ecFactory;
+
+    KeyFactory getKeyFactory(EvpKeyType keyType) {
+        try {
+            switch (keyType) {
+                case RSA:
+                    if (rsaFactory == null) {
+                        rsaFactory = KeyFactory.getInstance(keyType.jceName, this);
+                    }
+                    return rsaFactory;
+                case EC:
+                    if (ecFactory == null) {
+                        ecFactory = KeyFactory.getInstance(keyType.jceName, this);
+                    }
+                    return ecFactory;
+                default:
+                    throw new AssertionError("Unsupported key type");
+            }
+        } catch (final NoSuchAlgorithmException ex) {
+            throw new AssertionError(ex);
+        }
+    }
+
+    // This is just a convenience method to provide syntactic sugar to callers
+    KeyFactory getKeyFactory(String keyType) {
+        return getKeyFactory(EvpKeyType.valueOf(keyType));
+    }
+
+    // This is just a convenience method to provide syntactic sugar to callers
+    EvpKey translateKey(Key key, EvpKeyType keyType) throws InvalidKeyException {
+        if (key instanceof EvpKey) {
+            return (EvpKey) key;
+        } else {
+            return (EvpKey) getKeyFactory(keyType).translateKey(key);
+        }
+    }
+
 }
 

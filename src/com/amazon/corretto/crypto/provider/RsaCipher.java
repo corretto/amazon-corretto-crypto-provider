@@ -10,7 +10,6 @@ import java.security.GeneralSecurityException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.Key;
-import java.security.KeyFactory;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
@@ -20,9 +19,6 @@ import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.InvalidParameterSpecException;
 import java.security.spec.MGF1ParameterSpec;
-import java.security.spec.RSAPrivateCrtKeySpec;
-import java.security.spec.RSAPrivateKeySpec;
-import java.security.spec.RSAPublicKeySpec;
 import java.util.Arrays;
 
 import javax.crypto.BadPaddingException;
@@ -38,7 +34,6 @@ class RsaCipher extends CipherSpi {
     private static final int HANDLE_USAGE_IGNORE = 1;
     private static final int HANDLE_USAGE_USE = 2;
     private static final int HANDLE_USAGE_CREATE = 3;
-    private static final KeyFactory KEY_FACTORY;
 
     // From openssl/rsa.h
     private static enum Padding {
@@ -61,31 +56,14 @@ class RsaCipher extends CipherSpi {
 
     static {
         Loader.load();
-        try {
-            KEY_FACTORY = KeyFactory.getInstance("RSA");
-        } catch (final NoSuchAlgorithmException ex) {
-            throw new AssertionError(ex);
-        }
     }
 
-    private static native void releaseNativeKey(long ptr);
-
-    private static native int cipher(int mode,
-            byte[] input, int inOff, int inLength,
-            byte[] output, int outOff,
+    private static native int cipher(
+            long keyPtr,
+            int mode,
             int padding,
-            boolean checkPrivateKey,
-            long[] keyHandle,
-            int handleMode,
-            byte[] pubExp,
-            byte[] modulus,
-            byte[] privExp,
-            byte[] primeP,
-            byte[] primeQ,
-            byte[] dmP,
-            byte[] dmQ,
-            byte[] coef
-        );
+            byte[] input, int inOff, int inLength,
+            byte[] output, int outOff) throws BadPaddingException;
 
     private final AmazonCorrettoCryptoProvider provider_;
     private final Object lock_ = new Object();
@@ -98,38 +76,9 @@ class RsaCipher extends CipherSpi {
     // @GuardedBy("lock_") // Restore once replacement for JSR-305 available
     private int keySizeBytes_;
     // @GuardedBy("lock_") // Restore once replacement for JSR-305 available
-    private NativeRsaKey nativeKey_;
+    private EvpKey nativeKey_;
     // @GuardedBy("lock_") // Restore once replacement for JSR-305 available
     private AccessibleByteArrayOutputStream buffer_;
-    // KeyParts
-    // @GuardedBy("lock_") // Restore once replacement for JSR-305 available
-    byte[] n;
-    // @GuardedBy("lock_") // Restore once replacement for JSR-305 available
-    byte[] e;
-    // @GuardedBy("lock_") // Restore once replacement for JSR-305 available
-    byte[] d;
-    // @GuardedBy("lock_") // Restore once replacement for JSR-305 available
-    byte[] p;
-    // @GuardedBy("lock_") // Restore once replacement for JSR-305 available
-    byte[] q;
-    // @GuardedBy("lock_") // Restore once replacement for JSR-305 available
-    byte[] dmp1;
-    // @GuardedBy("lock_") // Restore once replacement for JSR-305 available
-    byte[] dmq1;
-    // @GuardedBy("lock_") // Restore once replacement for JSR-305 available
-    byte[] iqmp;
-
-    // Most cipher object will either be used only once (with a given key)
-    // or many times with the same key. To avoid leaving potentially large
-    // amounts of native memory allocated for our keys, we only cache the
-    // native key after its _second_ use (meaning we do free it after its
-    // first). reUseKey_ being false means that we _should_ free the native
-    // key after use. reUseKey_ being true means that we should not free the
-    // native key after use. In order to achieve our simple caching patterns,
-    // whenever we free a key, we set reUseKey_ to true so that the next time
-    // we use it, we keep it around. (We also set reUseKey_ to false if the
-    // key is changed.)
-    private boolean reUseKey_ = false;
 
     RsaCipher(AmazonCorrettoCryptoProvider provider, final Padding padding) {
         Loader.checkNativeLibraryAvailability();
@@ -164,11 +113,7 @@ class RsaCipher extends CipherSpi {
                     throws ShortBufferException, IllegalBlockSizeException, BadPaddingException {
         synchronized (lock_) {
             assertInitialized();
-            try {
-                parseKey();
-            } catch (final InvalidKeyException e) {
-                throw new IllegalStateException(e);
-            }
+
             if (buffer_.size() != 0) { // Not one-shot
                 if (input != null) {
                     buffer_.write(input, inputOffset, inputLen);
@@ -210,66 +155,17 @@ class RsaCipher extends CipherSpi {
                     throw new IllegalBlockSizeException("Data must not be longer than " + keySizeBytes_ + " bytes");
                 }
             }
-            
-            final int result;
-            if (nativeKey_ != null) {
-              result = cipherWithNativeKey(input, inputOffset, inputLen, output, outputOffset);
-            } else if (!reUseKey_) {
-              result = cipherWithRawParams(input, inputOffset, inputLen, output, outputOffset);
-              reUseKey_ = true;
-            } else {
-              result = cipherAndCreateNativeKey(input, inputOffset, inputLen, output, outputOffset);
-            }
+
+            final byte[] finalInput = input;
+            final int finalInputOffset = inputOffset;
+            final int finalInputLen = inputLen;
+            final int result = nativeKey_.use(ptr -> cipher(ptr, mode_, padding_.nativeVal,
+                    finalInput, finalInputOffset, finalInputLen, output, outputOffset));
+
             buffer_ = new AccessibleByteArrayOutputStream();
 
             return result;
         }
-    }
-
-    private int cipherWithNativeKey(final byte[] input, final int inputOffset, final int inputLen,
-        final byte[] output, final int outputOffset) {
-      synchronized (lock_) {
-        if (nativeKey_ == null) {
-          throw new IllegalStateException("cipherWithNativeKey must only be called with a non-null nativeKey_");
-        }
-        return nativeKey_.use(ptr ->
-          cipher(mode_,
-              input, inputOffset, inputLen,
-              output, outputOffset,
-              padding_.nativeVal,
-              provider_.hasExtraCheck(ExtraCheck.PRIVATE_KEY_CONSISTENCY),
-              new long[]{ptr}, HANDLE_USAGE_USE,
-              null, null, null, null, null, null, null, null));
-      }
-    }
-
-    private int cipherWithRawParams(final byte[] input, final int inputOffset, final int inputLen,
-        final byte[] output, final int outputOffset) {
-      synchronized (lock_) {
-        return cipher(mode_,
-              input, inputOffset, inputLen,
-              output, outputOffset,
-              padding_.nativeVal,
-              provider_.hasExtraCheck(ExtraCheck.PRIVATE_KEY_CONSISTENCY),
-              null, HANDLE_USAGE_IGNORE,
-              n, e, d, p, q, dmp1, dmq1, iqmp);
-      }
-    }
-
-    private int cipherAndCreateNativeKey(final byte[] input, final int inputOffset, final int inputLen,
-        final byte[] output, final int outputOffset) {
-      synchronized (lock_) {
-        final long[] tmpPtr = new long[1];
-        final int result = cipher(mode_,
-              input, inputOffset, inputLen,
-              output, outputOffset,
-              padding_.nativeVal,
-              provider_.hasExtraCheck(ExtraCheck.PRIVATE_KEY_CONSISTENCY),
-              tmpPtr, HANDLE_USAGE_CREATE,
-              n, e, d, p, q, dmp1, dmq1, iqmp);
-        nativeKey_ = new NativeRsaKey(tmpPtr[0]);
-        return result;
-      }
     }
 
     @Override
@@ -325,15 +221,14 @@ class RsaCipher extends CipherSpi {
 
             if (key_ != key) {
               if (nativeKey_ != null) {
-                nativeKey_.release();
+                nativeKey_.releaseEphemeral();
                 nativeKey_ = null;
               }
-              reUseKey_ = false;
 
               key_ = (RSAKey) key;
               keySizeBytes_ = (key_.getModulus().bitLength() + 7) / 8;
               buffer_ = new AccessibleByteArrayOutputStream();
-              parseKey();
+              nativeKey_ = provider_.translateKey(key, EvpKeyType.RSA);
           }
         }
     }
@@ -371,63 +266,6 @@ class RsaCipher extends CipherSpi {
         }
     }
 
-    private void parseKey() throws InvalidKeyException {
-        synchronized (lock_) {
-            if (nativeKey_ != null && !nativeKey_.isReleased()) {
-                return;
-            }
-            n = null;
-            e = null;
-            d = null;
-            p = null;
-            q = null;
-            dmp1 = null;
-            dmq1 = null;
-            iqmp = null;
-            if (key_ instanceof PrivateKey) {
-                boolean parsedKey = false;
-                try {
-                    final RSAPrivateCrtKeySpec spec = KEY_FACTORY.getKeySpec((Key) key_, RSAPrivateCrtKeySpec.class);
-                    n = spec.getModulus().toByteArray();
-                    e = spec.getPublicExponent().toByteArray();
-                    d = spec.getPrivateExponent().toByteArray();
-                    p = spec.getPrimeP().toByteArray();
-                    q = spec.getPrimeQ().toByteArray();
-                    dmp1 = spec.getPrimeExponentP().toByteArray();
-                    dmq1 = spec.getPrimeExponentQ().toByteArray();
-                    iqmp = spec.getCrtCoefficient().toByteArray();
-                    parsedKey = true;
-                } catch (final InvalidKeySpecException e) {
-                    // swallow the exception
-                }
-                if (!parsedKey) {
-                    try {
-                        final RSAPrivateKeySpec spec = KEY_FACTORY.getKeySpec((Key) key_, RSAPrivateKeySpec.class);
-                        n = spec.getModulus().toByteArray();
-                        d = spec.getPrivateExponent().toByteArray();
-                        parsedKey = true;
-                    } catch (final InvalidKeySpecException e) {
-                        // swallow the exception
-                    }
-                }
-                if (!parsedKey) {
-                    throw new InvalidKeyException("Unable to parse the key " + key_);
-                }
-
-            } else if (key_ instanceof PublicKey) {
-                try {
-                    final RSAPublicKeySpec spec = KEY_FACTORY.getKeySpec((Key) key_, RSAPublicKeySpec.class);
-                    n = spec.getModulus().toByteArray();
-                    e = spec.getPublicExponent().toByteArray();
-                } catch (final InvalidKeySpecException e) {
-                    throw new InvalidKeyException(e);
-                }
-            } else {
-                throw new IllegalArgumentException("Unexpected key type: " + key_.getClass());
-            }
-        }
-    }
-
     @Override
     protected void engineInit(final int opmode, final Key key, final AlgorithmParameterSpec params,
             final SecureRandom random)
@@ -448,6 +286,13 @@ class RsaCipher extends CipherSpi {
                 final PSource pDefault = PSource.PSpecified.DEFAULT;
                 final PSource psrc = oaep.getPSource();
                 if (psrc == null || !pDefault.getAlgorithm().equalsIgnoreCase(psrc.getAlgorithm())) {
+                    throw new InvalidAlgorithmParameterException();
+                }
+                // Only support empty label
+                if (!(psrc instanceof PSource.PSpecified)) {
+                    throw new InvalidAlgorithmParameterException();
+                }
+                if (((PSource.PSpecified) psrc).getValue().length != 0) {
                     throw new InvalidAlgorithmParameterException();
                 }
             } else {
@@ -511,7 +356,7 @@ class RsaCipher extends CipherSpi {
         }
         try {
             final byte[] unwrappedKey = engineDoFinal(wrappedKey, 0, wrappedKey.length);
-            return Utils.buildUnwrappedKey(unwrappedKey, wrappedKeyAlgorithm, wrappedKeyType);
+            return Utils.buildUnwrappedKey(provider_, unwrappedKey, wrappedKeyAlgorithm, wrappedKeyType);
         } catch (final BadPaddingException | IllegalBlockSizeException | InvalidKeySpecException ex) {
             throw new InvalidKeyException("Unwrapping failed", ex);
         }
@@ -523,7 +368,7 @@ class RsaCipher extends CipherSpi {
             throw new IllegalStateException("Cipher must be in WRAP_MODE");
         }
         try {
-            final byte[] encoded = Utils.encodeForWrapping(key);
+            final byte[] encoded = Utils.encodeForWrapping(provider_, key);
             return engineDoFinal(encoded, 0, encoded.length);
         } catch (final BadPaddingException ex) {
             throw new InvalidKeyException("Wrapping failed", ex);
@@ -535,12 +380,6 @@ class RsaCipher extends CipherSpi {
             if (key_ == null) {
                 throw new IllegalStateException();
             }
-        }
-    }
-
-    private static class NativeRsaKey extends NativeResource {
-        protected NativeRsaKey(final long ptr) {
-            super(ptr, RsaCipher::releaseNativeKey);
         }
     }
 

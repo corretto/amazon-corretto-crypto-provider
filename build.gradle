@@ -128,13 +128,18 @@ task executeCmake(type: Exec) {
     args projectDir
 }
 
-task build_objects(type: Exec) {
+task build_objects {
     dependsOn executeCmake
+    inputs.file("${buildDir}/cmake/Makefile")
     outputs.file("${buildDir}/cmake/AmazonCorrettoCryptoProvider.jar")
 
-    workingDir "${buildDir}/cmake"
+    doLast {
+      exec {
+        workingDir "${buildDir}/cmake"
 
-    commandLine 'make', '-j', Runtime.runtime.availableProcessors(), 'accp-jar'
+        commandLine 'make', '-j', Runtime.runtime.availableProcessors(), 'accp-jar'
+      }
+    }
 }
 
 task build(overwrite:true) {
@@ -423,6 +428,10 @@ task deep_clean(type: Delete) {
    delete buildDir
 }
 
+task cmake_clean(type: Delete) {
+    delete "${buildDir}/cmake"
+    delete "${buildDir}/cmake-coverage"
+}
 task generateEclipseClasspath {
     doLast {
         file(".classpath").withWriter { writer ->

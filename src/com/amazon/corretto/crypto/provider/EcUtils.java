@@ -6,7 +6,6 @@ package com.amazon.corretto.crypto.provider;
 import java.math.BigInteger;
 import java.security.AlgorithmParameters;
 import java.security.NoSuchAlgorithmException;
-import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.InvalidParameterSpecException;
 import java.security.spec.ECField;
 import java.security.spec.ECFieldF2m;

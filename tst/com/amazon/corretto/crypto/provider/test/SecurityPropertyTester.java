@@ -3,6 +3,7 @@
 
 package com.amazon.corretto.crypto.provider.test;
 
+import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.security.KeyPairGenerator;
@@ -11,20 +12,19 @@ import java.security.Security;
 import java.util.HashSet;
 import java.util.Set;
 
-import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
-
 /**
- * This is a special stand-alone test case which asserts that AmazonCorrettoCryptoProvider is installed as the highers priority provider and is functional.
+ * This is a special stand-alone test case which asserts that AmazonCorrettoCryptoProvider is installed
+ * as the highest priority provider and is functional.
  */
-public class SecurityPropertyTester {
+public final class SecurityPropertyTester {
   public static void main(String[] args) throws Exception {
+    NATIVE_PROVIDER.assertHealthy();
     final Provider provider = Security.getProviders()[0];
-    assertEquals("AmazonCorrettoCryptoProvider", provider.getName());
-    final AmazonCorrettoCryptoProvider njb = (AmazonCorrettoCryptoProvider) provider;
-    njb.assertHealthy();
+    assertEquals(NATIVE_PROVIDER.getName(), provider.getName());
 
     // We know that Java has the SunEC provider which can generate EC keys.
     // We try to grab it to show that the nothing interfered with proper provider loading.
+    @SuppressWarnings("unused")
     KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC", "SunEC");
 
     // Also ensure that nothing shows up twice
@@ -34,5 +34,9 @@ public class SecurityPropertyTester {
             throw new AssertionError("Duplicate found for " + p.getName());
         }
     }
+  }
+
+  private SecurityPropertyTester() {
+    // Prevent instantiation
   }
 }

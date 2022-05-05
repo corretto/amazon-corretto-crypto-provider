@@ -17,7 +17,6 @@ import java.security.InvalidParameterException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.SecureRandom;
-import java.security.Security;
 import java.security.interfaces.RSAPrivateCrtKey;
 import java.security.interfaces.RSAPublicKey;
 import java.security.spec.RSAKeyGenParameterSpec;
@@ -29,7 +28,6 @@ import javax.crypto.Cipher;
 import org.bouncycastle.util.encoders.Hex;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.parallel.Execution;
@@ -43,13 +41,8 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 public class RsaGenTest {
     private static final byte[] PLAINTEXT = new byte[32];
 
-    @BeforeAll
-    public static void setUp() throws Exception {
-        Security.addProvider(AmazonCorrettoCryptoProvider.INSTANCE);
-    }
-
     private KeyPairGenerator getGenerator() throws GeneralSecurityException {
-        return KeyPairGenerator.getInstance("RSA", "AmazonCorrettoCryptoProvider");
+        return KeyPairGenerator.getInstance("RSA", TestUtil.NATIVE_PROVIDER);
     }
 
     @Test
@@ -153,7 +146,7 @@ public class RsaGenTest {
 
         final KeyPairGenerator[] generators = new KeyPairGenerator[generatorCount];
         for (int x = 0; x < generatorCount; x++) {
-            generators[x] = KeyPairGenerator.getInstance("RSA", "AmazonCorrettoCryptoProvider");
+            generators[x] = KeyPairGenerator.getInstance("RSA", TestUtil.NATIVE_PROVIDER);
             generators[x].initialize(1024);
         }
 
@@ -222,7 +215,7 @@ public class RsaGenTest {
         assertEquals(BigInteger.ONE, e.multiply(d).mod(totient));
 
         // Actually use the key
-        final Cipher cipher = Cipher.getInstance("RSA");
+        final Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
         cipher.init(Cipher.ENCRYPT_MODE, pub);
         final byte[] ciphertext = cipher.doFinal(PLAINTEXT);
         cipher.init(Cipher.DECRYPT_MODE, priv);

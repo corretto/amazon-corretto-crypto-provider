@@ -22,19 +22,18 @@ public class NativeTestHooks {
     public static native void putBytesLocked(byte[] array, int offset, int length, int off2, int len2);
     public static native void borrowCheckRange(byte[] array, int offset, int length, int off2, int len2);
 
-    public static native boolean rdrand(byte[] array);
-    public static native boolean rdseed(byte[] array);
-
-    public static native boolean hasRdseed();
-
     public static boolean hasNativeHooks() {
         try {
             // Force loading library
             if (AmazonCorrettoCryptoProvider.INSTANCE.getLoadingError() != null) {
                 return false;
             }
-            NativeTestHooks.hasRdseed();
-            return true;
+            try {
+                NativeTestHooks.throwException();
+            } catch (final IllegalArgumentException expected) {
+                return expected.getMessage().equals("Test exception message");
+            }
+            return false;
         } catch (final Throwable t) {
             return false;
         }

@@ -15,9 +15,6 @@ import java.security.SignatureException;
 import java.security.SignatureSpi;
 import java.security.interfaces.ECKey;
 import java.security.spec.AlgorithmParameterSpec;
-import java.security.spec.InvalidKeySpecException;
-import java.security.spec.PKCS8EncodedKeySpec;
-import java.security.spec.X509EncodedKeySpec;
 import java.util.Arrays;
 import java.util.Base64;
 
@@ -25,19 +22,21 @@ abstract class EvpSignatureBase extends SignatureSpi {
     // Package visible so main Provider can use it
     static final String P1363_FORMAT_SUFFIX = "inP1363Format";
     protected static final int RSA_PKCS1_PADDING = 1;
+    protected final AmazonCorrettoCryptoProvider provider_;
     protected final EvpKeyType keyType_;
     protected final int paddingType_;
-    protected Key key_ = null;
-    protected byte[] keyDer_ = null;
+    protected Key untranslatedKey_ = null;
+    protected EvpKey key_ = null;
     protected boolean signMode;
     protected int keyUsageCount_ = 0;
-    protected EvpContext ctx_ = null;
     protected String algorithmName_ = null;
 
     EvpSignatureBase(
+            final AmazonCorrettoCryptoProvider provider,
             final EvpKeyType keyType,
             final int paddingType
     ) {
+        provider_ = provider;
         keyType_ = keyType;
         paddingType_ = paddingType;
     }
@@ -63,23 +62,16 @@ abstract class EvpSignatureBase extends SignatureSpi {
             throw new InvalidKeyException("Key must not be null");
         }
 
-        if (key_ != privateKey) {
+        if (untranslatedKey_ != privateKey) {
             if (!keyType_.jceName.equalsIgnoreCase(privateKey.getAlgorithm())) {
                 throw new InvalidKeyException();
             }
             keyUsageCount_ = 0;
-            if (ctx_ != null) {
-                ctx_.release();
-                ctx_ = null;
+            untranslatedKey_ = privateKey;
+            if (key_ != null) {
+                key_.releaseEphemeral();
             }
-            key_ = privateKey;
-            try {
-                keyDer_ = keyType_.getKeyFactory().getKeySpec(privateKey, PKCS8EncodedKeySpec.class).getEncoded();
-            } catch (final InvalidKeySpecException ex) {
-                key_ = null;
-                keyDer_ = null;
-                throw new InvalidKeyException(ex);
-            }
+            key_ = provider_.translateKey(untranslatedKey_, keyType_);
         }
         signMode = true;
         engineReset();
@@ -91,24 +83,16 @@ abstract class EvpSignatureBase extends SignatureSpi {
             throw new InvalidKeyException("Key must not be null");
         }
 
-        if (key_ != publicKey) {
+        if (untranslatedKey_ != publicKey) {
             if (!keyType_.jceName.equalsIgnoreCase(publicKey.getAlgorithm())) {
                 throw new InvalidKeyException();
             }
             keyUsageCount_ = 0;
-            if (ctx_ != null) {
-                ctx_.release();
-                ctx_ = null;
+            untranslatedKey_ = publicKey;
+            if (key_ != null) {
+                key_.releaseEphemeral();
             }
-            key_ = publicKey;
-            try {
-                keyDer_ = keyType_.getKeyFactory().getKeySpec(publicKey, X509EncodedKeySpec.class).getEncoded();
-            } catch (final InvalidKeySpecException ex) {
-                key_ = null;
-                keyDer_ = null;
-                throw new InvalidKeyException(ex);
-            }
-
+            key_ = provider_.translateKey(untranslatedKey_, keyType_);
         }
         signMode = false;
         engineReset();

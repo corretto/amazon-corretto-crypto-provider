@@ -28,9 +28,11 @@ Current values are:
    Example: `./gradlew -DUSE_CLANG_TIDY=true build`
    This may require deleting `build/cmake` prior to running.
    [PR #191](https://github.com/corretto/amazon-corretto-crypto-provider/pull/191)
+* Add `KeyFactory` implementations for RSA and EC keys. This also includes our own implementations of keys for the same algorithms. [PR #132](https://github.com/corretto/amazon-corretto-crypto-provider/pull/132)
 
 ### Patches
 * Improve zeroization of DRBG output. [PR #162](https://github.com/corretto/amazon-corretto-crypto-provider/pull/162)
+* Correctly reject non-empty `PSource.PSpecified` values for RSA-OAEP.
 
 ## 1.6.1
 ### Patches
