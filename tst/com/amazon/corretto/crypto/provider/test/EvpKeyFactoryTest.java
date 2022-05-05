@@ -14,6 +14,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 
+import java.io.ByteArrayOutputStream;
+import java.io.NotSerializableException;
+import java.io.ObjectOutputStream;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.ArrayList;
@@ -356,6 +359,17 @@ public class EvpKeyFactoryTest {
 
         assertThrows(InvalidKeySpecException.class, () -> nativeFactory.generatePrivate(badSpec));
         assertThrows(InvalidKeyException.class, () -> nativeFactory.translateKey(privateKey));
+    }
+
+    @ParameterizedTest(name = "{1}")
+    @MethodSource("allPairs")
+    public void cannotSerializeKeys(final KeyPair pair, final String testName) throws Exception {
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
+             ObjectOutputStream out = new ObjectOutputStream(baos)) {
+
+            assertThrows(NotSerializableException.class, () -> out.writeObject(pair.getPublic()));
+            assertThrows(NotSerializableException.class, () -> out.writeObject(pair.getPrivate()));
+        }
     }
 
     @SuppressWarnings("unchecked")
