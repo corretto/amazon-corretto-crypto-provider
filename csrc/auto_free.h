@@ -156,16 +156,6 @@ public:
         return &buf;
     }
 
-    operator uint8_t *()
-    {
-        return reinterpret_cast<uint8_t *>(buf);
-    }
-
-    operator uint8_t *() const
-    {
-        return reinterpret_cast<uint8_t *>(buf);
-    }
-
     operator jbyte *()
     {
         return reinterpret_cast<jbyte *>(buf);
