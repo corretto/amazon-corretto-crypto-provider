@@ -24,8 +24,6 @@ function destroy_ci() {
     exit 1
   fi
   cdk destroy accp-* --force
-  # CDK stack destroy does not delete s3 bucket automatically.
-  delete_s3_buckets
   # CDK stack destroy does not delete ecr automatically.
   delete_container_repositories
 }
@@ -37,8 +35,6 @@ function destroy_docker_img_build_stack() {
   fi
   # Destroy all temporary resources created for all docker image build.
   cdk destroy accp-docker-image-build-* --force
-  # CDK stack destroy does not delete s3 bucket automatically.
-  delete_s3_buckets
 }
 
 function create_linux_docker_img_build_stack() {
