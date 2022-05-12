@@ -304,7 +304,7 @@ class RsaCipher extends CipherSpi {
     }
 
     private static long getMdPtr(String digestName) {
-        String name = jceNameToAwsLcName(digestName);
+        final String name = jceNameToAwsLcName(digestName);
         return digestPtrByName.computeIfAbsent(name, n -> Utils.getEvpMdFromName(n));
     }
 
@@ -344,12 +344,7 @@ class RsaCipher extends CipherSpi {
             params = oaepParams_;
         }
         try {
-            engineInit(
-                opmode,
-                key,
-                params,
-                random
-            );
+            engineInit(opmode, key, params, random);
         } catch (InvalidAlgorithmParameterException e) {
             throw new InvalidKeyException(e);
         }

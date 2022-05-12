@@ -114,8 +114,8 @@ public class RsaCipherTest {
                     Object o = f.get(null); // static field, so null "instance"
                     Method m = MGF1ParameterSpec.class.getDeclaredMethod("getDigestAlgorithm");
                     String digest = (String) m.invoke(o);
-                    // NOTE: AWS-LC doesn't support SHA-512/224
-                    if ("SHA-512/224".equals(digest)) {
+                    // NOTE: AWS-LC doesn't support SHA-512/224 or SHA3
+                    if ("SHA-512/224".equals(digest) || !digest.startsWith("SHA-")) {
                         continue;
                     }
                     digests.add(digest);
