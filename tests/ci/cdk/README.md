@@ -1,6 +1,6 @@
 ## Overview
 
-AWS-LC CI uses AWS CDK to define and deploy AWS resources (e.g. AWS CodeBuild, ECR).
+ACCP CI uses AWS CDK to define and deploy AWS resources (e.g. AWS CodeBuild, ECR).
 
 ## CI Setup
 
@@ -28,11 +28,6 @@ To setup or update the CI in your account you will need the following IAM permis
   * codebuild:StartBuild
   * codebuild:StopBuild
   * codebuild:RetryBuild
-* EC2
-  * ec2:Describe*
-  * ec2:Create*
-  * ec2:RunInstances
-  * ec2:TerminateInstances
 * ECR
   * ecr:Batch*
   * ecr:Get*
@@ -42,86 +37,40 @@ To setup or update the CI in your account you will need the following IAM permis
   * ecr:Upload*
   * ecr:Complete*
   * ecr:Put*
-* S3
-  * s3:Put*
-  * s3:Get*
-* SSM
-  * ssm:Describe*
-  * ssm:List*
-  * ssm:Get*
-  * ssm:Put*
-  * ssm:Update*
-  * ssm:List*
-* SecretsManager
-  * secretsmanager:CreateSecret
-  * secretsmanager:PutSecretValue
-  * secretsmanager:DeleteSecret
-  * secretsmanager:GetSecretValue
 
 ### Commands
 
-Note: `GITHUB_REPO_OWNER` specifies the GitHub repo targeted by this CI setup.
-* https://github.com/${GITHUB_REPO_OWNER}/aws-lc.git
+Notes:
+* `AWS_ACCOUNT` specifies the AWS account the CI wishes to propogate resources to. Default is the ACCP team account if not defined.
+* `GITHUB_REPO_OWNER` specifies the GitHub repo targeted by this CI setup. Default is `corretto` if not defined.
+* `GITHUB_BRANCH` specifies the branch on the GitHub repo that has the CI scripts you wish to deploy. Default is `develop` if not defined.
+* https://github.com/${GITHUB_REPO_OWNER}/amazon-corretto-crypto-provider.git
 
-To set up AWS-LC CI, run command:
+To set up the ACCP CI (create/update docker images and deploy CI resources), run command:
 ```
-./run-cdk.sh --github-repo-owner=${GITHUB_REPO_OWNER} --action deploy-ci
-```
-
-To update AWS-LC CI, run command:
-```
-./run-cdk.sh --github-repo-owner=${GITHUB_REPO_OWNER} --action update-ci
+./run-cdk.sh --aws-account=${AWS_ACCOUNT} --github-repo-owner=${GITHUB_REPO_OWNER}  --github-source-version=${GITHUB_BRANCH} --action deploy-ci
 ```
 
 To create/update Linux Docker images, run command:
 ```
-./run-cdk.sh --github-repo-owner=${GITHUB_REPO_OWNER} --action build-linux-img
+./run-cdk.sh --aws-account=${AWS_ACCOUNT} --github-repo-owner=${GITHUB_REPO_OWNER}  --github-source-version=${GITHUB_BRANCH} --action build-linux-img
 ```
 
-To destroy AWS-LC CI resources created above, run command:
+To deploy CI resources for the ACCP CI, run command:
+```
+./run-cdk.sh --aws-account=${AWS_ACCOUNT} --github-repo-owner=${GITHUB_REPO_OWNER}  --github-source-version=${GITHUB_BRANCH} --action update-ci
+```
+
+To destroy ACCP CI resources created above, run command:
 ```
 # NOTE: this command will destroy all resources (AWS CodeBuild and ECR).
-./run-cdk.sh --github-repo-owner=${GITHUB_REPO_OWNER} --action destroy-ci
+./run-cdk.sh --aws-account=${AWS_ACCOUNT} --github-repo-owner=${GITHUB_REPO_OWNER}  --github-source-version=${GITHUB_BRANCH} --action destroy-ci
 ```
 
 For help, run command:
 ```
 ./run-cdk.sh --help
 ```
-
-## AWS-LC Benchmarking Framework
-
-### Framework Setup
-No special actions outside those outlined in the **CI Setup** section are required to deploy the benchmarking framework to an AWS account and GitHub repository.
-
-Specific implementation details can mostly be found in:
-* `run-cdk.sh`
-* `cdk/bm_framework_stack.py`
-
-### How to Use
-After the benchmarking framework is set up, there are multiple ways to start the process.
-
-Note: due to the nature of how the framework works, a commit containing the relevant scripts (located inside `tests/ci/benchmark_framework/`,`tests/ci/build_run_benchmarks.sh`, and `tests/ci/run_bm_framework.sh`) is required for a successful run of the framework. If these files are not present, the benchmarking process will fail.
-
-#### Start from Pull Request
-Opening, reopening, or updating a pull request in a repository in which the framework has been deployed to will start the benchmarking process automatically without any extra input needed from the user.
-
-#### Start Locally
-Starting the benchmarking framework locally still requires the user's AWS CLI to be configured for an account with the framework deployed to it. Additionally, several environment variables need to be set for the framework to work correctly.
-
-| Environment Variable      | Description            | Value                                                                         |
-|---------------------------|------------------------|-------------------------------------------------------------------------------|
-| `CODEBUILD_SOURCE_VERSION`  | GitHub Commit ID       | The commit ID of the version of AWS-LC to be benchmarked                      |
-| `CODEBUILD_SOURCE_REPO_URL` | GitHub Repository Link | The link used to clone the repository which the provided commit ID belongs to |
-
-After setting the environment variables, run `./tests/ci/run_bm_framework` from the root directory of the project to start the benchmarking process. This is the same script that is run by a CodeBuild instance that is used when the framework is started via a PR.
-
-#### Examine Output
-After it is started, the benchmarking framework will take 30-45 minutes to complete. Once finished, the benchmarking script will exit with an error if a regression was detected. If the framework was started from a PR, this will result in a failed CI vote.
-
-If necessary, logs of both the CodeBuild (if started via a pull request) and SSM Run Commands can be found in AWS CloudWatch Logs in order to help determine causes of failure. Performance and regression information can be found in S3 buckets called `<AWS ACCOUNT ID>-aws-lc-ci-bm-framework-prod-bucket` and `<AWS_ACCOUNT_ID>-aws-lc-ci-bm-framework-pr-bucket`. The former holds the performance results of the tip of main of AWS-LC and FIPS compliant AWS-LC, BoringSSL, and OpenSSL, while the latter holds performance information and results for the PR versions of AWS-LC and FIPS compliant AWS-LC. These results are in a folder labeled by the GitHub commit ID of the version of AWS-LC that is being tested.
-
-Each file output by the CI will have a prefix with some processor information in it, following the format `<processor architecture><hardware support type>-`. So for example a file labeled `amd64noavx-aws-lc-pr_bm.csv` would contain benchmarking information for the PR version of AWS-LC being run on an x86 processor without AVX support, while a file labeled `amd64-prod_vs_pr.csv` would contain a performance comparison between the tip of main of AWS-LC and the PR version of AWS-LC on an x86 processor with all hardware support enabled.
 
 ## Files
 
@@ -213,52 +162,16 @@ command.
 **Notes**:
 * below commands replicate steps that are performed in `run-cdk.sh` but use default values set in `cdk/util/metadata.py`.
 * Always clean up resources set up for Docker image build.
-  * `cdk destroy aws-lc-docker-image-build-* --force`
+  * `cdk destroy accp-docker-image-build-* --force`
 
 #### Linux Docker image build
 
 ```bash
 # Launch Linux Docker image CodeBuild resources.
-cdk deploy aws-lc-docker-image-build-linux --require-approval never
+cdk deploy accp-docker-image-build-linux --require-approval never
 
 # Trigger CodeBuild to build Linux Docker Images
-aws codebuild start-build-batch --project-name aws-lc-docker-image-build-linux
+aws codebuild start-build-batch --project-name accp-docker-image-build-linux
 
 # Go to AWS console, you can check CodeBuild by clicking "Developer Tools > CodeBuild > Build projects".
-```
-
-#### Windows Docker image build
-Windows docker image build requires more resources (like EC2 host, S3, SSM and so on) set up because DIND (Docker in Docker) is not supported by Windows.
-Below are some commands specific to windows docker image build.
- 
-```bash
-# Define environment variables needed by Windows docker image build.
-DATE_NOW="$(date +%Y-%m-%d-%H-%M)"
-export AWS_LC_S3_BUCKET_PREFIX='aws-lc-windows-docker-image-build-s3'
-export S3_FOR_WIN_DOCKER_IMG_BUILD="${AWS_LC_S3_BUCKET_PREFIX}-${DATE_NOW}"
-export WIN_EC2_TAG_KEY='aws-lc'
-export WIN_EC2_TAG_VALUE="aws-lc-windows-docker-image-build-${DATE_NOW}"
-export WIN_DOCKER_BUILD_SSM_DOCUMENT="windows-ssm-document"
-
-# Clean up all Windows docker image build resources.
-cdk destroy aws-lc-docker-image-build-windows --force
-aws s3 rm "s3://${S3_FOR_WIN_DOCKER_IMG_BUILD}" --recursive
-aws s3api delete-bucket --bucket "${S3_FOR_WIN_DOCKER_IMG_BUILD}"
-
-# Deploy Windows docker image build resources.
-cdk deploy aws-lc-docker-image-build-windows --require-approval never
-
-# Sleep 10 minutes so Windows EC2 is ready to execute SSM commands.
-sleep 600
-
-# Trigger SSM commands to build Windows Docker Images.
-instance_id=$(aws ec2 describe-instances \
-    --filters "Name=tag:${WIN_EC2_TAG_KEY},Values=${WIN_EC2_TAG_VALUE}" | jq -r '.Reservations[0].Instances[0].InstanceId')
-aws ssm send-command \
-        --instance-ids "${instance_id}" \
-        --document-name "${WIN_DOCKER_BUILD_SSM_DOCUMENT}" \
-        --output-s3-bucket-name "${S3_FOR_WIN_DOCKER_IMG_BUILD}" \
-        --output-s3-key-prefix 'ssm-runcommand-logs'
-
-# Go to AWS console, you can check run command by clicking `AWS Systems Manager > Run Command`.
 ```

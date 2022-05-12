@@ -144,7 +144,7 @@ function export_global_variables() {
     export GITHUB_REPO_OWNER='corretto'
   fi
   if [[ -z "${GITHUB_SOURCE_VERSION+x}" || -z "${GITHUB_SOURCE_VERSION}" ]]; then
-    export GITHUB_SOURCE_VERSION='main'
+    export GITHUB_SOURCE_VERSION='develop'
   fi
   # Other variables for managing resources.
   DATE_NOW="$(date +%Y-%m-%d-%H-%M)"
