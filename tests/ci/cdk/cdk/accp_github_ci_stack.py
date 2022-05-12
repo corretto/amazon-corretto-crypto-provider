@@ -9,7 +9,7 @@ from util.yml_loader import YmlLoader
 
 
 class ACCPGitHubCIStack(core.Stack):
-    """Define a stack used to batch execute AWS-LC tests in GitHub."""
+    """Define a stack used to batch execute ACCP tests in GitHub."""
 
     def __init__(self,
                  scope: core.Construct,
