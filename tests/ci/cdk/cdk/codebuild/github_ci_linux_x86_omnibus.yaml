@@ -6,7 +6,7 @@ version: 0.2
 # Doc for batch https://docs.aws.amazon.com/codebuild/latest/userguide/batch-build-buildspec.html#build-spec.batch.build-list
 batch:
   build-list:
-    - identifier: ubuntu2004_gcc-7x_corretto_pr
+    - identifier: ubuntu2004_gcc7x_corretto_pr
       buildspec: ./tests/ci/codebuild/linux-x86/run_accp_basic_tests.yml
       env:
         type: LINUX_CONTAINER
@@ -14,7 +14,7 @@ batch:
         compute-type: BUILD_GENERAL1_LARGE
         image: ECR_REPO_PLACEHOLDER:ubuntu-20.04_gcc-7x_corretto_latest
 
-    - identifier: ubuntu2004_gcc-7x_corretto_test_integration
+    - identifier: ubuntu2004_gcc7x_corretto_test_integration
       buildspec: ./tests/ci/codebuild/linux-x86/run_accp_test_integration.yml
       env:
         type: LINUX_CONTAINER
@@ -22,7 +22,7 @@ batch:
         compute-type: BUILD_GENERAL1_LARGE
         image: ECR_REPO_PLACEHOLDER:ubuntu-20.04_gcc-7x_corretto_latest
 
-    - identifier: ubuntu2004_gcc-7x_corretto_dieharder
+    - identifier: ubuntu2004_gcc7x_corretto_dieharder
       buildspec: ./tests/ci/codebuild/linux-x86/run_accp_dieharder.yml
       env:
         type: LINUX_CONTAINER
@@ -30,7 +30,7 @@ batch:
         compute-type: BUILD_GENERAL1_LARGE
         image: ECR_REPO_PLACEHOLDER:ubuntu-20.04_gcc-7x_corretto_latest
 
-    - identifier: ubuntu2004_gcc-7x_corretto_overkill
+    - identifier: ubuntu2004_gcc7x_corretto_overkill
       buildspec: ./tests/ci/codebuild/linux-x86/run_accp_overkill.yml
       env:
         type: LINUX_CONTAINER
