@@ -43,8 +43,8 @@ Cipher algorithms:
 * AES_256/GCM/NoPadding
 * RSA/ECB/NoPadding
 * RSA/ECB/PKCS1Padding
+* RSA/ECB/OAEPPadding
 * RSA/ECB/OAEPWithSHA-1AndMGF1Padding
-
 
 Signature algorithms:
 * SHA1withRSA
@@ -63,6 +63,7 @@ Signature algorithms:
 * SHA384withECDSAinP1363Format
 * SHA512withECDSA
 * SHA512withECDSAinP1363Format
+* RSASSA-PSS
 
 KeyPairGenerator algorithms:
 * EC

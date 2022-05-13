@@ -19,6 +19,8 @@ import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.logging.Logger;
 
 import javax.crypto.Cipher;
@@ -35,6 +37,9 @@ final class Utils {
     }
     static final byte[] EMPTY_ARRAY = new byte[0];
     private static final Logger LOG = Logger.getLogger("AmazonCorrettoCryptoProvider");
+
+    private static final Map<String,Long> digestPtrByName = new HashMap<>();
+    private static final Map<Long,Integer> digestLengthByPtr = new HashMap<>();
 
     /**
      * Returns the difference between the native pointers of a and b. That is, if overlap > 0, then
@@ -58,6 +63,29 @@ final class Utils {
      * Returns the output length for a digest in bytes specified by {@code evpMd}.
      */
     static native int getDigestLength(long evpMd);
+
+    static String jceDigestNameToAwsLcName(String jceName) {
+        if (jceName == null) {
+            return null;
+        }
+        // e.g. "SHA-512/256" => "SHA512-256"
+        return jceName.replace("-", "").replace("/", "-").toUpperCase();
+    }
+
+    static long getMdPtr(String digestName) {
+        final String name = jceDigestNameToAwsLcName(digestName);
+        // NOTE: it's a little awkward to throw an unchecked exception here, but the lambda
+        // invoking the native Utils.getEvpMdFromName can also throw an unchecked exception,
+        // so callers already need to handle this.
+        if (!name.startsWith("SHA")) {
+            throw new RuntimeException("Unsupported digest algorithm");
+        }
+        return digestPtrByName.computeIfAbsent(name, n -> Utils.getEvpMdFromName(n));
+    }
+
+    static int getMdLen(long mdPtr) {
+        return digestLengthByPtr.computeIfAbsent(mdPtr, p -> Utils.getDigestLength(p));
+    }
 
     /**
      * Returns false if the two bytebuffers given definitely don't overlap; true if they do overlap, or if we're unable

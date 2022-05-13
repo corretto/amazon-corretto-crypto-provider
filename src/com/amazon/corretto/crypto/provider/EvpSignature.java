@@ -4,8 +4,12 @@
 package com.amazon.corretto.crypto.provider;
 
 import java.nio.ByteBuffer;
+import java.security.InvalidAlgorithmParameterException;
 import java.security.SignatureException;
+import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.MGF1ParameterSpec;
+import java.security.spec.PSSParameterSpec;
 import java.security.spec.X509EncodedKeySpec;
 
 class EvpSignature extends EvpSignatureBase {
@@ -301,10 +305,10 @@ class EvpSignature extends EvpSignatureBase {
      */
     private static native boolean verifyFinish(long ctx, byte[] signature, int sigOff, int sigLen) throws SignatureException;
 
-    private final String digestName_;
+    private String digestName_;
     private byte[] oneByteArray_ = null;
-    private final InputBuffer<byte[], EvpContext, RuntimeException> signingBuffer;
-    private final InputBuffer<Boolean, EvpContext, SignatureException> verifyingBuffer;
+    private InputBuffer<byte[], EvpContext, RuntimeException> signingBuffer;
+    private InputBuffer<Boolean, EvpContext, SignatureException> verifyingBuffer;
 
     /**
      * Creates a new instances of this class.
@@ -324,17 +328,28 @@ class EvpSignature extends EvpSignatureBase {
         Loader.checkNativeLibraryAvailability();
         digestName_ = digestName;
 
-        signingBuffer = new InputBuffer<byte[], EvpContext, RuntimeException>(1024)
+        signingBuffer = getSigningBuffer();
+        verifyingBuffer = getVerifyingBuffer();
+    }
+
+    private InputBuffer<byte[], EvpContext, RuntimeException> getSigningBuffer() {
+        final String pssMgfMd = pssParams_ != null
+            ? Utils.jceDigestNameToAwsLcName(
+                ((MGF1ParameterSpec) pssParams_.getMGFParameters()).getDigestAlgorithm()
+            )
+            : null;
+        final int pssSaltLen = pssParams_ != null ? pssParams_.getSaltLength() : 0;
+        return new InputBuffer<byte[], EvpContext, RuntimeException>(1024)
             .withInitialUpdater((src, offset, length) ->
                 new EvpContext(key_.use(ptr ->
                     signStart(ptr,
-                        digestName_, paddingType_, null, 0,
+                        digestName_, paddingType_, pssMgfMd, pssSaltLen,
                         src, offset, length)))
             )
             .withInitialUpdater((src) ->
                 new EvpContext(key_.use(ptr ->
                     signStartBuffer(ptr,
-                        digestName_, paddingType_, null, 0, src)))
+                        digestName_, paddingType_, pssMgfMd, pssSaltLen, src)))
             )
             .withUpdater((ctx, src, offset, length) ->
                 ctx.useVoid(ptr -> signUpdate(ptr, src, offset, length))
@@ -348,20 +363,29 @@ class EvpSignature extends EvpSignatureBase {
             .withSinglePass((src, offset, length) ->
                 key_.use(ptr ->
                     sign(ptr,
-                            digestName_, paddingType, null, 0,
+                            digestName_, paddingType_, pssMgfMd, pssSaltLen,
                             src, offset, length))
             );
-        verifyingBuffer = new InputBuffer<Boolean, EvpContext, SignatureException>(1024)
+    }
+
+    private InputBuffer<Boolean, EvpContext, SignatureException> getVerifyingBuffer() {
+        final String pssMgfMd = pssParams_ != null
+            ? Utils.jceDigestNameToAwsLcName(
+                ((MGF1ParameterSpec) pssParams_.getMGFParameters()).getDigestAlgorithm()
+            )
+            : null;
+        final int pssSaltLen = pssParams_ != null ? pssParams_.getSaltLength() : 0;
+        return new InputBuffer<Boolean, EvpContext, SignatureException>(1024)
             .withInitialUpdater((src, offset, length) ->
                 new EvpContext(key_.use(ptr ->
                     verifyStart(ptr, digestName_,
-                        paddingType_, null, 0,
+                        paddingType_, pssMgfMd, pssSaltLen,
                         src, offset, length)))
             )
             .withInitialUpdater((src) ->
                 new EvpContext(key_.use(ptr ->
                     verifyStartBuffer(ptr,
-                        digestName_, paddingType_, null, 0, src)))
+                        digestName_, paddingType_, pssMgfMd, pssSaltLen, src)))
             )
             .withUpdater((ctx, src, offset, length) ->
                 ctx.useVoid(ptr -> verifyUpdate(ptr, src, offset, length))
@@ -376,6 +400,23 @@ class EvpSignature extends EvpSignatureBase {
     protected synchronized void engineReset() {
         signingBuffer.reset();
         verifyingBuffer.reset();
+    }
+
+    @Override
+    protected synchronized void engineSetParameter(final AlgorithmParameterSpec params)
+            throws InvalidAlgorithmParameterException {
+        super.engineSetParameter(params);
+        if (params instanceof PSSParameterSpec) {
+            final String jceDigestName = ((PSSParameterSpec) params).getDigestAlgorithm();
+            digestName_ = Utils.jceDigestNameToAwsLcName(jceDigestName);
+            // referesh signing and verifying buffer closures now that we've updated PSS params
+            signingBuffer = getSigningBuffer();
+            verifyingBuffer = getVerifyingBuffer();
+        }
+    }
+
+    protected boolean isBufferEmpty() {
+        return signingBuffer.size() == 0 && verifyingBuffer.size() == 0;
     }
 
     @Override
@@ -441,6 +482,12 @@ class EvpSignature extends EvpSignatureBase {
             finalOff = off;
             finalLen = len;
         }
+        final String pssMgfMd = pssParams_ != null
+            ? Utils.jceDigestNameToAwsLcName(
+                ((MGF1ParameterSpec) pssParams_.getMGFParameters()).getDigestAlgorithm()
+            )
+            : null;
+        final int pssSaltLen = pssParams_ != null ? pssParams_.getSaltLength() : 0;
         try {
             return verifyingBuffer
                 .withDoFinal((ctx) ->
@@ -448,7 +495,7 @@ class EvpSignature extends EvpSignatureBase {
                 )
                 .withSinglePass((src, offset, length) ->
                     key_.use(ptr -> verify(ptr,
-                        digestName_, paddingType_, null, 0,
+                        digestName_, paddingType_, pssMgfMd, pssSaltLen,
                         src, offset, length, finalSigBytes, finalOff, finalLen))
                 ).doFinal();
         } finally {
@@ -485,6 +532,12 @@ class EvpSignature extends EvpSignatureBase {
     static final class SHA512withRSA extends EvpSignature {
         SHA512withRSA(AmazonCorrettoCryptoProvider provider) {
             super(provider, EvpKeyType.RSA, RSA_PKCS1_PADDING, "sha512");
+        }
+    }
+
+    static final class RSASSA_PSS extends EvpSignature {
+        RSASSA_PSS(AmazonCorrettoCryptoProvider provider) {
+            super(provider, EvpKeyType.RSA, RSA_PKCS1_PSS_PADDING, null);
         }
     }
 

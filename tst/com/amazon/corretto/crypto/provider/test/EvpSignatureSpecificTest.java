@@ -6,6 +6,7 @@ package com.amazon.corretto.crypto.provider.test;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assumeMinimumVersion;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -22,6 +23,7 @@ import java.security.Key;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.MessageDigest;
 import java.security.PrivateKey;
 import java.security.Provider;
 import java.security.PublicKey;
@@ -31,6 +33,7 @@ import java.security.interfaces.ECPublicKey;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.ECGenParameterSpec;
+import java.security.spec.MGF1ParameterSpec;
 import java.security.spec.PSSParameterSpec;
 import java.security.spec.RSAKeyGenParameterSpec;
 import java.security.spec.RSAPrivateKeySpec;
@@ -41,6 +44,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
+import com.amazon.corretto.crypto.provider.RuntimeCryptoException;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.util.Arrays;
 import org.junit.jupiter.api.Test;
@@ -364,6 +368,168 @@ public final class EvpSignatureSpecificTest {
         assertTrue(signature.verify(validSignature));
     }
 
+    @Test
+    public void testRsaPSSBadParams() throws Exception {
+        // Test bad digest algorithms for PSS and its MGF1
+        String[] badDigests = {"MD-5", "MD-4", "garbage", "", "SHA-3"};
+        final Signature signature = Signature.getInstance("RSASSA-PSS", NATIVE_PROVIDER);
+        final PSSParameterSpec spec;
+        for (String badDigest : badDigests) {
+            assertThrows(InvalidAlgorithmParameterException.class, () -> signature.setParameter(
+                new PSSParameterSpec(badDigest, "MGF1", MGF1ParameterSpec.SHA1, 20, 1)
+            ));
+            assertThrows(InvalidAlgorithmParameterException.class, () -> signature.setParameter(
+                new PSSParameterSpec("SHA-1", "MGF1", new MGF1ParameterSpec(badDigest), 20, 1)
+            ));
+            // Also, "MGF1" should be the only valid MGF, badDigest is general garbage so use it here
+            assertThrows(InvalidAlgorithmParameterException.class, () -> signature.setParameter(
+                new PSSParameterSpec("SHA-1", badDigest, MGF1ParameterSpec.SHA1, 20, 1)
+            ));
+        }
+
+        // Negative salt lengths are reserved, and we can never allow larger than our max key size
+        // NOTE: PSSParameterSpec also checks for saltLen < 0, and throws IllegalArgumentException
+        assertThrows(IllegalArgumentException.class, () -> signature.setParameter(
+            new PSSParameterSpec("SHA-1", "MGF1", MGF1ParameterSpec.SHA1, -1, 1)
+        ));
+        assertThrows(IllegalArgumentException.class, () -> signature.setParameter(
+            new PSSParameterSpec("SHA-1", "MGF1", MGF1ParameterSpec.SHA1, 4096, 1)
+        ));
+
+        // "1" should be only valid trailer value.
+        for (int ii = -10; ii < 11; ii++) {
+            if (ii == 1) {
+                continue;
+            }
+            final int trailer = ii;
+            assertThrows(IllegalArgumentException.class, () -> signature.setParameter(
+                new PSSParameterSpec("SHA-1", "MGF1", MGF1ParameterSpec.SHA1, 20, trailer)
+            ));
+        }
+    }
+
+    @Test
+    public void testRsaPSSDefaultsToSha1() throws Exception {
+        final KeyPairGenerator kg = KeyPairGenerator.getInstance("RSA", AmazonCorrettoCryptoProvider.INSTANCE);
+        kg.initialize(2048);
+        final KeyPair pair = kg.generateKeyPair();
+        Signature signature;
+        PSSParameterSpec spec;
+
+        signature = Signature.getInstance("RSASSA-PSS", NATIVE_PROVIDER);
+        signature.initSign(pair.getPrivate());
+        spec = signature.getParameters().getParameterSpec(PSSParameterSpec.class);
+        assertEquals("SHA-1", spec.getDigestAlgorithm());
+        assertEquals("SHA-1", ((MGF1ParameterSpec) spec.getMGFParameters()).getDigestAlgorithm());
+
+        signature = Signature.getInstance("RSASSA-PSS", NATIVE_PROVIDER);
+        signature.initVerify(pair.getPublic());
+        spec = signature.getParameters().getParameterSpec(PSSParameterSpec.class);
+        assertEquals("SHA-1", spec.getDigestAlgorithm());
+        assertEquals("SHA-1", ((MGF1ParameterSpec) spec.getMGFParameters()).getDigestAlgorithm());
+
+        // setting null params OK, shouldn't change from default
+        signature = Signature.getInstance("RSASSA-PSS", NATIVE_PROVIDER);
+        signature.setParameter(null);
+        signature.initSign(pair.getPrivate());
+        spec = signature.getParameters().getParameterSpec(PSSParameterSpec.class);
+        assertEquals("SHA-1", spec.getDigestAlgorithm());
+        assertEquals("SHA-1", ((MGF1ParameterSpec) spec.getMGFParameters()).getDigestAlgorithm());
+    }
+
+    @Test
+    void testRsaPSSTryUpdateParamDuringBuffer() throws Exception {
+        final KeyPairGenerator kg = KeyPairGenerator.getInstance("RSA", AmazonCorrettoCryptoProvider.INSTANCE);
+        kg.initialize(2048);
+        final KeyPair pair = kg.generateKeyPair();
+        final Signature signer = Signature.getInstance("RSASSA-PSS", NATIVE_PROVIDER);
+        final Signature verifier = Signature.getInstance("RSASSA-PSS", NATIVE_PROVIDER);
+        final PSSParameterSpec spec1 = new PSSParameterSpec("SHA-224", "MGF1", MGF1ParameterSpec.SHA224, 224/8, 1);
+        final PSSParameterSpec spec2 = new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 256/8, 1);
+
+        // Initialize signatures and set non-default PSS parameters
+        signer.initSign(pair.getPrivate());
+        verifier.initVerify(pair.getPublic());
+        signer.setParameter(spec1);
+        verifier.setParameter(spec1);
+
+        // Assert that set values persisted
+        assertEquals(
+            spec1.getDigestAlgorithm(),
+            signer.getParameters().getParameterSpec(PSSParameterSpec.class).getDigestAlgorithm()
+        );
+        assertEquals(
+            spec1.getDigestAlgorithm(),
+            verifier.getParameters().getParameterSpec(PSSParameterSpec.class).getDigestAlgorithm()
+        );
+        assertEquals(
+            ((MGF1ParameterSpec) spec1.getMGFParameters()).getDigestAlgorithm(),
+            ((MGF1ParameterSpec) signer.getParameters().getParameterSpec(PSSParameterSpec.class).getMGFParameters()).getDigestAlgorithm()
+        );
+        assertEquals(
+            ((MGF1ParameterSpec) spec1.getMGFParameters()).getDigestAlgorithm(),
+            ((MGF1ParameterSpec) verifier.getParameters().getParameterSpec(PSSParameterSpec.class).getMGFParameters()).getDigestAlgorithm()
+        );
+
+        // Update message digest, assert that we can't upate params, and that signature verifies.
+        signer.update(MESSAGE);
+        verifier.update(MESSAGE);
+        assertThrows(IllegalStateException.class, () -> signer.setParameter(spec2));
+        assertThrows(IllegalStateException.class, () -> verifier.setParameter(spec2));
+        assertTrue(verifier.verify(signer.sign()));
+
+        // Finally, assert that we can set params after reinit (verify doesn't need explicit re-init)
+        signer.initSign(pair.getPrivate());
+        signer.setParameter(spec2);
+        verifier.setParameter(spec2);
+        assertEquals(
+            spec2.getDigestAlgorithm(),
+            signer.getParameters().getParameterSpec(PSSParameterSpec.class).getDigestAlgorithm()
+        );
+        assertEquals(
+            spec2.getDigestAlgorithm(),
+            verifier.getParameters().getParameterSpec(PSSParameterSpec.class).getDigestAlgorithm()
+        );
+        assertEquals(
+            ((MGF1ParameterSpec) spec2.getMGFParameters()).getDigestAlgorithm(),
+            ((MGF1ParameterSpec) signer.getParameters().getParameterSpec(PSSParameterSpec.class).getMGFParameters()).getDigestAlgorithm()
+        );
+        assertEquals(
+            ((MGF1ParameterSpec) spec2.getMGFParameters()).getDigestAlgorithm(),
+            ((MGF1ParameterSpec) verifier.getParameters().getParameterSpec(PSSParameterSpec.class).getMGFParameters()).getDigestAlgorithm()
+        );
+    }
+
+    @Test
+    void testRsaPSSInitSmallKeyAfterSetParameterLargeSaltThrows() throws Exception {
+        final int minimallySecureKeyLen = 2048;
+        final int smallKeySize = 2048 / 4;
+        final Signature signer = Signature.getInstance("RSASSA-PSS", NATIVE_PROVIDER);
+        final int largeSaltLen = 2 * (smallKeySize / 8);
+        final PSSParameterSpec spec = new PSSParameterSpec("SHA-1", "MGF1", MGF1ParameterSpec.SHA1, largeSaltLen, 1);
+
+        // Set PSS params _before_ initializing, so we don't have access to key length, assuming a default of 2048
+        signer.setParameter(spec);
+
+        // Now, initialize the signature with a smaller key
+        final KeyPairGenerator kg = KeyPairGenerator.getInstance("RSA", AmazonCorrettoCryptoProvider.INSTANCE);
+        kg.initialize(smallKeySize);
+        KeyPair pair = kg.generateKeyPair();
+        signer.initSign(pair.getPrivate());
+
+        // Assert that doFinal (i.e. the native method called in signer.sign()) detects overly large salt len and throws
+        byte[] shortMessage = new byte[] { (byte) 0xDE, (byte) 0xAD, (byte) 0xBE, (byte) 0xEF };
+        signer.update(shortMessage);
+        assertThrows(RuntimeCryptoException.class, () -> signer.sign());
+
+        // After re-initializing with minimally secure RSA key, longer salt len set earlier should be fine.
+        kg.initialize(minimallySecureKeyLen);
+        pair = kg.generateKeyPair();
+        signer.initSign(pair.getPrivate());
+        signer.sign();
+    }
+
+
     /**
      * We used to leave undrained openssl errors after parsing ECDSA keys. This could be seen if you immediately
      * had a failed AES-GCM decryption following the ECDSA parse where you'd get the incorrect exception back.
@@ -398,12 +564,11 @@ public final class EvpSignatureSpecificTest {
     public void simpleCorrectnessAllAlgorithms() throws Throwable {
         final Pattern namePattern = Pattern.compile("(SHA(\\d+)|NONE)with([A-Z]+)(inP1363Format)?");
         final Set<Provider.Service> services = AmazonCorrettoCryptoProvider.INSTANCE.getServices();
-        final byte[] message = {1, 2, 3, 4, 5, 6, 7, 8};
         for (Provider.Service service : services) {
-            if (!service.getType().equals("Signature")) {
+            final String algorithm = service.getAlgorithm();
+            if (!service.getType().equals("Signature") || "RSASSA-PSS".equals(algorithm)) {
                 continue;
             }
-            final String algorithm = service.getAlgorithm();
             String bcAlgorithm = algorithm;
             AlgorithmParameterSpec keyGenSpec = null;
             String keyGenAlgorithm = null;
@@ -460,25 +625,52 @@ public final class EvpSignatureSpecificTest {
             final Signature nativeSig = Signature.getInstance(algorithm, AmazonCorrettoCryptoProvider.INSTANCE);
             final Signature bcSig = Signature.getInstance(bcAlgorithm, TestUtil.BC_PROVIDER);
 
-            try {
-                // Generate with native and verify with BC
-                nativeSig.initSign(pair.getPrivate());
-                bcSig.initVerify(pair.getPublic());
-                nativeSig.update(message);
-                bcSig.update(message);
-                byte[] signature = nativeSig.sign();
-                assertTrue(bcSig.verify(signature), "Native->BC: " + algorithm);
+            simpleCorrectnessSignVerify(algorithm, pair, bcSig, nativeSig);
+        }
 
-                // Generate with BC and verify with native
-                nativeSig.initVerify(pair.getPublic());
-                bcSig.initSign(pair.getPrivate());
-                nativeSig.update(message);
-                bcSig.update(message);
-                signature = bcSig.sign();
-                assertTrue(nativeSig.verify(signature), "BC->Native: " + algorithm);
-            } catch (SignatureException ex) {
-                throw new AssertionError(algorithm, ex);
-            }
+        // NOTE: for RSASSA-PSS, test supported digest lengths, but  keep PSS and MGF1 digest lengths equal because
+        //       BouncyCastle doesn't support differing lengths. we test differing lengths exhaustively against
+        //       SuncJCE in EvpSignatureTest. enforce min key size of 2048 bits, consistent with ffSize above.
+        for (int shaVersion : new int[] {1, 224, 256, 384, 512}) {
+            final String algorithm = "RSASSA-PSS";
+            final String mdName = String.format("SHA-%d", shaVersion);
+            final int mdLen = MessageDigest.getInstance(mdName).getDigestLength();
+            final int keySize = mdLen * 8 < 2048 ? 2048 : mdLen * 8;
+            final KeyPairGenerator kg = KeyPairGenerator.getInstance("RSA");
+            kg.initialize(keySize);
+            final KeyPair pair = kg.generateKeyPair();
+            final Signature nativeSig = Signature.getInstance(algorithm, AmazonCorrettoCryptoProvider.INSTANCE);
+            final Signature bcSig = Signature.getInstance(algorithm, TestUtil.BC_PROVIDER);
+            final PSSParameterSpec pssParams = new PSSParameterSpec(
+                mdName, "MGF1", new MGF1ParameterSpec(mdName), mdLen, 1
+            );
+            nativeSig.setParameter(pssParams);
+            bcSig.setParameter(pssParams);
+
+            simpleCorrectnessSignVerify(algorithm, pair, bcSig, nativeSig);
+        }
+    }
+
+    private static void simpleCorrectnessSignVerify(String algorithm, KeyPair pair, Signature bcSig, Signature nativeSig) throws Throwable {
+        final byte[] message = {1, 2, 3, 4, 5, 6, 7, 8};
+        try {
+            // Generate with native and verify with BC
+            nativeSig.initSign(pair.getPrivate());
+            bcSig.initVerify(pair.getPublic());
+            nativeSig.update(message);
+            bcSig.update(message);
+            byte[] signature = nativeSig.sign();
+            assertTrue(bcSig.verify(signature), "Native->BC: " + algorithm);
+
+            // Generate with BC and verify with native
+            nativeSig.initVerify(pair.getPublic());
+            bcSig.initSign(pair.getPrivate());
+            nativeSig.update(message);
+            bcSig.update(message);
+            signature = bcSig.sign();
+            assertTrue(nativeSig.verify(signature), "BC->Native: " + algorithm);
+        } catch (SignatureException ex) {
+            throw new AssertionError(algorithm, ex);
         }
     }
 
