@@ -12,7 +12,7 @@ import java.util.Arrays;
 
 // The JML annotations in this file do not presently verify due to low-level issues
 // in OpenJML, but these specifications are needed (and assumed) by InputBuffer.
-// Specifications about the contents of the internal buffer have been commented out for now, 
+// Specifications about the contents of the internal buffer have been commented out for now,
 // since InputBuffer does not reason about the buffer contents
 
 //@ non_null_by_default
@@ -72,7 +72,7 @@ class AccessibleByteArrayOutputStream extends OutputStream implements Cloneable 
             throw new RuntimeCryptoException("Unexpected exception", ex);
         }
     }
-    
+
     //@ represents outputBytes = buf;
 
     //@ also
@@ -132,6 +132,10 @@ class AccessibleByteArrayOutputStream extends OutputStream implements Cloneable 
     //@ normal_behavior
     //@   ensures \result == buf;
     //@ pure
+    /** Returns the actual internal field containing the data.
+     * Callers <em>MUST NOT</em> leak this value outside of ACCP without careful analysis
+     * as any further use of this object may cause the contents of the returned array to change.
+     */
     byte[] getDataBuffer() {
         return buf;
     }
@@ -146,6 +150,9 @@ class AccessibleByteArrayOutputStream extends OutputStream implements Cloneable 
     void reset() {
         Arrays.fill(buf, 0, count, (byte) 0);
         count = 0;
+        // TODO: Consider keeping track of length at reset.
+        // If it is consistently below the maximum value we may want to trim
+        // down to save on memory.
     }
 
     //@ normal_behavior
@@ -162,7 +169,7 @@ class AccessibleByteArrayOutputStream extends OutputStream implements Cloneable 
         bbuff.get(buf, count, length);
         count += length;
     }
-    
+
     //@ public normal_behavior
     //@   requires 0 <= x && x <= Integer.MAX_VALUE/2;
     //@   ensures x << 1 == x * 2;
@@ -201,13 +208,12 @@ class AccessibleByteArrayOutputStream extends OutputStream implements Cloneable 
         if (newCapacity <= buf.length) {
             return;
         }
-        
         //@ use lemma_can_be_doubled(buf.length);
         final int predictedSize = Math.min(limit, buf.length << 1);
-        final byte[] tmp = new byte[Math.max(predictedSize, newCapacity)];
-        System.arraycopy(buf, 0, tmp, 0, buf.length);
+
+        final byte[] tmp = Arrays.copyOf(buf, Math.max(predictedSize, newCapacity));
         final byte[] toZeroize = buf;
         buf = tmp;
-        Arrays.fill(toZeroize, (byte) 0);
+        Arrays.fill(toZeroize, 0, count, (byte) 0);
     }
 }
