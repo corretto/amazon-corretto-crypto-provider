@@ -197,6 +197,7 @@ final class AesGcmSpi extends CipherSpi {
     private NativeResource context = null;
     private SecretKey jceKey;
     private byte[] iv, key;
+    /** GCM tag length in bytes */
     private int tagLength;
     private int opMode = -1;
     private boolean hasConsumedData = false;
@@ -204,7 +205,8 @@ final class AesGcmSpi extends CipherSpi {
     private int keyUsageCount = 0;
     private boolean contextInitialized = false;
 
-    private AccessibleByteArrayOutputStream decryptInputBuf, decryptAADBuf;
+    private final AccessibleByteArrayOutputStream decryptInputBuf = new AccessibleByteArrayOutputStream();
+    private final AccessibleByteArrayOutputStream decryptAADBuf = new AccessibleByteArrayOutputStream();
 
     AesGcmSpi(AmazonCorrettoCryptoProvider provider) {
         this.provider = provider;
@@ -555,14 +557,32 @@ final class AesGcmSpi extends CipherSpi {
             }
 
             if (opMode == NATIVE_MODE_DECRYPT) {
-                // We use this temporary buffer both for our input ciphertext and our output (possibly unauthenticated) plaintext.
-                // We'll copy it to the actual output location iff decryption completes successfully.
-                engineUpdate(bytes, offset, length); // Decrypt mode never generates output for updates
-                final byte[] tempBuffer = decryptInputBuf.getDataBuffer();
-                final int tempBufferLength = decryptInputBuf.size();
-
-                if (tempBufferLength < tagLength) {
+                // We cannot write directly to the output array because that could release
+                // possibly unauthenticated plaintext.
+                // If we have already processed some amount of ciphertext, then we can use our existing input buffer
+                // for both input and output and then copy it over to the real output upon success.
+                // If we have not already processed some ciphertext, then we can use the input buffer as is
+                // and allocate temporary output buffer.
+                if (decryptInputBuf.size() + length < tagLength) {
                     throw new AEADBadTagException("Input too short - need tag");
+                }
+
+                final byte[] workingInputArray;
+                final byte[] workingOutputArray;
+                final int workingInputOffset;
+                final int workingInputLength;
+                if (decryptInputBuf.size() > 0) {
+                    // We've already processed data so need to merge this in
+                    engineUpdate(bytes, offset, length); // Decrypt mode never generates output for updates
+                    workingInputArray = decryptInputBuf.getDataBuffer();
+                    workingInputLength = decryptInputBuf.size();
+                    workingInputOffset = 0;
+                    workingOutputArray = workingInputArray; // We can decrypt in place
+                } else {
+                    workingInputArray = bytes;
+                    workingInputLength = length;
+                    workingInputOffset = offset;
+                    workingOutputArray = new byte[length - tagLength];
                 }
 
                 keyUsageCount++;
@@ -573,11 +593,11 @@ final class AesGcmSpi extends CipherSpi {
                         return oneShotDecrypt(
                                 ptr,
                                 null,
-                                tempBuffer,
-                                0,
-                                tempBufferLength,
+                                workingInputArray,
+                                workingInputOffset,
+                                workingInputLength,
 
-                                tempBuffer,
+                                workingOutputArray,
                                 0,
 
                                 tagLength,
@@ -597,11 +617,11 @@ final class AesGcmSpi extends CipherSpi {
                     outLen = oneShotDecrypt(
                             0,
                             ptrOut,
-                            tempBuffer,
-                            0,
-                            tempBufferLength,
+                            workingInputArray,
+                            workingInputOffset,
+                            workingInputLength,
 
-                            tempBuffer,
+                            workingOutputArray,
                             0,
 
                             tagLength,
@@ -620,7 +640,7 @@ final class AesGcmSpi extends CipherSpi {
                     }
                 }
                 // Decryption completed successfully. Copy it to the output location
-                System.arraycopy(tempBuffer, 0, output, outputOffset, outLen);
+                System.arraycopy(workingOutputArray, 0, output, outputOffset, outLen);
                 return outLen;
             } // End of Decrypt mode
 
@@ -904,12 +924,8 @@ final class AesGcmSpi extends CipherSpi {
 
     // @GuardedBy("this") // Restore once replacement for JSR-305 available
     private void stateReset() {
-        decryptInputBuf = null;
-
-        if (opMode == NATIVE_MODE_DECRYPT) {
-            decryptInputBuf = new AccessibleByteArrayOutputStream();
-            decryptAADBuf = new AccessibleByteArrayOutputStream();
-        }
+        decryptInputBuf.reset();
+        decryptAADBuf.reset();
 
         hasConsumedData = false;
         contextInitialized = false;
