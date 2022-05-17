@@ -8,8 +8,6 @@ batch:
   build-list:
     - identifier: ubuntu2004_gcc7x_corretto_pr
       buildspec: ./tests/ci/codebuild/run_accp_basic_tests.yml
-      GitSubmodulesConfig: 
-        FetchSubmodules: true
       env:
         type: LINUX_CONTAINER
         privileged-mode: false
@@ -18,8 +16,6 @@ batch:
 
     - identifier: ubuntu2004_gcc7x_corretto_test_integration
       buildspec: ./tests/ci/codebuild/run_accp_test_integration.yml
-      GitSubmodulesConfig: 
-        FetchSubmodules: true
       env:
         type: LINUX_CONTAINER
         privileged-mode: false

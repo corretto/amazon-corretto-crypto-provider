@@ -8,8 +8,6 @@ batch:
   build-list:
     - identifier: ubuntu2004_gcc7x_corretto_dieharder
       buildspec: ./tests/ci/codebuild/run_accp_dieharder.yml
-      GitSubmodulesConfig: 
-        FetchSubmodules: true
       env:
         type: LINUX_CONTAINER
         privileged-mode: false
@@ -18,8 +16,6 @@ batch:
 
     - identifier: ubuntu2004_gcc7x_corretto_overkill
       buildspec: ./tests/ci/codebuild/run_accp_overkill.yml
-      GitSubmodulesConfig: 
-        FetchSubmodules: true
       env:
         type: LINUX_CONTAINER
         privileged-mode: false

@@ -24,6 +24,7 @@ class ACCPGitHubCIStack(core.Stack):
             owner=GITHUB_REPO_OWNER,
             repo=GITHUB_REPO_NAME,
             webhook=True,
+            fetch_submodules=True,
             webhook_filters=[
                 codebuild.FilterGroup.in_event_of(
                     codebuild.EventAction.PULL_REQUEST_CREATED,
