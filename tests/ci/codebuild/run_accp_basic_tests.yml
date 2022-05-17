@@ -4,9 +4,6 @@
 version: 0.2
 
 phases:
-  pre_build:
-    commands:
-      - git submodule update --init --recursive
   build:
     commands:
       - ./tests/ci/run_accp_basic_tests.sh

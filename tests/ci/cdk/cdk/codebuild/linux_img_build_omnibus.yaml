@@ -11,7 +11,7 @@ batch:
     # Linux x86 #
     #############
     - identifier: linux_x86_docker_img_build
-      buildspec: ./tests/ci/codebuild/linux-x86/docker-img-build.yml
+      buildspec: ./tests/ci/codebuild/linux-x86-docker-img-build.yml
       env:
         type: LINUX_CONTAINER
         privileged-mode: true

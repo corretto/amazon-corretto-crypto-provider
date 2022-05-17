@@ -24,7 +24,9 @@ EcrStack(app, "accp-ecr-linux-x86", LINUX_X86_ECR_REPO, env=env)
 LinuxDockerImageBatchBuildStack(app, "accp-docker-image-build-linux", env=env)
 
 # Define CodeBuild Batch job for testing code.
-x86_build_spec_file = "./cdk/codebuild/github_ci_linux_x86_omnibus.yaml"
-ACCPGitHubCIStack(app, "accp-ci-linux-x86", LINUX_X86_ECR_REPO, x86_build_spec_file, env=env)
+x86_build_spec_file = "./cdk/codebuild/pr_integration_linux_x86_omnibus.yaml"
+ACCPGitHubCIStack(app, "accp-ci-pr-integration-linux-x86", LINUX_X86_ECR_REPO, x86_build_spec_file, env=env)
+extra_build_spec_file = "./cdk/codebuild/dieharder_overkill_omnibus.yaml"
+ACCPGitHubCIStack(app, "accp-ci-overkill-dieharder", LINUX_X86_ECR_REPO, extra_build_spec_file, env=env)
 
 app.synth()

@@ -1,0 +1,173 @@
++ main --aws-account 069218930244 --github-repo-owner samuel40791765 --github-source-version accp-ci --action diff
++ [[ 8 -gt 0 ]]
++ case ${1} in
++ export CDK_DEPLOY_ACCOUNT=069218930244
++ CDK_DEPLOY_ACCOUNT=069218930244
++ shift
++ shift
++ [[ 6 -gt 0 ]]
++ case ${1} in
++ export GITHUB_REPO_OWNER=samuel40791765
++ GITHUB_REPO_OWNER=samuel40791765
++ shift
++ shift
++ [[ 4 -gt 0 ]]
++ case ${1} in
++ export GITHUB_SOURCE_VERSION=accp-ci
++ GITHUB_SOURCE_VERSION=accp-ci
++ shift
++ shift
++ [[ 2 -gt 0 ]]
++ case ${1} in
++ export ACTION=diff
++ ACTION=diff
++ shift
++ shift
++ [[ 0 -gt 0 ]]
++ [[ -z x ]]
++ [[ -z diff ]]
++ export_global_variables
++ [[ -z x ]]
++ [[ -z 069218930244 ]]
++ [[ -z '' ]]
++ export CDK_DEPLOY_REGION=us-west-2
++ CDK_DEPLOY_REGION=us-west-2
++ [[ -z x ]]
++ [[ -z samuel40791765 ]]
++ [[ -z x ]]
++ [[ -z accp-ci ]]
+++ date +%Y-%m-%d-%H-%M
++ DATE_NOW=2022-05-17-00-40
++ export GITHUB_REPO=amazon-corretto-crypto-provider
++ GITHUB_REPO=amazon-corretto-crypto-provider
++ export ECR_LINUX_X86_REPO_NAME=accp-docker-images-linux-x86
++ ECR_LINUX_X86_REPO_NAME=accp-docker-images-linux-x86
++ export IMG_BUILD_STATUS=unknown
++ IMG_BUILD_STATUS=unknown
++ case ${ACTION} in
++ cdk diff 'accp-ci-*'
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!                                                                                  !!
+!!  Node v10.19.0 has reached end-of-life and is not supported.                     !!
+!!  You may to encounter runtime issues, and should switch to a supported release.  !!
+!!                                                                                  !!
+!!  As of the current release, supported versions of node are:                      !!
+!!  - ^12.7.0                                                                       !!
+!!  - ^14.5.0                                                                       !!
+!!  - ^16.3.0                                                                       !!
+!!  - ^17.3.0                                                                       !!
+!!                                                                                  !!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+b'!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n'
+b'!!                                                                            !!\n'
+b'!!  Node 10 has reached end-of-life and is not supported.                     !!\n'
+b'!!  Please upgrade to a supported node version as soon as possible.           !!\n'
+b'!!                                                                            !!\n'
+b'!!  This software is currently running on node v10.19.0.                      !!\n'
+b'!!  As of the current release of this software, supported node releases are:  !!\n'
+b'!!  - ^18.0.0 (Planned end-of-life: 2025-04-30)                               !!\n'
+b'!!  - ^16.3.0 (Planned end-of-life: 2024-04-30)                               !!\n'
+b'!!  - ^14.5.0 (Planned end-of-life: 2023-04-30)                               !!\n'
+b'!!  - ^17.3.0 (Planned end-of-life: 2022-06-01) [DEPRECATED]                  !!\n'
+b'!!                                                                            !!\n'
+b'!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n'
+b'!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n'
+b'!!                                                                            !!\n'
+b'!!  Node 10 has reached end-of-life and is not supported.                     !!\n'
+b'!!  Please upgrade to a supported node version as soon as possible.           !!\n'
+b'!!                                                                            !!\n'
+b'!!  This software is currently running on node v10.19.0.                      !!\n'
+b'!!  As of the current release of this software, supported node releases are:  !!\n'
+b'!!  - ^18.0.0 (Planned end-of-life: 2025-04-30)                               !!\n'
+b'!!  - ^16.3.0 (Planned end-of-life: 2024-04-30)                               !!\n'
+b'!!  - ^14.5.0 (Planned end-of-life: 2023-04-30)                               !!\n'
+b'!!  - ^17.3.0 (Planned end-of-life: 2022-06-01) [DEPRECATED]                  !!\n'
+b'!!                                                                            !!\n'
+b'!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n'
+Stack accp-ci-overkill-dieharder
+IAM Statement Changes
+┌───┬─────────────────────────────────────────────────────────────────────────────────────────────────────────────────┬────────┬─────────────────────────────────┬────────────────────────────────────────────────────┬───────────┐
+│   │ Resource                                                                                                        │ Effect │ Action                          │ Principal                                          │ Condition │
+├───┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼────────┼─────────────────────────────────┼────────────────────────────────────────────────────┼───────────┤
+│ + │ ${accp-ci-overkill-dieharder.Arn}                                                                               │ Allow  │ codebuild:RetryBuild            │ AWS:${accp-ci-overkill-dieharder/BatchServiceRole} │           │
+│   │                                                                                                                 │        │ codebuild:StartBuild            │                                                    │           │
+│   │                                                                                                                 │        │ codebuild:StopBuild             │                                                    │           │
+├───┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼────────┼─────────────────────────────────┼────────────────────────────────────────────────────┼───────────┤
+│ + │ ${accp-ci-overkill-dieharder/BatchServiceRole.Arn}                                                              │ Allow  │ sts:AssumeRole                  │ Service:codebuild.amazonaws.com                    │           │
+├───┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼────────┼─────────────────────────────────┼────────────────────────────────────────────────────┼───────────┤
+│ + │ ${accp-ci-overkill-dieharder-role.Arn}                                                                          │ Allow  │ sts:AssumeRole                  │ Service:codebuild.amazonaws.com                    │           │
+├───┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼────────┼─────────────────────────────────┼────────────────────────────────────────────────────┼───────────┤
+│ + │ arn:${AWS::Partition}:codebuild:us-west-2:069218930244:report-group/${accpcioverkilldieharder2E28ABFB}-*        │ Allow  │ codebuild:BatchPutCodeCoverages │ AWS:${accp-ci-overkill-dieharder-role}             │           │
+│   │                                                                                                                 │        │ codebuild:BatchPutTestCases     │                                                    │           │
+│   │                                                                                                                 │        │ codebuild:CreateReport          │                                                    │           │
+│   │                                                                                                                 │        │ codebuild:CreateReportGroup     │                                                    │           │
+│   │                                                                                                                 │        │ codebuild:UpdateReport          │                                                    │           │
+├───┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼────────┼─────────────────────────────────┼────────────────────────────────────────────────────┼───────────┤
+│ + │ arn:${AWS::Partition}:logs:us-west-2:069218930244:log-group:/aws/codebuild/${accpcioverkilldieharder2E28ABFB}   │ Allow  │ logs:CreateLogGroup             │ AWS:${accp-ci-overkill-dieharder-role}             │           │
+│   │ arn:${AWS::Partition}:logs:us-west-2:069218930244:log-group:/aws/codebuild/${accpcioverkilldieharder2E28ABFB}:* │        │ logs:CreateLogStream            │                                                    │           │
+│   │                                                                                                                 │        │ logs:PutLogEvents               │                                                    │           │
+├───┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼────────┼─────────────────────────────────┼────────────────────────────────────────────────────┼───────────┤
+│ + │ arn:aws:codebuild:us-west-2:069218930244:project/accp-ci-overkill-dieharder*                                    │ Allow  │ codebuild:RetryBuild            │ AWS:${accp-ci-overkill-dieharder-role}             │           │
+│   │                                                                                                                 │        │ codebuild:StartBuild            │                                                    │           │
+│   │                                                                                                                 │        │ codebuild:StopBuild             │                                                    │           │
+└───┴─────────────────────────────────────────────────────────────────────────────────────────────────────────────────┴────────┴─────────────────────────────────┴────────────────────────────────────────────────────┴───────────┘
+(NOTE: There may be security-related changes not in this list. See https://github.com/aws/aws-cdk/issues/1299)
+
+Resources
+[+] AWS::IAM::Role accp-ci-overkill-dieharder-role accpcioverkilldieharderroleAF8DE381 
+[+] AWS::IAM::Policy accp-ci-overkill-dieharder-role/DefaultPolicy accpcioverkilldieharderroleDefaultPolicy3ACF59DA 
+[+] AWS::IAM::Role accp-ci-overkill-dieharder/BatchServiceRole accpcioverkilldieharderBatchServiceRoleA5BC35CB 
+[+] AWS::IAM::Policy accp-ci-overkill-dieharder/BatchServiceRole/DefaultPolicy accpcioverkilldieharderBatchServiceRoleDefaultPolicy6EDDC0E4 
+[+] AWS::CodeBuild::Project accp-ci-overkill-dieharder accpcioverkilldieharder2E28ABFB 
+
+Stack accp-ci-pr-integration-linux-x86
+IAM Statement Changes
+┌───┬─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┬────────┬─────────────────────────────────┬──────────────────────────────────────────────────────────┬───────────┐
+│   │ Resource                                                                                                            │ Effect │ Action                          │ Principal                                                │ Condition │
+├───┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼────────┼─────────────────────────────────┼──────────────────────────────────────────────────────────┼───────────┤
+│ + │ ${accp-ci-pr-integration-linux-x86/BatchServiceRole.Arn}                                                            │ Allow  │ sts:AssumeRole                  │ Service:codebuild.amazonaws.com                          │           │
+├───┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼────────┼─────────────────────────────────┼──────────────────────────────────────────────────────────┼───────────┤
+│ + │ ${accp-ci-pr-integration-linux-x86.Arn}                                                                             │ Allow  │ codebuild:RetryBuild            │ AWS:${accp-ci-pr-integration-linux-x86/BatchServiceRole} │           │
+│   │                                                                                                                     │        │ codebuild:StartBuild            │                                                          │           │
+│   │                                                                                                                     │        │ codebuild:StopBuild             │                                                          │           │
+├───┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼────────┼─────────────────────────────────┼──────────────────────────────────────────────────────────┼───────────┤
+│ + │ ${accp-ci-pr-integration-linux-x86-role.Arn}                                                                        │ Allow  │ sts:AssumeRole                  │ Service:codebuild.amazonaws.com                          │           │
+├───┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼────────┼─────────────────────────────────┼──────────────────────────────────────────────────────────┼───────────┤
+│ + │ arn:${AWS::Partition}:codebuild:us-west-2:069218930244:report-group/${accpciprintegrationlinuxx86E061E7DE}-*        │ Allow  │ codebuild:BatchPutCodeCoverages │ AWS:${accp-ci-pr-integration-linux-x86-role}             │           │
+│   │                                                                                                                     │        │ codebuild:BatchPutTestCases     │                                                          │           │
+│   │                                                                                                                     │        │ codebuild:CreateReport          │                                                          │           │
+│   │                                                                                                                     │        │ codebuild:CreateReportGroup     │                                                          │           │
+│   │                                                                                                                     │        │ codebuild:UpdateReport          │                                                          │           │
+├───┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼────────┼─────────────────────────────────┼──────────────────────────────────────────────────────────┼───────────┤
+│ + │ arn:${AWS::Partition}:logs:us-west-2:069218930244:log-group:/aws/codebuild/${accpciprintegrationlinuxx86E061E7DE}   │ Allow  │ logs:CreateLogGroup             │ AWS:${accp-ci-pr-integration-linux-x86-role}             │           │
+│   │ arn:${AWS::Partition}:logs:us-west-2:069218930244:log-group:/aws/codebuild/${accpciprintegrationlinuxx86E061E7DE}:* │        │ logs:CreateLogStream            │                                                          │           │
+│   │                                                                                                                     │        │ logs:PutLogEvents               │                                                          │           │
+├───┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼────────┼─────────────────────────────────┼──────────────────────────────────────────────────────────┼───────────┤
+│ + │ arn:aws:codebuild:us-west-2:069218930244:project/accp-ci-pr-integration-linux-x86*                                  │ Allow  │ codebuild:RetryBuild            │ AWS:${accp-ci-pr-integration-linux-x86-role}             │           │
+│   │                                                                                                                     │        │ codebuild:StartBuild            │                                                          │           │
+│   │                                                                                                                     │        │ codebuild:StopBuild             │                                                          │           │
+└───┴─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┴────────┴─────────────────────────────────┴──────────────────────────────────────────────────────────┴───────────┘
+(NOTE: There may be security-related changes not in this list. See https://github.com/aws/aws-cdk/issues/1299)
+
+Resources
+[+] AWS::IAM::Role accp-ci-pr-integration-linux-x86-role accpciprintegrationlinuxx86role1B225D42 
+[+] AWS::IAM::Policy accp-ci-pr-integration-linux-x86-role/DefaultPolicy accpciprintegrationlinuxx86roleDefaultPolicy04A5F559 
+[+] AWS::IAM::Role accp-ci-pr-integration-linux-x86/BatchServiceRole accpciprintegrationlinuxx86BatchServiceRoleC5BF0FFA 
+[+] AWS::IAM::Policy accp-ci-pr-integration-linux-x86/BatchServiceRole/DefaultPolicy accpciprintegrationlinuxx86BatchServiceRoleDefaultPolicy79AF1B9F 
+[+] AWS::CodeBuild::Project accp-ci-pr-integration-linux-x86 accpciprintegrationlinuxx86E061E7DE 
+
+
+NOTICES
+
+19836	AWS CDK v1 entering maintenance mode soon
+
+	Overview: AWS CDK v1 is entering maintenance mode on June 1, 2022.
+	          Migrate to AWS CDK v2 to continue to get the latest features
+	          and fixes!
+
+	Affected versions: framework: 1.*, cli: 1.*
+
+	More information at: https://github.com/aws/aws-cdk/issues/19836
+
+
+If you don’t want to see a notice anymore, use "cdk acknowledge <id>". For example, "cdk acknowledge 19836".

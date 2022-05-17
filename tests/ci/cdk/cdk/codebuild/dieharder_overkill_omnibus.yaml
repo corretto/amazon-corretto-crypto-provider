@@ -1,0 +1,28 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+version: 0.2
+
+# Doc for batch https://docs.aws.amazon.com/codebuild/latest/userguide/batch-build-buildspec.html#build-spec.batch.build-list
+batch:
+  build-list:
+    - identifier: ubuntu2004_gcc7x_corretto_dieharder
+      buildspec: ./tests/ci/codebuild/run_accp_dieharder.yml
+      GitSubmodulesConfig: 
+        FetchSubmodules: true
+      env:
+        type: LINUX_CONTAINER
+        privileged-mode: false
+        compute-type: BUILD_GENERAL1_LARGE
+        image: ECR_REPO_PLACEHOLDER:ubuntu-20.04_gcc-7x_corretto_latest
+
+    - identifier: ubuntu2004_gcc7x_corretto_overkill
+      buildspec: ./tests/ci/codebuild/run_accp_overkill.yml
+      GitSubmodulesConfig: 
+        FetchSubmodules: true
+      env:
+        type: LINUX_CONTAINER
+        privileged-mode: false
+        compute-type: BUILD_GENERAL1_LARGE
+        image: ECR_REPO_PLACEHOLDER:ubuntu-20.04_gcc-7x_corretto_latest
+
