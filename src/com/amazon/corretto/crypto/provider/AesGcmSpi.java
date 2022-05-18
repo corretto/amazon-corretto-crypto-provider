@@ -46,9 +46,6 @@ final class AesGcmSpi extends CipherSpi {
      * this is because we cannot safely return only plaintext until we have validated
      * the tag at the end of the ciphertext.
      * Additionally, this matches JCE behavior.
-     *
-     * For non-one-shot encryption, to avoid any security issues related to thread safety concerns, we mark all methods
-     * which might eventually interact with the native context buffer as being synchronized.
      */
 
     private static final int NATIVE_MODE_ENCRYPT = 1;
@@ -256,7 +253,7 @@ final class AesGcmSpi extends CipherSpi {
     /* Returns the maximum amount of data that could be returned from an update (not doFinal) operation.
      * Not exposed via the Cipher API, but used internally to allocate buffers to return to the caller.
      */
-    private synchronized int getUpdateOutputSize(final int inputLen) {
+    private int getUpdateOutputSize(final int inputLen) {
         switch (opMode) {
             case NATIVE_MODE_ENCRYPT:
                 return inputLen;
@@ -285,7 +282,7 @@ final class AesGcmSpi extends CipherSpi {
     }
 
     @Override
-    protected synchronized void engineInit(final int opMode, final Key key, final SecureRandom secureRandom)
+    protected void engineInit(final int opMode, final Key key, final SecureRandom secureRandom)
             throws InvalidKeyException {
         if (opMode != Cipher.ENCRYPT_MODE && opMode != Cipher.WRAP_MODE) {
             throw new InvalidKeyException("IV required for decrypt");
@@ -302,7 +299,7 @@ final class AesGcmSpi extends CipherSpi {
     }
 
     @Override
-    protected synchronized void engineInit(
+    protected void engineInit(
         final int jceOpMode,
         final Key key,
         final AlgorithmParameterSpec algorithmParameterSpec,
@@ -402,7 +399,7 @@ final class AesGcmSpi extends CipherSpi {
     }
 
     @Override
-    protected synchronized void engineInit(
+    protected void engineInit(
         int opMode, Key key, AlgorithmParameters algorithmParameters, SecureRandom secureRandom
     ) throws InvalidKeyException, InvalidAlgorithmParameterException {
         try {
@@ -413,7 +410,7 @@ final class AesGcmSpi extends CipherSpi {
     }
 
     @Override
-    protected synchronized byte[] engineUpdate(byte[] bytes, int offset, int length) {
+    protected byte[] engineUpdate(byte[] bytes, int offset, int length) {
         byte[] buf = new byte[getUpdateOutputSize(length)];
 
         int actualLength;
@@ -431,7 +428,7 @@ final class AesGcmSpi extends CipherSpi {
     }
 
     @Override
-    protected synchronized int engineUpdate(byte[] bytes, int offset, int length, byte[] output, int outputOffset) throws ShortBufferException {
+    protected int engineUpdate(byte[] bytes, int offset, int length, byte[] output, int outputOffset) throws ShortBufferException {
         checkArrayLimits(bytes, offset, length);
 
         hasConsumedData = true;
@@ -468,7 +465,7 @@ final class AesGcmSpi extends CipherSpi {
     }
 
     @Override
-    protected synchronized void engineUpdateAAD(byte[] bytes, int offset, int length) {
+    protected void engineUpdateAAD(byte[] bytes, int offset, int length) {
         checkArrayLimits(bytes, offset, length);
 
         if (hasConsumedData) {
@@ -486,7 +483,7 @@ final class AesGcmSpi extends CipherSpi {
         internalUpdateAAD(bytes, offset, length);
     }
 
-    private synchronized void internalUpdateAAD(byte[] bytes, int offset, int length) {
+    private void internalUpdateAAD(byte[] bytes, int offset, int length) {
         while (length > 0) {
             final int stepLength = Math.min(length, 512 * 1024);
             final int finalOffset = offset;
@@ -499,7 +496,7 @@ final class AesGcmSpi extends CipherSpi {
     }
 
     @Override
-    protected synchronized void engineUpdateAAD(ByteBuffer byteBuffer) {
+    protected void engineUpdateAAD(ByteBuffer byteBuffer) {
         if (byteBuffer.hasArray()) {
             engineUpdateAAD(byteBuffer.array(), byteBuffer.arrayOffset() + byteBuffer.position(), byteBuffer.remaining());
         } else {
@@ -750,7 +747,7 @@ final class AesGcmSpi extends CipherSpi {
     }
 
     @Override
-    protected synchronized byte[] engineDoFinal(byte[] bytes, int offset, int length)
+    protected byte[] engineDoFinal(byte[] bytes, int offset, int length)
             throws IllegalBlockSizeException, BadPaddingException {
         if (opMode == NATIVE_MODE_ENCRYPT) {
             final byte[] buf = new byte[engineGetOutputSize(length)];
@@ -776,7 +773,7 @@ final class AesGcmSpi extends CipherSpi {
     }
 
     @Override
-    protected synchronized int engineDoFinal(
+    protected int engineDoFinal(
         byte[] input, final int offset, final int length, final byte[] output, final int outputOffset)
         throws ShortBufferException, IllegalBlockSizeException, BadPaddingException
     {
@@ -867,7 +864,7 @@ final class AesGcmSpi extends CipherSpi {
     }
 
     @Override
-    protected synchronized int engineUpdate(ByteBuffer input, final ByteBuffer output)
+    protected int engineUpdate(ByteBuffer input, final ByteBuffer output)
             throws ShortBufferException {
         ByteBuffer bufferForClear = null;
 
