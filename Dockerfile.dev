@@ -7,7 +7,7 @@
 # to re-run a single test with:
 #
 # $ SINGLE_TEST=com.amazon.corretto.crypto.provider.test.EvpSignatureTest
-# $ rm ./build/awslc/bin/lib/libcrypto.{a,so} ./build/cmake/*.jar; ./gradlew single_test -DSINGLE_TEST=${SINGLE_TEST}
+# $ ./gradlew minimal_clean && ./gradlew single_test -DSINGLE_TEST=${SINGLE_TEST}
 
 
 FROM ubuntu:20.04

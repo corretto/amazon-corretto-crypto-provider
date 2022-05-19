@@ -21,13 +21,14 @@ void setPaddingParams(EVP_PKEY_CTX *keyCtx, int padding, long oaepMdPtr, long mg
         if (oaepMdPtr) {
             CHECK_OPENSSL(EVP_PKEY_CTX_set_rsa_oaep_md(keyCtx, reinterpret_cast<const EVP_MD*>(oaepMdPtr)));
         }
+        // intentionally fall-through to set MGF1 digest if specified
+    case RSA_PKCS1_PSS_PADDING:
         if (mgfMdPtr) {
             CHECK_OPENSSL(EVP_PKEY_CTX_set_rsa_mgf1_md(keyCtx, reinterpret_cast<const EVP_MD*>(mgfMdPtr)));
         }
         break;
     case RSA_PKCS1_PADDING:
     case RSA_NO_PADDING:
-    case RSA_PKCS1_PSS_PADDING:
     default:
         break; // nothing to do
     }
@@ -116,8 +117,15 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_RsaCipher_cipher
             }
         }
 
-        // mask off high order bytes + sign bits to return non-negative (signed) int
-        return (jint) (len & 0x00007fff);
+        if (len > outBuf.len()) {   // we've overwritten the buffer, potentially corrupting memory
+            abort();
+        } else if (len < 0) {
+            throw_java_ex(EX_RUNTIME_CRYPTO, "Unexpected error, negative output length");
+        } else if (len & 0xffff0000) {
+            throw_java_ex(EX_RUNTIME_CRYPTO, "Output length doensn't fit in an int!");
+        }
+
+        return (jint) len;
     } catch (java_ex &ex) {
         ex.throw_to_java(pEnv);
         return -1;

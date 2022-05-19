@@ -239,6 +239,9 @@ class RsaCipher extends CipherSpi {
                     throws InvalidKeyException, InvalidAlgorithmParameterException {
         if (params != null) {
             if (params instanceof OAEPParameterSpec) {
+                if (padding_ != Padding.OAEP) {
+                    throw new InvalidAlgorithmParameterException();
+                }
                 final OAEPParameterSpec oaep = (OAEPParameterSpec) params;
                 if (!"MGF1".equalsIgnoreCase(oaep.getMGFAlgorithm()) ||
                         oaep.getMGFParameters() == null ||
@@ -250,7 +253,6 @@ class RsaCipher extends CipherSpi {
                 if (psrc == null || !pDefault.getAlgorithm().equalsIgnoreCase(psrc.getAlgorithm())) {
                     throw new InvalidAlgorithmParameterException();
                 }
-                // Only support empty label
                 if (!(psrc instanceof PSource.PSpecified)) {
                     throw new InvalidAlgorithmParameterException();
                 }
@@ -276,7 +278,7 @@ class RsaCipher extends CipherSpi {
 
                 key_ = (RSAKey) key;
                 keySizeBytes_ = (key_.getModulus().bitLength() + 7) / 8;
-                buffer_ = new AccessibleByteArrayOutputStream();
+                buffer_ = new AccessibleByteArrayOutputStream(keySizeBytes_, keySizeBytes_);
                 nativeKey_ = provider_.translateKey(key, EvpKeyType.RSA);
             }
 
@@ -330,7 +332,7 @@ class RsaCipher extends CipherSpi {
             final SecureRandom random)
                     throws InvalidKeyException, InvalidAlgorithmParameterException {
         try {
-            engineInit(opmode, key, params.getParameterSpec(OAEPParameterSpec.class), random);
+            engineInit(opmode, key, params != null ? params.getParameterSpec(OAEPParameterSpec.class) : null, random);
         } catch (final InvalidParameterSpecException ex) {
             throw new InvalidAlgorithmParameterException(ex);
         }
@@ -391,13 +393,8 @@ class RsaCipher extends CipherSpi {
     }
 
     @Override
-    protected void engineSetPadding(final String newPadding) throws NoSuchPaddingException {
-        if (newPadding == Padding.OAEP.paddingStr) {
-            synchronized(lock_) {
-                oaepParams_ = OAEPParameterSpec.DEFAULT;
-                paddingSize_ = calculateOaepPaddingLen(OAEPParameterSpec.DEFAULT.getDigestAlgorithm());
-            }
-        } else if (!padding_.paddingStr.equalsIgnoreCase(newPadding)) {
+    protected void engineSetPadding(final String padding) throws NoSuchPaddingException {
+        if (!padding_.paddingStr.equalsIgnoreCase(padding)) {
             throw new NoSuchPaddingException();
         }
     }

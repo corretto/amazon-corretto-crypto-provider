@@ -432,6 +432,13 @@ task cmake_clean(type: Delete) {
     delete "${buildDir}/cmake"
     delete "${buildDir}/cmake-coverage"
 }
+
+task minimal_clean(type: Delete) {
+    dependsOn cmake_clean
+    delete "${buildDir}/awslc/bin/lib/libcrypto.*"
+    delete "${buildDir}/awslc/build/crypto/libcrypto.*"
+}
+
 task generateEclipseClasspath {
     doLast {
         file(".classpath").withWriter { writer ->
