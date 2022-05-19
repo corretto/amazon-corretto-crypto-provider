@@ -187,10 +187,10 @@ public class RsaCipherTest {
 
         final KeyPair keyPair = getKeyPair(keySize);
         Cipher cipher = getNativeCipher(padding);
-        cipher.init(Cipher.ENCRYPT_MODE, keyPair.getPublic());
+        cipher.init(Cipher.ENCRYPT_MODE, keyPair.getPublic(), oaep);
         byte[] ciphertext = cipher.doFinal(plaintext, 1, plaintext.length - 1);
 
-        cipher.init(Cipher.DECRYPT_MODE, keyPair.getPrivate());
+        cipher.init(Cipher.DECRYPT_MODE, keyPair.getPrivate(), oaep);
 
         byte[] result = new byte[cipher.getOutputSize(ciphertext.length) + 2];
         int resultLen = cipher.doFinal(ciphertext, 0, ciphertext.length, result, 2);
@@ -210,14 +210,14 @@ public class RsaCipherTest {
 
         final KeyPair keyPair = getKeyPair(keySize);
         Cipher cipher = getNativeCipher(padding);
-        cipher.init(Cipher.ENCRYPT_MODE, keyPair.getPublic());
+        cipher.init(Cipher.ENCRYPT_MODE, keyPair.getPublic(), oaep);
         byte[] ciphertext = new byte[cipher.getOutputSize(plaintext.length) + 2];
         int ciphertextLen = cipher.doFinal(plaintext, 0, plaintext.length, ciphertext, 1);
 
         // Shift the ciphertext over before reading
         System.arraycopy(ciphertext, 1, ciphertext, 2, ciphertext.length - 2);
 
-        cipher.init(Cipher.DECRYPT_MODE, keyPair.getPrivate());
+        cipher.init(Cipher.DECRYPT_MODE, keyPair.getPrivate(), oaep);
 
         byte[] result = cipher.doFinal(ciphertext, 2, ciphertextLen);
 
@@ -273,7 +273,7 @@ public class RsaCipherTest {
     public void overlargeCiphertext(final String padding, final Integer keySize, final OAEPParameterSpec oaep)
             throws GeneralSecurityException {
         final Cipher nativeEncrypt = getNativeCipher(padding);
-        nativeEncrypt.init(Cipher.DECRYPT_MODE, getKeyPair(keySize).getPrivate());
+        nativeEncrypt.init(Cipher.DECRYPT_MODE, getKeyPair(keySize).getPrivate(), oaep);
 
         byte[] ciphertext = new byte[(keySize / 8) + 1];
         Arrays.fill(ciphertext, (byte) 1); // All zeroes isn't a valid ciphertext
@@ -485,8 +485,8 @@ public class RsaCipherTest {
 
         final byte[] plaintext = getPlaintext((keySize / 8) - getPaddingSize(padding, oaep));
         final KeyPair keyPair = getKeyPair(keySize);
-        nativeC.init(Cipher.ENCRYPT_MODE, keyPair.getPublic());
-        jceC.init(Cipher.DECRYPT_MODE, keyPair.getPrivate());
+        nativeC.init(Cipher.ENCRYPT_MODE, keyPair.getPublic(), oaep);
+        jceC.init(Cipher.DECRYPT_MODE, keyPair.getPrivate(), oaep);
 
         nativeC.update(plaintext, 0, plaintext.length / 2);
         nativeC.update(plaintext, plaintext.length / 2, plaintext.length - (plaintext.length / 2));
@@ -504,8 +504,8 @@ public class RsaCipherTest {
 
         final byte[] plaintext = getPlaintext((keySize / 8) - getPaddingSize(padding, oaep));
         final KeyPair keyPair = getKeyPair(keySize);
-        nativeC.init(Cipher.ENCRYPT_MODE, keyPair.getPublic());
-        jceC.init(Cipher.DECRYPT_MODE, keyPair.getPrivate());
+        nativeC.init(Cipher.ENCRYPT_MODE, keyPair.getPublic(), oaep);
+        jceC.init(Cipher.DECRYPT_MODE, keyPair.getPrivate(), oaep);
 
         nativeC.update(plaintext, 0, plaintext.length / 2);
         nativeC.update(plaintext, plaintext.length / 2, plaintext.length - (plaintext.length / 2) - 1);
@@ -528,8 +528,8 @@ public class RsaCipherTest {
         final Cipher dec = getNativeCipher(padding);
 
         final byte[] plaintext = getPlaintext(keySize / 8 - getPaddingSize(padding, oaep));
-        enc.init(Cipher.ENCRYPT_MODE, keyPair.getPublic());
-        dec.init(Cipher.DECRYPT_MODE, strippedKey);
+        enc.init(Cipher.ENCRYPT_MODE, keyPair.getPublic(), oaep);
+        dec.init(Cipher.DECRYPT_MODE, strippedKey, oaep);
 
         final byte[] ciphertext = enc.doFinal(plaintext);
         final byte[] decrypted = dec.doFinal(ciphertext);
@@ -553,7 +553,7 @@ public class RsaCipherTest {
 
         final Cipher cipher = getNativeCipher(padding);
 
-        TestUtil.assertThrows(InvalidKeyException.class, () -> cipher.init(Cipher.DECRYPT_MODE, privateKey));
+        TestUtil.assertThrows(InvalidKeyException.class, () -> cipher.init(Cipher.DECRYPT_MODE, privateKey, oaep));
     }
 
     @ParameterizedTest
@@ -565,8 +565,8 @@ public class RsaCipherTest {
 
         final byte[] plaintext = getPlaintext((keySize / 8) - getPaddingSize(padding, oaep));
         final KeyPair keyPair = getKeyPair(keySize);
-        enc.init(Cipher.ENCRYPT_MODE, keyPair.getPublic());
-        dec.init(Cipher.DECRYPT_MODE, keyPair.getPrivate());
+        enc.init(Cipher.ENCRYPT_MODE, keyPair.getPublic(), oaep);
+        dec.init(Cipher.DECRYPT_MODE, keyPair.getPrivate(), oaep);
 
         final byte[] output = new byte[(keySize / 8) - 1];
         try {
@@ -703,7 +703,7 @@ public class RsaCipherTest {
         plaintext[plaintext.length - 1] = 2;
         final byte[] ciphertext = enc.doFinal(plaintext);
         final Cipher dec = getNativeCipher(padding);
-        dec.init(Cipher.DECRYPT_MODE, keyPair.getPrivate());
+        dec.init(Cipher.DECRYPT_MODE, keyPair.getPrivate(), oaep);
         assertThrows(BadPaddingException.class, () -> dec.doFinal(ciphertext));
     }
 
@@ -719,7 +719,7 @@ public class RsaCipherTest {
         Arrays.fill(plaintext, (byte) 1);
         byte[] ciphertext = enc.doFinal(plaintext);
         final Cipher dec = getNativeCipher(padding);
-        dec.init(Cipher.DECRYPT_MODE, keyPair.getPrivate());
+        dec.init(Cipher.DECRYPT_MODE, keyPair.getPrivate(), oaep);
         assertThrows(BadPaddingException.class, () -> dec.doFinal(ciphertext));
     }
 
@@ -745,7 +745,7 @@ public class RsaCipherTest {
             throws Exception {
         final Cipher dec = getNativeCipher(padding);
         final KeyPair keyPair = getKeyPair(keySize);
-        dec.init(Cipher.DECRYPT_MODE, keyPair.getPrivate());
+        dec.init(Cipher.DECRYPT_MODE, keyPair.getPrivate(), oaep);
         byte[] plaintext = ((RSAPublicKey) keyPair.getPublic()).getModulus().toByteArray();
         // Strip leading zero sign bit/byte if present
         if (plaintext[0] == 0) {
