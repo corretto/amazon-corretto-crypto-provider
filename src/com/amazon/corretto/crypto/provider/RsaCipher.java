@@ -21,7 +21,9 @@ import java.security.spec.InvalidParameterSpecException;
 import java.security.spec.MGF1ParameterSpec;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -284,10 +286,12 @@ class RsaCipher extends CipherSpi {
 
             if (params instanceof OAEPParameterSpec) {
                 final OAEPParameterSpec oaepParams = (OAEPParameterSpec) params;
+                final String oaepDigest = oaepParams.getDigestAlgorithm();
+                final String mgf1Digest = ((MGF1ParameterSpec) oaepParams.getMGFParameters()).getDigestAlgorithm();
                 try {
                     // Cache MD struct ptrs, validate digest names, update params + padding len
-                    getMdPtr(oaepParams.getDigestAlgorithm());
-                    getMdPtr(((MGF1ParameterSpec) oaepParams.getMGFParameters()).getDigestAlgorithm());
+                    getMdPtr(oaepDigest);
+                    getMdPtr(mgf1Digest);
                     paddingSize_ = calculateOaepPaddingLen(oaepParams.getDigestAlgorithm());
                     oaepParams_ = oaepParams;
                 } catch (Exception e) {
@@ -307,6 +311,12 @@ class RsaCipher extends CipherSpi {
 
     private static long getMdPtr(String digestName) {
         final String name = jceNameToAwsLcName(digestName);
+        // NOTE: it's a little awkward to throw an unchecked exception here, but the lambda
+        // invoking the native Utils.getEvpMdFromName can also throw an unchecked exception,
+        // so callers already need to handle this.
+        if (!name.startsWith("SHA")) {
+            throw new RuntimeException("Unsupported digest algorithm");
+        }
         return digestPtrByName.computeIfAbsent(name, n -> Utils.getEvpMdFromName(n));
     }
 

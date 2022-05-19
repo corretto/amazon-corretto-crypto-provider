@@ -326,6 +326,18 @@ public class RsaCipherTest {
             new MGF1ParameterSpec("nonsense"),
             OAEPParameterSpec.DEFAULT.getPSource());
         assertThrows(InvalidAlgorithmParameterException.class, () -> c.init(Cipher.ENCRYPT_MODE, PAIR_2048.getPublic(), badMgfMd));
+        final OAEPParameterSpec md5Md = new OAEPParameterSpec(
+            "MD-5",
+            OAEPParameterSpec.DEFAULT.getMGFAlgorithm(),
+            OAEPParameterSpec.DEFAULT.getMGFParameters(),
+            OAEPParameterSpec.DEFAULT.getPSource());
+        assertThrows(InvalidAlgorithmParameterException.class, () -> c.init(Cipher.ENCRYPT_MODE, PAIR_2048.getPublic(), md5Md));
+        final OAEPParameterSpec md4Md = new OAEPParameterSpec(
+            "MD-4",
+            OAEPParameterSpec.DEFAULT.getMGFAlgorithm(),
+            OAEPParameterSpec.DEFAULT.getMGFParameters(),
+            OAEPParameterSpec.DEFAULT.getPSource());
+        assertThrows(InvalidAlgorithmParameterException.class, () -> c.init(Cipher.ENCRYPT_MODE, PAIR_2048.getPublic(), md4Md));
 
         // SHA1 + MGF1 + SHA1 is the only supported String parameter, need to use OAEPParameterSpec in
         // init(...) to specify other digest algorithms.
@@ -615,8 +627,21 @@ public class RsaCipherTest {
         assertArrayEquals(plaintext, decrypted);
     }
 
-    // TODO [childw] test case for setting OAEPParameterSpec on non-OAEP Cipher instances
-    // TODO [childw] test case for specifying OAEP md alg, but not MGF1, assert MGF1 md defaults to OAEP md
+    @ParameterizedTest
+    @MethodSource("paddingParams")
+    public void testSetOaepParamsOnNonOaepPadding(final String padding) throws GeneralSecurityException {
+        assumeFalse(OAEP_PADDING.equalsIgnoreCase(padding), "Only testing non-OAEP padding");
+        final Cipher cipher = getNativeCipher(padding);
+        KeyPair kp = getKeyPair(2048);
+        TestUtil.assertThrows(
+            InvalidAlgorithmParameterException.class,
+            () -> cipher.init(Cipher.ENCRYPT_MODE, kp.getPublic(), OAEPParameterSpec.DEFAULT)
+        );
+        TestUtil.assertThrows(
+            InvalidAlgorithmParameterException.class,
+            () -> cipher.init(Cipher.DECRYPT_MODE, kp.getPrivate(), OAEPParameterSpec.DEFAULT)
+        );
+    }
 
     // Inspect each field, as for some reason the OAEPParameterSpec.equals method seems
     // to compare object hash code instead of individual members.
