@@ -45,7 +45,7 @@ class RsaCipher extends CipherSpi {
         PKCS1(1, "PKCS1Padding"),
         NO_PADDING(3, "NoPadding"),
         /** PKCS #1 v2.0 */
-        OAEP(4, "OAEPWithSHA-1AndMGF1Padding");
+        OAEP(4, "OAEP");
 
         private final int nativeVal;
         private final String paddingStr;
@@ -72,6 +72,7 @@ class RsaCipher extends CipherSpi {
     private final AmazonCorrettoCryptoProvider provider_;
     private final Object lock_ = new Object();
     private final Padding padding_;
+    private final boolean allowParamUpdates_;
 
     private static final Map<String,Long> digestPtrByName = new HashMap<>();
     private static final Map<Long,Integer> digestLengthByPtr = new HashMap<>();
@@ -91,11 +92,13 @@ class RsaCipher extends CipherSpi {
     // @GuardedBy("lock_") // Restore once replacement for JSR-305 available
     private AccessibleByteArrayOutputStream buffer_;
 
-    RsaCipher(AmazonCorrettoCryptoProvider provider, final Padding padding, final int paddingSize) {
+    RsaCipher(AmazonCorrettoCryptoProvider provider, final Padding padding, final int paddingSize,
+            final boolean allowParamUpdates) {
         Loader.checkNativeLibraryAvailability();
         provider_ = provider;
         padding_ = padding;
         paddingSize_ = paddingSize;
+        allowParamUpdates_ = allowParamUpdates;
         oaepParams_ = padding == Padding.OAEP ? OAEPParameterSpec.DEFAULT : null;
     }
 
@@ -258,7 +261,14 @@ class RsaCipher extends CipherSpi {
                 if (!(psrc instanceof PSource.PSpecified)) {
                     throw new InvalidAlgorithmParameterException();
                 }
+                // TODO: support non-empty labels, there's no technical reason not to
                 if (((PSource.PSpecified) psrc).getValue().length != 0) {
+                    throw new InvalidAlgorithmParameterException();
+                }
+                final MGF1ParameterSpec mgfParams = (MGF1ParameterSpec) oaep.getMGFParameters();
+                final MGF1ParameterSpec oldMgfParams = (MGF1ParameterSpec) oaepParams_.getMGFParameters();
+                if (!allowParamUpdates_ && !(oaep.getDigestAlgorithm().equals(oaepParams_.getDigestAlgorithm()) &&
+                        mgfParams.getDigestAlgorithm().equals(oldMgfParams.getDigestAlgorithm()))) {
                     throw new InvalidAlgorithmParameterException();
                 }
             } else {
@@ -467,13 +477,24 @@ class RsaCipher extends CipherSpi {
 
     static class NoPadding extends RsaCipher {
         NoPadding(AmazonCorrettoCryptoProvider provider) {
-            super(provider, Padding.NO_PADDING, 0);
+            super(provider, Padding.NO_PADDING, 0, false);
         }
     }
 
     static class Pkcs1 extends RsaCipher {
         Pkcs1(AmazonCorrettoCryptoProvider provider) {
-            super(provider, Padding.PKCS1, 11);
+            super(provider, Padding.PKCS1, 11, false);
+        }
+    }
+
+    static class OAEP extends RsaCipher {
+        OAEP(AmazonCorrettoCryptoProvider provider) {
+            super(
+                provider,
+                Padding.OAEP,
+                calculateOaepPaddingLen(OAEPParameterSpec.DEFAULT.getDigestAlgorithm()),
+                true
+            );
         }
     }
 
@@ -482,7 +503,8 @@ class RsaCipher extends CipherSpi {
             super(
                 provider,
                 Padding.OAEP,
-                calculateOaepPaddingLen(OAEPParameterSpec.DEFAULT.getDigestAlgorithm())
+                calculateOaepPaddingLen(OAEPParameterSpec.DEFAULT.getDigestAlgorithm()),
+                false
             );
         }
     }

@@ -437,6 +437,7 @@ task minimal_clean(type: Delete) {
     dependsOn cmake_clean
     delete "${buildDir}/awslc/bin/lib/libcrypto.*"
     delete "${buildDir}/awslc/build/crypto/libcrypto.*"
+    delete "${buildDir}/lib/*"
 }
 
 task generateEclipseClasspath {

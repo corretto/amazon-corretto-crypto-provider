@@ -75,7 +75,8 @@ import org.junit.jupiter.params.provider.MethodSource;
 @Execution(ExecutionMode.CONCURRENT)
 @ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
 public class RsaCipherTest {
-    private static final String OAEP_PADDING = "RSA/ECB/OAEPWithSHA-1AndMGF1Padding";
+    private static final String OAEP_SHA1_PADDING = "RSA/ECB/OAEPWithSHA-1AndMGF1Padding";
+    private static final String OAEP_PADDING = "RSA/ECB/OAEPPadding";
     private static final String PKCS1_PADDING = "RSA/ECB/Pkcs1Padding";
     private static final String NO_PADDING = "RSA/ECB/NoPadding";
     private static final KeyPairGenerator JCE_KEY_GEN;
@@ -103,7 +104,7 @@ public class RsaCipherTest {
     }
 
     public static List<String> paddingParams() {
-        return Arrays.asList(OAEP_PADDING, PKCS1_PADDING, NO_PADDING);
+        return Arrays.asList(OAEP_PADDING, OAEP_SHA1_PADDING, PKCS1_PADDING, NO_PADDING);
     }
 
     public static List<String> messageDigestParams() {
@@ -341,23 +342,23 @@ public class RsaCipherTest {
 
         // SHA1 + MGF1 + SHA1 is the only supported String parameter, need to use OAEPParameterSpec in
         // init(...) to specify other digest algorithms.
-        String sha256ParamString = OAEP_PADDING.replace("SHA-1", "SHA-256");
+        String sha256ParamString = OAEP_SHA1_PADDING.replace("SHA-1", "SHA-256");
         assertThrows(NoSuchAlgorithmException.class, () -> getNativeCipher(sha256ParamString));
     }
 
     @Test
     public void modifyOaepParameterSpec() throws GeneralSecurityException {
-        // Correct default
+        // General OAEP: Correct default
         Cipher c = getNativeCipher(OAEP_PADDING);
         OAEPParameterSpec params = c.getParameters().getParameterSpec(OAEPParameterSpec.class);
         assertOAEPParamSpecsEqual(OAEPParameterSpec.DEFAULT, params);
 
-        // Update with default is still default
+        // General OAEP: Update with default is still default
         c.init(Cipher.ENCRYPT_MODE, PAIR_2048.getPublic(), OAEPParameterSpec.DEFAULT);
         params = c.getParameters().getParameterSpec(OAEPParameterSpec.class);
         assertOAEPParamSpecsEqual(OAEPParameterSpec.DEFAULT, params);
 
-        // Ensure that different digest configurations persist
+        // General OAEP: Ensure that different digest configurations persist
         for (String digest : messageDigestParams()) {
             final OAEPParameterSpec newParams = new OAEPParameterSpec(
                 digest,
@@ -368,6 +369,26 @@ public class RsaCipherTest {
             params = c.getParameters().getParameterSpec(OAEPParameterSpec.class);
             assertOAEPParamSpecsEqual(newParams, params);
         }
+
+        // OAEP SHA1: Correct default
+        final Cipher c2 = getNativeCipher(OAEP_SHA1_PADDING);
+        params = c2.getParameters().getParameterSpec(OAEPParameterSpec.class);
+        assertOAEPParamSpecsEqual(OAEPParameterSpec.DEFAULT, params);
+
+        // OAEP SHA1: Update with default is OK and still default
+        c2.init(Cipher.ENCRYPT_MODE, PAIR_2048.getPublic(), OAEPParameterSpec.DEFAULT);
+        params = c2.getParameters().getParameterSpec(OAEPParameterSpec.class);
+        assertOAEPParamSpecsEqual(OAEPParameterSpec.DEFAULT, params);
+
+        // OAEP SHA1: If params were specified on Cipehr.getInstance, then trying to
+        //            specify different parameters on Cipher.init should throw.
+        final OAEPParameterSpec sha256Params = new OAEPParameterSpec(
+            "SHA-256", "MGF1", MGF1ParameterSpec.SHA256, PSource.PSpecified.DEFAULT
+        );
+        TestUtil.assertThrows(
+            InvalidAlgorithmParameterException.class,
+            () -> c2.init(Cipher.ENCRYPT_MODE, PAIR_2048.getPublic(), sha256Params)
+        );
     }
 
     @ParameterizedTest
@@ -630,7 +651,7 @@ public class RsaCipherTest {
     @ParameterizedTest
     @MethodSource("paddingParams")
     public void testSetOaepParamsOnNonOaepPadding(final String padding) throws GeneralSecurityException {
-        assumeFalse(OAEP_PADDING.equalsIgnoreCase(padding), "Only testing non-OAEP padding");
+        assumeFalse(padding.contains("OAEP"), "Only testing non-OAEP padding");
         final Cipher cipher = getNativeCipher(padding);
         KeyPair kp = getKeyPair(2048);
         TestUtil.assertThrows(
@@ -830,7 +851,7 @@ public class RsaCipherTest {
                     keys.add(PAIR_4096);
                 }
             }
-            threads.add(new TestThread("RsaCipherThread-" + x, rng, iterations, OAEP_PADDING, keys));
+            threads.add(new TestThread("RsaCipherThread-" + x, rng, iterations, OAEP_SHA1_PADDING, keys));
         }
 
         // Start the threads
@@ -898,7 +919,7 @@ public class RsaCipherTest {
         if (oaep != null) {
             assertOAEPParamSpecsEqual(oaep, encrypt.getParameters().getParameterSpec(OAEPParameterSpec.class));
             assertOAEPParamSpecsEqual(oaep, decrypt.getParameters().getParameterSpec(OAEPParameterSpec.class));
-        } else if (OAEP_PADDING.equals(padding)) {
+        } else if (padding.contains("OAEP")) {
             assertOAEPParamSpecsEqual(OAEPParameterSpec.DEFAULT, encrypt.getParameters().getParameterSpec(OAEPParameterSpec.class));
             assertOAEPParamSpecsEqual(OAEPParameterSpec.DEFAULT, decrypt.getParameters().getParameterSpec(OAEPParameterSpec.class));
         } else {
@@ -939,6 +960,7 @@ public class RsaCipherTest {
                 case PKCS1_PADDING:
                     return 11;
                 case OAEP_PADDING:
+                case OAEP_SHA1_PADDING:
                     return 42;
                 default:
                     throw new IllegalArgumentException("Bad padding: " + padding);
