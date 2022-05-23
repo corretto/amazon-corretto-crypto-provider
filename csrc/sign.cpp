@@ -63,7 +63,7 @@ bool initializeContext
  raii_env &env,
  EvpKeyContext* ctx,
  bool signMode,
- jlong pKey,
+ EVP_PKEY* pKey,
  jstring digestName,
  jint paddingType,
  jstring mgfMdName,
@@ -72,7 +72,8 @@ bool initializeContext
 {
     EVP_PKEY_CTX* pctx; // Logically owned by the ctx so doesn't need to be freed separately
 
-    ctx->setKey(reinterpret_cast<EvpKeyContext*>(pKey)->get1Key());
+    EVP_PKEY_up_ref(pKey);
+    ctx->setKey(pKey);
 
     if (digestName) {
         const EVP_MD *md = NULL;
@@ -190,7 +191,7 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_si
 
         EvpKeyContext ctx;
 
-        initializeContext(env, &ctx, true, pKey, digestName, paddingType, mgfMdName, pssSaltLen);
+        initializeContext(env, &ctx, true, reinterpret_cast<EVP_PKEY*>(pKey), digestName, paddingType, mgfMdName, pssSaltLen);
         update(env, &ctx, digestSignUpdate, java_buffer::from_array(env, message, offset, length));
 
         return reinterpret_cast<jlong>(ctx.moveToHeap());
@@ -216,7 +217,8 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_si
 
         EvpKeyContext ctx;
 
-        initializeContext(env, &ctx, true, pKey, digestName, paddingType, mgfMdName, pssSaltLen);
+        initializeContext(
+            env, &ctx, true, reinterpret_cast<EVP_PKEY*>(pKey), digestName, paddingType, mgfMdName, pssSaltLen);
         update(env, &ctx, digestSignUpdate, java_buffer::from_direct(env, message));
 
         return reinterpret_cast<jlong>(ctx.moveToHeap());
@@ -244,7 +246,8 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_ve
 
         EvpKeyContext ctx;
 
-        initializeContext(env, &ctx, false, pKey, digestName, paddingType, mgfMdName, pssSaltLen);
+        initializeContext(
+            env, &ctx, false, reinterpret_cast<EVP_PKEY*>(pKey), digestName, paddingType, mgfMdName, pssSaltLen);
         update(env, &ctx, digestVerifyUpdate, java_buffer::from_array(env, message, offset, length));
 
         return reinterpret_cast<jlong>(ctx.moveToHeap());
@@ -270,7 +273,8 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_ve
 
         EvpKeyContext ctx;
 
-        initializeContext(env, &ctx, false, pKey, digestName, paddingType, mgfMdName, pssSaltLen);
+        initializeContext(
+            env, &ctx, false, reinterpret_cast<EVP_PKEY*>(pKey), digestName, paddingType, mgfMdName, pssSaltLen);
         update(env, &ctx, digestVerifyUpdate, java_buffer::from_direct(env, message));
 
         return reinterpret_cast<jlong>(ctx.moveToHeap());
@@ -287,7 +291,7 @@ JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_sig
  jbyteArray message,
  jint offset,
  jint length) {
-    arrayUpdate(pEnv, (EvpKeyContext*) ctxPtr, digestSignUpdate, message, offset, length);
+    arrayUpdate(pEnv, reinterpret_cast<EvpKeyContext*>(ctxPtr), digestSignUpdate, message, offset, length);
 }
 
 JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_signUpdateBuffer
@@ -296,7 +300,7 @@ JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_sig
  jlong ctxPtr,
  jobject message
 ) {
-    bufferUpdate(pEnv, (EvpKeyContext*) ctxPtr, digestSignUpdate, message);
+    bufferUpdate(pEnv, reinterpret_cast<EvpKeyContext*>(ctxPtr), digestSignUpdate, message);
 }
 
 JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_verifyUpdate
@@ -306,7 +310,7 @@ JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_ver
  jbyteArray message,
  jint offset,
  jint length) {
-    arrayUpdate(pEnv, (EvpKeyContext*) ctxPtr, digestVerifyUpdate, message, offset, length);
+    arrayUpdate(pEnv, reinterpret_cast<EvpKeyContext*>(ctxPtr), digestVerifyUpdate, message, offset, length);
 }
 
 JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_verifyUpdateBuffer
@@ -315,7 +319,7 @@ JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_ver
  jlong ctxPtr,
  jobject message
 ) {
-    bufferUpdate(pEnv, (EvpKeyContext*) ctxPtr, digestVerifyUpdate, message);
+    bufferUpdate(pEnv, reinterpret_cast<EvpKeyContext*>(ctxPtr), digestVerifyUpdate, message);
 }
 
 
@@ -367,7 +371,7 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
  jint sigOff,
  jint sigLen)
 {
-    EvpKeyContext* ctx = (EvpKeyContext*) ctxPtr;
+    EvpKeyContext* ctx = reinterpret_cast<EvpKeyContext*>(ctxPtr);
 
     try {
         raii_env env(pEnv);
@@ -416,7 +420,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatu
  jclass,
  jlong ctxPtr)
 {
-    EvpKeyContext* ctx = (EvpKeyContext*) ctxPtr;
+    EvpKeyContext* ctx = reinterpret_cast<EvpKeyContext*>(ctxPtr);
     jbyteArray signature = NULL;
 
     try {
@@ -504,7 +508,7 @@ JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatureBase
  jclass,
  jlong ctxPtr)
 {
-    delete (EvpKeyContext*) ctxPtr;
+    delete reinterpret_cast<EvpKeyContext*>(ctxPtr);
 }
 
 JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatureRaw_signRaw
@@ -524,7 +528,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatu
         java_buffer messageBuf = java_buffer::from_array(env, messageArr, offset, length);
 
         EvpKeyContext ctx;
-        initializeContext(env, &ctx, true, pKey, NULL, paddingType, mgfMdName, pssSaltLen);
+        initializeContext(env, &ctx, true, reinterpret_cast<EVP_PKEY*>(pKey), NULL, paddingType, mgfMdName, pssSaltLen);
 
         std::vector<uint8_t, SecureAlloc<uint8_t> > signature;
         {
@@ -575,7 +579,8 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
         java_buffer signatureBuf = java_buffer::from_array(env, signatureArr, sigOff, sigLen);
 
         EvpKeyContext ctx;
-        initializeContext(env, &ctx, false, pKey, NULL, paddingType, mgfMdName, pssSaltLen);
+        initializeContext(
+            env, &ctx, false, reinterpret_cast<EVP_PKEY*>(pKey), NULL, paddingType, mgfMdName, pssSaltLen);
 
         jni_borrow message(env, messageBuf, "message");
         jni_borrow signature(env, signatureBuf, "signature");

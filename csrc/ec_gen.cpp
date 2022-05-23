@@ -71,21 +71,20 @@ JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_EcGen_freeEcPara
     EVP_PKEY_free((EVP_PKEY *)param);
 }
 
-void generateEcKey(raii_env *env, EvpKeyContext &ctx, EVP_PKEY *param, jboolean checkConsistency)
+void generateEcKey(raii_env *env, EVP_PKEY_auto &key, EVP_PKEY *param, jboolean checkConsistency)
 {
-    ctx.setKeyCtx(EVP_PKEY_CTX_new(param, NULL));
-    CHECK_OPENSSL(ctx.getKeyCtx());
-    CHECK_OPENSSL(EVP_PKEY_keygen_init(ctx.getKeyCtx()) > 0);
-    CHECK_OPENSSL(EVP_PKEY_keygen(ctx.getKeyCtx(), ctx.getKeyPtr()));
+    EVP_PKEY_CTX_auto ctx = EVP_PKEY_CTX_auto::from(EVP_PKEY_CTX_new(param, NULL));
+    CHECK_OPENSSL(ctx.isInitialized());
+    CHECK_OPENSSL(EVP_PKEY_keygen_init(ctx) > 0);
+    CHECK_OPENSSL(EVP_PKEY_keygen(ctx, key.getAddressOfPtr()));
     if (checkConsistency)
     {
         EC_KEY *ecKey = NULL;
-        CHECK_OPENSSL(ecKey = EVP_PKEY_get1_EC_KEY(ctx.getKey()));
+        CHECK_OPENSSL(ecKey = EVP_PKEY_get1_EC_KEY(key));
         int check_result = EC_KEY_check_key(ecKey);
         EC_KEY_free(ecKey);
         CHECK_OPENSSL(check_result);
     }
-    ctx.setKeyCtx(NULL);
 }
 
 JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EcGen_generateEvpEcKey(
@@ -99,9 +98,9 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EcGen_generateE
         raii_env env(pEnv);
 
         // Actually set up the key
-        EvpKeyContext ctx;
-        generateEcKey(&env, ctx, reinterpret_cast<EVP_PKEY *>(param), checkConsistency);
-        return reinterpret_cast<jlong>(ctx.moveToHeap());
+        EVP_PKEY_auto key;
+        generateEcKey(&env, key, reinterpret_cast<EVP_PKEY*>(param), checkConsistency);
+        return reinterpret_cast<jlong>(key.take());
     }
     catch (java_ex &ex)
     {
@@ -119,7 +118,7 @@ JNIEXPORT long JNICALL Java_com_amazon_corretto_crypto_provider_EcGen_generateEv
     std::vector<uint8_t, SecureAlloc<uint8_t>> derBuf;
     EC_KEY_auto ecParams;
     EVP_PKEY_auto params_as_pkey = EVP_PKEY_auto::from(EVP_PKEY_new());
-    EvpKeyContext ctx;
+    EVP_PKEY_auto key;
 
     try
     {
@@ -136,9 +135,9 @@ JNIEXPORT long JNICALL Java_com_amazon_corretto_crypto_provider_EcGen_generateEv
 
         CHECK_OPENSSL(EVP_PKEY_assign_EC_KEY(params_as_pkey, ecParams.take())); // Takes ownership of ecParams
 
-        generateEcKey(&env, ctx, params_as_pkey, checkConsistency);
+        generateEcKey(&env, key, params_as_pkey, checkConsistency);
 
-        return reinterpret_cast<jlong>(ctx.moveToHeap());
+        return reinterpret_cast<jlong>(key.take());
     }
     catch (java_ex &ex)
     {

@@ -39,12 +39,11 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_RsaGen_generate
             throw_openssl("Key failed consistency check");
         }
 
-        EvpKeyContext ctx;
-        ctx.setKey(EVP_PKEY_new());
-        CHECK_OPENSSL(ctx.getKey());
-        CHECK_OPENSSL(EVP_PKEY_set1_RSA(ctx.getKey(), r));
+        EVP_PKEY_auto result = EVP_PKEY_auto::from(EVP_PKEY_new());
+        CHECK_OPENSSL(result.isInitialized());
+        CHECK_OPENSSL(EVP_PKEY_set1_RSA(result, r));
 
-        return reinterpret_cast<jlong>(ctx.moveToHeap());
+        return reinterpret_cast<jlong>(result.take());
     }
     catch (java_ex &ex)
     {

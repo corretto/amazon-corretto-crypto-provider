@@ -8,6 +8,7 @@
 #include <openssl/evp.h>
 #include "generated-headers.h"
 #include "util.h"
+#include "auto_free.h"
 #include "bn.h"
 #include "keyutils.h"
 
@@ -61,15 +62,17 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_RsaCipher_cipher
             throw_java_ex(EX_NPE, "Null output array");
         }
 
-        EvpKeyContext *ctx = reinterpret_cast<EvpKeyContext *>(ctxHandle);
-
-        EVP_PKEY_CTX *keyCtx = ctx->getKeyCtx();
-        if (keyCtx == nullptr) {
-            keyCtx = ctx->setKeyCtx(EVP_PKEY_CTX_new(ctx->getKey(), /*engine*/nullptr));
-        }
+        EVP_PKEY* key = reinterpret_cast<EVP_PKEY*>(ctxHandle);
+        // It is unclear if allocating a new EVP_PKEY_CTX for each operation is expensive.
+        // If profiling shows that this is a significant cost when in a hot-path we should figure out a way to
+        // cache and reusing the EVP_PKEY_CTX within the context of a single instance of a RsaCipher object.
+        // We'll need to be careful to free/replace it when the key changes and properly duplicate it if we
+        // decide to implement Cloneable.
+        EVP_PKEY_CTX_auto keyCtx = EVP_PKEY_CTX_auto::from(EVP_PKEY_CTX_new(key, /*engine*/ nullptr));
+        CHECK_OPENSSL(keyCtx.isInitialized());
 
         java_buffer inBuf = java_buffer::from_array(env, input, inOff, inLength);
-        java_buffer outBuf = java_buffer::from_array(env, output, outOff, EVP_PKEY_size(ctx->getKey()));
+        java_buffer outBuf = java_buffer::from_array(env, output, outOff, EVP_PKEY_size(key));
 
         size_t len = outBuf.len();
 
