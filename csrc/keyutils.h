@@ -12,61 +12,44 @@
 #include <openssl/x509.h>
 #include "util.h"
 #include "env.h"
+#include "auto_free.h"
 
 namespace AmazonCorrettoCryptoProvider {
 
+// This class should generally not be used for new development
+// as it has been replaced by the *_auto classes in auto_free.h
+// The only time this class should be used is when you *need* to keep various EVP objects together.
+// The only currently known *good* use for this class is tracking state when signing/verifying data.
+//
+// Since all but EVP_PKEY are stateful and likely to mutate while being used, this class is not threadsafe.
 class EvpKeyContext {
 public:
-    EvpKeyContext()
-        : digestCtx_(NULL), keyCtx_(NULL), key_(NULL) {}
-
-    virtual ~EvpKeyContext() {
-        if (digestCtx_) {
-            EVP_MD_CTX_destroy(digestCtx_);
-        }
-        if (keyCtx_) {
-            EVP_PKEY_CTX_free(keyCtx_);
-        }
-        if (key_) {
-            EVP_PKEY_free(key_);
-        }
-    }
-
-    EVP_MD_CTX* getDigestCtx() const { return digestCtx_; }
-    EVP_PKEY_CTX* getKeyCtx() const { return keyCtx_; }
-    EVP_PKEY* getKey() const { return key_; }
-    EVP_PKEY* get1Key() const {
+    EvpKeyContext() {} // Since we explicitly deleted constructors, the implicit one isn't generated for us.
+    EVP_MD_CTX* getDigestCtx() { return digestCtx_.get(); }
+    EVP_PKEY_CTX* getKeyCtx() { return keyCtx_.get(); }
+    EVP_PKEY* getKey() { return key_.get(); }
+    EVP_PKEY* get1Key() {
         EVP_PKEY_up_ref(key_);
-        return key_;
+        return getKey();
     }
-    EVP_PKEY** getKeyPtr() { return &key_; }
+    EVP_PKEY** getKeyPtr() { return key_.getAddressOfPtr(); }
 
     // If there was an old ctx, it is freed
     EVP_MD_CTX* setDigestCtx(EVP_MD_CTX* digestCtx) {
-        if (digestCtx_) {
-            EVP_MD_CTX_destroy(digestCtx_);
-        }
-        digestCtx_ = digestCtx;
-        return digestCtx_;
+        digestCtx_.set(digestCtx);
+        return getDigestCtx();
     }
 
     // If there was an old ctx, it is freed
     EVP_PKEY_CTX* setKeyCtx(EVP_PKEY_CTX* keyCtx) {
-        if (keyCtx_) {
-            EVP_PKEY_CTX_free(keyCtx_);
-        }
-
-        keyCtx_ = keyCtx;
-        return keyCtx_;
+        keyCtx_.set(keyCtx);
+        return getKeyCtx();
     }
 
     // If there was an old key, it is freed
     EVP_PKEY* setKey(EVP_PKEY* key) {
-        if (key_) {
-            EVP_PKEY_free(key_);
-        }
-        key_ = key;
-        return key_;
+        key_.set(key);
+        return getKey();
     }
 
     // Allocates a copy of this object on the heap and zeros
@@ -74,21 +57,18 @@ public:
     // to the new copy of this EvpKeyContext.
     EvpKeyContext* moveToHeap() {
         EvpKeyContext* result = new EvpKeyContext();
-        result->setKey(key_);
-        result->setDigestCtx(digestCtx_);
-        result->setKeyCtx(keyCtx_);
+        // Move the pointers and ownership to the new object.
+        result->setKey(key_.take());
+        result->setDigestCtx(digestCtx_.take());
+        result->setKeyCtx(keyCtx_.take());
 
-        // Zero our pointers so we don't free anything upon destruction
-        digestCtx_ = NULL;
-        keyCtx_ = NULL;
-        key_ = NULL;
         return result;
     }
 
 private:
-    EVP_MD_CTX* digestCtx_;
-    EVP_PKEY_CTX* keyCtx_;
-    EVP_PKEY* key_;
+    EVP_MD_CTX_auto digestCtx_;
+    EVP_PKEY_CTX_auto keyCtx_;
+    EVP_PKEY_auto key_;
 
     // Disable copy & copy-assignment
     EvpKeyContext(const EvpKeyContext&) DELETE_IMPLICIT;

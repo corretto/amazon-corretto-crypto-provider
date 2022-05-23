@@ -6,6 +6,7 @@
 #include "generated-headers.h"
 #include "keyutils.h"
 #include "util.h"
+#include "auto_free.h"
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <vector>
@@ -40,20 +41,20 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyAgre
 {
     jbyteArray result = NULL;
 
-    EvpKeyContext* privCtx = reinterpret_cast<EvpKeyContext*>(privateKeyPtr);
-    EvpKeyContext* pubCtx = reinterpret_cast<EvpKeyContext*>(publicKeyPtr);
+    EVP_PKEY* privKey = reinterpret_cast<EVP_PKEY*>(privateKeyPtr);
+    EVP_PKEY* pubKey = reinterpret_cast<EVP_PKEY*>(publicKeyPtr);
 
     try {
         raii_env env(pEnv);
 
-        EVP_PKEY_CTX* pctx = privCtx->setKeyCtx(EVP_PKEY_CTX_new(privCtx->getKey(), NULL));
-        if (!pctx) {
+        EVP_PKEY_CTX_auto pctx = EVP_PKEY_CTX_auto::from(EVP_PKEY_CTX_new(privKey, NULL));
+        if (!pctx.isInitialized()) {
             throw_openssl("Unable to create PKEY_CTX");
         }
         if (EVP_PKEY_derive_init(pctx) <= 0) {
             throw_openssl("Unable to initialize context");
         }
-        checkAgreementResult(EVP_PKEY_derive_set_peer(pctx, pubCtx->getKey()));
+        checkAgreementResult(EVP_PKEY_derive_set_peer(pctx, pubKey));
 
         size_t resultLen = 0;
         std::vector<uint8_t> tmpResult;
@@ -72,7 +73,6 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyAgre
         // This may throw, if it does we'll just keep the exception state as we return.
         env->SetByteArrayRegion(result, resultLen - returnedLen, returnedLen, (jbyte*)&tmpResult[0]);
     } catch (java_ex& ex) {
-        privCtx->setKeyCtx(NULL);
         ex.throw_to_java(pEnv);
     }
 
