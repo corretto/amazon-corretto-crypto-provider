@@ -21,8 +21,8 @@ RUN curl -s https://apt.corretto.aws/corretto.key | apt-key add -
 RUN echo 'deb https://apt.corretto.aws stable main' | tee /etc/apt/sources.list.d/corretto.list
 RUN apt-get update
 RUN apt-get install -y java-11-amazon-corretto-jdk
-ARG JAVA_HOME=/usr/lib/jvm/java-11-amazon-corretto/
-RUN echo 'export JAVA_HOME=/usr/lib/jvm/java-11-amazon-corretto/' >> /home/.bash_rc
+ENV JAVA_HOME=/usr/lib/jvm/java-11-amazon-corretto/
+RUN echo 'export JAVA_HOME=/usr/lib/jvm/java-11-amazon-corretto/' >> /home/.bashrc
 
 # required dependencies for building/testing
 RUN apt-get install -y build-essential
