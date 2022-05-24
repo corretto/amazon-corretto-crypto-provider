@@ -20,6 +20,10 @@ import java.security.spec.InvalidKeySpecException;
 import java.security.spec.InvalidParameterSpecException;
 import java.security.spec.MGF1ParameterSpec;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -36,21 +40,19 @@ class RsaCipher extends CipherSpi {
     private static final int HANDLE_USAGE_CREATE = 3;
 
     // From openssl/rsa.h
-    private static enum Padding {
+    private enum Padding {
         /** PKCS #1 v1.5 */
-        PKCS1(1, "PKCS1Padding", 11),
-        NO_PADDING(3, "NoPadding", 0),
-        /** PKCS #1 v2.0 with SHA-1, MGF1, and an empty encoding parameter */
-        OAEP_SHA1_MGF1(4, "OAEPWithSHA-1AndMGF1Padding", 42);
+        PKCS1(1, "PKCS1Padding"),
+        NO_PADDING(3, "NoPadding"),
+        /** PKCS #1 v2.0 */
+        OAEP(4, "OAEP");
 
         private final int nativeVal;
-        private final String jceName;
-        private final int paddingLength;
+        private final String paddingStr;
 
-        private Padding(final int val, final String name, final int length) {
+        private Padding(final int val, final String paddingIn) {
             nativeVal = val;
-            jceName = name;
-            paddingLength = length;
+            paddingStr = paddingIn;
         }
     }
 
@@ -62,12 +64,18 @@ class RsaCipher extends CipherSpi {
             long keyPtr,
             int mode,
             int padding,
+            long oaepMdPtr,
+            long mgfMdPtr,
             byte[] input, int inOff, int inLength,
             byte[] output, int outOff) throws BadPaddingException;
 
     private final AmazonCorrettoCryptoProvider provider_;
     private final Object lock_ = new Object();
     private final Padding padding_;
+    private final boolean allowParamUpdates_;
+
+    private static final Map<String,Long> digestPtrByName = new HashMap<>();
+    private static final Map<Long,Integer> digestLengthByPtr = new HashMap<>();
 
     // @GuardedBy("lock_") // Restore once replacement for JSR-305 available
     private int mode_;
@@ -76,14 +84,22 @@ class RsaCipher extends CipherSpi {
     // @GuardedBy("lock_") // Restore once replacement for JSR-305 available
     private int keySizeBytes_;
     // @GuardedBy("lock_") // Restore once replacement for JSR-305 available
+    private int paddingSize_;
+    // @GuardedBy("lock_") // Restore once replacement for JSR-305 available
+    private OAEPParameterSpec oaepParams_;
+    // @GuardedBy("lock_") // Restore once replacement for JSR-305 available
     private EvpKey nativeKey_;
     // @GuardedBy("lock_") // Restore once replacement for JSR-305 available
     private AccessibleByteArrayOutputStream buffer_;
 
-    RsaCipher(AmazonCorrettoCryptoProvider provider, final Padding padding) {
+    RsaCipher(AmazonCorrettoCryptoProvider provider, final Padding padding, final int paddingSize,
+            final boolean allowParamUpdates) {
         Loader.checkNativeLibraryAvailability();
         provider_ = provider;
         padding_ = padding;
+        paddingSize_ = paddingSize;
+        allowParamUpdates_ = allowParamUpdates;
+        oaepParams_ = padding == Padding.OAEP ? OAEPParameterSpec.DEFAULT : null;
     }
 
     @Override
@@ -135,9 +151,9 @@ class RsaCipher extends CipherSpi {
                 throw new ShortBufferException();
             }
             if (mode_ == Cipher.ENCRYPT_MODE || mode_ == Cipher.WRAP_MODE) {
-                if (inputLen > keySizeBytes_ - padding_.paddingLength) {
+                if (inputLen > keySizeBytes_ - paddingSize_) {
                     throw new IllegalBlockSizeException("Data must not be longer than "
-                            + (keySizeBytes_ - padding_.paddingLength) + " bytes");
+                            + (keySizeBytes_ - paddingSize_) + " bytes");
                 }
                 // We're allowed to pad NO_PADDING with zero bytes on the left.
                 // This is because RSA fundamentally works on positive integers so
@@ -156,11 +172,23 @@ class RsaCipher extends CipherSpi {
                 }
             }
 
+            final long oaepMdPtr;
+            final long mgfMdPtr;
+            if (padding_ == Padding.OAEP) {
+                oaepMdPtr = getMdPtr(oaepParams_.getDigestAlgorithm());
+                mgfMdPtr = getMdPtr(
+                    ((MGF1ParameterSpec) oaepParams_.getMGFParameters()).getDigestAlgorithm()
+                );
+            } else {
+                oaepMdPtr = 0;
+                mgfMdPtr = 0;
+            }
+
             final byte[] finalInput = input;
             final int finalInputOffset = inputOffset;
             final int finalInputLen = inputLen;
             final int result = nativeKey_.use(ptr -> cipher(ptr, mode_, padding_.nativeVal,
-                    finalInput, finalInputOffset, finalInputLen, output, outputOffset));
+                    oaepMdPtr, mgfMdPtr, finalInput, finalInputOffset, finalInputLen, output, outputOffset));
 
             buffer_ = new AccessibleByteArrayOutputStream();
 
@@ -197,10 +225,10 @@ class RsaCipher extends CipherSpi {
 
     @Override
     protected AlgorithmParameters engineGetParameters() {
-        if (padding_.equals(Padding.OAEP_SHA1_MGF1)) {
+        if (padding_ == Padding.OAEP) {
             try {
                 final AlgorithmParameters params = AlgorithmParameters.getInstance("OAEP");
-                params.init(new OAEPParameterSpec("SHA-1", "MGF1", MGF1ParameterSpec.SHA1, PSource.PSpecified.DEFAULT));
+                params.init(oaepParams_);
                 return params;
             } catch (final GeneralSecurityException ex) {
                 throw new AssertionError(ex);
@@ -211,8 +239,43 @@ class RsaCipher extends CipherSpi {
     }
 
     @Override
-    protected void engineInit(final int opmode, final Key key, final SecureRandom random)
-            throws InvalidKeyException {
+    protected void engineInit(final int opmode, final Key key, final AlgorithmParameterSpec params,
+            final SecureRandom random)
+                    throws InvalidKeyException, InvalidAlgorithmParameterException {
+        if (params != null) {
+            if (params instanceof OAEPParameterSpec) {
+                if (padding_ != Padding.OAEP) {
+                    throw new InvalidAlgorithmParameterException();
+                }
+                final OAEPParameterSpec oaep = (OAEPParameterSpec) params;
+                if (!"MGF1".equalsIgnoreCase(oaep.getMGFAlgorithm()) ||
+                        oaep.getMGFParameters() == null ||
+                        !(oaep.getMGFParameters() instanceof MGF1ParameterSpec)) {
+                    throw new InvalidAlgorithmParameterException();
+                }
+                final PSource pDefault = PSource.PSpecified.DEFAULT;
+                final PSource psrc = oaep.getPSource();
+                if (psrc == null || !pDefault.getAlgorithm().equalsIgnoreCase(psrc.getAlgorithm())) {
+                    throw new InvalidAlgorithmParameterException();
+                }
+                if (!(psrc instanceof PSource.PSpecified)) {
+                    throw new InvalidAlgorithmParameterException();
+                }
+                // TODO: support non-empty labels, there's no technical reason not to
+                if (((PSource.PSpecified) psrc).getValue().length != 0) {
+                    throw new InvalidAlgorithmParameterException();
+                }
+                final MGF1ParameterSpec mgfParams = (MGF1ParameterSpec) oaep.getMGFParameters();
+                final MGF1ParameterSpec oldMgfParams = (MGF1ParameterSpec) oaepParams_.getMGFParameters();
+                if (!allowParamUpdates_ && !(oaep.getDigestAlgorithm().equals(oaepParams_.getDigestAlgorithm()) &&
+                        mgfParams.getDigestAlgorithm().equals(oldMgfParams.getDigestAlgorithm()))) {
+                    throw new InvalidAlgorithmParameterException();
+                }
+            } else {
+                throw new InvalidAlgorithmParameterException();
+            }
+        }
+
         synchronized (lock_) {
             if (!(key instanceof RSAKey)) {
                 throw new InvalidKeyException();
@@ -220,16 +283,92 @@ class RsaCipher extends CipherSpi {
             mode_ = checkMode(opmode, key);
 
             if (key_ != key) {
-              if (nativeKey_ != null) {
-                nativeKey_.releaseEphemeral();
-                nativeKey_ = null;
-              }
+                if (nativeKey_ != null) {
+                    nativeKey_.releaseEphemeral();
+                    nativeKey_ = null;
+                }
 
-              key_ = (RSAKey) key;
-              keySizeBytes_ = (key_.getModulus().bitLength() + 7) / 8;
-              buffer_ = new AccessibleByteArrayOutputStream();
-              nativeKey_ = provider_.translateKey(key, EvpKeyType.RSA);
-          }
+                key_ = (RSAKey) key;
+                keySizeBytes_ = (key_.getModulus().bitLength() + 7) / 8;
+                buffer_ = new AccessibleByteArrayOutputStream(keySizeBytes_, keySizeBytes_);
+                nativeKey_ = provider_.translateKey(key, EvpKeyType.RSA);
+            }
+
+            if (params instanceof OAEPParameterSpec) {
+                final OAEPParameterSpec oaepParams = (OAEPParameterSpec) params;
+                final String oaepDigest = oaepParams.getDigestAlgorithm();
+                final String mgf1Digest = ((MGF1ParameterSpec) oaepParams.getMGFParameters()).getDigestAlgorithm();
+                try {
+                    // Cache MD struct ptrs, validate digest names, update params + padding len
+                    getMdPtr(oaepDigest);
+                    getMdPtr(mgf1Digest);
+                    paddingSize_ = calculateOaepPaddingLen(oaepParams.getDigestAlgorithm());
+                    oaepParams_ = oaepParams;
+                } catch (Exception e) {
+                    throw new InvalidAlgorithmParameterException();
+                }
+            }
+        }
+    }
+
+    private static String jceNameToAwsLcName(String jceName) {
+        if (jceName == null) {
+            return null;
+        }
+        // e.g. "SHA-512/256" => "SHA512-256"
+        return jceName.replace("-", "").replace("/", "-").toUpperCase();
+    }
+
+    private static long getMdPtr(String digestName) {
+        final String name = jceNameToAwsLcName(digestName);
+        // NOTE: it's a little awkward to throw an unchecked exception here, but the lambda
+        // invoking the native Utils.getEvpMdFromName can also throw an unchecked exception,
+        // so callers already need to handle this.
+        if (!name.startsWith("SHA")) {
+            throw new RuntimeException("Unsupported digest algorithm");
+        }
+        return digestPtrByName.computeIfAbsent(name, n -> Utils.getEvpMdFromName(n));
+    }
+
+    private static int getMdLen(long mdPtr) {
+        return digestLengthByPtr.computeIfAbsent(mdPtr, p -> Utils.getDigestLength(p));
+    }
+
+    // NOTE: while RFC-2437 stipulates[1] that OAEP padding has max length of 2*digestSize+1,
+    //       both standard JCE[2] and AWS-LC[3][4] reserve an extra byte of padding space to
+    //       ensure that the size of the padded message does not excede that of the modulus,
+    //       hence the +2 in the calculation below.
+    //
+    // [1]: https://datatracker.ietf.org/doc/html/rfc2437#section-9.1.1.1
+    // [2]: https://github.com/corretto/corretto-8/blob/develop/src/jdk/src/share/classes/sun/security/rsa/RSAPadding.java#L191
+    // [3]: https://github.com/awslabs/aws-lc/blob/main/crypto/fipsmodule/rsa/padding.c#L349
+    // [4]: https://github.com/awslabs/aws-lc/blob/main/crypto/fipsmodule/rsa/padding.c#L420-L427
+    private static int calculateOaepPaddingLen(String mdName) {
+        return 2 * getMdLen(getMdPtr(mdName)) + 2;
+    }
+
+    @Override
+    protected void engineInit(final int opmode, final Key key, final AlgorithmParameters params,
+            final SecureRandom random)
+                    throws InvalidKeyException, InvalidAlgorithmParameterException {
+        try {
+            engineInit(opmode, key, params != null ? params.getParameterSpec(OAEPParameterSpec.class) : null, random);
+        } catch (final InvalidParameterSpecException ex) {
+            throw new InvalidAlgorithmParameterException(ex);
+        }
+    }
+
+    @Override
+    protected void engineInit(final int opmode, final Key key, final SecureRandom random)
+            throws InvalidKeyException {
+        AlgorithmParameterSpec params = null;
+        if (padding_ == Padding.OAEP) {
+            params = oaepParams_;
+        }
+        try {
+            engineInit(opmode, key, params, random);
+        } catch (InvalidAlgorithmParameterException e) {
+            throw new InvalidKeyException(e);
         }
     }
 
@@ -267,53 +406,6 @@ class RsaCipher extends CipherSpi {
     }
 
     @Override
-    protected void engineInit(final int opmode, final Key key, final AlgorithmParameterSpec params,
-            final SecureRandom random)
-                    throws InvalidKeyException, InvalidAlgorithmParameterException {
-        if (params != null) {
-            if (params instanceof OAEPParameterSpec && padding_.equals(Padding.OAEP_SHA1_MGF1)) {
-                final OAEPParameterSpec oaep = (OAEPParameterSpec) params;
-                if (!"SHA-1".equalsIgnoreCase(oaep.getDigestAlgorithm()) ||
-                        !"MGF1".equalsIgnoreCase(oaep.getMGFAlgorithm()) ||
-                        oaep.getMGFParameters() == null ||
-                        !(oaep.getMGFParameters() instanceof MGF1ParameterSpec)) {
-                    throw new InvalidAlgorithmParameterException();
-                }
-                final MGF1ParameterSpec mgf = (MGF1ParameterSpec) oaep.getMGFParameters();
-                if (!MGF1ParameterSpec.SHA1.getDigestAlgorithm().equals(mgf.getDigestAlgorithm())) {
-                    throw new InvalidAlgorithmParameterException();
-                }
-                final PSource pDefault = PSource.PSpecified.DEFAULT;
-                final PSource psrc = oaep.getPSource();
-                if (psrc == null || !pDefault.getAlgorithm().equalsIgnoreCase(psrc.getAlgorithm())) {
-                    throw new InvalidAlgorithmParameterException();
-                }
-                // Only support empty label
-                if (!(psrc instanceof PSource.PSpecified)) {
-                    throw new InvalidAlgorithmParameterException();
-                }
-                if (((PSource.PSpecified) psrc).getValue().length != 0) {
-                    throw new InvalidAlgorithmParameterException();
-                }
-            } else {
-                throw new InvalidAlgorithmParameterException();
-            }
-        }
-        engineInit(opmode, key, random);
-    }
-
-    @Override
-    protected void engineInit(final int opmode, final Key key, final AlgorithmParameters params,
-            final SecureRandom random)
-                    throws InvalidKeyException, InvalidAlgorithmParameterException {
-        try {
-            engineInit(opmode, key, params.getParameterSpec(OAEPParameterSpec.class), random);
-        } catch (final InvalidParameterSpecException ex) {
-            throw new InvalidAlgorithmParameterException(ex);
-        }
-    }
-
-    @Override
     protected void engineSetMode(final String mode) throws NoSuchAlgorithmException {
         if (!"ECB".equalsIgnoreCase(mode)) {
             throw new NoSuchAlgorithmException();
@@ -322,7 +414,7 @@ class RsaCipher extends CipherSpi {
 
     @Override
     protected void engineSetPadding(final String padding) throws NoSuchPaddingException {
-        if (!padding_.jceName.equalsIgnoreCase(padding)) {
+        if (!padding_.paddingStr.equalsIgnoreCase(padding)) {
             throw new NoSuchPaddingException();
         }
     }
@@ -385,19 +477,35 @@ class RsaCipher extends CipherSpi {
 
     static class NoPadding extends RsaCipher {
         NoPadding(AmazonCorrettoCryptoProvider provider) {
-            super(provider, Padding.NO_PADDING);
+            super(provider, Padding.NO_PADDING, 0, false);
         }
     }
 
     static class Pkcs1 extends RsaCipher {
         Pkcs1(AmazonCorrettoCryptoProvider provider) {
-            super(provider, Padding.PKCS1);
+            super(provider, Padding.PKCS1, 11, false);
+        }
+    }
+
+    static class OAEP extends RsaCipher {
+        OAEP(AmazonCorrettoCryptoProvider provider) {
+            super(
+                provider,
+                Padding.OAEP,
+                calculateOaepPaddingLen(OAEPParameterSpec.DEFAULT.getDigestAlgorithm()),
+                true
+            );
         }
     }
 
     static class OAEPSha1 extends RsaCipher {
         OAEPSha1(AmazonCorrettoCryptoProvider provider) {
-            super(provider, Padding.OAEP_SHA1_MGF1);
+            super(
+                provider,
+                Padding.OAEP,
+                calculateOaepPaddingLen(OAEPParameterSpec.DEFAULT.getDigestAlgorithm()),
+                false
+            );
         }
     }
 }
