@@ -23,7 +23,12 @@ enum DebugFlag {
      * Increases the verbosity of logs.
      * May still need to be combined with increasing the log level of your configured logger.
      */
-    VERBOSELOGS;
+    VERBOSELOGS,
+    /**
+     * By default ACCP attempts to delete the native libraries it uses immediately after loading.
+     * When this value is set it does not delete them until the JVM is done running.
+     */
+    PRESERVE_NATIVE_LIBRARIES;
 
     private static final EnumSet<DebugFlag> ENABLED_FLAGS = EnumSet.noneOf(DebugFlag.class);
 

@@ -157,6 +157,19 @@ Building this provider requires a 64 bit Linux build system with the following p
 2. Run `./gradlew release`
 3. The resulting jar is in `build/lib`
 
+##### FIPS builds
+**FIPS builds are still experimental and are not yet ready for production use.**
+
+By providing `-DFIPS=true` to `gradlew` you will cause the entire build to be for a "FIPS mode" build.
+This significantly changes how libcrypto is loaded.
+* AWS-LC is no longer statically linked to ACCP but is dynamically linked.
+* AWS-LC is built with `FIPS=1`.
+* The FIPS build of AWS-LC is now added to the jar file for explicit loading.
+* A new shared object `accpLcLoader` is also added to the jar file which loads the FIPS build of AWS-LC into the
+   global symbol table for use by ACCP.
+
+When changing between FIPS and non-FIPS builds, be sure to do a full `clean` of your build environment.
+
 ##### All targets
 * clean: Remove all artifacts except AWS-LC build artifacts
 * deep_clean: Remove the entire `build/` directory including build artifacts from AWS-LC dependencies

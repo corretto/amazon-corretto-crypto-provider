@@ -7,7 +7,6 @@ import static com.amazon.corretto.crypto.provider.Loader.PROVIDER_VERSION;
 import static com.amazon.corretto.crypto.provider.Loader.PROVIDER_VERSION_STR;
 import static java.lang.String.format;
 import static java.util.Arrays.asList;
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static java.util.logging.Logger.getLogger;
 
@@ -364,12 +363,23 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
         selfTestSuite.assertAllTestsPassed();
     }
 
+    /**
+     * Returns {@code true} if and only if the underlying libcrypto library is a FIPS build.
+     */
+    public boolean isFips() {
+        return Loader.FIPS_BUILD && Loader.FIPS_BUILD_NATIVE;
+    }
+
     @Override public synchronized boolean equals(final Object o) {
         return this == o;
     }
 
     @Override public synchronized int hashCode() {
         return System.identityHashCode(this);
+    }
+
+    @Override public String toString() {
+        return super.toString() + (isFips() ? " (FIPS)" : "");
     }
 
     public Set<ExtraCheck> getExtraChecks() {
