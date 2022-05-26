@@ -63,7 +63,7 @@ task buildAwsLc {
             workingDir awslcSrcPath
             executable 'cmake'
             args "-B${cMakeBuildDir}"
-            args '-DBUILD_SHARED_LIBS=OFF'
+            args '-DBUILD_SHARED_LIBS=ON'
             args '-DCMAKE_BUILD_TYPE=RelWithDebInfo'
             args "-DCMAKE_INSTALL_PREFIX=${sharedObjectOutDir}"
         }
@@ -102,7 +102,7 @@ task executeCmake(type: Exec) {
     }
 
     executable 'cmake'
-    args 'cmake', "-DTEST_CLASSPATH=${configurations.testDep.asPath}", "-DJACOCO_AGENT_JAR=${configurations.jacocoAgent.singleFile}"
+    args "-DTEST_CLASSPATH=${configurations.testDep.asPath}", "-DJACOCO_AGENT_JAR=${configurations.jacocoAgent.singleFile}"
     args "-DOPENSSL_ROOT_DIR=${buildDir}/awslc/bin", '-DCMAKE_BUILD_TYPE=Release', '-DPROVIDER_VERSION_STRING=' + version
     args "-DTEST_RUNNER_JAR=${configurations.testRunner.singleFile}"
     args "-DCHECKSTYLE_CP=${configurations.checkstyle.asPath}"

@@ -46,6 +46,7 @@ import java.util.regex.Pattern;
 final class Loader {
     static final String PROPERTY_BASE = "com.amazon.corretto.crypto.provider.";
     private static final String LIBRARY_NAME = "amazonCorrettoCryptoProvider";
+    private static final String LIBCRYPTO_NAME = "crypto";
     private static final Pattern TEST_FILENAME_PATTERN = Pattern.compile("[-a-zA-Z0-9]+(\\.[a-zA-Z0-9]+)*");
     private static final Logger LOG = Logger.getLogger("AmazonCorrettoCryptoProvider");
 
@@ -121,56 +122,24 @@ final class Loader {
                 // doing, we cannot promise success.
                 FileSystems.getDefault();
 
-                // First, try to find the library in our own jar
-                final boolean useExternalLib = Boolean.valueOf(getProperty("useExternalLib", "false"));
-                Exception loadingException = null;
-
-                String libraryName = System.mapLibraryName(LIBRARY_NAME);
-                if (useExternalLib) {
-                    loadingException = new RuntimeCryptoException("Skipping bundled library due to system property");
-                } else if (libraryName != null) {
-                    int index = libraryName.lastIndexOf('.');
-                    final String prefix = libraryName.substring(0, index);
-                    final String suffix = libraryName.substring(index, libraryName.length());
-
-                    final Path libPath = createTmpFile(prefix, suffix);
-
-                    try (final InputStream is = Loader.class.getResourceAsStream(libraryName);
-                         final OutputStream os = Files.newOutputStream(libPath, StandardOpenOption.CREATE,
-                                 StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING)) {
-                        final byte[] buffer = new byte[16 * 1024];
-                        int read = is.read(buffer);
-                        while (read >= 0) {
-                            os.write(buffer, 0, read);
-                            read = is.read(buffer);
-                        }
-                        os.flush();
-                        System.load(libPath.toAbsolutePath().toString());
-                        return true;
-                    } catch (final Exception realException) {
-                        loadingException = realException;
-                    } catch (final Throwable realError) {
-                        loadingException = new RuntimeCryptoException("Unable to load native library", realError);
-                    } finally {
-                        maybeDelete(libPath);
-                    }
-                } else {
-                    loadingException = new RuntimeCryptoException("Skipping bundled library null mapped name");
+                final Path libCryptoPath = writeResourceToTemporaryFile(System.mapLibraryName(LIBCRYPTO_NAME));
+                tryLoadLibrary("accpLcLoader");
+                // Yes, this next bit is horribly evil but we need a way to lock such that it really is global to
+                // everything running in the JVM even if multiple classloaders have loaded multiple copies of this
+                // same class.
+                // We intentionally have nothing in this synchronized block except for a single method call.
+                boolean loadCompleted = false;
+                final String pathAsString = libCryptoPath.toAbsolutePath().toString();
+                synchronized (ClassLoader.getSystemClassLoader()) {
+                    loadCompleted = loadLibCrypto(pathAsString);
+                }
+                maybeDelete(libCryptoPath);
+                if (!loadCompleted) {
+                    LOG.info("Already loaded libcrypto");
                 }
 
-                if (loadingException != null) {
-                    // We failed to load the library from our JAR but don't know why.
-                    // Try to load it directly off of the system path.
-                    try {
-                        System.loadLibrary(LIBRARY_NAME);
-                        return true;
-                    } catch (final Throwable suppressedError) {
-                        loadingException.addSuppressed(suppressedError);
-                        throw loadingException;
-                    }
-                }
-
-                return false;
+                tryLoadLibrary(LIBRARY_NAME);
+                return true;
             });
         } catch (final Throwable t) {
             available = false;
@@ -212,6 +181,60 @@ final class Loader {
         }
     }
 
+    private static Path writeResourceToTemporaryFile(final String resourceName) throws IOException {
+        final int index = resourceName.lastIndexOf('.');
+        final String prefix = resourceName.substring(0, index);
+        final String suffix = resourceName.substring(index, resourceName.length());
+
+        final Path libPath = createTmpFile(prefix, suffix);
+
+        try (InputStream is = Loader.class.getResourceAsStream(resourceName);
+                OutputStream os = Files.newOutputStream(libPath, StandardOpenOption.CREATE,
+                        StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING)) {
+            final byte[] buffer = new byte[16 * 1024];
+            int read = is.read(buffer);
+            while (read >= 0) {
+                os.write(buffer, 0, read);
+                read = is.read(buffer);
+            }
+            os.flush();
+        }
+        return libPath;
+    }
+
+    private static void tryLoadLibrary(final String libraryName) throws Exception {
+        // First, try to find the library in our own jar
+        final boolean useExternalLib = Boolean.valueOf(getProperty("useExternalLib", "false"));
+        Exception loadingException = null;
+
+        if (useExternalLib) {
+            loadingException = new RuntimeCryptoException("Skipping bundled library due to system property");
+        } else if (libraryName != null) {
+            final Path libPath = writeResourceToTemporaryFile(System.mapLibraryName(libraryName));
+            try {
+                System.load(libPath.toAbsolutePath().toString());
+            } catch (final Exception ex) {
+                loadingException = ex;
+            } finally {
+                maybeDelete(libPath);
+            }
+        } else {
+            loadingException = new RuntimeCryptoException("Skipping bundled library null mapped name");
+        }
+
+        if (loadingException != null) {
+            // We failed to load the library from our JAR but don't know why.
+            // Try to load it directly off of the system path.
+            try {
+                System.loadLibrary(libraryName);
+                return;
+            } catch (final Throwable suppressedError) {
+                loadingException.addSuppressed(suppressedError);
+                throw loadingException;
+            }
+        }
+    }
+
     static final boolean IS_AVAILABLE;
     static final Throwable LOADING_ERROR;
 
@@ -228,6 +251,12 @@ final class Loader {
     }
 
     private static native String getNativeLibraryVersion();
+    /**
+     * Attempts to load (mangled) lib crypto from the specified path.
+     * @param libraryPath the absolute path to load the library or
+     * @return true if the library was loaded
+     */
+    private static native boolean loadLibCrypto(String libraryPath);
 
     /**
      * Throws an {@link AssertionError} if the java and native libraries do not match versions.
@@ -253,7 +282,7 @@ final class Loader {
      * /dev/urandom. Clearly this won't work when we start supporting windows systems. We are intentionally taking
      * as few dependencies here as possible.
      */
-    private synchronized static Path createTmpFile(final String prefix, final String suffix) throws IOException {
+    private static synchronized Path createTmpFile(final String prefix, final String suffix) throws IOException {
         final Path urandomPath = Paths.get("/dev/urandom");
         if (!Files.exists(urandomPath)) {
             throw new AssertionError("/dev/urandom must exist for bootstrapping");

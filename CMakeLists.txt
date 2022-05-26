@@ -229,8 +229,10 @@ else()
         COMMAND ${Java_JAR_EXECUTABLE} uf ${ACCP_JAR_TMP} -C ${CMAKE_CURRENT_SOURCE_DIR}/extra-jar-files .
         COMMAND ${Java_JAR_EXECUTABLE} uf ${ACCP_JAR_TMP} -C $<TARGET_PROPERTY:module-jar,CLASSDIR> module-info.class
         COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/tmplib/com/amazon/corretto/crypto/provider/
+        COMMAND ${CMAKE_COMMAND} -E copy ${OPENSSL_CRYPTO_LIBRARY} ${CMAKE_CURRENT_BINARY_DIR}/tmplib/com/amazon/corretto/crypto/provider/
         COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:amazonCorrettoCryptoProvider> ${CMAKE_CURRENT_BINARY_DIR}/tmplib/com/amazon/corretto/crypto/provider/
-        COMMAND ${Java_JAR_EXECUTABLE} uf ${ACCP_JAR_TMP} -C ${CMAKE_CURRENT_BINARY_DIR}/tmplib/ com/amazon/corretto/crypto/provider/$<TARGET_FILE_NAME:amazonCorrettoCryptoProvider>
+        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:accpLcLoader> ${CMAKE_CURRENT_BINARY_DIR}/tmplib/com/amazon/corretto/crypto/provider/
+        COMMAND ${Java_JAR_EXECUTABLE} uf ${ACCP_JAR_TMP} -C ${CMAKE_CURRENT_BINARY_DIR}/tmplib/ com/amazon/corretto/crypto/provider/
         COMMAND ${Java_JAR_EXECUTABLE} uf ${ACCP_JAR_TMP} -C ${CMAKE_CURRENT_BINARY_DIR}/generated-java/ com/amazon/corretto/crypto/provider/version.properties
         COMMAND ${CMAKE_COMMAND} -E copy ${ACCP_JAR_TMP} ${ACCP_JAR}
         DEPENDS code-only-jar module-jar ${VERSION_PROPERTIES_FILE}
@@ -261,6 +263,12 @@ ADD_CUSTOM_COMMAND(
 
 ### Native library configuration
 include_directories(${OPENSSL_INCLUDE_DIR} ${JNI_INCLUDE_DIRS} ${JNI_HEADER_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
+
+add_library(
+    accpLcLoader SHARED
+        csrc/accp_lc_loader.cpp
+        ${JNI_HEADER_DIR}/generated-headers.h
+)
 
 add_library(
     amazonCorrettoCryptoProvider SHARED
@@ -301,23 +309,20 @@ add_custom_command(
 
 add_custom_target(accp-jar-source DEPENDS ${ACCP_JAR_SOURCE})
 
-if(ENABLE_NATIVE_TEST_HOOKS)
-  add_executable(test_keyutils EXCLUDE_FROM_ALL
-        csrc/test_keyutils.cpp
-    )
-    target_link_libraries(test_keyutils amazonCorrettoCryptoProvider)
-endif()
-
 #### Start of feature tests
 
 ## First, figure out how best to link against openssl
 set(OLD_CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS}")
 
-## In this mode, we'll attempt to add the libcrypto.a library onto the linker
-## command line while building a _shared_ library. This works only on certain
-## platforms, but if successful it gives us a private copy of libcrypto that we
-## can be sure will not interfere with any other openssl users.
-set(OPENSSL_STATIC_LINK_FLAGS "${OPENSSL_ROOT_DIR}/lib64/${CMAKE_STATIC_LIBRARY_PREFIX}crypto${CMAKE_STATIC_LIBRARY_SUFFIX}")
+set(OPENSSL_CRYPTO_LIBRARY "${OPENSSL_ROOT_DIR}/lib64/${CMAKE_SHARED_LIBRARY_PREFIX}crypto${CMAKE_SHARED_LIBRARY_SUFFIX}")
+
+if(ENABLE_NATIVE_TEST_HOOKS)
+  add_executable(test_keyutils EXCLUDE_FROM_ALL
+        csrc/test_keyutils.cpp
+    )
+    target_link_libraries(test_keyutils ${OPENSSL_CRYPTO_LIBRARY})
+    target_link_libraries(test_keyutils amazonCorrettoCryptoProvider)
+endif()
 
 # This macro helps us perform tests that are not supported through the
 # generic CHECK_CXX_COMPILER_FLAG mechanism. Specifically, these result
@@ -341,7 +346,7 @@ macro(CHECK_CUSTOM_TRY_COMPILE var target)
             ${CMAKE_CURRENT_SOURCE_DIR}/CMake/trycompile
             TryCompile ${target}
             CMAKE_FLAGS
-                -DLINK_LIBS:STRING=${OPENSSL_STATIC_LINK_FLAGS}
+                -DLINK_LIBS:STRING=${OPENSSL_CRYPTO_LIBRARY}
                 -DOPENSSL_INCLUDE_DIR:STRING=${OPENSSL_INCLUDE_DIR}
                 ${ARGN}
         )
@@ -368,6 +373,7 @@ CHECK_LIBRARY_EXISTS(m "sqrt" "" HAVE_LIBM)
 
 if(HAVE_LIBDL)
     target_link_libraries(amazonCorrettoCryptoProvider dl)
+    target_link_libraries(accpLcLoader dl)
 endif()
 
 if(HAVE_LIBM)
@@ -376,8 +382,6 @@ endif()
 
 # Enable language feature flags first, as they impact later feature tests
 CHECK_ENABLE_CXX_FLAG(HAVE_CXX_11 "--std=c++11")
-
-CHECK_CUSTOM_TRY_COMPILE(CAN_LINK_STATIC_IN_SHARED linkStaticInShared)
 
 CHECK_CXX_SOURCE_COMPILES("int main() __attribute__((cold)) {return 0;}" HAVE_ATTR_COLD)
 CHECK_CXX_SOURCE_COMPILES("int main() __attribute__((noreturn)) {return 0;}" HAVE_ATTR_NORETURN)
@@ -456,12 +460,8 @@ int main(int, char **) noexcept {}
 set(CMAKE_REQUIRED_FLAGS "${OLD_CMAKE_REQUIRED_FLAGS}")
 set(CMAKE_EXE_LINKER_FLAGS "${OLD_CMAKE_EXE_LINKER_FLAGS}")
 
-if(CAN_LINK_STATIC_IN_SHARED)
-    target_link_libraries(amazonCorrettoCryptoProvider "${OPENSSL_STATIC_LINK_FLAGS}")
-    target_link_libraries(amazonCorrettoCryptoProvider -static-libgcc -static-libstdc++)
-else(CAN_LINK_STATIC_IN_SHARED)
-    target_link_libraries(amazonCorrettoCryptoProvider ${OPENSSL_CRYPTO_LIBRARY})
-endif(CAN_LINK_STATIC_IN_SHARED)
+# We do not declare an explicit on libcrypto to ensure we're using our bundled version.
+# If this ends up being a problem on some platforms we can figure out a different way to manage this.
 
 # Miscellaneous linker flag tests. Unfortunately cmake doesn't have built-in
 # functionality for a linker flag test, so we have to roll our own.
