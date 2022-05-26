@@ -282,6 +282,11 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
         if (selfTestSuite == null) {
             selfTestSuite = new SelfTestSuite();
         }
+        if (!Loader.IS_AVAILABLE) {
+            // We're not available, there are no tests to add.
+            // Empty suites automatically fail.
+            return;
+        }
         selfTestSuite.addSelfTest(EvpHmac.SHA512.SELF_TEST);
         selfTestSuite.addSelfTest(EvpHmac.SHA384.SELF_TEST);
         selfTestSuite.addSelfTest(EvpHmac.SHA256.SELF_TEST);
