@@ -278,6 +278,10 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     }
 
     private synchronized void initializeSelfTests() {
+        if (!Loader.IS_AVAILABLE) {
+            // We're not available, do nothing.
+            return;
+        }
         if (selfTestSuite == null) {
             selfTestSuite = new SelfTestSuite();
         }
@@ -367,7 +371,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
      * Returns {@code true} if and only if the underlying libcrypto library is a FIPS build.
      */
     public boolean isFips() {
-        return Loader.FIPS_BUILD && Loader.FIPS_BUILD_NATIVE;
+        return Loader.FIPS_BUILD;
     }
 
     @Override public synchronized boolean equals(final Object o) {

@@ -60,13 +60,9 @@ final class Loader {
     static final String PROVIDER_VERSION_STR;
 
     /**
-     * Indicates that this build uses the FIPS build of accp
-     */
-    static final boolean FIPS_BUILD;
-    /**
      * Indicates that libcrypto reports we are in a FIPS mode.
      */
-    static final boolean FIPS_BUILD_NATIVE;
+    static final boolean FIPS_BUILD;
 
     /**
      * Returns an InputStream associated with {@code fileName} contained in the "testdata" subdirectory, relative
@@ -108,7 +104,6 @@ final class Loader {
         Throwable error = null;
         String versionStr = null;
         double oldVersion = 0;
-        boolean fipsBuild = false;
 
         try {
             versionStr = AccessController.doPrivileged((PrivilegedExceptionAction<String>) () -> {
@@ -118,13 +113,6 @@ final class Loader {
                     return p.getProperty("versionStr");
                 }
             });
-            fipsBuild = AccessController.doPrivileged((PrivilegedExceptionAction<Boolean>) () -> {
-                try (InputStream is = Loader.class.getResourceAsStream("version.properties")) {
-                    Properties p = new Properties();
-                    p.load(is);
-                    return "ON".equalsIgnoreCase(p.getProperty("fipsBuild", "OFF"));
-                }
-            });
 
             Matcher m = OLD_VERSION_PATTERN.matcher(versionStr);
             if (!m.matches()) {
@@ -132,7 +120,6 @@ final class Loader {
             }
             oldVersion = Double.parseDouble(m.group(1));
 
-            final boolean finalFipsBuild = fipsBuild;
             available = AccessController.doPrivileged((PrivilegedExceptionAction<Boolean>) () -> {
                 // This is to work a JVM runtime bug where FileSystems.getDefault() and
                 // System.loadLibrary() can deadlock. Calling this explicitly shoulf prevent
@@ -140,24 +127,22 @@ final class Loader {
                 // doing, we cannot promise success.
                 FileSystems.getDefault();
 
-                // In a FIPS build we need to load a dynamic library of libcrypto first
-                if (finalFipsBuild) {
-                    final Path libCryptoPath = writeResourceToTemporaryFile(System.mapLibraryName(LIBCRYPTO_NAME));
-                    tryLoadLibrary("accpLcLoader");
-                    // Yes, this next bit is horribly evil but we need a way to lock such that it really is global to
-                    // everything running in the JVM even if multiple classloaders have loaded multiple copies of this
-                    // same class.
-                    // We intentionally have nothing in this synchronized block except for a single method call.
-                    boolean loadCompleted = false;
-                    final String pathAsString = libCryptoPath.toAbsolutePath().toString();
-                    synchronized (ClassLoader.getSystemClassLoader()) {
-                        loadCompleted = loadLibCrypto(pathAsString);
-                    }
-                    maybeDelete(libCryptoPath);
-                    if (!loadCompleted) {
-                        LOG.info("Already loaded libcrypto");
-                    }
+                final Path libCryptoPath = writeResourceToTemporaryFile(System.mapLibraryName(LIBCRYPTO_NAME));
+                tryLoadLibrary("accpLcLoader");
+                // Yes, this next bit is horribly evil but we need a way to lock such that it really is global to
+                // everything running in the JVM even if multiple classloaders have loaded multiple copies of this
+                // same class.
+                // We intentionally have nothing in this synchronized block except for a single method call.
+                boolean loadCompleted = false;
+                final String pathAsString = libCryptoPath.toAbsolutePath().toString();
+                synchronized (ClassLoader.getSystemClassLoader()) {
+                    loadCompleted = loadLibCrypto(pathAsString);
                 }
+                maybeDelete(libCryptoPath);
+                if (!loadCompleted) {
+                    LOG.info("Already loaded libcrypto");
+                }
+
                 tryLoadLibrary(LIBRARY_NAME);
                 return true;
             });
@@ -167,8 +152,7 @@ final class Loader {
         }
         PROVIDER_VERSION_STR = versionStr;
         PROVIDER_VERSION = oldVersion;
-        FIPS_BUILD = fipsBuild;
-        FIPS_BUILD_NATIVE = isFipsMode();
+        FIPS_BUILD = available && isFipsMode();
 
         // Check for native/java library version mismatch
         if (available) {
