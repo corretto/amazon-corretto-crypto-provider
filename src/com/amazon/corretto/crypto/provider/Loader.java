@@ -152,7 +152,7 @@ final class Loader {
                     } catch (final Throwable realError) {
                         loadingException = new RuntimeCryptoException("Unable to load native library", realError);
                     } finally {
-                        Files.delete(libPath);
+                        maybeDelete(libPath);
                     }
                 } else {
                     loadingException = new RuntimeCryptoException("Skipping bundled library null mapped name");
@@ -200,6 +200,16 @@ final class Loader {
 
         // Finally start up a cleaning thread if necessary
         RESOURCE_JANITOR = new Janitor();
+    }
+
+    private static void maybeDelete(final Path path) {
+        if (!DebugFlag.PRESERVE_NATIVE_LIBRARIES.isEnabled()) {
+            try {
+                Files.delete(path);
+            } catch (IOException ex) {
+                LOG.warning("Unable to delete native library: " + ex);
+            }
+        }
     }
 
     static final boolean IS_AVAILABLE;
@@ -289,6 +299,7 @@ final class Loader {
                     if (DebugFlag.VERBOSELOGS.isEnabled()) {
                         LOG.log(Level.FINE, "Created temporary library file after " + attempt + " attempts");
                     }
+                    result.toFile().deleteOnExit();
                     return result;
                 } catch (final FileAlreadyExistsException ex) {
                     // We ignore and retry this exception
