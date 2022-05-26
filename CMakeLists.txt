@@ -309,13 +309,6 @@ add_custom_command(
 
 add_custom_target(accp-jar-source DEPENDS ${ACCP_JAR_SOURCE})
 
-#### Start of feature tests
-
-## First, figure out how best to link against openssl
-set(OLD_CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS}")
-
-set(OPENSSL_CRYPTO_LIBRARY "${OPENSSL_ROOT_DIR}/lib64/${CMAKE_SHARED_LIBRARY_PREFIX}crypto${CMAKE_SHARED_LIBRARY_SUFFIX}")
-
 if(ENABLE_NATIVE_TEST_HOOKS)
   add_executable(test_keyutils EXCLUDE_FROM_ALL
         csrc/test_keyutils.cpp
@@ -323,6 +316,11 @@ if(ENABLE_NATIVE_TEST_HOOKS)
     target_link_libraries(test_keyutils ${OPENSSL_CRYPTO_LIBRARY})
     target_link_libraries(test_keyutils amazonCorrettoCryptoProvider)
 endif()
+
+#### Start of feature tests
+
+## First, figure out how best to link against openssl
+set(OLD_CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS}")
 
 # This macro helps us perform tests that are not supported through the
 # generic CHECK_CXX_COMPILER_FLAG mechanism. Specifically, these result
