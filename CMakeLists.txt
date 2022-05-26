@@ -42,7 +42,9 @@ set(ENABLE_NATIVE_TEST_HOOKS NO CACHE BOOL "Enable debugging hooks in the RNG. D
 set(TEST_DATA_DIR ${PROJECT_SOURCE_DIR}/test-data/ CACHE STRING "Path to directory containing test data")
 set(ORIG_SRCROOT ${PROJECT_SOURCE_DIR} CACHE STRING "Path to root of original package")
 set(PROVIDER_VERSION_STRING "" CACHE STRING "X.Y.Z formatted version of the provider")
+set(FIPS NO CACHE BOOL "Determine if this build is for FIPS mode")
 set(ALWAYS_ALLOW_EXTERNAL_LIB NO CACHE BOOL "Always permit tests to load ACCP shared objects from the library path")
+
 if (USE_CLANG_TIDY)
     # https://releases.llvm.org/9.0.0/tools/clang/tools/extra/docs/clang-tidy/checks/list.html
     # https://clang.llvm.org/extra/clang-tidy/#suppressing-undesired-diagnostics
@@ -543,6 +545,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DPROVIDER_VERSION_STRING=${PROVIDER_VER
 string(STRIP "${PROBED_LINKED_FLAGS}" PROBED_LINKED_FLAGS)
 MESSAGE(STATUS "probed flags ${PROBED_LINKED_FLAGS}")
 target_link_libraries(amazonCorrettoCryptoProvider ${PROBED_LINKED_FLAGS})
+target_link_libraries(accpLcLoader ${PROBED_LINKED_FLAGS})
 
 # Add pthread support
 target_link_libraries(amazonCorrettoCryptoProvider Threads::Threads)
@@ -632,13 +635,20 @@ set(COVERAGE_ARGUMENTS
     -javaagent:${JACOCO_AGENT_JAR}=destfile=coverage/jacoco.exec,classdumpdir=coverage/classes
 )
 
+if(FIPS)
+    set(TEST_FIPS_PROPERTY "-DFIPS=true")
+else()
+    set(TEST_FIPS_PROPERTY "-DFIPS=false")
+endif()
+
 if(ALWAYS_ALLOW_EXTERNAL_LIB)
-    set(EXTERNAL_LIB_PROPERTY "-Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>")
+    set(EXTERNAL_LIB_PROPERTY "-Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>:$<TARGET_FILE_DIR:accpLcLoader>")
 endif()
 
 set(TEST_RUNNER_ARGUMENTS
     ${COVERAGE_ARGUMENTS}
     ${TEST_ADD_OPENS}
+    ${TEST_FIPS_PROPERTY}
     ${EXTERNAL_LIB_PROPERTY}
     -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
     -Dtest.data.dir=${TEST_DATA_DIR}
@@ -701,6 +711,7 @@ add_custom_target(check-junit-extra-checks
 add_custom_target(check-recursive-init
     COMMAND ${TEST_JAVA_EXECUTABLE}
         ${COVERAGE_ARGUMENTS}
+        ${TEST_FIPS_PROPERTY}
         -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
         ${EXTERNAL_LIB_PROPERTY}
         -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
@@ -713,6 +724,7 @@ add_custom_target(check-recursive-init
 add_custom_target(check-install-via-properties
     COMMAND ${TEST_JAVA_EXECUTABLE}
         ${COVERAGE_ARGUMENTS}
+        ${TEST_FIPS_PROPERTY}
         -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
         ${EXTERNAL_LIB_PROPERTY}
         -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
@@ -728,9 +740,10 @@ add_custom_target(check-external-lib
     # So this test just proves that requesting the external lib does not break things
     COMMAND ${TEST_JAVA_EXECUTABLE}
         ${COVERAGE_ARGUMENTS}
+        ${TEST_FIPS_PROPERTY}
         -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
         # Since this tests external loading we always provide this property
-        -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
+        -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>:$<TARGET_FILE_DIR:accpLcLoader>
         -Dcom.amazon.corretto.crypto.provider.useExternalLib=true
         -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
         -Dtest.data.dir=${TEST_DATA_DIR}
@@ -743,6 +756,7 @@ add_custom_target(check-external-lib
 add_custom_target(check-install-via-properties-recursive
     COMMAND ${TEST_JAVA_EXECUTABLE}
         ${COVERAGE_ARGUMENTS}
+        ${TEST_FIPS_PROPERTY}
         -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
         ${EXTERNAL_LIB_PROPERTY}
         -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
@@ -756,6 +770,7 @@ add_custom_target(check-install-via-properties-recursive
 add_custom_target(check-install-via-properties-with-debug
     COMMAND ${TEST_JAVA_EXECUTABLE}
         ${COVERAGE_ARGUMENTS}
+        ${TEST_FIPS_PROPERTY}
         -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
         ${EXTERNAL_LIB_PROPERTY}
         -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2

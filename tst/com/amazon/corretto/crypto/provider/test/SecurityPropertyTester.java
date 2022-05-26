@@ -19,6 +19,10 @@ import java.util.Set;
 public final class SecurityPropertyTester {
   public static void main(String[] args) throws Exception {
     NATIVE_PROVIDER.assertHealthy();
+    final boolean fipsMode = Boolean.getBoolean("FIPS");
+    System.out.println("FIPS? " + NATIVE_PROVIDER.isFips());
+    assertEquals(fipsMode, NATIVE_PROVIDER.isFips());
+
     final Provider provider = Security.getProviders()[0];
     assertEquals(NATIVE_PROVIDER.getName(), provider.getName());
 
