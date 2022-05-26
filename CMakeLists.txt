@@ -42,6 +42,7 @@ set(ENABLE_NATIVE_TEST_HOOKS NO CACHE BOOL "Enable debugging hooks in the RNG. D
 set(TEST_DATA_DIR ${PROJECT_SOURCE_DIR}/test-data/ CACHE STRING "Path to directory containing test data")
 set(ORIG_SRCROOT ${PROJECT_SOURCE_DIR} CACHE STRING "Path to root of original package")
 set(PROVIDER_VERSION_STRING "" CACHE STRING "X.Y.Z formatted version of the provider")
+set(ALWAYS_ALLOW_EXTERNAL_LIB NO CACHE BOOL "Always permit tests to load ACCP shared objects from the library path")
 if (USE_CLANG_TIDY)
     # https://releases.llvm.org/9.0.0/tools/clang/tools/extra/docs/clang-tidy/checks/list.html
     # https://clang.llvm.org/extra/clang-tidy/#suppressing-undesired-diagnostics
@@ -633,10 +634,14 @@ set(COVERAGE_ARGUMENTS
     -javaagent:${JACOCO_AGENT_JAR}=destfile=coverage/jacoco.exec,classdumpdir=coverage/classes
 )
 
+if(ALWAYS_ALLOW_EXTERNAL_LIB)
+    set(EXTERNAL_LIB_PROPERTY "-Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>")
+endif()
+
 set(TEST_RUNNER_ARGUMENTS
     ${COVERAGE_ARGUMENTS}
     ${TEST_ADD_OPENS}
-    -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
+    ${EXTERNAL_LIB_PROPERTY}
     -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
     -Dtest.data.dir=${TEST_DATA_DIR}
     -Djunit.jupiter.execution.parallel.enabled=true
@@ -699,7 +704,7 @@ add_custom_target(check-recursive-init
     COMMAND ${TEST_JAVA_EXECUTABLE}
         ${COVERAGE_ARGUMENTS}
         -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
-        -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
+        ${EXTERNAL_LIB_PROPERTY}
         -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
         -Dtest.data.dir=${TEST_DATA_DIR}
         ${TEST_JAVA_ARGS}
@@ -711,7 +716,7 @@ add_custom_target(check-install-via-properties
     COMMAND ${TEST_JAVA_EXECUTABLE}
         ${COVERAGE_ARGUMENTS}
         -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
-        -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
+        ${EXTERNAL_LIB_PROPERTY}
         -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
         -Dtest.data.dir=${TEST_DATA_DIR}
         -Djava.security.properties=${ORIG_SRCROOT}/etc/amazon-corretto-crypto-provider.security
@@ -726,6 +731,7 @@ add_custom_target(check-external-lib
     COMMAND ${TEST_JAVA_EXECUTABLE}
         ${COVERAGE_ARGUMENTS}
         -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
+        # Since this tests external loading we always provide this property
         -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
         -Dcom.amazon.corretto.crypto.provider.useExternalLib=true
         -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
@@ -740,7 +746,7 @@ add_custom_target(check-install-via-properties-recursive
     COMMAND ${TEST_JAVA_EXECUTABLE}
         ${COVERAGE_ARGUMENTS}
         -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
-        -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
+        ${EXTERNAL_LIB_PROPERTY}
         -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
         -Dtest.data.dir=${TEST_DATA_DIR}
         -Djava.security.properties=${ORIG_SRCROOT}/etc/amazon-corretto-crypto-provider.security
@@ -753,7 +759,7 @@ add_custom_target(check-install-via-properties-with-debug
     COMMAND ${TEST_JAVA_EXECUTABLE}
         ${COVERAGE_ARGUMENTS}
         -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
-        -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
+        ${EXTERNAL_LIB_PROPERTY}
         -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
         -Dtest.data.dir=${TEST_DATA_DIR}
         -Djava.security.properties=${ORIG_SRCROOT}/etc/amazon-corretto-crypto-provider.security
@@ -816,7 +822,7 @@ set_target_properties(check-integration PROPERTIES EXCLUDE_FROM_ALL 1)
 
 add_custom_target(run-benchmark
     COMMAND ${TEST_JAVA_EXECUTABLE} -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
-        -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
+        ${EXTERNAL_LIB_PROPERTY}
         com.amazon.corretto.crypto.provider.test.Benchmark
 
     DEPENDS accp-jar tests-jar)
@@ -827,7 +833,7 @@ if (CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
 
 add_custom_target(run-dieharder-libcrypto-rng
     COMMAND ${TEST_JAVA_EXECUTABLE} -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
-        -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
+        ${EXTERNAL_LIB_PROPERTY}
         com.amazon.corretto.crypto.provider.test.SecureRandomGenerator 'LibCryptoRng' 8192 1 |
         ${DIEHARDER_EXECUTABLE} -a -g 200 -Y 1 -k 2 |
         tee dieharder-results-libcrypto-rng.txt
@@ -836,7 +842,7 @@ add_custom_target(run-dieharder-libcrypto-rng
 
 add_custom_target(run-dieharder-libcrypto-rng-tail
     COMMAND ${TEST_JAVA_EXECUTABLE} -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
-        -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
+        ${EXTERNAL_LIB_PROPERTY}
         com.amazon.corretto.crypto.provider.test.SecureRandomGenerator 'LibCryptoRng' 31 1 |
         ${DIEHARDER_EXECUTABLE} -d 15 -g 200 -Y 1 -k 2 |
         tee dieharder-results-libcrypto-rng-tail.txt
@@ -845,7 +851,7 @@ add_custom_target(run-dieharder-libcrypto-rng-tail
 
 add_custom_target(run-dieharder-libcrypto-rng-threads
     COMMAND ${TEST_JAVA_EXECUTABLE} -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
-        -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
+        ${EXTERNAL_LIB_PROPERTY}
         com.amazon.corretto.crypto.provider.test.SecureRandomGenerator 'LibCryptoRng' 128 4 |
         ${DIEHARDER_EXECUTABLE} -a -g 200 -Y 1 -k 2 |
         tee dieharder-results-libcrypto-rng-threads.txt
@@ -854,7 +860,7 @@ add_custom_target(run-dieharder-libcrypto-rng-threads
 
 add_custom_target(run-dieharder-libcrypto-rng-threads-tail
     COMMAND ${TEST_JAVA_EXECUTABLE} -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
-        -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
+        ${EXTERNAL_LIB_PROPERTY}
         com.amazon.corretto.crypto.provider.test.SecureRandomGenerator 'LibCryptoRng' 31 4 |
         ${DIEHARDER_EXECUTABLE} -d 15 -g 200 -Y 1 -k 2 |
         tee dieharder-results-libcrypto-rng-threads-tail.txt
