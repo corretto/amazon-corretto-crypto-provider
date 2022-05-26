@@ -14,13 +14,6 @@ set(CMAKE_SHARED_LINKER_FLAGS "-shared ${LINK_FLAGS}")
 
 include_directories( ${OPENSSL_INCLUDE_DIR} )
 
-# Testing whether we can link static libs as part os a shared lib.
-
-# Make sure we use some symbols from openssl in this test so it gets linked in.
-# (see use_openssl.cxx)
-add_library(linkStaticInShared SHARED use_openssl.cxx)
-target_link_libraries(linkStaticInShared ${LINK_LIBS})
-
 # For generic linker flag tests, we just use an empty C++ file to try to build
 # an empty C++ shared library.
 add_library(empty SHARED empty.cxx)
