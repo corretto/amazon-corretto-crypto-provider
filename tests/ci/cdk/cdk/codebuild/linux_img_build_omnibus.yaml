@@ -17,3 +17,14 @@ batch:
         privileged-mode: true
         compute-type: BUILD_GENERAL1_LARGE
         image: aws/codebuild/standard:4.0
+
+    #############
+    # Linux arm #
+    #############
+    - identifier: linux_arm_docker_img_build
+      buildspec: ./tests/ci/codebuild/linux-arm-docker-img-build.yml
+      env:
+        type: ARM_CONTAINER
+        privileged-mode: true
+        compute-type: BUILD_GENERAL1_LARGE
+        image: aws/codebuild/amazonlinux2-aarch64-standard:1.0
