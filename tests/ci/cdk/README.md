@@ -176,4 +176,4 @@ aws codebuild start-build-batch --project-name accp-docker-image-build-linux
 # Go to AWS console, you can check CodeBuild by clicking "Developer Tools > CodeBuild > Build projects".
 ```
 
-Hi, I'm here to kick the CI again
+Hi, I'm here to kick the CI again today
