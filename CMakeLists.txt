@@ -42,6 +42,9 @@ set(ENABLE_NATIVE_TEST_HOOKS NO CACHE BOOL "Enable debugging hooks in the RNG. D
 set(TEST_DATA_DIR ${PROJECT_SOURCE_DIR}/test-data/ CACHE STRING "Path to directory containing test data")
 set(ORIG_SRCROOT ${PROJECT_SOURCE_DIR} CACHE STRING "Path to root of original package")
 set(PROVIDER_VERSION_STRING "" CACHE STRING "X.Y.Z formatted version of the provider")
+set(FIPS NO CACHE BOOL "Determine if this build is for FIPS mode")
+set(ALWAYS_ALLOW_EXTERNAL_LIB NO CACHE BOOL "Always permit tests to load ACCP shared objects from the library path")
+
 if (USE_CLANG_TIDY)
     # https://releases.llvm.org/9.0.0/tools/clang/tools/extra/docs/clang-tidy/checks/list.html
     # https://clang.llvm.org/extra/clang-tidy/#suppressing-undesired-diagnostics
@@ -228,8 +231,10 @@ else()
         COMMAND ${Java_JAR_EXECUTABLE} uf ${ACCP_JAR_TMP} -C ${CMAKE_CURRENT_SOURCE_DIR}/extra-jar-files .
         COMMAND ${Java_JAR_EXECUTABLE} uf ${ACCP_JAR_TMP} -C $<TARGET_PROPERTY:module-jar,CLASSDIR> module-info.class
         COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/tmplib/com/amazon/corretto/crypto/provider/
+        COMMAND ${CMAKE_COMMAND} -E copy ${OPENSSL_CRYPTO_LIBRARY} ${CMAKE_CURRENT_BINARY_DIR}/tmplib/com/amazon/corretto/crypto/provider/
         COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:amazonCorrettoCryptoProvider> ${CMAKE_CURRENT_BINARY_DIR}/tmplib/com/amazon/corretto/crypto/provider/
-        COMMAND ${Java_JAR_EXECUTABLE} uf ${ACCP_JAR_TMP} -C ${CMAKE_CURRENT_BINARY_DIR}/tmplib/ com/amazon/corretto/crypto/provider/$<TARGET_FILE_NAME:amazonCorrettoCryptoProvider>
+        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:accpLcLoader> ${CMAKE_CURRENT_BINARY_DIR}/tmplib/com/amazon/corretto/crypto/provider/
+        COMMAND ${Java_JAR_EXECUTABLE} uf ${ACCP_JAR_TMP} -C ${CMAKE_CURRENT_BINARY_DIR}/tmplib/ com/amazon/corretto/crypto/provider/
         COMMAND ${Java_JAR_EXECUTABLE} uf ${ACCP_JAR_TMP} -C ${CMAKE_CURRENT_BINARY_DIR}/generated-java/ com/amazon/corretto/crypto/provider/version.properties
         COMMAND ${CMAKE_COMMAND} -E copy ${ACCP_JAR_TMP} ${ACCP_JAR}
         DEPENDS code-only-jar module-jar ${VERSION_PROPERTIES_FILE}
@@ -260,6 +265,12 @@ ADD_CUSTOM_COMMAND(
 
 ### Native library configuration
 include_directories(${OPENSSL_INCLUDE_DIR} ${JNI_INCLUDE_DIRS} ${JNI_HEADER_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
+
+add_library(
+    accpLcLoader SHARED
+        csrc/accp_lc_loader.cpp
+        ${JNI_HEADER_DIR}/generated-headers.h
+)
 
 add_library(
     amazonCorrettoCryptoProvider SHARED
@@ -304,6 +315,7 @@ if(ENABLE_NATIVE_TEST_HOOKS)
   add_executable(test_keyutils EXCLUDE_FROM_ALL
         csrc/test_keyutils.cpp
     )
+    target_link_libraries(test_keyutils ${OPENSSL_CRYPTO_LIBRARY})
     target_link_libraries(test_keyutils amazonCorrettoCryptoProvider)
 endif()
 
@@ -311,12 +323,6 @@ endif()
 
 ## First, figure out how best to link against openssl
 set(OLD_CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS}")
-
-## In this mode, we'll attempt to add the libcrypto.a library onto the linker
-## command line while building a _shared_ library. This works only on certain
-## platforms, but if successful it gives us a private copy of libcrypto that we
-## can be sure will not interfere with any other openssl users.
-set(OPENSSL_STATIC_LINK_FLAGS "${OPENSSL_ROOT_DIR}/lib64/${CMAKE_STATIC_LIBRARY_PREFIX}crypto${CMAKE_STATIC_LIBRARY_SUFFIX}")
 
 # This macro helps us perform tests that are not supported through the
 # generic CHECK_CXX_COMPILER_FLAG mechanism. Specifically, these result
@@ -340,7 +346,7 @@ macro(CHECK_CUSTOM_TRY_COMPILE var target)
             ${CMAKE_CURRENT_SOURCE_DIR}/CMake/trycompile
             TryCompile ${target}
             CMAKE_FLAGS
-                -DLINK_LIBS:STRING=${OPENSSL_STATIC_LINK_FLAGS}
+                -DLINK_LIBS:STRING=${OPENSSL_CRYPTO_LIBRARY}
                 -DOPENSSL_INCLUDE_DIR:STRING=${OPENSSL_INCLUDE_DIR}
                 ${ARGN}
         )
@@ -367,6 +373,7 @@ CHECK_LIBRARY_EXISTS(m "sqrt" "" HAVE_LIBM)
 
 if(HAVE_LIBDL)
     target_link_libraries(amazonCorrettoCryptoProvider dl)
+    target_link_libraries(accpLcLoader dl)
 endif()
 
 if(HAVE_LIBM)
@@ -375,8 +382,6 @@ endif()
 
 # Enable language feature flags first, as they impact later feature tests
 CHECK_ENABLE_CXX_FLAG(HAVE_CXX_11 "--std=c++11")
-
-CHECK_CUSTOM_TRY_COMPILE(CAN_LINK_STATIC_IN_SHARED linkStaticInShared)
 
 CHECK_CXX_SOURCE_COMPILES("int main() __attribute__((cold)) {return 0;}" HAVE_ATTR_COLD)
 CHECK_CXX_SOURCE_COMPILES("int main() __attribute__((noreturn)) {return 0;}" HAVE_ATTR_NORETURN)
@@ -455,12 +460,8 @@ int main(int, char **) noexcept {}
 set(CMAKE_REQUIRED_FLAGS "${OLD_CMAKE_REQUIRED_FLAGS}")
 set(CMAKE_EXE_LINKER_FLAGS "${OLD_CMAKE_EXE_LINKER_FLAGS}")
 
-if(CAN_LINK_STATIC_IN_SHARED)
-    target_link_libraries(amazonCorrettoCryptoProvider "${OPENSSL_STATIC_LINK_FLAGS}")
-    target_link_libraries(amazonCorrettoCryptoProvider -static-libgcc -static-libstdc++)
-else(CAN_LINK_STATIC_IN_SHARED)
-    target_link_libraries(amazonCorrettoCryptoProvider ${OPENSSL_CRYPTO_LIBRARY})
-endif(CAN_LINK_STATIC_IN_SHARED)
+# We do not declare an explicit on libcrypto to ensure we're using our bundled version.
+# If this ends up being a problem on some platforms we can figure out a different way to manage this.
 
 # Miscellaneous linker flag tests. Unfortunately cmake doesn't have built-in
 # functionality for a linker flag test, so we have to roll our own.
@@ -544,6 +545,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DPROVIDER_VERSION_STRING=${PROVIDER_VER
 string(STRIP "${PROBED_LINKED_FLAGS}" PROBED_LINKED_FLAGS)
 MESSAGE(STATUS "probed flags ${PROBED_LINKED_FLAGS}")
 target_link_libraries(amazonCorrettoCryptoProvider ${PROBED_LINKED_FLAGS})
+target_link_libraries(accpLcLoader ${PROBED_LINKED_FLAGS})
 
 # Add pthread support
 target_link_libraries(amazonCorrettoCryptoProvider Threads::Threads)
@@ -633,10 +635,21 @@ set(COVERAGE_ARGUMENTS
     -javaagent:${JACOCO_AGENT_JAR}=destfile=coverage/jacoco.exec,classdumpdir=coverage/classes
 )
 
+if(FIPS)
+    set(TEST_FIPS_PROPERTY "-DFIPS=true")
+else()
+    set(TEST_FIPS_PROPERTY "-DFIPS=false")
+endif()
+
+if(ALWAYS_ALLOW_EXTERNAL_LIB)
+    set(EXTERNAL_LIB_PROPERTY "-Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>:$<TARGET_FILE_DIR:accpLcLoader>")
+endif()
+
 set(TEST_RUNNER_ARGUMENTS
     ${COVERAGE_ARGUMENTS}
     ${TEST_ADD_OPENS}
-    -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
+    ${TEST_FIPS_PROPERTY}
+    ${EXTERNAL_LIB_PROPERTY}
     -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
     -Dtest.data.dir=${TEST_DATA_DIR}
     -Djunit.jupiter.execution.parallel.enabled=true
@@ -698,8 +711,9 @@ add_custom_target(check-junit-extra-checks
 add_custom_target(check-recursive-init
     COMMAND ${TEST_JAVA_EXECUTABLE}
         ${COVERAGE_ARGUMENTS}
+        ${TEST_FIPS_PROPERTY}
         -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
-        -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
+        ${EXTERNAL_LIB_PROPERTY}
         -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
         -Dtest.data.dir=${TEST_DATA_DIR}
         ${TEST_JAVA_ARGS}
@@ -710,8 +724,9 @@ add_custom_target(check-recursive-init
 add_custom_target(check-install-via-properties
     COMMAND ${TEST_JAVA_EXECUTABLE}
         ${COVERAGE_ARGUMENTS}
+        ${TEST_FIPS_PROPERTY}
         -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
-        -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
+        ${EXTERNAL_LIB_PROPERTY}
         -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
         -Dtest.data.dir=${TEST_DATA_DIR}
         -Djava.security.properties=${ORIG_SRCROOT}/etc/amazon-corretto-crypto-provider.security
@@ -725,8 +740,10 @@ add_custom_target(check-external-lib
     # So this test just proves that requesting the external lib does not break things
     COMMAND ${TEST_JAVA_EXECUTABLE}
         ${COVERAGE_ARGUMENTS}
+        ${TEST_FIPS_PROPERTY}
         -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
-        -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
+        # Since this tests external loading we always provide this property
+        -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>:$<TARGET_FILE_DIR:accpLcLoader>
         -Dcom.amazon.corretto.crypto.provider.useExternalLib=true
         -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
         -Dtest.data.dir=${TEST_DATA_DIR}
@@ -739,8 +756,9 @@ add_custom_target(check-external-lib
 add_custom_target(check-install-via-properties-recursive
     COMMAND ${TEST_JAVA_EXECUTABLE}
         ${COVERAGE_ARGUMENTS}
+        ${TEST_FIPS_PROPERTY}
         -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
-        -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
+        ${EXTERNAL_LIB_PROPERTY}
         -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
         -Dtest.data.dir=${TEST_DATA_DIR}
         -Djava.security.properties=${ORIG_SRCROOT}/etc/amazon-corretto-crypto-provider.security
@@ -752,8 +770,9 @@ add_custom_target(check-install-via-properties-recursive
 add_custom_target(check-install-via-properties-with-debug
     COMMAND ${TEST_JAVA_EXECUTABLE}
         ${COVERAGE_ARGUMENTS}
+        ${TEST_FIPS_PROPERTY}
         -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
-        -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
+        ${EXTERNAL_LIB_PROPERTY}
         -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
         -Dtest.data.dir=${TEST_DATA_DIR}
         -Djava.security.properties=${ORIG_SRCROOT}/etc/amazon-corretto-crypto-provider.security
@@ -816,7 +835,7 @@ set_target_properties(check-integration PROPERTIES EXCLUDE_FROM_ALL 1)
 
 add_custom_target(run-benchmark
     COMMAND ${TEST_JAVA_EXECUTABLE} -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
-        -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
+        ${EXTERNAL_LIB_PROPERTY}
         com.amazon.corretto.crypto.provider.test.Benchmark
 
     DEPENDS accp-jar tests-jar)
@@ -827,7 +846,7 @@ if (CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
 
 add_custom_target(run-dieharder-libcrypto-rng
     COMMAND ${TEST_JAVA_EXECUTABLE} -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
-        -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
+        ${EXTERNAL_LIB_PROPERTY}
         com.amazon.corretto.crypto.provider.test.SecureRandomGenerator 'LibCryptoRng' 8192 1 |
         ${DIEHARDER_EXECUTABLE} -a -g 200 -Y 1 -k 2 |
         tee dieharder-results-libcrypto-rng.txt
@@ -836,7 +855,7 @@ add_custom_target(run-dieharder-libcrypto-rng
 
 add_custom_target(run-dieharder-libcrypto-rng-tail
     COMMAND ${TEST_JAVA_EXECUTABLE} -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
-        -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
+        ${EXTERNAL_LIB_PROPERTY}
         com.amazon.corretto.crypto.provider.test.SecureRandomGenerator 'LibCryptoRng' 31 1 |
         ${DIEHARDER_EXECUTABLE} -d 15 -g 200 -Y 1 -k 2 |
         tee dieharder-results-libcrypto-rng-tail.txt
@@ -845,7 +864,7 @@ add_custom_target(run-dieharder-libcrypto-rng-tail
 
 add_custom_target(run-dieharder-libcrypto-rng-threads
     COMMAND ${TEST_JAVA_EXECUTABLE} -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
-        -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
+        ${EXTERNAL_LIB_PROPERTY}
         com.amazon.corretto.crypto.provider.test.SecureRandomGenerator 'LibCryptoRng' 128 4 |
         ${DIEHARDER_EXECUTABLE} -a -g 200 -Y 1 -k 2 |
         tee dieharder-results-libcrypto-rng-threads.txt
@@ -854,7 +873,7 @@ add_custom_target(run-dieharder-libcrypto-rng-threads
 
 add_custom_target(run-dieharder-libcrypto-rng-threads-tail
     COMMAND ${TEST_JAVA_EXECUTABLE} -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
-        -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
+        ${EXTERNAL_LIB_PROPERTY}
         com.amazon.corretto.crypto.provider.test.SecureRandomGenerator 'LibCryptoRng' 31 4 |
         ${DIEHARDER_EXECUTABLE} -d 15 -g 200 -Y 1 -k 2 |
         tee dieharder-results-libcrypto-rng-threads-tail.txt

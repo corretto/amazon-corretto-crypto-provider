@@ -4,9 +4,11 @@
 package com.amazon.corretto.crypto.provider.test;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assumeMinimumVersion;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.saveProviders;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.restoreProviders;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import org.junit.jupiter.api.Test;
@@ -62,5 +64,17 @@ public class MiscSingleThreadedTests {
         } finally {
             restoreProviders(oldProviders);
         }
+    }
+
+    /**
+     * Test to ensure FIPS mode works correctly.
+     *
+     * While this test doesn't need to be run in a single-threaded environment, there is no other good "catch-all"
+     * place for this test to land.
+     */
+    @Test
+    public void correctFipsMode() {
+        final boolean fipsMode = Boolean.getBoolean("FIPS");
+        assertEquals(fipsMode, NATIVE_PROVIDER.isFips());
     }
 }
