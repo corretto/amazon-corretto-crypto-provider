@@ -10,6 +10,7 @@ plugins {
 
 group = 'software.amazon.cryptools'
 version = '2.0.0'
+ext.isFips = Boolean.getBoolean('FIPS')
 
 def awslcSrcPath = "aws-lc/"
 
@@ -63,9 +64,13 @@ task buildAwsLc {
             workingDir awslcSrcPath
             executable 'cmake'
             args "-B${cMakeBuildDir}"
-            args '-DBUILD_SHARED_LIBS=OFF'
+            args '-DBUILD_SHARED_LIBS=ON'
             args '-DCMAKE_BUILD_TYPE=RelWithDebInfo'
             args "-DCMAKE_INSTALL_PREFIX=${sharedObjectOutDir}"
+
+            if (isFips) {
+                args '-DFIPS=1'
+            }
         }
         exec {
             workingDir awslcSrcPath
@@ -102,10 +107,13 @@ task executeCmake(type: Exec) {
     }
 
     executable 'cmake'
-    args 'cmake', "-DTEST_CLASSPATH=${configurations.testDep.asPath}", "-DJACOCO_AGENT_JAR=${configurations.jacocoAgent.singleFile}"
+    args "-DTEST_CLASSPATH=${configurations.testDep.asPath}", "-DJACOCO_AGENT_JAR=${configurations.jacocoAgent.singleFile}"
     args "-DOPENSSL_ROOT_DIR=${buildDir}/awslc/bin", '-DCMAKE_BUILD_TYPE=Release', '-DPROVIDER_VERSION_STRING=' + version
     args "-DTEST_RUNNER_JAR=${configurations.testRunner.singleFile}"
     args "-DCHECKSTYLE_CP=${configurations.checkstyle.asPath}"
+    if (isFips) {
+        args "-DFIPS=ON"
+    }
 
     if (prebuiltJar != null) {
        args '-DSIGNED_JAR=' + prebuiltJar
@@ -281,6 +289,9 @@ task coverage_cmake(type: Exec) {
     args '-DCMAKE_BUILD_TYPE=Coverage', '-DCOVERAGE=ON', '-DENABLE_NATIVE_TEST_HOOKS=ON'
     args '-DPROVIDER_VERSION_STRING=' + version, projectDir
     args "-DTEST_RUNNER_JAR=${configurations.testRunner.singleFile}"
+    if (isFips) {
+        args "-DFIPS=ON"
+    }
 
     if (System.properties['SINGLE_TEST'] != null) {
         args '-DSINGLE_TEST=' + System.properties['SINGLE_TEST']

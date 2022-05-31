@@ -40,6 +40,11 @@ jint JNI_OnLoad(JavaVM *vm, void *reserved) {
     return JNI_VERSION_1_4;
 }
 
+JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_Loader_isFipsMode(JNIEnv*, jclass)
+{
+  return FIPS_mode() == 1 ? JNI_TRUE : JNI_FALSE;
+}
+
 JNIEXPORT jstring JNICALL Java_com_amazon_corretto_crypto_provider_Loader_getNativeLibraryVersion(
   JNIEnv *pEnv,
   jclass
