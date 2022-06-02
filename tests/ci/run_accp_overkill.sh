@@ -4,4 +4,10 @@ set -exo pipefail
 # SPDX-License-Identifier: Apache-2.0
 
 echo "Testing ACCP overkill tests."
-./gradlew test_extra_checks test_integration_extra_checks dieharder_threads
+
+# dieharder_threads are not supported on ARM for now.
+if [[ ("$(uname -p)" == 'aarch64'*) || ("$(uname -p)" == 'arm'*) ]]; then
+	./gradlew test_extra_checks test_integration_extra_checks
+else
+	./gradlew test_extra_checks test_integration_extra_checks dieharder_threads
+fi
