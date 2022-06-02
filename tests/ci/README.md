@@ -41,6 +41,9 @@ CI Tool|C Compiler|Java Compiler|CPU platform|OS
 ------------ | -------------| -------------| -------------|-------------
 CodeBuild|gcc 7|corretto 8,11,17|x86-64|Ubuntu 20.04
 CodeBuild|gcc 7|corretto 8,11,17|aarch|Ubuntu 20.04
+~~GitHub Workflow~~|~~AppleClang 13.0.0~~|~~x86-64~~|~~macOS 11~~
+
+(macOS CI dimension is currently disabled, go to the Actions tab in the main repo to enable it when its ready.)
 
 
 ### Dieharder & Overkill tests
