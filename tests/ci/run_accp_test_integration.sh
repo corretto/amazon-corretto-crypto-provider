@@ -3,19 +3,26 @@ set -exo pipefail
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# Assign the JAVA_HOME variable to the path. Otherwise, Ubuntu will
-# default to the newest version of Java.
+# Parse and check which JDK version we're testing upon.
+version=$($TEST_JAVA_HOME/bin/java -version 2>&1 | head -1 | cut -d'"' -f2 | sed '/^1\./s///' | cut -d'.' -f1)
+
+# The JDK version should be least 10 for a regular ACCP build. We can
+# still test on older versions with the TEST_JAVA_HOME property.
+if (( "$version" <= "10" )); then
+	./gradlew -DTEST_JAVA_HOME=$TEST_JAVA_HOME test_integration
+	exit 0
+fi
+
+# Assign the JDK version we're testing as the system's default JDK and
+# assign JAVA_HOME variable to the path. Otherwise, Ubuntu will
+# default to the newest version of Java on the system.
+export JAVA_HOME=$TEST_JAVA_HOME
 export PATH=$JAVA_HOME/bin:$PATH
 
-if type -p java; then
-	# Parse and check which Java version we're using.
-    version=$(java -version 2>&1 | head -1 | cut -d'"' -f2 | sed '/^1\./s///' | cut -d'.' -f1)
-
-    # This flag is necessary in Java17+ for certain unit tests to
+if (( "$version" >= "17" )); then
+	# This flag is necessary in Java17+ for certain unit tests to
 	# perform deep reflection on nonpublic members.
-    if (( "$version" >= "17" )); then
-        ./gradlew -DTEST_JAVA_MAJOR_VERSION=$version test_integration
-    else
-        ./gradlew test_integration
-    fi
+    ./gradlew -DTEST_JAVA_MAJOR_VERSION=$version test_integration
+else
+    ./gradlew test_integration
 fi
