@@ -10,7 +10,7 @@ version=$($TEST_JAVA_HOME/bin/java -version 2>&1 | head -1 | cut -d'"' -f2 | sed
 # still test on older versions with the TEST_JAVA_HOME property.
 if (( "$version" <= "10" )); then
 	./gradlew -DTEST_JAVA_HOME=$TEST_JAVA_HOME test_integration
-	exit 0
+	exit $?
 fi
 
 # Assign the JDK version we're testing as the system's default JDK and
@@ -19,10 +19,6 @@ fi
 export JAVA_HOME=$TEST_JAVA_HOME
 export PATH=$JAVA_HOME/bin:$PATH
 
-if (( "$version" >= "17" )); then
-	# This flag is necessary in Java17+ for certain unit tests to
-	# perform deep reflection on nonpublic members.
-    ./gradlew -DTEST_JAVA_MAJOR_VERSION=$version test_integration
-else
-    ./gradlew test_integration
-fi
+# TEST_JAVA_MAJOR_VERSION is necessary in Java17+ for certain unit tests to
+# perform deep reflection on nonpublic members.
+./gradlew -DTEST_JAVA_MAJOR_VERSION=$version test_integration
