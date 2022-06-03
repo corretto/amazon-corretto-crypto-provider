@@ -3,11 +3,22 @@ set -exo pipefail
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-echo "Testing ACCP standard release with corretto 11."
-./gradlew release
+# Parse and check which JDK version we're testing upon.
+version=$($TEST_JAVA_HOME/bin/java -version 2>&1 | head -1 | cut -d'"' -f2 | sed '/^1\./s///' | cut -d'.' -f1)
 
-echo "Testing ACCP standard release with corretto 8."
-./gradlew -DTEST_JAVA_HOME=/usr/lib/jvm/java-1.8.0-amazon-corretto test
+# The JDK version should be least 10 for a regular ACCP build. We can
+# still test on older versions with the TEST_JAVA_HOME property.
+if (( "$version" <= "10" )); then
+	./gradlew -DTEST_JAVA_HOME=$TEST_JAVA_HOME test
+	exit $?
+fi
 
-echo "Testing ACCP standard release with corretto 17."
-./gradlew -DTEST_JAVA_HOME=/usr/lib/jvm/java-17-amazon-corretto -DTEST_JAVA_MAJOR_VERSION=17 test
+# Assign the JDK version we're testing as the system's default JDK and
+# assign JAVA_HOME variable to the path. Otherwise, Ubuntu will
+# default to the newest version of Java on the system.
+export JAVA_HOME=$TEST_JAVA_HOME
+export PATH=$JAVA_HOME/bin:$PATH
+
+# TEST_JAVA_MAJOR_VERSION is necessary in Java17+ for certain unit tests to
+# perform deep reflection on nonpublic members.
+./gradlew -DTEST_JAVA_MAJOR_VERSION=$version release
