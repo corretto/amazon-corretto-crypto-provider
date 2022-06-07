@@ -3,13 +3,19 @@ set -exo pipefail
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+# Testing non-FIPS is the default.
+testing_fips=false
+if [[ "${1}" == "--fips" ]]; then
+	testing_fips=true
+fi
+
 # Parse and check which JDK version we're testing upon.
 version=$($TEST_JAVA_HOME/bin/java -version 2>&1 | head -1 | cut -d'"' -f2 | sed '/^1\./s///' | cut -d'.' -f1)
 
 # The JDK version should be least 10 for a regular ACCP build. We can
 # still test on older versions with the TEST_JAVA_HOME property.
 if (( "$version" <= "10" )); then
-	./gradlew -DTEST_JAVA_HOME=$TEST_JAVA_HOME test
+	./gradlew -DTEST_JAVA_HOME=$TEST_JAVA_HOME -DFIPS=$testing_fips test
 	exit $?
 fi
 
@@ -21,4 +27,4 @@ export PATH=$JAVA_HOME/bin:$PATH
 
 # TEST_JAVA_MAJOR_VERSION is necessary in Java17+ for certain unit tests to
 # perform deep reflection on nonpublic members.
-./gradlew -DTEST_JAVA_MAJOR_VERSION=$version release
+./gradlew -DTEST_JAVA_MAJOR_VERSION=$version -DFIPS=$testing_fips release
