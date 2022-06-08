@@ -9,7 +9,7 @@ while [[ $# -gt 0 ]]; do
     case ${1} in
     --fips)
       testing_fips=${2}
-	  shift
+      shift
       ;;
     *)
       echo "${1} is not supported."
