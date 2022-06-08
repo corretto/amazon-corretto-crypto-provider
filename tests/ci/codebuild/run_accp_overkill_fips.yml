@@ -6,4 +6,4 @@ version: 0.2
 phases:
   build:
     commands:
-      - ./tests/ci/run_accp_overkill.sh --fips
+      - ./tests/ci/run_accp_overkill.sh --fips true

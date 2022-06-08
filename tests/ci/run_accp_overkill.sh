@@ -5,9 +5,20 @@ set -exo pipefail
 
 # Testing non-FIPS is the default.
 testing_fips=false
-if [[ "${1}" == "--fips" ]]; then
-	testing_fips=true
-fi
+while [[ $# -gt 0 ]]; do
+    case ${1} in
+    --fips)
+      testing_fips=${2}
+	  shift
+      ;;
+    *)
+      echo "${1} is not supported."
+      exit 1
+      ;;
+    esac
+    # Check next option -- key/value.
+    shift
+done
 
 echo "Testing ACCP overkill tests."
 

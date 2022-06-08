@@ -6,4 +6,4 @@ version: 0.2
 phases:
   build:
     commands:
-      - ./tests/ci/run_accp_test_integration.sh --fips
+      - ./tests/ci/run_accp_test_integration.sh --fips true

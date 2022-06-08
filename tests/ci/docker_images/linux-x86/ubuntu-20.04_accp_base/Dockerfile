@@ -6,6 +6,7 @@ FROM ubuntu:20.04
 SHELL ["/bin/bash", "-c"]
 
 ENV DEBIAN_FRONTEND=noninteractive
+ENV GO_TAG=go1.18.3
 
 # required dependencies for building/testing
 RUN apt-get update
@@ -28,8 +29,8 @@ RUN apt-get update
 
 # AWS-LC FIPS requires golang.
 RUN cd /tmp && \
-    wget https://dl.google.com/go/go1.13.12.linux-amd64.tar.gz && \
-    tar -xvf go1.13.12.linux-amd64.tar.gz && \
+    wget https://dl.google.com/go/$GO_TAG.linux-amd64.tar.gz && \
+    tar -xvf $GO_TAG.linux-amd64.tar.gz && \
     mv go /usr/local && \
     rm -rf /tmp/*
 
