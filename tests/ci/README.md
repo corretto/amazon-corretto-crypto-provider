@@ -45,7 +45,9 @@ CodeBuild|gcc 7|corretto 17|x86-64|Ubuntu 20.04|FIPS/non-FIPS
 CodeBuild|gcc 7|corretto 8|aarch|Ubuntu 20.04|FIPS/non-FIPS
 CodeBuild|gcc 7|corretto 11|aarch|Ubuntu 20.04|FIPS/non-FIPS
 CodeBuild|gcc 7|corretto 17|aarch|Ubuntu 20.04|FIPS/non-FIPS
-~~GitHub Workflow~~|~~AppleClang 13.0.0~~|~~x86-64~~|~~macOS 11~~
+~~GitHub Workflow~~|~~AppleClang 13.0.0~~|~~corretto 8~~|~~x86-64~~|~~macOS 11~~|~~FIPS/non-FIPS~~
+~~GitHub Workflow~~|~~AppleClang 13.0.0~~|~~corretto 11~~|~~x86-64~~|~~macOS 11~~|~~FIPS/non-FIPS~~
+~~GitHub Workflow~~|~~AppleClang 13.0.0~~|~~corretto 17~~|~~x86-64~~|~~macOS 11~~|~~FIPS/non-FIPS~~
 
 (macOS CI dimension is currently disabled, go to the Actions tab in the main repo to enable it when its ready.)
 
