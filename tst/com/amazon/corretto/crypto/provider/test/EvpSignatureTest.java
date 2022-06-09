@@ -82,9 +82,7 @@ public class EvpSignatureTest {
             this.paramSpec = paramSpec;
 
             signer = getNativeSigner();
-            if (paramSpec != null) {
-                signer.setParameter(paramSpec);
-            }
+            signer.setParameter(paramSpec);
             signer.initSign(keyPair.getPrivate());
             verifier = getNativeSigner();
             verifier.setParameter(paramSpec);
@@ -114,22 +112,23 @@ public class EvpSignatureTest {
         @Override
         public String toString() {
             final PSSParameterSpec pssParamSpec = (PSSParameterSpec) paramSpec;
-            final String pssParams = pssParamSpec == null
-                ? null
-                : String.format(
+            final String pssParamsStr;
+            if (pssParamSpec != null) {
+                pssParamsStr = String.format(
                     "{PSS md: %s, MGF1 md: %s, saltLen: %d}",
                     pssParamSpec.getDigestAlgorithm(),
-                    pssParamSpec.getMGFParameters() == null
-                        ? null
-                        : ((MGF1ParameterSpec) pssParamSpec.getMGFParameters()).getDigestAlgorithm(),
+                    ((MGF1ParameterSpec) pssParamSpec.getMGFParameters()).getDigestAlgorithm(),
                     pssParamSpec.getSaltLength()
                 );
+            } else {
+                pssParamsStr = null;
+            }
             return String.format("%s length %s. Read-only: %s, Sliced: %s, PSS: %s",
                     algorithm,
                     length,
                     readOnly,
                     slice,
-                    pssParams
+                    pssParamsStr
             );
         }
 
@@ -239,7 +238,8 @@ public class EvpSignatureTest {
                         }
                     }
 
-                    if (base.equals("RSA")) {
+                    // RSASSA-PSS support added in 2.0, skip PSS validation for older versions
+                    if (base.equals("RSA") && versionCompare("2.0.0", NATIVE_PROVIDER) <= 0) {
                         algorithm = "RSASSA-PSS";
                         final List<String> paddingHashes = new ArrayList<>(HASHES);
                         assertFalse(paddingHashes.contains(null));

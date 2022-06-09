@@ -333,11 +333,12 @@ class EvpSignature extends EvpSignatureBase {
     }
 
     private InputBuffer<byte[], EvpContext, RuntimeException> getSigningBuffer() {
-        final String pssMgfMd = pssParams_ != null
-            ? Utils.jceDigestNameToAwsLcName(
-                ((MGF1ParameterSpec) pssParams_.getMGFParameters()).getDigestAlgorithm()
-            )
-            : null;
+        final String pssMgfMd;
+        if (pssParams_ != null) {
+            pssMgfMd = Utils.jceDigestNameToAwsLcName(((MGF1ParameterSpec) pssParams_.getMGFParameters()).getDigestAlgorithm());
+        } else {
+            pssMgfMd = null;
+        }
         final int pssSaltLen = pssParams_ != null ? pssParams_.getSaltLength() : 0;
         return new InputBuffer<byte[], EvpContext, RuntimeException>(1024)
             .withInitialUpdater((src, offset, length) ->
@@ -369,11 +370,14 @@ class EvpSignature extends EvpSignatureBase {
     }
 
     private InputBuffer<Boolean, EvpContext, SignatureException> getVerifyingBuffer() {
-        final String pssMgfMd = pssParams_ != null
-            ? Utils.jceDigestNameToAwsLcName(
+        final String pssMgfMd;
+        if (pssParams_ != null) {
+            pssMgfMd = Utils.jceDigestNameToAwsLcName(
                 ((MGF1ParameterSpec) pssParams_.getMGFParameters()).getDigestAlgorithm()
-            )
-            : null;
+            );
+        } else {
+            pssMgfMd = null;
+        }
         final int pssSaltLen = pssParams_ != null ? pssParams_.getSaltLength() : 0;
         return new InputBuffer<Boolean, EvpContext, SignatureException>(1024)
             .withInitialUpdater((src, offset, length) ->

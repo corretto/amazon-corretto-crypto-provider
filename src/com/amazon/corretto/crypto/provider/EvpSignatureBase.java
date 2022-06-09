@@ -123,12 +123,12 @@ abstract class EvpSignatureBase extends SignatureSpi {
     protected synchronized void engineSetParameter(final AlgorithmParameterSpec params)
             throws InvalidAlgorithmParameterException {
         if (params instanceof PSSParameterSpec) {
-            if (!isBufferEmpty()) {
-                throw new IllegalStateException("Cannot update PSS parameters with buffered data, reset Signature.");
-            }
             final PSSParameterSpec pssParams = (PSSParameterSpec) params;
             if (keyType_ != EvpKeyType.RSA || paddingType_ != RSA_PKCS1_PSS_PADDING) {
                 throw new InvalidAlgorithmParameterException("PSS params only supported for RSASSA-PSS signatures");
+            }
+            if (!isBufferEmpty()) {
+                throw new IllegalStateException("Cannot update PSS parameters with buffered data, reset Signature.");
             }
             if (!"MGF1".equals(pssParams.getMGFAlgorithm())) {
                 throw new InvalidAlgorithmParameterException("Invalid PSS MGF algorithm");

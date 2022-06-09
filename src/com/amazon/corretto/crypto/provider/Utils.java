@@ -78,13 +78,13 @@ final class Utils {
         // invoking the native Utils.getEvpMdFromName can also throw an unchecked exception,
         // so callers already need to handle this.
         if (!name.startsWith("SHA")) {
-            throw new RuntimeException("Unsupported digest algorithm");
+            throw new IllegalArgumentException("Unsupported digest algorithm");
         }
-        return digestPtrByName.computeIfAbsent(name, n -> Utils.getEvpMdFromName(n));
+        return digestPtrByName.computeIfAbsent(name, Utils::getEvpMdFromName);
     }
 
     static int getMdLen(long mdPtr) {
-        return digestLengthByPtr.computeIfAbsent(mdPtr, p -> Utils.getDigestLength(p));
+        return digestLengthByPtr.computeIfAbsent(mdPtr, Utils::getDigestLength);
     }
 
     /**

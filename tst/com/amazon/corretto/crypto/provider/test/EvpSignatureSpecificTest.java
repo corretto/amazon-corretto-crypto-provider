@@ -6,6 +6,7 @@ package com.amazon.corretto.crypto.provider.test;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assumeMinimumVersion;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.versionCompare;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -410,7 +411,7 @@ public final class EvpSignatureSpecificTest {
 
     @Test
     public void testRsaPSSDefaultsToSha1() throws Exception {
-        final KeyPairGenerator kg = KeyPairGenerator.getInstance("RSA", AmazonCorrettoCryptoProvider.INSTANCE);
+        final KeyPairGenerator kg = KeyPairGenerator.getInstance("RSA", NATIVE_PROVIDER);
         kg.initialize(2048);
         final KeyPair pair = kg.generateKeyPair();
         Signature signature;
@@ -439,7 +440,7 @@ public final class EvpSignatureSpecificTest {
 
     @Test
     void testRsaPSSTryUpdateParamDuringBuffer() throws Exception {
-        final KeyPairGenerator kg = KeyPairGenerator.getInstance("RSA", AmazonCorrettoCryptoProvider.INSTANCE);
+        final KeyPairGenerator kg = KeyPairGenerator.getInstance("RSA", NATIVE_PROVIDER);
         kg.initialize(2048);
         final KeyPair pair = kg.generateKeyPair();
         final Signature signer = Signature.getInstance("RSASSA-PSS", NATIVE_PROVIDER);
@@ -454,22 +455,8 @@ public final class EvpSignatureSpecificTest {
         verifier.setParameter(spec1);
 
         // Assert that set values persisted
-        assertEquals(
-            spec1.getDigestAlgorithm(),
-            signer.getParameters().getParameterSpec(PSSParameterSpec.class).getDigestAlgorithm()
-        );
-        assertEquals(
-            spec1.getDigestAlgorithm(),
-            verifier.getParameters().getParameterSpec(PSSParameterSpec.class).getDigestAlgorithm()
-        );
-        assertEquals(
-            ((MGF1ParameterSpec) spec1.getMGFParameters()).getDigestAlgorithm(),
-            ((MGF1ParameterSpec) signer.getParameters().getParameterSpec(PSSParameterSpec.class).getMGFParameters()).getDigestAlgorithm()
-        );
-        assertEquals(
-            ((MGF1ParameterSpec) spec1.getMGFParameters()).getDigestAlgorithm(),
-            ((MGF1ParameterSpec) verifier.getParameters().getParameterSpec(PSSParameterSpec.class).getMGFParameters()).getDigestAlgorithm()
-        );
+        assertPssParamsEqual(spec1, signer.getParameters().getParameterSpec(PSSParameterSpec.class));
+        assertPssParamsEqual(spec1, verifier.getParameters().getParameterSpec(PSSParameterSpec.class));
 
         // Update message digest, assert that we can't upate params, and that signature verifies.
         signer.update(MESSAGE);
@@ -478,25 +465,19 @@ public final class EvpSignatureSpecificTest {
         assertThrows(IllegalStateException.class, () -> verifier.setParameter(spec2));
         assertTrue(verifier.verify(signer.sign()));
 
-        // Finally, assert that we can set params after reinit (verify doesn't need explicit re-init)
-        signer.initSign(pair.getPrivate());
+        // Finally, assert that we can set params after sign/verify reinit
         signer.setParameter(spec2);
         verifier.setParameter(spec2);
+        assertPssParamsEqual(spec2, signer.getParameters().getParameterSpec(PSSParameterSpec.class));
+        assertPssParamsEqual(spec2, verifier.getParameters().getParameterSpec(PSSParameterSpec.class));
+    }
+
+    private static void assertPssParamsEqual(PSSParameterSpec s1, PSSParameterSpec s2) {
+        assertEquals(s1.getDigestAlgorithm(), s2.getDigestAlgorithm());
+        assertEquals(s1.getDigestAlgorithm(), s2.getDigestAlgorithm());
         assertEquals(
-            spec2.getDigestAlgorithm(),
-            signer.getParameters().getParameterSpec(PSSParameterSpec.class).getDigestAlgorithm()
-        );
-        assertEquals(
-            spec2.getDigestAlgorithm(),
-            verifier.getParameters().getParameterSpec(PSSParameterSpec.class).getDigestAlgorithm()
-        );
-        assertEquals(
-            ((MGF1ParameterSpec) spec2.getMGFParameters()).getDigestAlgorithm(),
-            ((MGF1ParameterSpec) signer.getParameters().getParameterSpec(PSSParameterSpec.class).getMGFParameters()).getDigestAlgorithm()
-        );
-        assertEquals(
-            ((MGF1ParameterSpec) spec2.getMGFParameters()).getDigestAlgorithm(),
-            ((MGF1ParameterSpec) verifier.getParameters().getParameterSpec(PSSParameterSpec.class).getMGFParameters()).getDigestAlgorithm()
+            ((MGF1ParameterSpec) s1.getMGFParameters()).getDigestAlgorithm(),
+            ((MGF1ParameterSpec) s2.getMGFParameters()).getDigestAlgorithm()
         );
     }
 
@@ -512,7 +493,7 @@ public final class EvpSignatureSpecificTest {
         signer.setParameter(spec);
 
         // Now, initialize the signature with a smaller key
-        final KeyPairGenerator kg = KeyPairGenerator.getInstance("RSA", AmazonCorrettoCryptoProvider.INSTANCE);
+        final KeyPairGenerator kg = KeyPairGenerator.getInstance("RSA", NATIVE_PROVIDER);
         kg.initialize(smallKeySize);
         KeyPair pair = kg.generateKeyPair();
         signer.initSign(pair.getPrivate());
@@ -536,15 +517,15 @@ public final class EvpSignatureSpecificTest {
      */
     @Test
     public void ecdsaSignCorruptsErrorState() throws Exception {
-        assumeMinimumVersion("1.0.1", AmazonCorrettoCryptoProvider.INSTANCE);
-        final KeyPairGenerator kg = KeyPairGenerator.getInstance("EC", AmazonCorrettoCryptoProvider.INSTANCE);
+        assumeMinimumVersion("1.0.1", NATIVE_PROVIDER);
+        final KeyPairGenerator kg = KeyPairGenerator.getInstance("EC", NATIVE_PROVIDER);
         kg.initialize(384);
         final KeyPair pair = kg.generateKeyPair();
-        final Signature signer = Signature.getInstance("SHA256withECDSA", AmazonCorrettoCryptoProvider.INSTANCE);
+        final Signature signer = Signature.getInstance("SHA256withECDSA", NATIVE_PROVIDER);
         signer.initSign(pair.getPrivate());
         signer.sign(); // Ignore result
 
-        Cipher c = Cipher.getInstance("AES/GCM/NoPadding", AmazonCorrettoCryptoProvider.INSTANCE);
+        Cipher c = Cipher.getInstance("AES/GCM/NoPadding", NATIVE_PROVIDER);
         c.init(Cipher.DECRYPT_MODE,
                 new SecretKeySpec("Yellow Submarine".getBytes(StandardCharsets.UTF_8), "AES"),
                 new GCMParameterSpec(128, new byte[12]));
@@ -563,7 +544,7 @@ public final class EvpSignatureSpecificTest {
     @Test
     public void simpleCorrectnessAllAlgorithms() throws Throwable {
         final Pattern namePattern = Pattern.compile("(SHA(\\d+)|NONE)with([A-Z]+)(inP1363Format)?");
-        final Set<Provider.Service> services = AmazonCorrettoCryptoProvider.INSTANCE.getServices();
+        final Set<Provider.Service> services = NATIVE_PROVIDER.getServices();
         for (Provider.Service service : services) {
             final String algorithm = service.getAlgorithm();
             if (!service.getType().equals("Signature") || "RSASSA-PSS".equals(algorithm)) {
@@ -622,32 +603,37 @@ public final class EvpSignatureSpecificTest {
             }
             final KeyPair pair = kg.generateKeyPair();
 
-            final Signature nativeSig = Signature.getInstance(algorithm, AmazonCorrettoCryptoProvider.INSTANCE);
+            final Signature nativeSig = Signature.getInstance(algorithm, NATIVE_PROVIDER);
             final Signature bcSig = Signature.getInstance(bcAlgorithm, TestUtil.BC_PROVIDER);
 
             simpleCorrectnessSignVerify(algorithm, pair, bcSig, nativeSig);
         }
 
-        // NOTE: for RSASSA-PSS, test supported digest lengths, but  keep PSS and MGF1 digest lengths equal because
+        // RSASSA-PSS support added in v2.0, skip PSS validation for older versions
+        if (versionCompare("2.0.0", NATIVE_PROVIDER) <= 0) {
+            return;
+        }
+
+        // NOTE: for RSASSA-PSS, test supported digest lengths, but keep PSS and MGF1 digest lengths equal because
         //       BouncyCastle doesn't support differing lengths. we test differing lengths exhaustively against
         //       SuncJCE in EvpSignatureTest. enforce min key size of 2048 bits, consistent with ffSize above.
         for (int shaVersion : new int[] {1, 224, 256, 384, 512}) {
-            final String algorithm = "RSASSA-PSS";
+            final String algorithmStr = "RSASSA-PSS";
             final String mdName = String.format("SHA-%d", shaVersion);
             final int mdLen = MessageDigest.getInstance(mdName).getDigestLength();
             final int keySize = mdLen * 8 < 2048 ? 2048 : mdLen * 8;
-            final KeyPairGenerator kg = KeyPairGenerator.getInstance("RSA");
+            final KeyPairGenerator kg = KeyPairGenerator.getInstance("RSA", NATIVE_PROVIDER);
             kg.initialize(keySize);
             final KeyPair pair = kg.generateKeyPair();
-            final Signature nativeSig = Signature.getInstance(algorithm, AmazonCorrettoCryptoProvider.INSTANCE);
-            final Signature bcSig = Signature.getInstance(algorithm, TestUtil.BC_PROVIDER);
+            final Signature nativeSig = Signature.getInstance(algorithmStr, NATIVE_PROVIDER);
+            final Signature bcSig = Signature.getInstance(algorithmStr, TestUtil.BC_PROVIDER);
             final PSSParameterSpec pssParams = new PSSParameterSpec(
                 mdName, "MGF1", new MGF1ParameterSpec(mdName), mdLen, 1
             );
             nativeSig.setParameter(pssParams);
             bcSig.setParameter(pssParams);
 
-            simpleCorrectnessSignVerify(algorithm, pair, bcSig, nativeSig);
+            simpleCorrectnessSignVerify(algorithmStr, pair, bcSig, nativeSig);
         }
     }
 
