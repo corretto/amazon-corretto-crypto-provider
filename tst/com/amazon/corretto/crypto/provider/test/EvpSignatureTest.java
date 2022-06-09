@@ -9,6 +9,7 @@ import static com.amazon.corretto.crypto.provider.test.TestUtil.versionCompare;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import java.nio.ByteBuffer;
 import java.security.GeneralSecurityException;
@@ -54,7 +55,6 @@ public class EvpSignatureTest {
     private static final List<String> BASES = Arrays.asList("RSA", "ECDSA");
     private static final List<String> HASHES = Arrays.asList("NONE", "SHA1", "SHA224", "SHA256", "SHA384", "SHA512");
     private static final int[] MESSAGE_LENGTHS = new int[] { 0, 1, 16, 32, 2047, 2048, 2049, 4100 };
-    private static List<TestParams> MASTER_PARAMS_LIST;
 
     private static class TestParams {
         final private String base;
@@ -184,9 +184,7 @@ public class EvpSignatureTest {
         }
     }
 
-    // Build the params list once to avoid recomputing it
-    @BeforeAll
-    public static void setupParams() throws GeneralSecurityException {
+    private static List<TestParams> getParams() throws GeneralSecurityException {
         KeyPairGenerator kg = KeyPairGenerator.getInstance("RSA");
         kg.initialize(new RSAKeyGenParameterSpec(2048, RSAKeyGenParameterSpec.F4));
         KeyPair rsaPair = kg.generateKeyPair();
@@ -195,7 +193,7 @@ public class EvpSignatureTest {
         kg.initialize(new ECGenParameterSpec("NIST P-521"));
         KeyPair ecPair = kg.generateKeyPair();
 
-        MASTER_PARAMS_LIST = new ArrayList<>();
+        List<TestParams> paramsList = new ArrayList<>();
         for (final String base : BASES) {
             KeyPair currentPair;
             switch (base) {
@@ -226,18 +224,18 @@ public class EvpSignatureTest {
 
                 for (final int length : lengths) {
                     String algorithm = String.format("%swith%s", hash, base);
-                    MASTER_PARAMS_LIST.add(new TestParams(base, algorithm, length, false, false, currentPair, null));
-                    MASTER_PARAMS_LIST.add(new TestParams(base, algorithm, length, true, false, currentPair, null));
-                    MASTER_PARAMS_LIST.add(new TestParams(base, algorithm, length, false, true, currentPair, null));
-                    MASTER_PARAMS_LIST.add(new TestParams(base, algorithm, length, true, true, currentPair, null));
+                    paramsList.add(new TestParams(base, algorithm, length, false, false, currentPair, null));
+                    paramsList.add(new TestParams(base, algorithm, length, true, false, currentPair, null));
+                    paramsList.add(new TestParams(base, algorithm, length, false, true, currentPair, null));
+                    paramsList.add(new TestParams(base, algorithm, length, true, true, currentPair, null));
                     // These new algorithms were only added in 1.3.0
                     if (versionCompare("1.3.0", NATIVE_PROVIDER) <= 0) {
                         if (base.equals("ECDSA") && !hash.equals("NONE")) {
                             algorithm = algorithm + "inP1363Format";
-                            MASTER_PARAMS_LIST.add(new TestParams(base, algorithm, length, false, false, currentPair, null));
-                            MASTER_PARAMS_LIST.add(new TestParams(base, algorithm, length, true, false, currentPair, null));
-                            MASTER_PARAMS_LIST.add(new TestParams(base, algorithm, length, false, true, currentPair, null));
-                            MASTER_PARAMS_LIST.add(new TestParams(base, algorithm, length, true, true, currentPair, null));
+                            paramsList.add(new TestParams(base, algorithm, length, false, false, currentPair, null));
+                            paramsList.add(new TestParams(base, algorithm, length, true, false, currentPair, null));
+                            paramsList.add(new TestParams(base, algorithm, length, false, true, currentPair, null));
+                            paramsList.add(new TestParams(base, algorithm, length, true, true, currentPair, null));
                         }
                     }
 
@@ -259,22 +257,18 @@ public class EvpSignatureTest {
                                 final AlgorithmParameterSpec paramSpec = new PSSParameterSpec(
                                     pssHash, "MGF1", new MGF1ParameterSpec(mgfHash), saltLen, 1
                                 );
-                                MASTER_PARAMS_LIST.add(new TestParams(base, algorithm, length, false, false, currentPair, paramSpec));
-                                MASTER_PARAMS_LIST.add(new TestParams(base, algorithm, length, true, false, currentPair, paramSpec));
-                                MASTER_PARAMS_LIST.add(new TestParams(base, algorithm, length, false, true, currentPair, paramSpec));
-                                MASTER_PARAMS_LIST.add(new TestParams(base, algorithm, length, true, true, currentPair, paramSpec));
+                                paramsList.add(new TestParams(base, algorithm, length, false, false, currentPair, paramSpec));
+                                paramsList.add(new TestParams(base, algorithm, length, true, false, currentPair, paramSpec));
+                                paramsList.add(new TestParams(base, algorithm, length, false, true, currentPair, paramSpec));
+                                paramsList.add(new TestParams(base, algorithm, length, true, true, currentPair, paramSpec));
                             }
                         }
                     }
                 }
             }
         }
-    }
 
-    // No need to keep these in memory
-    @AfterAll
-    public static void cleanupParams() {
-        MASTER_PARAMS_LIST = null;
+        return paramsList;
     }
 
     public static Stream<TestParams> params() {
@@ -284,7 +278,12 @@ public class EvpSignatureTest {
      * Test cases for ByteBuffer related tests.
      */
     public static Stream<TestParams> byteBufferParams() {
-        return MASTER_PARAMS_LIST.stream().map(TestParams::reset);
+        try {
+            return getParams().stream().map(TestParams::reset);
+        } catch (GeneralSecurityException e) {
+            fail(e);
+            return null; // unreachable, needed to appease compiler
+        }
     }
 
     @ParameterizedTest
