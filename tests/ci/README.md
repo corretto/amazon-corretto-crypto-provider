@@ -37,10 +37,19 @@ Runs tests for:
 * release
 * test_integration
 
-CI Tool|C Compiler|Java Compiler|CPU platform|OS
------------- | -------------| -------------| -------------|-------------
-CodeBuild|gcc 7|corretto 8,11,17|x86-64|Ubuntu 20.04
-CodeBuild|gcc 7|corretto 8,11,17|aarch|Ubuntu 20.04
+CI Tool|C Compiler|Java Compiler|CPU platform|OS|Dimensions
+------------ | -------------| -------------| -------------|-------------|-------------
+CodeBuild|gcc 7|corretto 8|x86-64|Ubuntu 20.04|FIPS/non-FIPS
+CodeBuild|gcc 7|corretto 11|x86-64|Ubuntu 20.04|FIPS/non-FIPS
+CodeBuild|gcc 7|corretto 17|x86-64|Ubuntu 20.04|FIPS/non-FIPS
+CodeBuild|gcc 7|corretto 8|aarch|Ubuntu 20.04|FIPS/non-FIPS
+CodeBuild|gcc 7|corretto 11|aarch|Ubuntu 20.04|FIPS/non-FIPS
+CodeBuild|gcc 7|corretto 17|aarch|Ubuntu 20.04|FIPS/non-FIPS
+~~GitHub Workflow~~|~~AppleClang 13.0.0~~|~~corretto 8~~|~~x86-64~~|~~macOS 11~~|~~FIPS/non-FIPS~~
+~~GitHub Workflow~~|~~AppleClang 13.0.0~~|~~corretto 11~~|~~x86-64~~|~~macOS 11~~|~~FIPS/non-FIPS~~
+~~GitHub Workflow~~|~~AppleClang 13.0.0~~|~~corretto 17~~|~~x86-64~~|~~macOS 11~~|~~FIPS/non-FIPS~~
+
+(macOS CI dimension is currently disabled, go to the Actions tab in the main repo to enable it when its ready.)
 
 
 ### Dieharder & Overkill tests
@@ -49,7 +58,7 @@ Runs tests for:
 * test_integration_extra_checks
 * dieharder_threads
 
-CI Tool|C Compiler|Java Compiler|CPU platform|OS
------------- | -------------| -------------| -------------|-------------
-CodeBuild|gcc 7|corretto 8,11,17|x86-64|Ubuntu 20.04
-CodeBuild|gcc 7|corretto 8,11,17|aarch|Ubuntu 20.04
+CI Tool|C Compiler|Java Compiler|CPU platform|OS|Dimensions
+------------ | -------------| -------------| -------------|-------------|-------------
+CodeBuild|gcc 7|corretto 11|x86-64|Ubuntu 20.04|both FIPS/non-FIPS
+CodeBuild|gcc 7|corretto 11|aarch|Ubuntu 20.04|both FIPS/non-FIPS, no dieharder
