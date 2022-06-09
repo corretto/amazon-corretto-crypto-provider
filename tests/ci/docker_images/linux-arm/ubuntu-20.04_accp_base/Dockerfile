@@ -6,6 +6,7 @@ FROM arm64v8/ubuntu:20.04
 SHELL ["/bin/bash", "-c"]
 
 ENV DEBIAN_FRONTEND=noninteractive
+ENV GO_TAG=go1.18.3
 
 # required dependencies for building/testing
 RUN apt-get update
@@ -15,6 +16,7 @@ RUN apt-get install -y build-essential
 RUN apt-get install -y cmake
 RUN apt-get install -y dieharder
 RUN apt-get install -y lcov
+RUN apt-get install -y wget
 
 # developement niceties
 RUN apt-get install -y ninja-build
@@ -24,3 +26,14 @@ RUN apt-get install -y git
 RUN curl -s https://apt.corretto.aws/corretto.key | apt-key add -
 RUN echo 'deb https://apt.corretto.aws stable main' | tee /etc/apt/sources.list.d/corretto.list
 RUN apt-get update
+
+# AWS-LC FIPS requires golang.
+RUN cd /tmp && \
+    wget https://dl.google.com/go/$GO_TAG.linux-arm64.tar.gz && \
+    tar -xvf $GO_TAG.linux-arm64.tar.gz && \
+    mv go /usr/local && \
+    rm -rf /tmp/*
+
+ENV GOROOT=/usr/local/go
+ENV GO111MODULE=on
+ENV PATH="$GOROOT/bin:$PATH"
