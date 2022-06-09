@@ -6,4 +6,4 @@ version: 0.2
 phases:
   build:
     commands:
-      - ./tests/ci/run_accp_dieharder.sh --fips true
+      - ./tests/ci/run_accp_dieharder.sh --fips
