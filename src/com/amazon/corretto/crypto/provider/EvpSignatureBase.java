@@ -169,7 +169,8 @@ abstract class EvpSignatureBase extends SignatureSpi {
             final int saltLen = pssParams.getSaltLength();
             final int mdLen = Utils.getMdLen(Utils.getMdPtr(pssParams.getDigestAlgorithm()));
             // If key is not yet set, assume it has a 2048-bit modulus. Even if a smaller key ends up being
-            // used, AWS-LC will detect this and throw an error.
+            // used, AWS-LC will detect this and throw an error here:
+            // https://github.com/awslabs/aws-lc/blob/main/crypto/fipsmodule/rsa/padding.c#L661
             final int emLen = key_ != null
                 ? (((RSAKey) key_).getModulus().bitLength() + 7) / 8
                 : 2048 / 8;

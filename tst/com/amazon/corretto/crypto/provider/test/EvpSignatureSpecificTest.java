@@ -501,7 +501,7 @@ public final class EvpSignatureSpecificTest {
         // Assert that doFinal (i.e. the native method called in signer.sign()) detects overly large salt len and throws
         byte[] shortMessage = new byte[] { (byte) 0xDE, (byte) 0xAD, (byte) 0xBE, (byte) 0xEF };
         signer.update(shortMessage);
-        assertThrows(RuntimeCryptoException.class, () -> signer.sign());
+        assertThrows(SignatureException.class, () -> signer.sign());
 
         // After re-initializing with minimally secure RSA key, longer salt len set earlier should be fine.
         kg.initialize(minimallySecureKeyLen);
