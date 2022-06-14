@@ -20,7 +20,7 @@ import java.security.spec.X509EncodedKeySpec;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Map;
-import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
 import javax.crypto.Cipher;
@@ -38,8 +38,8 @@ final class Utils {
     static final byte[] EMPTY_ARRAY = new byte[0];
     private static final Logger LOG = Logger.getLogger("AmazonCorrettoCryptoProvider");
 
-    private static final Map<String,Long> digestPtrByName = new HashMap<>();
-    private static final Map<Long,Integer> digestLengthByPtr = new HashMap<>();
+    private static final Map<String,Long> digestPtrByName = new ConcurrentHashMap<>();
+    private static final Map<Long,Integer> digestLengthByPtr = new ConcurrentHashMap<>();
 
     /**
      * Returns the difference between the native pointers of a and b. That is, if overlap > 0, then
