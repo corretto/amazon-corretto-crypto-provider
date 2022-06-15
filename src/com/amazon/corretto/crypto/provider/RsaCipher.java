@@ -20,10 +20,6 @@ import java.security.spec.InvalidKeySpecException;
 import java.security.spec.InvalidParameterSpecException;
 import java.security.spec.MGF1ParameterSpec;
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -73,9 +69,6 @@ class RsaCipher extends CipherSpi {
     private final Object lock_ = new Object();
     private final Padding padding_;
     private final boolean allowParamUpdates_;
-
-    private static final Map<String,Long> digestPtrByName = new HashMap<>();
-    private static final Map<Long,Integer> digestLengthByPtr = new HashMap<>();
 
     // @GuardedBy("lock_") // Restore once replacement for JSR-305 available
     private int mode_;
@@ -175,8 +168,8 @@ class RsaCipher extends CipherSpi {
             final long oaepMdPtr;
             final long mgfMdPtr;
             if (padding_ == Padding.OAEP) {
-                oaepMdPtr = getMdPtr(oaepParams_.getDigestAlgorithm());
-                mgfMdPtr = getMdPtr(
+                oaepMdPtr = Utils.getMdPtr(oaepParams_.getDigestAlgorithm());
+                mgfMdPtr = Utils.getMdPtr(
                     ((MGF1ParameterSpec) oaepParams_.getMGFParameters()).getDigestAlgorithm()
                 );
             } else {
@@ -295,43 +288,20 @@ class RsaCipher extends CipherSpi {
             }
 
             if (params instanceof OAEPParameterSpec) {
+                // Cache MD struct ptrs, validate digest names, update params + padding len
                 final OAEPParameterSpec oaepParams = (OAEPParameterSpec) params;
                 final String oaepDigest = oaepParams.getDigestAlgorithm();
                 final String mgf1Digest = ((MGF1ParameterSpec) oaepParams.getMGFParameters()).getDigestAlgorithm();
                 try {
-                    // Cache MD struct ptrs, validate digest names, update params + padding len
-                    getMdPtr(oaepDigest);
-                    getMdPtr(mgf1Digest);
-                    paddingSize_ = calculateOaepPaddingLen(oaepParams.getDigestAlgorithm());
-                    oaepParams_ = oaepParams;
+                    Utils.getMdPtr(oaepParams.getDigestAlgorithm());
+                    Utils.getMdPtr(((MGF1ParameterSpec) oaepParams.getMGFParameters()).getDigestAlgorithm());
                 } catch (Exception e) {
                     throw new InvalidAlgorithmParameterException();
                 }
+                paddingSize_ = calculateOaepPaddingLen(oaepParams.getDigestAlgorithm());
+                oaepParams_ = oaepParams;
             }
         }
-    }
-
-    private static String jceNameToAwsLcName(String jceName) {
-        if (jceName == null) {
-            return null;
-        }
-        // e.g. "SHA-512/256" => "SHA512-256"
-        return jceName.replace("-", "").replace("/", "-").toUpperCase();
-    }
-
-    private static long getMdPtr(String digestName) {
-        final String name = jceNameToAwsLcName(digestName);
-        // NOTE: it's a little awkward to throw an unchecked exception here, but the lambda
-        // invoking the native Utils.getEvpMdFromName can also throw an unchecked exception,
-        // so callers already need to handle this.
-        if (!name.startsWith("SHA")) {
-            throw new RuntimeException("Unsupported digest algorithm");
-        }
-        return digestPtrByName.computeIfAbsent(name, n -> Utils.getEvpMdFromName(n));
-    }
-
-    private static int getMdLen(long mdPtr) {
-        return digestLengthByPtr.computeIfAbsent(mdPtr, p -> Utils.getDigestLength(p));
     }
 
     // NOTE: while RFC-2437 stipulates[1] that OAEP padding has max length of 2*digestSize+1,
@@ -344,7 +314,7 @@ class RsaCipher extends CipherSpi {
     // [3]: https://github.com/awslabs/aws-lc/blob/main/crypto/fipsmodule/rsa/padding.c#L349
     // [4]: https://github.com/awslabs/aws-lc/blob/main/crypto/fipsmodule/rsa/padding.c#L420-L427
     private static int calculateOaepPaddingLen(String mdName) {
-        return 2 * getMdLen(getMdPtr(mdName)) + 2;
+        return 2 * Utils.getMdLen(Utils.getMdPtr(mdName)) + 2;
     }
 
     @Override

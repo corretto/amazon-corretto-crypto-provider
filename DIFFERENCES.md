@@ -58,6 +58,9 @@ To avoid the costs of both RNG initialization and thread contention, ACCP mainta
 Any time an instance of `SecureRandom` is used, ACCP routes the requests to the appropriate backing instance for the calling thread.
 Because the output of calls to `SecureRandom` is computationally indistinguishable from actual random data, this implementation detail has no impact on callers other than improving performance.
 
+## RSASSA-PSS Signature parameters may not be updated in-flight
+To prevent callers from corrupting their signatures, we forbid them from updating a Signature's PSSParameterSpec while they are still updating a Signature object. Once the Signature has been updated, it must be reset, `sign()`'d, or `verify`'d before the PSS parameters may be updated. If a caller attempts to call `Signature.setParameter(...)` while a Signature instance has buffered data, we will throw an `IllegalStateException`.
+
 # Extensions
 Applications are unlikely to directly encounter any of these changes but may choose to take advantage of them.
 

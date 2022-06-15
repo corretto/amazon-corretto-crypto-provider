@@ -231,6 +231,15 @@ public class InputBuffer<T, S, X extends Throwable> implements Cloneable {
           @*/
     }
 
+    /*@ public normal_behavior
+      @   assignable size;
+      @   requires true;
+      @   ensures true;
+      @*/
+    public int size() {
+        return buff.size();
+    }
+
     //@ // optional updater, does not change bufferState
     //@ normal_behavior
     //@   requires canSetHandler(bufferState);

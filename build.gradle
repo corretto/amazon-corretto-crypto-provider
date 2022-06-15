@@ -16,9 +16,20 @@ def awslcSrcPath = "aws-lc/"
 
 configurations {
     jacocoAgent
-    testDep.extendsFrom(jacocoAgent)
+    testDep {
+        extendsFrom(jacocoAgent)
+        attributes {
+            // Make sure gradle knows to resolve the dependency which actually has the code
+            attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling, 'external'))
+        }
+    }
     stagingJar
-    testRunner
+    testRunner {
+        attributes {
+            // Make sure gradle knows to resolve the dependency which actually has the code
+            attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling, 'external'))
+        }
+    }
     checkstyle
 }
 
@@ -31,13 +42,14 @@ dependencies {
     jacocoAgent group: 'org.jacoco', name: 'org.jacoco.agent', version: '0.8.7', classifier: 'runtime'
 
     // Separate so we can extract the jar for the runner specifically
-    testRunner group: 'org.junit.platform', name: 'junit-platform-console-standalone', version: '1.6.2'
+    testRunner group: 'org.junit.platform', name: 'junit-platform-console-standalone', version: '1.8.2'
 
     // Separate so we can extract the jar for the checker specifically
     checkstyle group: 'com.puppycrawl.tools', name: 'checkstyle', version: '9.3'
 
-    testDep 'org.junit.jupiter:junit-jupiter:5.6.2'
-    testDep 'org.junit.vintage:junit-vintage-engine:5.6.2'
+    testDep 'org.apiguardian:apiguardian-api:1.1.2'
+    testDep 'org.junit.jupiter:junit-jupiter:5.8.2'
+    testDep 'org.junit.vintage:junit-vintage-engine:5.8.2'
     testDep 'org.bouncycastle:bcprov-debug-jdk15on:1.69'
     testDep 'org.bouncycastle:bcpkix-jdk15on:1.69'
     testDep 'commons-codec:commons-codec:1.12'

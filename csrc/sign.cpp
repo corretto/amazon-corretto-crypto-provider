@@ -440,7 +440,14 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatu
         tmpSig.resize(sigLength);
 
         if (!EVP_DigestSignFinal(ctx->getDigestCtx(), &tmpSig[0], &sigLength)) {
-            throw_openssl("Unable to sign");
+            if ((ERR_peek_last_error() & RSA_R_DATA_TOO_LARGE_FOR_KEY_SIZE) != 0) {
+                throw_java_ex(
+                    EX_SIGNATURE_EXCEPTION,
+                    formatOpensslError(drainOpensslErrors(), "Invalid sizes for key, data, or PSS salt length")
+                );
+            } else {
+                throw_openssl("Unable to sign");
+            }
         }
 
         if (!(signature = env->NewByteArray(sigLength))) {
