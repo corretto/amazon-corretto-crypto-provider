@@ -46,7 +46,7 @@ class EvpSignature extends EvpSignatureBase {
      *      href="https://www.openssl.org/docs/man1.1.0/crypto/EVP_get_digestbyname.html">EVP_get_digestbyname</a>
      */
     private static native byte[] sign(long privateKey, String digestName, int paddingType, String mgfMd,
-            int saltLen, byte[] message, int offset, int length);
+            int saltLen, byte[] message, int offset, int length) throws SignatureException;
 
 
     /**
@@ -286,7 +286,7 @@ class EvpSignature extends EvpSignatureBase {
      *            {@link #signStart(byte[], int, String, int, String, int, byte[], int, int)} or
      *            {@link #signStartBuffer(byte[], int, String, int, String, int, ByteBuffer)}.
      */
-    private static native byte[] signFinish(long ctx);
+    private static native byte[] signFinish(long ctx) throws SignatureException;
 
     /**
      * Verifies the signature and <em>destroys the context</em>.
@@ -307,7 +307,7 @@ class EvpSignature extends EvpSignatureBase {
 
     private String digestName_;
     private byte[] oneByteArray_ = null;
-    private InputBuffer<byte[], EvpContext, RuntimeException> signingBuffer;
+    private InputBuffer<byte[], EvpContext, SignatureException> signingBuffer;
     private InputBuffer<Boolean, EvpContext, SignatureException> verifyingBuffer;
 
     /**
@@ -332,7 +332,7 @@ class EvpSignature extends EvpSignatureBase {
         verifyingBuffer = getVerifyingBuffer();
     }
 
-    private InputBuffer<byte[], EvpContext, RuntimeException> getSigningBuffer() {
+    private InputBuffer<byte[], EvpContext, SignatureException> getSigningBuffer() {
         final String pssMgfMd;
         if (pssParams_ != null) {
             pssMgfMd = Utils.jceDigestNameToAwsLcName(((MGF1ParameterSpec) pssParams_.getMGFParameters()).getDigestAlgorithm());
@@ -340,7 +340,7 @@ class EvpSignature extends EvpSignatureBase {
             pssMgfMd = null;
         }
         final int pssSaltLen = pssParams_ != null ? pssParams_.getSaltLength() : 0;
-        return new InputBuffer<byte[], EvpContext, RuntimeException>(1024)
+        return new InputBuffer<byte[], EvpContext, SignatureException>(1024)
             .withInitialUpdater((src, offset, length) ->
                 new EvpContext(key_.use(ptr ->
                     signStart(ptr,

@@ -489,7 +489,7 @@ public final class EvpSignatureSpecificTest {
         final int largeSaltLen = 2 * (smallKeySize / 8);
         final PSSParameterSpec spec = new PSSParameterSpec("SHA-1", "MGF1", MGF1ParameterSpec.SHA1, largeSaltLen, 1);
 
-        // Set PSS params _before_ initializing, so we don't have access to key length, assuming a default of 2048
+        // Set PSS params _before_ initializing for signer. No access to key length yet, so assuming a default of 2048.
         signer.setParameter(spec);
 
         // Now, initialize the signature with a smaller key
@@ -507,7 +507,34 @@ public final class EvpSignatureSpecificTest {
         kg.initialize(minimallySecureKeyLen);
         pair = kg.generateKeyPair();
         signer.initSign(pair.getPrivate());
-        signer.sign();
+        signer.update(shortMessage);
+        final byte[] signature = signer.sign();
+
+        // For completeness, also verify the data and signature. We don't test verification with the smaller key
+        // size because generating a siganture with oversized salt length + undersized key is not possible. If no
+        // signature can be generated, there's nothing nothing to verify.
+        final Signature verifier = Signature.getInstance("RSASSA-PSS", NATIVE_PROVIDER);
+        verifier.setParameter(spec);
+        verifier.initVerify(pair.getPublic());
+        verifier.update(shortMessage);
+        assertTrue(verifier.verify(signature));
+
+        // Generate a valid signature with an undersized key but minimal salt length. Then, bump the salt length
+        // for the verifier instance and try to verify the signature. The verification attempt will return false
+        // instead of throwing. Apparently AWS-LC doesn't perform relevant validation upon verification.
+        PSSParameterSpec spec2 = new PSSParameterSpec("SHA-1", "MGF1", MGF1ParameterSpec.SHA1, /*saltLen*/20, 1);
+        kg.initialize(smallKeySize);
+        pair = kg.generateKeyPair();
+        signer.setParameter(spec2);
+        signer.initSign(pair.getPrivate());
+        signer.update(shortMessage);
+        final byte[] signature2 = signer.sign();
+
+        spec2 = new PSSParameterSpec("SHA-1", "MGF1", MGF1ParameterSpec.SHA1, largeSaltLen, 1);
+        verifier.setParameter(spec2);
+        verifier.initVerify(pair.getPublic());
+        verifier.update(shortMessage);
+        assertFalse(verifier.verify(signature2));
     }
 
 
