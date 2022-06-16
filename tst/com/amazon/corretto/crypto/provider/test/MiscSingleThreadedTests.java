@@ -5,12 +5,14 @@ package com.amazon.corretto.crypto.provider.test;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assumeMinimumVersion;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.saveProviders;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.restoreProviders;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.parallel.Execution;
@@ -22,6 +24,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.Provider;
+import java.security.Security;
 import java.security.Signature;
 
 /**
@@ -29,9 +32,17 @@ import java.security.Signature;
  */
 @ExtendWith(TestResultLogger.class)
 @Execution(ExecutionMode.SAME_THREAD)
-@ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
+@ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ_WRITE)
+@ResourceLock(value = TestUtil.RESOURCE_PROVIDER, mode = ResourceAccessMode.READ_WRITE)
 public class MiscSingleThreadedTests {
 
+    @AfterAll
+    public static void cleanup() {
+        Security.removeProvider(NATIVE_PROVIDER.getName());
+        for (Provider provider : Security.getProviders()) {
+            assertFalse(NATIVE_PROVIDER.equals(provider.getName()));
+        }
+    }
 
     /**
      * We do not (currently) support the signature NONEwithRSA, but the JCE implements it internally with
