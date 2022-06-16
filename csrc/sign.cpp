@@ -28,7 +28,7 @@ int digestVerifyUpdate(EVP_MD_CTX *ctx, const void *d, size_t cnt) {
     return EVP_DigestVerifyUpdate(ctx, d, cnt);
 }
 
-bool configurePadding(raii_env &env, EVP_PKEY_CTX* pctx, int paddingType, jstring mgfMdName, int pssSaltLen) {
+bool configurePadding(raii_env &env, EVP_PKEY_CTX* pctx, int paddingType, const EVP_MD* mgfMd, int pssSaltLen) {
     if (EVP_PKEY_CTX_set_rsa_padding(pctx, paddingType) <= 0) {
         throw_openssl("Unable to set padding");
     }
@@ -43,9 +43,7 @@ bool configurePadding(raii_env &env, EVP_PKEY_CTX* pctx, int paddingType, jstrin
             throw_openssl("Unable to set salt len");
         }
 
-        if (mgfMdName) {
-            const EVP_MD *mgfMd = digestFromJstring(env, mgfMdName);
-
+        if (mgfMd != nullptr) {
             if (EVP_PKEY_CTX_set_rsa_mgf1_md(pctx, mgfMd) <= 0) {
                 throw_openssl("Unable to set MGF digest");
             }
@@ -64,9 +62,9 @@ bool initializeContext
  EvpKeyContext* ctx,
  bool signMode,
  EVP_PKEY* pKey,
- jstring digestName,
+ const EVP_MD* md,
  jint paddingType,
- jstring mgfMdName,
+ const EVP_MD*  mgfMdPtr,
  jint pssSaltLen
  )
 {
@@ -75,10 +73,7 @@ bool initializeContext
     EVP_PKEY_up_ref(pKey);
     ctx->setKey(pKey);
 
-    if (digestName) {
-        const EVP_MD *md = NULL;
-        md = digestFromJstring(env, digestName);
-
+    if (md != nullptr) {
         if (!ctx->setDigestCtx(EVP_MD_CTX_create())) {
             throw_openssl("Unable to create MD_CTX");
         }
@@ -111,7 +106,7 @@ bool initializeContext
     }
 
     if (EVP_PKEY_base_id(ctx->getKey()) == EVP_PKEY_RSA) {
-        if (!configurePadding(env, pctx, paddingType, mgfMdName, pssSaltLen)) {
+        if (!configurePadding(env, pctx, paddingType, mgfMdPtr, pssSaltLen)) {
             throw_openssl("Unable to configure padding");
         }
     }
@@ -177,9 +172,9 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_si
 (JNIEnv *pEnv,
  jclass,
  jlong pKey,
- jstring digestName,
+ jlong mdPtr,
  jint paddingType,
- jstring mgfMdName,
+ jlong mgfMdPtr,
  jint pssSaltLen,
  jbyteArray message,
  jint offset,
@@ -191,7 +186,15 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_si
 
         EvpKeyContext ctx;
 
-        initializeContext(env, &ctx, true, reinterpret_cast<EVP_PKEY*>(pKey), digestName, paddingType, mgfMdName, pssSaltLen);
+        initializeContext(
+            env,
+            &ctx,
+            true, // true->sign
+            reinterpret_cast<EVP_PKEY*>(pKey),
+            reinterpret_cast<const EVP_MD*>(mdPtr),
+            paddingType,
+            reinterpret_cast<const EVP_MD*>(mgfMdPtr),
+            pssSaltLen);
         update(env, &ctx, digestSignUpdate, java_buffer::from_array(env, message, offset, length));
 
         return reinterpret_cast<jlong>(ctx.moveToHeap());
@@ -205,9 +208,9 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_si
 (JNIEnv *pEnv,
  jclass,
  jlong pKey,
- jstring digestName,
+ jlong mdPtr,
  jint paddingType,
- jstring mgfMdName,
+ jlong mgfMdPtr,
  jint pssSaltLen,
  jobject message
 )
@@ -218,7 +221,14 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_si
         EvpKeyContext ctx;
 
         initializeContext(
-            env, &ctx, true, reinterpret_cast<EVP_PKEY*>(pKey), digestName, paddingType, mgfMdName, pssSaltLen);
+            env,
+            &ctx,
+            true, // true->sign
+            reinterpret_cast<EVP_PKEY*>(pKey),
+            reinterpret_cast<const EVP_MD*>(mdPtr),
+            paddingType,
+            reinterpret_cast<const EVP_MD*>(mgfMdPtr),
+            pssSaltLen);
         update(env, &ctx, digestSignUpdate, java_buffer::from_direct(env, message));
 
         return reinterpret_cast<jlong>(ctx.moveToHeap());
@@ -232,9 +242,9 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_ve
 (JNIEnv *pEnv,
  jclass,
  jlong pKey,
- jstring digestName,
+ jlong mdPtr,
  jint paddingType,
- jstring mgfMdName,
+ jlong mgfMdPtr,
  jint pssSaltLen,
  jbyteArray message,
  jint offset,
@@ -247,7 +257,14 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_ve
         EvpKeyContext ctx;
 
         initializeContext(
-            env, &ctx, false, reinterpret_cast<EVP_PKEY*>(pKey), digestName, paddingType, mgfMdName, pssSaltLen);
+            env,
+            &ctx,
+            false, // false->verify
+            reinterpret_cast<EVP_PKEY*>(pKey),
+            reinterpret_cast<const EVP_MD*>(mdPtr),
+            paddingType,
+            reinterpret_cast<const EVP_MD*>(mgfMdPtr),
+            pssSaltLen);
         update(env, &ctx, digestVerifyUpdate, java_buffer::from_array(env, message, offset, length));
 
         return reinterpret_cast<jlong>(ctx.moveToHeap());
@@ -261,9 +278,9 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_ve
 (JNIEnv *pEnv,
  jclass,
  jlong pKey,
- jstring digestName,
+ jlong mdPtr,
  jint paddingType,
- jstring mgfMdName,
+ jlong mgfMdPtr,
  jint pssSaltLen,
  jobject message
 )
@@ -274,7 +291,14 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_ve
         EvpKeyContext ctx;
 
         initializeContext(
-            env, &ctx, false, reinterpret_cast<EVP_PKEY*>(pKey), digestName, paddingType, mgfMdName, pssSaltLen);
+            env,
+            &ctx,
+            false, // false->verify
+            reinterpret_cast<EVP_PKEY*>(pKey),
+            reinterpret_cast<const EVP_MD*>(mdPtr),
+            paddingType,
+            reinterpret_cast<const EVP_MD*>(mgfMdPtr),
+            pssSaltLen);
         update(env, &ctx, digestVerifyUpdate, java_buffer::from_direct(env, message));
 
         return reinterpret_cast<jlong>(ctx.moveToHeap());
@@ -332,9 +356,9 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatu
 (JNIEnv *pEnv,
  jclass clazz,
  jlong pKey,
- jstring digestName,
+ jlong mdPtr,
  jint paddingType,
- jstring mgfMdName,
+ jlong mgfMdPtr,
  jint pssSaltLen,
  jbyteArray message,
  jint offset,
@@ -345,9 +369,9 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatu
             pEnv,
             clazz,
             pKey,
-            digestName,
+            mdPtr,
             paddingType,
-            mgfMdName,
+            mgfMdPtr,
             pssSaltLen,
             message,
             offset,
@@ -474,9 +498,9 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
 (JNIEnv *pEnv,
  jclass clazz,
  jlong pKey,
- jstring digestName,
+ jlong mdPtr,
  jint paddingType,
- jstring mgfMdName,
+ jlong mgfMdPtr,
  jint pssSaltLen,
  jbyteArray message,
  jint offset,
@@ -489,9 +513,9 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
             pEnv,
             clazz,
             pKey,
-            digestName,
+            mdPtr,
             paddingType,
-            mgfMdName,
+            mgfMdPtr,
             pssSaltLen,
             message,
             offset,
@@ -523,7 +547,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatu
  jclass clazz,
  jlong pKey,
  jint paddingType,
- jstring mgfMdName,
+ jlong mgfMdPtr,
  jint pssSaltLen,
  jbyteArray messageArr,
  jint offset,
@@ -535,7 +559,15 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatu
         java_buffer messageBuf = java_buffer::from_array(env, messageArr, offset, length);
 
         EvpKeyContext ctx;
-        initializeContext(env, &ctx, true, reinterpret_cast<EVP_PKEY*>(pKey), NULL, paddingType, mgfMdName, pssSaltLen);
+        initializeContext(
+            env,
+            &ctx,
+            true, // true->sign
+            reinterpret_cast<EVP_PKEY*>(pKey),
+            nullptr, // No message digest
+            paddingType,
+            reinterpret_cast<const EVP_MD*>(mgfMdPtr),
+            pssSaltLen);
 
         std::vector<uint8_t, SecureAlloc<uint8_t> > signature;
         {
@@ -571,7 +603,7 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
  jclass clazz,
  jlong pKey,
  jint paddingType,
- jstring mgfMdName,
+ jlong mgfMdPtr,
  jint pssSaltLen,
  jbyteArray messageArr,
  jint offset,
@@ -587,7 +619,14 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
 
         EvpKeyContext ctx;
         initializeContext(
-            env, &ctx, false, reinterpret_cast<EVP_PKEY*>(pKey), NULL, paddingType, mgfMdName, pssSaltLen);
+            env,
+            &ctx,
+            false, // false->verify
+            reinterpret_cast<EVP_PKEY*>(pKey),
+            nullptr, // no message digest
+            paddingType,
+            reinterpret_cast<const EVP_MD*>(mgfMdPtr),
+            pssSaltLen);
 
         jni_borrow message(env, messageBuf, "message");
         jni_borrow signature(env, signatureBuf, "signature");

@@ -9,8 +9,9 @@ import java.security.SignatureException;
 class EvpSignatureRaw extends EvpSignatureBase {
     private AccessibleByteArrayOutputStream buffer = new AccessibleByteArrayOutputStream(64, 1024 * 1024);
 
-    private EvpSignatureRaw(AmazonCorrettoCryptoProvider provider, final EvpKeyType keyType, final int paddingType) {
-        super(provider, keyType, paddingType);
+    private EvpSignatureRaw(
+            final AmazonCorrettoCryptoProvider provider, final EvpKeyType keyType, final int paddingType) {
+        super(provider, keyType, paddingType, 0 /* No digest */);
     }
 
     @Override
@@ -36,7 +37,7 @@ class EvpSignatureRaw extends EvpSignatureBase {
     @Override
     protected byte[] engineSign() throws SignatureException {
         try {
-            return key_.use(ptr -> signRaw(ptr, paddingType_, null, 0, buffer.getDataBuffer(), 0, buffer.size()));
+            return key_.use(ptr -> signRaw(ptr, paddingType_, 0, 0, buffer.getDataBuffer(), 0, buffer.size()));
         } finally {
             engineReset();
         }
@@ -51,7 +52,7 @@ class EvpSignatureRaw extends EvpSignatureBase {
     protected boolean engineVerify(final byte[] sigBytes, final int offset, final int length)
             throws SignatureException {
         try {
-            return key_.use(ptr -> verifyRaw(ptr, paddingType_, null, 0, buffer.getDataBuffer(), 0, buffer.size(),
+            return key_.use(ptr -> verifyRaw(ptr, paddingType_, 0, 0, buffer.getDataBuffer(), 0, buffer.size(),
                     sigBytes, offset, length));
         } finally {
             engineReset();
@@ -62,10 +63,10 @@ class EvpSignatureRaw extends EvpSignatureBase {
         return buffer.size() == 0;
     }
 
-    private static native byte[] signRaw(long privateKey, int paddingType, String mgfMd, int saltLen, byte[] message,
+    private static native byte[] signRaw(long privateKey, int paddingType, long mgfMd, int saltLen, byte[] message,
             int offset, int length);
 
-    private static native boolean verifyRaw(long publicKey, int paddingType, String mgfMd, int saltLen, byte[] message,
+    private static native boolean verifyRaw(long publicKey, int paddingType, long mgfMd, int saltLen, byte[] message,
             int offset, int length, byte[] signature, int sigOffset, int sigLength) throws SignatureException;
 
     static final class NONEwithECDSA extends EvpSignatureRaw {
