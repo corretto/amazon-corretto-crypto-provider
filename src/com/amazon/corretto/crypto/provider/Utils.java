@@ -64,7 +64,7 @@ final class Utils {
      */
     static native int getDigestLength(long evpMd);
 
-    static String jceDigestNameToAwsLcName(String jceName) {
+    static String jceDigestNameToAwsLcName(final String jceName) {
         if (jceName == null) {
             return null;
         }
@@ -72,18 +72,30 @@ final class Utils {
         return jceName.replace("-", "").replace("/", "-").toUpperCase();
     }
 
-    static long getMdPtr(String digestName) {
-        final String name = jceDigestNameToAwsLcName(digestName);
-        // NOTE: it's a little awkward to throw an unchecked exception here, but the lambda
-        // invoking the native Utils.getEvpMdFromName can also throw an unchecked exception,
-        // so callers already need to handle this.
-        if (!name.startsWith("SHA")) {
-            throw new IllegalArgumentException("Unsupported digest algorithm");
+    /**
+     * Converts a hash name (according to JCE standards) to an {@code long} containing the value of the native
+     * {@code EVP_MD*} pointer.
+     * If {@code digestName == null} then this will return {@code 0}.
+     * Otherwise this is guaranteed to return a non-zero value as it will throw {@link IllegalArgumentException}
+     * if libcrypto cannot translate the name into a known {@code EVP_MD*} pointer.
+     */
+    static long getMdPtr(final String digestName) {
+        if (digestName == null) {
+            return 0;
         }
-        return digestPtrByName.computeIfAbsent(name, Utils::getEvpMdFromName);
+        final String name = jceDigestNameToAwsLcName(digestName);
+
+        if (!name.startsWith("SHA")) {
+            throw new IllegalArgumentException("Unsupported digest algorithm: " + digestName);
+        }
+        final long ptr = digestPtrByName.computeIfAbsent(name, Utils::getEvpMdFromName);
+        if (ptr == 0) {
+            throw new IllegalArgumentException("Unsupported digest algorith: " + digestName);
+        }
+        return ptr;
     }
 
-    static int getMdLen(long mdPtr) {
+    static int getMdLen(final long mdPtr) {
         return digestLengthByPtr.computeIfAbsent(mdPtr, Utils::getDigestLength);
     }
 

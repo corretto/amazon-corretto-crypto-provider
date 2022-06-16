@@ -36,17 +36,46 @@ abstract class EvpSignatureBase extends SignatureSpi {
     protected int keyUsageCount_ = 0;
     protected String algorithmName_ = null;
     protected PSSParameterSpec pssParams_ = null;
+    // While digest_ isn't needed for the all instances of this abstract class, it's cleaner to manage it with the
+    // rest of the signature parameter values.
+    protected long digest_ = 0; // Must be kept in sync with pssParams_ or main algorithm name.
+    protected long pssMgfMd_ = 0; // Must be kept in sync with pssParams_
+    protected int pssSaltLen_ = 0; // Must be kept in sync with pssParams_
 
     EvpSignatureBase(
             final AmazonCorrettoCryptoProvider provider,
             final EvpKeyType keyType,
-            final int paddingType
+            final int paddingType,
+            final long digest
     ) {
         provider_ = provider;
         keyType_ = keyType;
         paddingType_ = paddingType;
         if (paddingType_ == RSA_PKCS1_PSS_PADDING) {
-            pssParams_ = PSSParameterSpec.DEFAULT;
+            internalSetParams(PSSParameterSpec.DEFAULT);
+            // digest_ is set by internalSetParameters
+        } else {
+            internalSetParams(null);
+            // Overwrite the 0 set by internalSetParameters
+            digest_ = digest;
+        }
+    }
+
+    /**
+     * Internal utility function to ensure that when we set a new parameter spec we properly parse it and keep
+     * all other extract values in sync.
+     */
+    protected void internalSetParams(final PSSParameterSpec params) {
+        if (params == null) {
+            pssParams_ = null;
+            digest_ = 0;
+            pssMgfMd_ = 0;
+            pssSaltLen_ = 0;
+        } else {
+            pssParams_ = params;
+            digest_ = Utils.getMdPtr(params.getDigestAlgorithm());
+            pssMgfMd_ = Utils.getMdPtr(((MGF1ParameterSpec) params.getMGFParameters()).getDigestAlgorithm());
+            pssSaltLen_ = params.getSaltLength();
         }
     }
 
@@ -179,7 +208,7 @@ abstract class EvpSignatureBase extends SignatureSpi {
                 //       so we match that behavior here.
                 throw new IllegalArgumentException("PSS salt length invalid");
             }
-            pssParams_ = pssParams;
+            internalSetParams(pssParams);
         } else if (params != null) {
             throw new InvalidAlgorithmParameterException("Specified parameters supported by this algorithm");
         }
