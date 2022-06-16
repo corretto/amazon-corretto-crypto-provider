@@ -54,6 +54,7 @@ class ACCPGitHubCIStack(core.Stack):
             project_name=id,
             source=git_hub_source,
             role=role,
+            badge=True,
             timeout=core.Duration.minutes(180),
             environment=codebuild.BuildEnvironment(compute_type=codebuild.ComputeType.SMALL,
                                                    privileged=False,
