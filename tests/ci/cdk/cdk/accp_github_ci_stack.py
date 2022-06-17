@@ -27,6 +27,8 @@ class ACCPGitHubCIStack(core.Stack):
             fetch_submodules=True,
             webhook_filters=[
                 codebuild.FilterGroup.in_event_of(
+                    codebuild.EventAction.PUSH,
+                    codebuild.EventAction.PULL_REQUEST_MERGED,
                     codebuild.EventAction.PULL_REQUEST_CREATED,
                     codebuild.EventAction.PULL_REQUEST_UPDATED,
                     codebuild.EventAction.PULL_REQUEST_REOPENED)
