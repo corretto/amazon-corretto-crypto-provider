@@ -205,11 +205,11 @@ final class Loader {
          * Java will internally call dlopen() on libamazonCorrettoCryptoProvider from within this System.load() call.
          * This will cause the runtime dynamic loader to load ACCP's shared library into a new LOCAL object group that
          * is a child of the current Java LOCAL object group. If the library being loaded requires new transitive shared
-         * library dependencies to be loaded (libcrypto), the system's regular dynamic loading rules are followed
-         * (namely, any RPath values present will be used), and those shared library dependencies will also be loaded
-         * into the same child's LOCAL object group recursively until all shared library dependencies are loaded.
+         * library dependencies to be loaded (such as libcrypto), the system's regular dynamic loading rules are
+         * followed (namely, any RPath values present will be used), and those shared library dependencies will also be
+         * loaded into the same child's LOCAL object group recursively until all shared library dependencies are loaded.
          *
-         * At runtime the Java process's object group hierarchy would look like this:
+         * This means at runtime the Java process's object group hierarchy would look like this:
          *
          *             +------------------------------------------------------------+
          *             |Group #0: GLOBAL Object Group                               |
@@ -220,19 +220,15 @@ final class Loader {
          *                                          ^
          *                                          |
          *                                          |
-         *             +----------------------------+-------------------------------+
+         *             +------------------------------------------------------------+
          *             |Group #1: LOCAL Object Group                                |
          *             | - Java and JVM Symbols (libjli), libc, ld-linux, etc       |
          *             |                                                            |
-         *             |                                                            |
          *             +------------------------------------------------------------+
-         *                      ^                            ^
-         *                      |                            |
-         *                      |                            |
-         *                      |                            |
-         *                      |                            |
-         *                      |                            |
-         *   +------------------+--------------------+   +---+-----------------------------------+
+         *                      ^                                        ^
+         *                      |                                        |
+         *                      |                                        |
+         *   +---------------------------------------+   +---------------------------------------+
          *   |Group #2: LOCAL Object Group           |   |Group #3: LOCAL Object Group           |
          *   | - libamazonCorrettoCryptoProvider,    |   | - Any other JNI libraries. (Eg with   |
          *   |   libcrypto                           |   |   potentially different libcrypto)    |
@@ -245,7 +241,8 @@ final class Loader {
          * library symbols will not conflict with each another since each group only see's symbols from their own
          * parents in the hierarchy above them. This means it is possible for multiple different JNI libraries to be
          * loaded at runtime that use different libcrypto implementations so long as those JNI libraries configure
-         * their RPath values correctly.
+         * their RPath values correctly, and are compatible with any libraries that have already been loaded above
+         * them in the hierarchy.
          *
          * Once a LOCAL object group is created and the recursive library loading is complete, that LOCAL object group
          * can no longer be modified at runtime other than to be deleted entirely with dlclose(). Subsequent
@@ -257,6 +254,7 @@ final class Loader {
          *  - https://docs.oracle.com/cd/E19957-01/806-0641/6j9vuquj2/index.html
          *  - http://people.redhat.com/drepper/dsohowto.pdf
          *  - https://docs.oracle.com/cd/E23824_01/pdf/819-0690.pdf
+         *  - https://man7.org/linux/man-pages/man3/dlopen.3.html
          */
         Path rootSharedLibraryPath = privateTempDirectory.resolve(System.mapLibraryName(JNI_LIBRARY_NAME)).toAbsolutePath();
         System.load(rootSharedLibraryPath.toString());
