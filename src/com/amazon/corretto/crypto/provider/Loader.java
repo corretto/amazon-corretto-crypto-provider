@@ -211,10 +211,33 @@ final class Loader {
          *
          * At runtime the Java process's object group hierarchy would look like this:
          *
-         * #0: GLOBAL Object Group: Usually empty unless using LD_PRELOAD or dlopen(..., RTLD_GLOBAL)
-         *   ↳ #1: LOCAL Object Group: Java and JVM symbols (libjli), libc, ld-linux, linux-vdso
-         *     ↳ #2: LOCAL Object Group: libamazonCorrettoCryptoProvider, libcrypto
-         *     ↳ #3: LOCAL Object Group: Any other JNI libraries (Eg. with potentially different libcrypto)
+         *             +------------------------------------------------------------+
+         *             |Group #0: GLOBAL Object Group                               |
+         *             | - Usually empty unless using LD_PRELOAD or dlopen() with   |
+         *             |   RTLD_GLOBAL                                              |
+         *             |                                                            |
+         *             +------------------------------------------------------------+
+         *                                          ^
+         *                                          |
+         *                                          |
+         *             +----------------------------+-------------------------------+
+         *             |Group #1: LOCAL Object Group                                |
+         *             | - Java and JVM Symbols (libjli), libc, ld-linux, etc       |
+         *             |                                                            |
+         *             |                                                            |
+         *             +------------------------------------------------------------+
+         *                      ^                            ^
+         *                      |                            |
+         *                      |                            |
+         *                      |                            |
+         *                      |                            |
+         *                      |                            |
+         *   +------------------+--------------------+   +---+-----------------------------------+
+         *   |Group #2: LOCAL Object Group           |   |Group #3: LOCAL Object Group           |
+         *   | - libamazonCorrettoCryptoProvider,    |   | - Any other JNI libraries. (Eg with   |
+         *   |   libcrypto                           |   |   potentially different libcrypto)    |
+         *   |                                       |   |                                       |
+         *   +---------------------------------------+   +---------------------------------------+
          *
          * Any shared libraries that are not present in Java's LOCAL object group (Group #1), will be loaded into a
          * new child LOCAL object group, lower in the object group hierarchy. This can be done multiple times for
@@ -329,6 +352,11 @@ final class Loader {
         }
     }
 
+    /**
+     * We need a source of entropy to create a random temporary directory name at startup, before we've loaded native
+     * crypto libraries. So, for now, we just read from /dev/urandom. Clearly this won't work when we start supporting
+     * Windows systems. We are intentionally taking as few dependencies here as possible.
+     */
     private static byte[] bootstrapRng(int numBytes) throws IOException {
         final Path urandomPath = Paths.get("/dev/urandom");
         if (!Files.exists(urandomPath)) {
@@ -352,15 +380,9 @@ final class Loader {
 
     /**
      * Unfortunately, we cannot actually use Files.createTempFile, because that internally depends on
-     * SecureRandom, which results in a circular dependency. So, for now, we just read from
-     * /dev/urandom. Clearly this won't work when we start supporting windows systems. We are intentionally taking
-     * as few dependencies here as possible.
+     * SecureRandom, which results in a circular dependency.
      */
     private static synchronized Path createPrivateTmpDir(final String prefix) throws IOException {
-        final Path urandomPath = Paths.get("/dev/urandom");
-        if (!Files.exists(urandomPath)) {
-            throw new AssertionError("/dev/urandom must exist for bootstrapping");
-        }
         final Path systemTempDir = Paths.get(System.getProperty("java.io.tmpdir"));
         if (!Files.isDirectory(systemTempDir)) {
             throw new AssertionError("java.io.tmpdir is not valid: " + systemTempDir);
