@@ -232,6 +232,7 @@ else()
         COMMAND ${Java_JAR_EXECUTABLE} uf ${ACCP_JAR_TMP} -C ${CMAKE_CURRENT_SOURCE_DIR}/extra-jar-files .
         COMMAND ${Java_JAR_EXECUTABLE} uf ${ACCP_JAR_TMP} -C $<TARGET_PROPERTY:module-jar,CLASSDIR> module-info.class
         COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/tmplib/com/amazon/corretto/crypto/provider/
+        COMMAND ${CMAKE_COMMAND} -E copy ${OPENSSL_CRYPTO_LIBRARY} $<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
         COMMAND ${CMAKE_COMMAND} -E copy ${OPENSSL_CRYPTO_LIBRARY} ${CMAKE_CURRENT_BINARY_DIR}/tmplib/com/amazon/corretto/crypto/provider/
         COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:amazonCorrettoCryptoProvider> ${CMAKE_CURRENT_BINARY_DIR}/tmplib/com/amazon/corretto/crypto/provider/
         COMMAND ${Java_JAR_EXECUTABLE} uf ${ACCP_JAR_TMP} -C ${CMAKE_CURRENT_BINARY_DIR}/tmplib/ com/amazon/corretto/crypto/provider/
@@ -314,6 +315,7 @@ if(ENABLE_NATIVE_TEST_HOOKS)
   add_executable(test_keyutils EXCLUDE_FROM_ALL
         csrc/test_keyutils.cpp
     )
+    set_target_properties(test_keyutils PROPERTIES LINK_FLAGS "-Wl,-rpath,\$ORIGIN")
     target_link_libraries(test_keyutils ${OPENSSL_CRYPTO_LIBRARY})
     target_link_libraries(test_keyutils amazonCorrettoCryptoProvider)
 endif()
