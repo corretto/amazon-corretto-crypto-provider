@@ -240,7 +240,6 @@ final class Loader {
 
         // If loading library from JAR file, then the compile-time and run-time libcrypto versions should be an exact match.
         validateLibcryptoExactVersionMatch();
-        System.err.println("Successfully Loaded from JAR Libraries.");
     }
 
 
@@ -249,7 +248,6 @@ final class Loader {
          * Attempt to load library using system's default shared library lookup paths
          */
         System.loadLibrary(JNI_LIBRARY_NAME);
-        System.err.println("Successfully Loaded from System Libraries.");
     }
 
     private static void tryLoadLibrary() throws Exception {
@@ -263,8 +261,6 @@ final class Loader {
                 tryLoadLibraryFromJar();
                 successfullyLoadedLibrary = true;
             } catch (Exception e) {
-                System.err.println("Failed to Load from JAR: " + e.getMessage());
-                e.printStackTrace();
                 loadingException = e;
             }
         }
@@ -278,7 +274,6 @@ final class Loader {
             try {
                 tryLoadLibraryFromSystem();
             } catch (final Throwable suppressedError) {
-                System.err.println("Failed to Load from System: " + suppressedError.getMessage());
                 loadingException.addSuppressed(suppressedError);
                 throw loadingException;
             }
