@@ -18,6 +18,7 @@ public class LibCryptoRng extends SecureRandom {
 
     public LibCryptoRng() {
         super(new SPI(), AmazonCorrettoCryptoProvider.INSTANCE);
+        Loader.checkNativeLibraryAvailability();
     }
 
     @Override

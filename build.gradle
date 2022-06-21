@@ -91,6 +91,16 @@ task buildAwsLc {
     }
 }
 
+// Need to copy libcrypto to same directory where we will be building libACCP, so that we can run ACCP tests with
+// "-Djava.library.path=${buildDir}/cmake" and "-Dcom.amazon.corretto.crypto.provider.useExternalLib=true" flags
+task copyLibCryptoForTests(type: Copy) {
+    dependsOn buildAwsLc
+    from("${buildDir}/awslc/bin/lib") {
+        include 'libcrypto.*'
+    }
+    into "${buildDir}/cmake"
+}
+
 task executeCmake(type: Exec) {
     outputs.dir("${buildDir}/cmake")
     inputs.dir("${buildDir}/awslc/bin/")
@@ -103,9 +113,10 @@ task executeCmake(type: Exec) {
     inputs.dir("${projectDir}/test-data")
     inputs.dir("${projectDir}/template-src")
 
-    dependsOn buildAwsLc
+    dependsOn buildAwsLc, copyLibCryptoForTests
 
     workingDir "${buildDir}/cmake"
+
     def prebuiltJar = null
     if (project.hasProperty('stagingUrl')) {
         mkdir "${buildDir}/tmp"
@@ -123,6 +134,7 @@ task executeCmake(type: Exec) {
     args "-DOPENSSL_ROOT_DIR=${buildDir}/awslc/bin", '-DCMAKE_BUILD_TYPE=Release', '-DPROVIDER_VERSION_STRING=' + version
     args "-DTEST_RUNNER_JAR=${configurations.testRunner.singleFile}"
     args "-DCHECKSTYLE_CP=${configurations.checkstyle.asPath}"
+    args "-DCMAKE_VERBOSE_MAKEFILE:BOOL=ON"
     if (isFips) {
         args "-DFIPS=ON"
     }

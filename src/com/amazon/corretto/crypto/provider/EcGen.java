@@ -62,6 +62,7 @@ class EcGen extends KeyPairGeneratorSpi {
     private ECInfo ecInfo = null;
 
     EcGen(AmazonCorrettoCryptoProvider provider) {
+        Loader.checkNativeLibraryAvailability();
         provider_ = provider;
     }
 
