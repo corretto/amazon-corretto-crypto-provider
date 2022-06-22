@@ -107,7 +107,6 @@ task executeCmake(type: Exec) {
     dependsOn buildAwsLc
 
     workingDir "${buildDir}/cmake"
-
     def prebuiltJar = null
     if (project.hasProperty('stagingUrl')) {
         mkdir "${buildDir}/tmp"

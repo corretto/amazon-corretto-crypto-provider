@@ -795,6 +795,7 @@ add_custom_target(checkstyle
 
 if(ENABLE_NATIVE_TEST_HOOKS)
     add_custom_target(check-keyutils
+        COMMAND ${CMAKE_COMMAND} -E copy ${OPENSSL_CRYPTO_LIBRARY} $<TARGET_FILE_DIR:test_keyutils>
         COMMAND $<TARGET_FILE:test_keyutils>
     )
     add_dependencies(check check-keyutils)
