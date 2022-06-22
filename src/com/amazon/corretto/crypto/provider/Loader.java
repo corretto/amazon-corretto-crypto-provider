@@ -45,7 +45,7 @@ import java.util.regex.Pattern;
  */
 final class Loader {
     static final String PROPERTY_BASE = "com.amazon.corretto.crypto.provider.";
-    private static final String TEMP_DIR_PREFIX = "amazonCorrettoCryptoProvider.";
+    private static final String TEMP_DIR_PREFIX = "amazonCorrettoCryptoProviderNativeLibraries.";
     private static final String JNI_LIBRARY_NAME = "amazonCorrettoCryptoProvider";
     private static final String LIBCRYPTO_NAME = "crypto";
     private static final String[] JAR_RESOURCES = {JNI_LIBRARY_NAME, LIBCRYPTO_NAME};
@@ -162,37 +162,6 @@ final class Loader {
         RESOURCE_JANITOR = new Janitor();
     }
 
-    private static void maybeDelete(final Path path) {
-        if (!DebugFlag.PRESERVE_NATIVE_LIBRARIES.isEnabled()) {
-            try {
-                Files.delete(path);
-            } catch (IOException ex) {
-                LOG.warning("Unable to delete native library: " + ex);
-            }
-        }
-    }
-
-
-    private static Path writeJarResourceToTemporaryFile(Path tempDirectory, final String resourceFileName) throws IOException {
-        final Path tempResourceFilePath = tempDirectory.resolve(resourceFileName);
-
-        try (InputStream is = Loader.class.getResourceAsStream(resourceFileName);
-                OutputStream os = Files.newOutputStream(tempResourceFilePath, StandardOpenOption.CREATE,
-                        StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING)) {
-            final byte[] buffer = new byte[16 * 1024];
-            int read = is.read(buffer);
-            while (read >= 0) {
-                os.write(buffer, 0, read);
-                read = is.read(buffer);
-            }
-            os.flush();
-        }
-
-        // Ensure we delete any temp files on exit
-        tempResourceFilePath.toFile().deleteOnExit();
-        return tempResourceFilePath;
-    }
-
     private static void tryLoadLibraryFromJar() throws IOException {
         Path privateTempDirectory = createPrivateTmpDir(TEMP_DIR_PREFIX);
 
@@ -204,10 +173,13 @@ final class Loader {
         /**
          * Java will internally call dlopen() on libamazonCorrettoCryptoProvider from within this System.load() call.
          * This will cause the runtime dynamic loader to load ACCP's shared library into a new LOCAL object group that
-         * is a child of the current Java LOCAL object group. If the library being loaded requires new transitive shared
-         * library dependencies to be loaded (such as libcrypto), the system's regular dynamic loading rules are
-         * followed (namely, any RPath values present will be used), and those shared library dependencies will also be
-         * loaded into the same child's LOCAL object group recursively until all shared library dependencies are loaded.
+         * is a child of the current Java LOCAL object group. Any shared library dependencies of the library being
+         * loaded (such as libcrypto) will also be loaded recursively into the same LOCAL object group until all
+         * transitive shared library dependencies are loaded. The system's regular dynamic loading rules are followed
+         * (namely, any RPATH values present will be used). Since libamazonCorrettoCryptoProvider is built with an RPATH
+         * value of "$ORIGIN", the runtime dynamic loader will always look in the same directory as libACCP for any
+         * shared library dependencies BEFORE attempting to look in any system directories containing potentially
+         * conflicting libraries with the same name.
          *
          * This means at runtime the Java process's object group hierarchy would look like this:
          *
@@ -247,8 +219,8 @@ final class Loader {
          * Once a LOCAL object group is created and the recursive library loading is complete, that LOCAL object group
          * can no longer be modified at runtime other than to be deleted entirely with dlclose(). Subsequent
          * System.load() or dlopen(..., RTLD_LOCAL) calls will only create new child LOCAL Object Groups below the
-         * current object group in the hierarchy, and will only load in shared libraries that are not present in that
-         * specific object group's hierarchy.
+         * current object group in the hierarchy, and will only load in shared libraries that are not present in the
+         * caller's object group's hierarchy.
          *
          * Links:
          *  - https://docs.oracle.com/cd/E19957-01/806-0641/6j9vuquj2/index.html
@@ -256,11 +228,13 @@ final class Loader {
          *  - https://docs.oracle.com/cd/E23824_01/pdf/819-0690.pdf
          *  - https://man7.org/linux/man-pages/man3/dlopen.3.html
          */
-        Path rootSharedLibraryPath = privateTempDirectory.resolve(System.mapLibraryName(JNI_LIBRARY_NAME)).toAbsolutePath();
-        System.load(rootSharedLibraryPath.toString());
+        Path accpJniSharedLibraryPath = privateTempDirectory.resolve(System.mapLibraryName(JNI_LIBRARY_NAME)).toAbsolutePath();
+        System.load(accpJniSharedLibraryPath.toString());
 
         // If loading library from JAR file, then the compile-time and run-time libcrypto versions should be an exact match.
         validateLibcryptoExactVersionMatch();
+
+        maybeDeletePrivateTempDir(privateTempDirectory);
     }
 
 
@@ -350,8 +324,46 @@ final class Loader {
         }
     }
 
+    private static void maybeDelete(final Path path) {
+        if (!DebugFlag.PRESERVE_NATIVE_LIBRARIES.isEnabled()) {
+            try {
+                Files.delete(path);
+            } catch (IOException ex) {
+                LOG.warning("Unable to delete native library: " + ex);
+            }
+        }
+    }
+
+    private static void maybeDeletePrivateTempDir(final Path tmpDirectory) {
+        for (String jarResource: JAR_RESOURCES) {
+            String resourceFileName = System.mapLibraryName(jarResource);
+            maybeDelete(tmpDirectory.resolve(resourceFileName));
+        }
+        maybeDelete(tmpDirectory);
+    }
+
+    private static Path writeJarResourceToTemporaryFile(Path tempDirectory, final String resourceFileName) throws IOException {
+        final Path tempResourceFilePath = tempDirectory.resolve(resourceFileName);
+
+        try (InputStream is = Loader.class.getResourceAsStream(resourceFileName);
+             OutputStream os = Files.newOutputStream(tempResourceFilePath, StandardOpenOption.CREATE,
+                     StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING)) {
+            final byte[] buffer = new byte[16 * 1024];
+            int read = is.read(buffer);
+            while (read >= 0) {
+                os.write(buffer, 0, read);
+                read = is.read(buffer);
+            }
+            os.flush();
+        }
+
+        // Ensure we delete any temp files on exit
+        tempResourceFilePath.toFile().deleteOnExit();
+        return tempResourceFilePath;
+    }
+
     /**
-     * We need a source of entropy to create a random temporary directory name at startup, before we've loaded native
+     * We need a source of entropy to create a random temporary directory name at startup before we've loaded native
      * crypto libraries. So, for now, we just read from /dev/urandom. Clearly this won't work when we start supporting
      * Windows systems. We are intentionally taking as few dependencies here as possible.
      */
