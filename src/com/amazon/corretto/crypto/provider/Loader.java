@@ -217,7 +217,7 @@ final class Loader {
          * Any shared libraries that are not present in Java's LOCAL object group (Group #1), will be loaded into a
          * new child LOCAL object group, lower in the object group hierarchy. This can be done multiple times for
          * multiple different JNI libraries. Note that since both Groups #2 and #3 have Group #1 as a parent, their
-         * library symbols will not conflict with each another since each group only see's symbols from their own
+         * library symbols will not conflict with each other since each group only see's symbols from their own
          * parents in the hierarchy above them. This means it is possible for multiple different JNI libraries to be
          * loaded at runtime that use different libcrypto implementations so long as those JNI libraries configure
          * their RPath values correctly, and are compatible with any libraries that have already been loaded above
@@ -363,12 +363,15 @@ final class Loader {
     private static Path writeJarResourceToTemporaryFile(Path tempDirectory, final String resourceFileName) throws IOException {
         final Path tempResourceFilePath = tempDirectory.resolve(resourceFileName);
 
-        // Create a new temporary file. If one already exists this will throw FileAlreadyExistsException
+        // Create a new temporary file with ourselves as the owner. We need to ensure that we create the file and set
+        // permissions atomically so that an adversary cannot put a symlink or file here which would cause us to write
+        // (or read) to an arbitrary attacker controlled location. If this file already exists at this location, then
+        // a FileAlreadyExistsException will be thrown.
         Files.createFile(tempResourceFilePath, SELF_OWNER_FILE_PERMISSIONS);
 
         try (InputStream is = Loader.class.getResourceAsStream(resourceFileName);
-             OutputStream os = Files.newOutputStream(tempResourceFilePath, StandardOpenOption.CREATE,
-                     StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING)) {
+             OutputStream os = Files.newOutputStream(tempResourceFilePath, StandardOpenOption.WRITE,
+                                        StandardOpenOption.TRUNCATE_EXISTING)) {
             final byte[] buffer = new byte[16 * 1024];
             int read = is.read(buffer);
             while (read >= 0) {
@@ -379,7 +382,9 @@ final class Loader {
         }
 
         // Ensure we delete any temp files on exit
-        tempResourceFilePath.toFile().deleteOnExit();
+        if (!DebugFlag.PRESERVE_NATIVE_LIBRARIES.isEnabled()) {
+            tempResourceFilePath.toFile().deleteOnExit();
+        }
         return tempResourceFilePath;
     }
 
@@ -419,30 +424,34 @@ final class Loader {
             throw new AssertionError("java.io.tmpdir is not valid: " + systemTempDir);
         }
 
-        final byte[] rndBytes = bootstrapRng(Long.BYTES); // Default java tmp files use this much entropy
-        final StringBuilder privateTempDir = new StringBuilder(prefix);
-
-        for (byte b : rndBytes) {
-            // We convert to an unsigned integer first to avoid sign-bit extension when converting to hex.
-            String hexByte = Integer.toHexString(Byte.toUnsignedInt(b));
-            if (hexByte.length() == 1) {
-                privateTempDir.append('0');
-            }
-            privateTempDir.append(hexByte);
-        }
-
-        final Path privateDirFullPath = systemTempDir.resolve(privateTempDir.toString());
         final int RETRY_LIMIT = 10;
         int attempt = 0;
 
         while(attempt < RETRY_LIMIT) {
             attempt++;
             try {
+                final byte[] rndBytes = bootstrapRng(Long.BYTES); // Default java tmp files use this much entropy
+                final StringBuilder privateTempDir = new StringBuilder(prefix);
+
+                for (byte b : rndBytes) {
+                    // We convert to an unsigned integer first to avoid sign-bit extension when converting to hex.
+                    String hexByte = Integer.toHexString(Byte.toUnsignedInt(b));
+                    if (hexByte.length() == 1) {
+                        privateTempDir.append('0');
+                    }
+                    privateTempDir.append(hexByte);
+                }
+
+                final Path privateDirFullPath = systemTempDir.resolve(privateTempDir.toString());
+
                 final Path result = Files.createDirectory(privateDirFullPath, SELF_OWNER_FILE_PERMISSIONS);
                 if (DebugFlag.VERBOSELOGS.isEnabled()) {
                     LOG.log(Level.FINE, "Created temporary library directory");
                 }
-                result.toFile().deleteOnExit();
+
+                if (!DebugFlag.PRESERVE_NATIVE_LIBRARIES.isEnabled()) {
+                    result.toFile().deleteOnExit();
+                }
                 return result;
             } catch (final FileAlreadyExistsException ex) {
                 // We ignore and retry this exception
