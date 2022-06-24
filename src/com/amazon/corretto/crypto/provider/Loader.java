@@ -382,9 +382,8 @@ final class Loader {
         }
 
         // Ensure we delete any temp files on exit
-        if (!DebugFlag.PRESERVE_NATIVE_LIBRARIES.isEnabled()) {
-            tempResourceFilePath.toFile().deleteOnExit();
-        }
+        tempResourceFilePath.toFile().deleteOnExit();
+
         return tempResourceFilePath;
     }
 
@@ -449,9 +448,7 @@ final class Loader {
                     LOG.log(Level.FINE, "Created temporary library directory");
                 }
 
-                if (!DebugFlag.PRESERVE_NATIVE_LIBRARIES.isEnabled()) {
-                    result.toFile().deleteOnExit();
-                }
+                result.toFile().deleteOnExit();
                 return result;
             } catch (final FileAlreadyExistsException ex) {
                 // We ignore and retry this exception
