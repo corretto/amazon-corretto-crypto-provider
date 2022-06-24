@@ -109,7 +109,7 @@ namespace AmazonCorrettoCryptoProvider
 
         BigNumObj &operator=(BigNumObj &&bn)
         {
-            std::move(bn);
+            move(bn);
             return *this;
         }
 
@@ -122,7 +122,8 @@ namespace AmazonCorrettoCryptoProvider
         {
             BigNumObj &other = const_cast<BigNumObj &>(other_const);
 
-            std::move(other);
+            // No std::move before C++11, use this class's implementation.
+            move(other);
 
             return *this;
         }

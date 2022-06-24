@@ -55,12 +55,12 @@ namespace AmazonCorrettoCryptoProvider
 
     jbyteArray bn2jarr(raii_env &env, const BIGNUM *bn)
     {
-        int bnLen = BN_num_bytes(bn);
+        const size_t bnLen = BN_num_bytes(bn);
         if (unlikely(bnLen < 0))
         {
             throw_java_ex(EX_ERROR, "Bad bignum length");
         }
-        std::vector<uint8_t, SecureAlloc<uint8_t>> tmp(static_cast<size_t>(bnLen));
+        std::vector<uint8_t, SecureAlloc<uint8_t> > tmp(bnLen);
 
         BN_bn2bin(bn, &tmp[0]);
 
