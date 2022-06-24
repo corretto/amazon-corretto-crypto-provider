@@ -20,6 +20,11 @@
 // Right now we only support PTHREAD
 #include <pthread.h>
 
+// https://www.openssl.org/docs/man1.1.1/man3/OPENSSL_VERSION_NUMBER.html
+// 0xMNNFFPPS : major minor fix patch status
+// 0x1010107f == v1.1.1g release
+#define LIBCRYPTO_MAJOR_MINOR_VERSION_MASK 0xFFF00000
+
 using namespace AmazonCorrettoCryptoProvider;
 
 namespace {
@@ -60,7 +65,6 @@ JNIEXPORT jstring JNICALL Java_com_amazon_corretto_crypto_provider_Loader_getNat
 
 }
 
-
 JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_Loader_validateLibcryptoExactVersionMatch(JNIEnv* pEnv, jclass)
 {
     char msg_buffer[256] = {0};
@@ -68,6 +72,28 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_Loader_valid
     try {
         const unsigned long libcrypto_compiletime_version = OPENSSL_VERSION_NUMBER;
         const unsigned long libcrypto_runtime_version = OpenSSL_version_num();
+
+        if (libcrypto_compiletime_version != libcrypto_runtime_version) {
+            snprintf(msg_buffer, sizeof(msg_buffer), "Runtime libcrypto version does not match compile-time version. "
+                "Expected: 0x%08lX , Actual: 0x%08lX", libcrypto_compiletime_version, libcrypto_runtime_version);
+            throw java_ex(EX_RUNTIME_CRYPTO, msg_buffer);
+        }
+
+        return JNI_TRUE;
+    } catch (java_ex &ex) {
+        ex.throw_to_java(pEnv);
+    }
+
+    return JNI_FALSE;
+}
+
+JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_Loader_validateLibcryptoFuzzyVersionMatch(JNIEnv* pEnv, jclass)
+{
+    char msg_buffer[256] = {0};
+
+    try {
+        const unsigned long libcrypto_compiletime_version = (OPENSSL_VERSION_NUMBER & LIBCRYPTO_MAJOR_MINOR_VERSION_MASK);
+        const unsigned long libcrypto_runtime_version = (OpenSSL_version_num() & LIBCRYPTO_MAJOR_MINOR_VERSION_MASK);
 
         if (libcrypto_compiletime_version != libcrypto_runtime_version) {
             snprintf(msg_buffer, sizeof(msg_buffer), "Runtime libcrypto version does not match compile-time version. "

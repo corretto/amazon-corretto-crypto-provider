@@ -50,6 +50,13 @@ final class Loader {
     private static final String LIBCRYPTO_NAME = "crypto";
     private static final String[] JAR_RESOURCES = {JNI_LIBRARY_NAME, LIBCRYPTO_NAME};
     private static final Pattern TEST_FILENAME_PATTERN = Pattern.compile("[-a-zA-Z0-9]+(\\.[a-zA-Z0-9]+)*");
+    private static final FileAttribute<Set<PosixFilePermission>> SELF_OWNER_FILE_PERMISSIONS =
+            PosixFilePermissions.asFileAttribute(new HashSet<>(Arrays.asList(
+                    PosixFilePermission.OWNER_READ,
+                    PosixFilePermission.OWNER_WRITE,
+                    PosixFilePermission.OWNER_EXECUTE
+            )));
+
     private static final Logger LOG = Logger.getLogger("AmazonCorrettoCryptoProvider");
 
     // Version strings live in the loader because we want to be able to access them before
@@ -243,6 +250,9 @@ final class Loader {
          * Attempt to load library using system's default shared library lookup paths
          */
         System.loadLibrary(JNI_LIBRARY_NAME);
+
+        // If loading from system directory, ensure compile-time and run-time libcrypto have same major and minor version
+        validateLibcryptoFuzzyVersionMatch();
     }
 
     private static void tryLoadLibrary() throws Exception {
@@ -298,6 +308,14 @@ final class Loader {
      * version upgrades to libcrypto may cause breakages.
      */
     private static native boolean validateLibcryptoExactVersionMatch();
+
+    /**
+     * Validates that the LibCrypto available at runtime has the same Major and Minor version as compile time, but allow
+     * the Patch version to be different. This should only be done if loading ACCP from a system directory to allow for
+     * patch security updates to libcrypto to be made independently from ACCP.
+     */
+    private static native boolean validateLibcryptoFuzzyVersionMatch();
+
     /**
      * Indicates if libcrypto is a FIPS build or not.
      * Equivalent to {@code FIPS_mode() == 1}
@@ -345,6 +363,9 @@ final class Loader {
     private static Path writeJarResourceToTemporaryFile(Path tempDirectory, final String resourceFileName) throws IOException {
         final Path tempResourceFilePath = tempDirectory.resolve(resourceFileName);
 
+        // Create a new temporary file. If one already exists this will throw FileAlreadyExistsException
+        Files.createFile(tempResourceFilePath, SELF_OWNER_FILE_PERMISSIONS);
+
         try (InputStream is = Loader.class.getResourceAsStream(resourceFileName);
              OutputStream os = Files.newOutputStream(tempResourceFilePath, StandardOpenOption.CREATE,
                      StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING)) {
@@ -373,7 +394,7 @@ final class Loader {
             throw new AssertionError("/dev/urandom must exist for bootstrapping");
         }
 
-        final byte[] rndBytes = new byte[numBytes]; // Default java tmp files use this much entropy
+        final byte[] rndBytes = new byte[numBytes];
         final int RETRY_LIMIT = 10;
         try (InputStream rndStream = Files.newInputStream(urandomPath, StandardOpenOption.READ)) {
             int attempt = 0;
@@ -398,13 +419,6 @@ final class Loader {
             throw new AssertionError("java.io.tmpdir is not valid: " + systemTempDir);
         }
 
-        final FileAttribute<Set<PosixFilePermission>> permissions =
-                PosixFilePermissions.asFileAttribute(new HashSet<>(Arrays.asList(
-                    PosixFilePermission.OWNER_READ,
-                    PosixFilePermission.OWNER_WRITE,
-                    PosixFilePermission.OWNER_EXECUTE
-        )));
-
         final byte[] rndBytes = bootstrapRng(Long.BYTES); // Default java tmp files use this much entropy
         final StringBuilder privateTempDir = new StringBuilder(prefix);
 
@@ -424,7 +438,7 @@ final class Loader {
         while(attempt < RETRY_LIMIT) {
             attempt++;
             try {
-                final Path result = Files.createDirectory(privateDirFullPath, permissions);
+                final Path result = Files.createDirectory(privateDirFullPath, SELF_OWNER_FILE_PERMISSIONS);
                 if (DebugFlag.VERBOSELOGS.isEnabled()) {
                     LOG.log(Level.FINE, "Created temporary library directory");
                 }
