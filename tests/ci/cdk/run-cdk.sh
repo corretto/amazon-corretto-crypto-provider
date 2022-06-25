@@ -168,10 +168,8 @@ function win_docker_img_build_status_check() {
 }
 
 function build_win_docker_images() {
-  echo "Windows Docker image build is disabled due to some third-party issues(CryptoAlg-826)"
-  # TODO: re-enable below code when CryptoAlg-826 is fixed.
   # Always destroy docker build stacks (which include EC2 instance) on EXIT.
-  # trap destroy_docker_img_build_stack EXIT
+  trap destroy_docker_img_build_stack EXIT
 
   # Create/update aws-ecr repo.
   cdk deploy accp-ecr-windows-* --require-approval never
@@ -179,12 +177,12 @@ function build_win_docker_images() {
   # Create aws windows build stack
   create_win_docker_img_build_stack
 
-  # echo "Executing AWS SSM commands to build Windows docker images."
-  # run_windows_img_build
+  echo "Executing AWS SSM commands to build Windows docker images."
+  run_windows_img_build
 
-  # echo "Waiting for docker images creation. Building the docker images need to take 1 hour."
-  # # TODO(CryptoAlg-624): These image build may fail due to the Docker Hub pull limits made on 2020-11-01.
-  # win_docker_img_build_status_check
+  echo "Waiting for docker images creation. Building the docker images need to take 1 hour."
+  # TODO(CryptoAlg-624): These image build may fail due to the Docker Hub pull limits made on 2020-11-01.
+  win_docker_img_build_status_check
 }
 
 

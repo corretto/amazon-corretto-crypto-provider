@@ -19,7 +19,7 @@ mainSteps:
     # Git clone aws-lc repo.
     - git clone https://github.com/GITHUB_OWNER_PLACEHOLDER/amazon-corretto-crypto-provider.git
     # Build Windows docker images.
-    - cd .\aws-lc\tests\ci\docker_images\windows
+    - cd .\amazon-corretto-crypto-provider\tests\ci\docker_images\windows
     - git checkout GITHUB_SOURCE_VERSION_PLACEHOLDER
     - Invoke-Expression -Command (Get-ECRLoginCommand -Region REGION_PLACEHOLDER).Command
     - .\build_images.ps1
