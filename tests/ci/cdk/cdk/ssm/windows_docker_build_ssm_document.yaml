@@ -3,7 +3,7 @@
 
 ---
 schemaVersion: '2.2'
-description: aws-lc:buildWindowsDockerImages
+description: accp:buildWindowsDockerImages
 mainSteps:
 - action: aws:runPowerShellScript
   name: runPowerShellScript
@@ -19,8 +19,9 @@ mainSteps:
     # Git clone accp repo.
     - git clone https://github.com/GITHUB_OWNER_PLACEHOLDER/amazon-corretto-crypto-provider.git
     # Build Windows docker images.
-    - cd .\amazon-corretto-crypto-provider\tests\ci\docker_images\windows
+    - cd .\amazon-corretto-crypto-provider
     - git checkout GITHUB_SOURCE_VERSION_PLACEHOLDER
+    - cd .\tests\ci\docker_images\windows
     - Invoke-Expression -Command (Get-ECRLoginCommand -Region REGION_PLACEHOLDER).Command
     - .\build_images.ps1
     - .\push_images.ps1 ECR_PLACEHOLDER
