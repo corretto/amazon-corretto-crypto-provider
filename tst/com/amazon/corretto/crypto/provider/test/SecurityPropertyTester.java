@@ -12,6 +12,8 @@ import java.security.Security;
 import java.util.HashSet;
 import java.util.Set;
 
+import javax.net.ssl.SSLContext;
+
 /**
  * This is a special stand-alone test case which asserts that AmazonCorrettoCryptoProvider is installed
  * as the highest priority provider and is functional.
@@ -25,6 +27,9 @@ public final class SecurityPropertyTester {
 
     final Provider provider = Security.getProviders()[0];
     assertEquals(NATIVE_PROVIDER.getName(), provider.getName());
+
+    // Ensure that TLS works as expected
+    SSLContext.getInstance("TLS"); // Throws exception on problem
 
     // We know that Java has the SunEC provider which can generate EC keys.
     // We try to grab it to show that the nothing interfered with proper provider loading.
