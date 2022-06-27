@@ -25,8 +25,8 @@
 // 0x1010107f == v1.1.1g release
 #define LIBCRYPTO_MAJOR_MINOR_VERSION_MASK 0xFFF00000
 
-#define LIBCRYPTO_EXACT_VERSION_MATCH       0
-#define LIBCRYPTO_FUZZY_VERSION_MATCH       1
+#define LIBCRYPTO_EXACT_VERSION_MATCH       false
+#define LIBCRYPTO_FUZZY_VERSION_MATCH       true
 
 static char accp_loader_exception_msg[256] = {0};
 
