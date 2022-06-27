@@ -59,4 +59,4 @@ security.provider.22=SunPKCS11
 # This is a comma-separated list of algorithm and/or algorithm:provider
 # entries.
 #
-securerandom.strongAlgorithms=NIST800-90A/AES-CTR-256:AmazonCorrettoCryptoProvider,NativePRNGBlocking:SUN,DRBG:SUN
+securerandom.strongAlgorithms=DEFAULT:AmazonCorrettoCryptoProvider,NativePRNGBlocking:SUN,DRBG:SUN
