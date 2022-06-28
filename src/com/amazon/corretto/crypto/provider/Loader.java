@@ -239,7 +239,7 @@ final class Loader {
         System.load(accpJniSharedLibraryPath.toString());
 
         // If loading library from JAR file, then the compile-time and run-time libcrypto versions should be an exact match.
-        validateLibcryptoExactVersionMatch();
+        validateLibcryptoVersion(false);
 
         maybeDeletePrivateTempDir(privateTempDirectory);
     }
@@ -252,7 +252,7 @@ final class Loader {
         System.loadLibrary(JNI_LIBRARY_NAME);
 
         // If loading from system directory, ensure compile-time and run-time libcrypto have same major and minor version
-        validateLibcryptoFuzzyVersionMatch();
+        validateLibcryptoVersion(true);
     }
 
     private static void tryLoadLibrary() throws Exception {
@@ -303,18 +303,11 @@ final class Loader {
     private static native String getNativeLibraryVersion();
 
     /**
-     * Validates that the LibCrypto available at runtime is exactly the same as what was available at compile time.
-     * This should only be done if loading ACCP from a JAR file, since if loading from system libraries then minor
-     * version upgrades to libcrypto may cause breakages.
+     * Validates that the LibCrypto available at runtime is the same as what was available at compile time. If
+     * fuzzyMatch is true, then only the major and minor version values of libcrypto's version number is compared.
      */
-    private static native boolean validateLibcryptoExactVersionMatch();
+    private static native boolean validateLibcryptoVersion(boolean fuzzyMatch);
 
-    /**
-     * Validates that the LibCrypto available at runtime has the same Major and Minor version as compile time, but allow
-     * the Patch version to be different. This should only be done if loading ACCP from a system directory to allow for
-     * patch security updates to libcrypto to be made independently from ACCP.
-     */
-    private static native boolean validateLibcryptoFuzzyVersionMatch();
 
     /**
      * Indicates if libcrypto is a FIPS build or not.

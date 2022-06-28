@@ -25,11 +25,6 @@
 // 0x1010107f == v1.1.1g release
 #define LIBCRYPTO_MAJOR_MINOR_VERSION_MASK 0xFFF00000
 
-#define LIBCRYPTO_EXACT_VERSION_MATCH       false
-#define LIBCRYPTO_FUZZY_VERSION_MATCH       true
-
-static char accp_loader_exception_msg[256] = {0};
-
 using namespace AmazonCorrettoCryptoProvider;
 
 namespace {
@@ -70,40 +65,26 @@ JNIEXPORT jstring JNICALL Java_com_amazon_corretto_crypto_provider_Loader_getNat
 
 }
 
-void accpValidateLibcryptoVersion(bool fuzzyMatch) {
-    unsigned long libcrypto_compiletime_version = OPENSSL_VERSION_NUMBER;
-    unsigned long libcrypto_runtime_version = OpenSSL_version_num();
-
-    if (fuzzyMatch) {
-        libcrypto_compiletime_version &= LIBCRYPTO_MAJOR_MINOR_VERSION_MASK;
-        libcrypto_runtime_version     &= LIBCRYPTO_MAJOR_MINOR_VERSION_MASK;
-    }
-
-    if (libcrypto_compiletime_version != libcrypto_runtime_version) {
-        memset(accp_loader_exception_msg, 0, sizeof(accp_loader_exception_msg));
-        snprintf(accp_loader_exception_msg, sizeof(accp_loader_exception_msg),
-                "Runtime libcrypto version does not match compile-time version. Expected: 0x%08lX , Actual: 0x%08lX",
-                libcrypto_compiletime_version, libcrypto_runtime_version);
-        throw java_ex(EX_RUNTIME_CRYPTO, accp_loader_exception_msg);
-    }
-}
-
-JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_Loader_validateLibcryptoExactVersionMatch(JNIEnv* pEnv, jclass)
+JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_Loader_validateLibcryptoVersion(JNIEnv* pEnv, jclass, jboolean jFuzzyMatch)
 {
-    try {
-        accpValidateLibcryptoVersion(LIBCRYPTO_EXACT_VERSION_MATCH);
-        return JNI_TRUE;
-    } catch (java_ex &ex) {
-        ex.throw_to_java(pEnv);
-    }
+    bool fuzzyMatch = (jFuzzyMatch == JNI_TRUE);
 
-    return JNI_FALSE;
-}
-
-JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_Loader_validateLibcryptoFuzzyVersionMatch(JNIEnv* pEnv, jclass)
-{
     try {
-        accpValidateLibcryptoVersion(LIBCRYPTO_FUZZY_VERSION_MATCH);
+        unsigned long libcrypto_compiletime_version = OPENSSL_VERSION_NUMBER;
+        unsigned long libcrypto_runtime_version = OpenSSL_version_num();
+
+        if (fuzzyMatch) {
+            libcrypto_compiletime_version &= LIBCRYPTO_MAJOR_MINOR_VERSION_MASK;
+            libcrypto_runtime_version     &= LIBCRYPTO_MAJOR_MINOR_VERSION_MASK;
+        }
+
+        if (libcrypto_compiletime_version != libcrypto_runtime_version) {
+            char accp_loader_exception_msg[256] = {0};
+            snprintf(accp_loader_exception_msg, sizeof(accp_loader_exception_msg),
+                    "Runtime libcrypto version does not match compile-time version. Expected: 0x%08lX , Actual: 0x%08lX",
+                    libcrypto_compiletime_version, libcrypto_runtime_version);
+            throw java_ex(EX_RUNTIME_CRYPTO, accp_loader_exception_msg);
+        }
         return JNI_TRUE;
     } catch (java_ex &ex) {
         ex.throw_to_java(pEnv);
