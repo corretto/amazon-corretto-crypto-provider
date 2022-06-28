@@ -1,0 +1,42 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+version: 0.2
+
+env:
+  variables:
+    GO_TAG: go1.18.3
+phases:
+  # TODO: Everything in the install section should be moved into a prebuilt image
+  install:
+    runtime-versions:
+      java: corretto11
+      python: 3.9
+    commands:
+  build:
+    commands:
+      # TODO: Sign jars here
+      # TODO: Uncomment the following lines once configured
+      - pip install awscli aws-encryption-sdk-cli
+      # Debugging only
+      - aws sts get-caller-identity
+      # Retrieve encrypted configuration from S3
+      - aws s3 cp s3://${CONFIG_BUCKET}/${JKS_FILENAME}.enc $HOME/${JKS_FILENAME}.enc
+      - aws s3 cp s3://${CONFIG_BUCKET}/${GPG_FILENAME} $HOME/${GPG_FILENAME}.enc
+      - aws s3 cp s3://${CONFIG_BUCKET}/${PROPERTIES_FILENAME}.enc $HOME/${PROPERTIES_FILENAME}.enc
+      # Decrypt configuration
+      - mkdir -p $HOME/.gradle
+      - aws-encryption-cli --decrypt -S --wrapping-keys key=${KMS_ARN} --commitment-policy require-encrypt-allow-decrypt -i $HOME/${JKS_FILENAME}.enc -o $HOME/.gradle/${JKS_FILENAME} --encryption-context filename=${JKS_FILENAME}
+      - aws-encryption-cli --decrypt -S --wrapping-keys key=${KMS_ARN} --commitment-policy require-encrypt-allow-decrypt -i $HOME/${GPG_FILENAME}.enc -o $HOME/${GPG_FILENAME} --encryption-context filename=${GPG_FILENAME}
+      - aws-encryption-cli --decrypt -S --wrapping-keys key=${KMS_ARN} --commitment-policy require-encrypt-allow-decrypt -i $HOME/${PROPERTIES_FILENAME}.enc -o $HOME/.gradle/gradle.properties --encryption-context filename=${PROPERTIES_FILENAME}
+      - tar -xzvpf $HOME/${GPG_FILENAME}
+      # TODO: Remove next two debugging lines
+      - ./gradlew --info -DFIPS=${FIPS} fakePublish
+      - find build/fake_maven/
+      - ./gradlew --info -DFIPS=${FIPS} fakePublish publishToSonatype closeSonatypeStagingRepository
+artifacts:
+  files:
+    - 'fake_maven/**/*'
+  base-directory: 'build'
+  discard-paths: no
+  name: $(date --iso-8601=s)
