@@ -20,20 +20,13 @@ env = core.Environment(account=AWS_ACCOUNT, region=AWS_REGION)
 # Define AWS ECR stacks.
 # ECR holds the docker images, which are pre-built to accelerate the code builds/tests of git pull requests.
 EcrStack(app, "accp-ecr-linux-all", LINUX_ECR_REPO, env=env)
-
-# Renable the code below when ACCP adds support for Windows.
-# Issue: https://github.com/corretto/amazon-corretto-crypto-provider/issues/48
 EcrStack(app, "accp-ecr-windows-x86", WINDOWS_X86_ECR_REPO, env=env)
 
 # Define CodeBuild Batch job for building Docker images.
 LinuxDockerImageBatchBuildStack(app, "accp-docker-image-build-linux", env=env)
-
-# Renable the code below when ACCP adds support for Windows.
-# Issue: https://github.com/corretto/amazon-corretto-crypto-provider/issues/48
-#
 # AWS CodeBuild cannot build Windows Docker images because DIND (Docker In Docker) is not supported on Windows.
 # Windows Docker images are created by running commands in Windows EC2 instance.
-# WindowsDockerImageBuildStack(app, "accp-docker-image-build-windows", env=env)
+WindowsDockerImageBuildStack(app, "accp-docker-image-build-windows", env=env)
 
 # Define CodeBuild Batch job for testing code.
 x86_build_spec_file = "./cdk/codebuild/pr_integration_linux_x86_omnibus.yaml"
