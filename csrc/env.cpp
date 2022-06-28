@@ -119,7 +119,7 @@ void java_ex::throw_to_java(JNIEnv *env) {
 
     if (likely(ex_class != NULL)) {
         std::ostringstream oss;
-        oss << m_message_cstr;
+        oss << m_message;
 
 #ifdef BACKTRACE_ON_EXCEPTION
         format_trace(oss, m_trace);

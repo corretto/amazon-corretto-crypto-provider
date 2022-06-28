@@ -14,7 +14,6 @@
 #include <vector>
 #include <sstream>
 #include <memory>
-#include <cstring>
 
 #ifdef HAVE_IS_TRIVIALLY_COPYABLE
 #include <type_traits>
@@ -51,7 +50,7 @@ class java_ex {
         jthrowable m_java_exception;
 
         const char *m_java_classname;
-        char m_message_cstr[256] = {0};
+        const std::string m_message;
 #ifdef BACKTRACE_ON_EXCEPTION
         std::vector<void *> m_trace;
         void capture_trace() COLD { AmazonCorrettoCryptoProvider::capture_trace(m_trace); }
@@ -61,22 +60,17 @@ class java_ex {
 
     public:
         java_ex(jthrowable exception) COLD
-            : m_java_exception(exception), m_java_classname(nullptr)
+            : m_java_exception(exception), m_java_classname(nullptr), m_message()
         { }
 
         java_ex(const char *java_classname, const char *message) COLD
-            : m_java_exception(nullptr), m_java_classname(java_classname) {
-
-            capture_trace();
-
-            if (message != NULL) {
-                size_t amount_to_copy = strnlen(message, (sizeof(m_message_cstr) - 1));
-                std::strncpy(m_message_cstr, message, amount_to_copy);
-            }
+            : java_ex(java_classname, std::string(message)) {
         }
 
         java_ex(const char *java_classname, const std::string &message) COLD
-            : java_ex(java_classname, message.c_str()) {}
+            : m_java_exception(nullptr), m_java_classname(java_classname), m_message(message) {
+            capture_trace();
+        }
 
         /**
          * Constructs an exception based on the openssl error code.
