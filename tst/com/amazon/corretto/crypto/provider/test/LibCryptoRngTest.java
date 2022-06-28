@@ -153,16 +153,16 @@ public class LibCryptoRngTest {
         // Ensure that the resulting bytes haven't been left at zero
         // Probablistically, this will pass.
         final int retries = 5;
-        for (int ii = 0; ii < retries; ii++) {
+        for (int i = 0; i < retries; i++) {
             byte[] tests = new byte[3];
             tests[0] = bytes[8192];
             tests[1] = bytes[8193];
             tests[2] = bytes[12287];
             rnd.nextBytes(bytes);
             boolean passed = true;
-            passed &= tests[0] != bytes[8192];
-            passed &= tests[1] != bytes[8193];
-            passed &= tests[2] != bytes[12287];
+            passed &= (tests[0] != bytes[8192]);
+            passed &= (tests[1] != bytes[8193]);
+            passed &= (tests[2] != bytes[12287]);
             if (passed) {
                 return;
             }
