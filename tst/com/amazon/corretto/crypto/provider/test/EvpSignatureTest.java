@@ -9,19 +9,25 @@ import static com.amazon.corretto.crypto.provider.test.TestUtil.versionCompare;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import java.nio.ByteBuffer;
 import java.security.GeneralSecurityException;
 import java.security.InvalidKeyException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
 import java.security.Provider;
 import java.security.PublicKey;
 import java.security.Signature;
 import java.security.SignatureException;
 import java.security.interfaces.ECKey;
+import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.ECGenParameterSpec;
+import java.security.spec.MGF1ParameterSpec;
+import java.security.spec.PSSParameterSpec;
 import java.security.spec.RSAKeyGenParameterSpec;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -30,14 +36,16 @@ import java.util.function.BiFunction;
 import java.util.stream.Stream;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.junit.jupiter.api.parallel.ResourceAccessMode;
 import org.junit.jupiter.api.parallel.ResourceLock;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
+@Execution(ExecutionMode.CONCURRENT)
 @ExtendWith(TestResultLogger.class)
 @ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
 public class EvpSignatureTest {
@@ -46,11 +54,11 @@ public class EvpSignatureTest {
     private static final List<String> BASES = Arrays.asList("RSA", "ECDSA");
     private static final List<String> HASHES = Arrays.asList("NONE", "SHA1", "SHA224", "SHA256", "SHA384", "SHA512");
     private static final int[] MESSAGE_LENGTHS = new int[] { 0, 1, 16, 32, 2047, 2048, 2049, 4100 };
-    private static List<TestParams> MASTER_PARAMS_LIST;
 
     private static class TestParams {
         final private String base;
         final private String algorithm;
+        final private AlgorithmParameterSpec paramSpec;
         final private boolean readOnly;
         final private boolean slice;
         final private KeyPair keyPair;
@@ -62,19 +70,27 @@ public class EvpSignatureTest {
         final private Signature jceVerifier;
         final private byte[] goodSignature;
 
-        public TestParams(String base, String algorithm, int length, boolean readOnly, boolean slice, KeyPair keyPair) throws GeneralSecurityException {
+        public TestParams(String base, String algorithm, int length, boolean readOnly, boolean slice,
+                KeyPair keyPair, AlgorithmParameterSpec paramSpec) throws GeneralSecurityException {
             this.base = base;
             this.algorithm = algorithm;
             this.length = length;
             this.readOnly = readOnly;
             this.slice = slice;
             this.keyPair = keyPair;
+            this.paramSpec = paramSpec;
 
             signer = getNativeSigner();
+            signer.setParameter(paramSpec);
             signer.initSign(keyPair.getPrivate());
             verifier = getNativeSigner();
+            verifier.setParameter(paramSpec);
             verifier.initVerify(keyPair.getPublic());
+
             jceVerifier = getJceSigner();
+            if (paramSpec != null) {
+                jceVerifier.setParameter(paramSpec);
+            }
             jceVerifier.initVerify(keyPair.getPublic());
 
             message = new byte[length];
@@ -84,6 +100,9 @@ public class EvpSignatureTest {
             }
 
             final Signature jceSigner = getJceSigner();
+            if (paramSpec != null) {
+                jceSigner.setParameter(paramSpec);
+            }
             jceSigner.initSign(keyPair.getPrivate());
             jceSigner.update(message);
             goodSignature = jceSigner.sign();
@@ -91,11 +110,24 @@ public class EvpSignatureTest {
 
         @Override
         public String toString() {
-            return String.format("%s length %s. Read-only: %s, Sliced: %s",
+            final PSSParameterSpec pssParamSpec = (PSSParameterSpec) paramSpec;
+            final String pssParamsStr;
+            if (pssParamSpec != null) {
+                pssParamsStr = String.format(
+                    "{PSS md: %s, MGF1 md: %s, saltLen: %d}",
+                    pssParamSpec.getDigestAlgorithm(),
+                    ((MGF1ParameterSpec) pssParamSpec.getMGFParameters()).getDigestAlgorithm(),
+                    pssParamSpec.getSaltLength()
+                );
+            } else {
+                pssParamsStr = null;
+            }
+            return String.format("%s length %s. Read-only: %s, Sliced: %s, PSS: %s",
                     algorithm,
                     length,
                     readOnly,
-                    slice
+                    slice,
+                    pssParamsStr
             );
         }
 
@@ -107,10 +139,18 @@ public class EvpSignatureTest {
             return Signature.getInstance(algorithm, NATIVE_PROVIDER);
         }
 
-        private Signature getJceSigner() throws NoSuchAlgorithmException {
-            // BouncyCastle uses a different naming scheme for P1363 schemes
-            String bcName = algorithm.replace("withECDSAinP1363Format", "withPLAIN-ECDSA");
-            return Signature.getInstance(bcName, TestUtil.BC_PROVIDER);
+        private Signature getJceSigner() throws NoSuchAlgorithmException, NoSuchProviderException {
+            final Signature ret;
+            // BouncyCastle requires that PSS digest algorithm match MGF1 digest algorithm, which
+            // neither we nor SunRsaSign require. So, use sun as the JCE provider for PSS tests.
+            if ("RSASSA-PSS".equals(algorithm)) {
+                ret = Signature.getInstance(algorithm, "SunRsaSign");
+            } else {
+                // BouncyCastle uses a different naming scheme for P1363 schemes
+                final String bcName = algorithm.replace("withECDSAinP1363Format", "withPLAIN-ECDSA");
+                ret = Signature.getInstance(bcName, TestUtil.BC_PROVIDER);
+            }
+            return ret;
         }
 
         public int getMessageSizeLimit() {
@@ -142,9 +182,7 @@ public class EvpSignatureTest {
         }
     }
 
-    // Build the params list once to avoid recomputing it
-    @BeforeAll
-    public static void setupParams() throws GeneralSecurityException {
+    private static List<TestParams> getParams() throws GeneralSecurityException {
         KeyPairGenerator kg = KeyPairGenerator.getInstance("RSA");
         kg.initialize(new RSAKeyGenParameterSpec(2048, RSAKeyGenParameterSpec.F4));
         KeyPair rsaPair = kg.generateKeyPair();
@@ -153,7 +191,7 @@ public class EvpSignatureTest {
         kg.initialize(new ECGenParameterSpec("NIST P-521"));
         KeyPair ecPair = kg.generateKeyPair();
 
-        MASTER_PARAMS_LIST = new ArrayList<>();
+        List<TestParams> paramsList = new ArrayList<>();
         for (final String base : BASES) {
             KeyPair currentPair;
             switch (base) {
@@ -184,29 +222,52 @@ public class EvpSignatureTest {
 
                 for (final int length : lengths) {
                     String algorithm = String.format("%swith%s", hash, base);
-                    MASTER_PARAMS_LIST.add(new TestParams(base, algorithm, length, false, false, currentPair));
-                    MASTER_PARAMS_LIST.add(new TestParams(base, algorithm, length, true, false, currentPair));
-                    MASTER_PARAMS_LIST.add(new TestParams(base, algorithm, length, false, true, currentPair));
-                    MASTER_PARAMS_LIST.add(new TestParams(base, algorithm, length, true, true, currentPair));
+                    paramsList.add(new TestParams(base, algorithm, length, false, false, currentPair, null));
+                    paramsList.add(new TestParams(base, algorithm, length, true, false, currentPair, null));
+                    paramsList.add(new TestParams(base, algorithm, length, false, true, currentPair, null));
+                    paramsList.add(new TestParams(base, algorithm, length, true, true, currentPair, null));
                     // These new algorithms were only added in 1.3.0
                     if (versionCompare("1.3.0", NATIVE_PROVIDER) <= 0) {
                         if (base.equals("ECDSA") && !hash.equals("NONE")) {
                             algorithm = algorithm + "inP1363Format";
-                            MASTER_PARAMS_LIST.add(new TestParams(base, algorithm, length, false, false, currentPair));
-                            MASTER_PARAMS_LIST.add(new TestParams(base, algorithm, length, true, false, currentPair));
-                            MASTER_PARAMS_LIST.add(new TestParams(base, algorithm, length, false, true, currentPair));
-                            MASTER_PARAMS_LIST.add(new TestParams(base, algorithm, length, true, true, currentPair));
+                            paramsList.add(new TestParams(base, algorithm, length, false, false, currentPair, null));
+                            paramsList.add(new TestParams(base, algorithm, length, true, false, currentPair, null));
+                            paramsList.add(new TestParams(base, algorithm, length, false, true, currentPair, null));
+                            paramsList.add(new TestParams(base, algorithm, length, true, true, currentPair, null));
+                        }
+                    }
+
+                    // RSASSA-PSS support added in 2.0, skip PSS validation for older versions
+                    if (base.equals("RSA") && versionCompare("2.0.0", NATIVE_PROVIDER) <= 0) {
+                        algorithm = "RSASSA-PSS";
+                        final List<String> paddingHashes = new ArrayList<>(HASHES);
+                        assertFalse(paddingHashes.contains(null));
+                        paddingHashes.remove("NONE");                               // we don't support null/NONE hashes for PSS
+                        paddingHashes.replaceAll(h -> h.replace("SHA", "SHA-"));    // SunJCE needs the '-'
+                        assertFalse("NONE".equals(hash));                           // we don't support null/NONE hashes for PSS
+                        final String pssHash = hash.replace("SHA", "SHA-");         // SunJCE needs the '-'
+                        for (final String mgfHash : paddingHashes) {
+                            final int[] saltLens = {
+                                0,      // salt len can be 0, but not less
+                                20,     // 20 is the default for PSSParameterSpec
+                                MessageDigest.getInstance(pssHash).getDigestLength(),
+                            };
+                            for (final int saltLen : saltLens) {
+                                final AlgorithmParameterSpec paramSpec = new PSSParameterSpec(
+                                    pssHash, "MGF1", new MGF1ParameterSpec(mgfHash), saltLen, 1
+                                );
+                                paramsList.add(new TestParams(base, algorithm, length, false, false, currentPair, paramSpec));
+                                paramsList.add(new TestParams(base, algorithm, length, true, false, currentPair, paramSpec));
+                                paramsList.add(new TestParams(base, algorithm, length, false, true, currentPair, paramSpec));
+                                paramsList.add(new TestParams(base, algorithm, length, true, true, currentPair, paramSpec));
+                            }
                         }
                     }
                 }
             }
         }
-    }
 
-    // No need to keep these in memory
-    @AfterAll
-    public static void cleanupParams() {
-        MASTER_PARAMS_LIST = null;
+        return paramsList;
     }
 
     public static Stream<TestParams> params() {
@@ -216,7 +277,12 @@ public class EvpSignatureTest {
      * Test cases for ByteBuffer related tests.
      */
     public static Stream<TestParams> byteBufferParams() {
-        return MASTER_PARAMS_LIST.stream().map(TestParams::reset);
+        try {
+            return getParams().stream().map(TestParams::reset);
+        } catch (GeneralSecurityException e) {
+            fail(e);
+            return null; // unreachable, needed to appease compiler
+        }
     }
 
     @ParameterizedTest

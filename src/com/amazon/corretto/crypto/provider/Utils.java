@@ -19,6 +19,8 @@ import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
 import javax.crypto.Cipher;
@@ -35,6 +37,9 @@ final class Utils {
     }
     static final byte[] EMPTY_ARRAY = new byte[0];
     private static final Logger LOG = Logger.getLogger("AmazonCorrettoCryptoProvider");
+
+    private static final Map<String,Long> digestPtrByName = new ConcurrentHashMap<>();
+    private static final Map<Long,Integer> digestLengthByPtr = new ConcurrentHashMap<>();
 
     /**
      * Returns the difference between the native pointers of a and b. That is, if overlap > 0, then
@@ -58,6 +63,41 @@ final class Utils {
      * Returns the output length for a digest in bytes specified by {@code evpMd}.
      */
     static native int getDigestLength(long evpMd);
+
+    static String jceDigestNameToAwsLcName(final String jceName) {
+        if (jceName == null) {
+            return null;
+        }
+        // e.g. "SHA-512/256" => "SHA512-256"
+        return jceName.replace("-", "").replace("/", "-").toUpperCase();
+    }
+
+    /**
+     * Converts a hash name (according to JCE standards) to an {@code long} containing the value of the native
+     * {@code EVP_MD*} pointer.
+     * If {@code digestName == null} then this will return {@code 0}.
+     * Otherwise this is guaranteed to return a non-zero value as it will throw {@link IllegalArgumentException}
+     * if libcrypto cannot translate the name into a known {@code EVP_MD*} pointer.
+     */
+    static long getMdPtr(final String digestName) {
+        if (digestName == null) {
+            return 0;
+        }
+        final String name = jceDigestNameToAwsLcName(digestName);
+
+        if (!name.startsWith("SHA")) {
+            throw new IllegalArgumentException("Unsupported digest algorithm: " + digestName);
+        }
+        final long ptr = digestPtrByName.computeIfAbsent(name, Utils::getEvpMdFromName);
+        if (ptr == 0) {
+            throw new IllegalArgumentException("Unsupported digest algorith: " + digestName);
+        }
+        return ptr;
+    }
+
+    static int getMdLen(final long mdPtr) {
+        return digestLengthByPtr.computeIfAbsent(mdPtr, Utils::getDigestLength);
+    }
 
     /**
      * Returns false if the two bytebuffers given definitely don't overlap; true if they do overlap, or if we're unable

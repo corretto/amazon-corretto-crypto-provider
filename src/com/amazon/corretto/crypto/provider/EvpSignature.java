@@ -4,9 +4,10 @@
 package com.amazon.corretto.crypto.provider;
 
 import java.nio.ByteBuffer;
+import java.security.InvalidAlgorithmParameterException;
 import java.security.SignatureException;
-import java.security.spec.PKCS8EncodedKeySpec;
-import java.security.spec.X509EncodedKeySpec;
+import java.security.spec.AlgorithmParameterSpec;
+import java.security.spec.PSSParameterSpec;
 
 class EvpSignature extends EvpSignatureBase {
     /**
@@ -14,12 +15,13 @@ class EvpSignature extends EvpSignatureBase {
      *
      * @param privateKey
      *            a pointer to the private key
-     * @param digestName
-     *            the "long name" of the digest (as defined by OpenSSL) used by the signature.
+     * @param digestPtr
+     *            the value from {@link Utils#getEvpMdFromName(String)}
+     *              representing the digest to use with this signature
      * @param paddingType
      *            the integer defined by OpenSSL as the padding type to be used.
      * @param mgfMd
-     *            the the "long name" of the digest (as defined by OpenSSL) used by the Mask
+     *           the value from {@link Utils#getEvpMdFromName(String)} used by the Mask
      *            Generation Function (MGF). This parameter is only necessary for RSA-PSS
      *            signatures.
      * @param saltLen
@@ -41,8 +43,8 @@ class EvpSignature extends EvpSignatureBase {
      * @see <a
      *      href="https://www.openssl.org/docs/man1.1.0/crypto/EVP_get_digestbyname.html">EVP_get_digestbyname</a>
      */
-    private static native byte[] sign(long privateKey, String digestName, int paddingType, String mgfMd,
-            int saltLen, byte[] message, int offset, int length);
+    private static native byte[] sign(long privateKey, long digestPtr, int paddingType, long mgfMd,
+            int saltLen, byte[] message, int offset, int length) throws SignatureException;
 
 
     /**
@@ -50,12 +52,13 @@ class EvpSignature extends EvpSignatureBase {
      *
      * @param publicKey
      *            a pointer to the public key
-     * @param digestName
-     *            the "long name" of the digest (as defined by OpenSSL) used by the signature.
+     * @param digestPtr
+     *            the value from {@link Utils#getEvpMdFromName(String)}
+     *              representing the digest to use with this signature
      * @param paddingType
      *            the integer defined by OpenSSL as the padding type to be used.
      * @param mgfMd
-     *            the the "long name" of the digest (as defined by OpenSSL) used by the Mask
+     *           the value from {@link Utils#getEvpMdFromName(String)} used by the Mask
      *            Generation Function (MGF). This parameter is only necessary for RSA-PSS
      *            signatures.
      * @param saltLen
@@ -83,20 +86,22 @@ class EvpSignature extends EvpSignatureBase {
      * @see <a
      *      href="https://www.openssl.org/docs/man1.1.0/crypto/EVP_get_digestbyname.html">EVP_get_digestbyname</a>
      */
-    private static native boolean verify(long publicKey, String digestName, int paddingType,
-            String mgfMd, int saltLen, byte[] message, int offset, int length, byte[] signature, int sigOff, int sigLen) throws SignatureException;
+    private static native boolean verify(long publicKey, long digestPtr, int paddingType,
+            long mgfMd, int saltLen, byte[] message, int offset, int length, byte[] signature, int sigOff, int sigLen)
+            throws SignatureException;
 
     /**
      * Starts calculating a signature and returns a native pointer to the context.
      *
      * @param privateKey
      *            a pointer to the private key
-     * @param digestName
-     *            the "long name" of the digest (as defined by OpenSSL) used by the signature.
+     * @param digestPtr
+     *            the value from {@link Utils#getEvpMdFromName(String)}
+     *              representing the digest to use with this signature
      * @param paddingType
      *            the integer defined by OpenSSL as the padding type to be used.
      * @param mgfMd
-     *            the the "long name" of the digest (as defined by OpenSSL) used by the Mask
+     *           the value from {@link Utils#getEvpMdFromName(String)} used by the Mask
      *            Generation Function (MGF). This parameter is only necessary for RSA-PSS
      *            signatures.
      * @param saltLen
@@ -118,20 +123,21 @@ class EvpSignature extends EvpSignatureBase {
      * @see <a
      *      href="https://www.openssl.org/docs/man1.1.0/crypto/EVP_get_digestbyname.html">EVP_get_digestbyname</a>
      */
-    private static native long signStart(long privateKey, String digestName, int paddingType,
-            String mgfMd, int saltLen, byte[] message, int offset, int length);
+    private static native long signStart(long privateKey, long digestPtr, int paddingType,
+            long mgfMd, int saltLen, byte[] message, int offset, int length);
 
     /**
      * Starts calculating a signature and returns a native pointer to the context.
      *
      * @param privateKey
      *            a pointer to the private key
-     * @param digestName
-     *            the "long name" of the digest (as defined by OpenSSL) used by the signature.
+     * @param digestPtr
+     *            the value from {@link Utils#getEvpMdFromName(String)}
+     *              representing the digest to use with this signature
      * @param paddingType
      *            the integer defined by OpenSSL as the padding type to be used.
      * @param mgfMd
-     *            the the "long name" of the digest (as defined by OpenSSL) used by the Mask
+     *           the value from {@link Utils#getEvpMdFromName(String)} used by the Mask
      *            Generation Function (MGF). This parameter is only necessary for RSA-PSS
      *            signatures.
      * @param saltLen
@@ -149,20 +155,21 @@ class EvpSignature extends EvpSignatureBase {
      * @see <a
      *      href="https://www.openssl.org/docs/man1.1.0/crypto/EVP_get_digestbyname.html">EVP_get_digestbyname</a>
      */
-    private static native long signStartBuffer(long privateKey, String digestName, int paddingType,
-            String mgfMd, int saltLen, ByteBuffer message);
+    private static native long signStartBuffer(long privateKey, long digestPtr, int paddingType,
+            long mgfMd, int saltLen, ByteBuffer message);
 
     /**
      * Starts verifying a signature and returns a native pointer to the context.
      *
      * @param publicKey
      *            a pointer to the public key
-     * @param digestName
-     *            the "long name" of the digest (as defined by OpenSSL) used by the signature.
+     * @param digestPtr
+     *            the value from {@link Utils#getEvpMdFromName(String)}
+     *              representing the digest to use with this signature
      * @param paddingType
      *            the integer defined by OpenSSL as the padding type to be used.
      * @param mgfMd
-     *            the the "long name" of the digest (as defined by OpenSSL) used by the Mask
+     *           the value from {@link Utils#getEvpMdFromName(String)} used by the Mask
      *            Generation Function (MGF). This parameter is only necessary for RSA-PSS
      *            signatures.
      * @param saltLen
@@ -184,20 +191,21 @@ class EvpSignature extends EvpSignatureBase {
      * @see <a
      *      href="https://www.openssl.org/docs/man1.1.0/crypto/EVP_get_digestbyname.html">EVP_get_digestbyname</a>
      */
-    private static native long verifyStart(long publicKey, String digestName, int paddingType,
-            String mgfMd, int saltLen, byte[] message, int offset, int length);
+    private static native long verifyStart(long publicKey, long digestPtr, int paddingType,
+            long mgfMd, int saltLen, byte[] message, int offset, int length);
 
     /**
      * Starts verifying a signature and returns a native pointer to the context.
      *
      * @param publicKey
      *            a pointer to the public key
-     * @param digestName
-     *            the "long name" of the digest (as defined by OpenSSL) used by the signature.
+     * @param digestPtr
+     *            the value from {@link Utils#getEvpMdFromName(String)}
+     *              representing the digest to use with this signature
      * @param paddingType
      *            the integer defined by OpenSSL as the padding type to be used.
      * @param mgfMd
-     *            the the "long name" of the digest (as defined by OpenSSL) used by the Mask
+     *           the value from {@link Utils#getEvpMdFromName(String)} used by the Mask
      *            Generation Function (MGF). This parameter is only necessary for RSA-PSS
      *            signatures.
      * @param saltLen
@@ -215,8 +223,8 @@ class EvpSignature extends EvpSignatureBase {
      * @see <a
      *      href="https://www.openssl.org/docs/man1.1.0/crypto/EVP_get_digestbyname.html">EVP_get_digestbyname</a>
      */
-    private static native long verifyStartBuffer(long publicKey, String digestName, int paddingType,
-            String mgfMd, int saltLen, ByteBuffer message);
+    private static native long verifyStartBuffer(long publicKey, long digestPtr, int paddingType,
+            long mgfMd, int saltLen, ByteBuffer message);
 
     /**
      * Updates the context for signing data.
@@ -282,7 +290,7 @@ class EvpSignature extends EvpSignatureBase {
      *            {@link #signStart(byte[], int, String, int, String, int, byte[], int, int)} or
      *            {@link #signStartBuffer(byte[], int, String, int, String, int, ByteBuffer)}.
      */
-    private static native byte[] signFinish(long ctx);
+    private static native byte[] signFinish(long ctx) throws SignatureException;
 
     /**
      * Verifies the signature and <em>destroys the context</em>.
@@ -301,10 +309,9 @@ class EvpSignature extends EvpSignatureBase {
      */
     private static native boolean verifyFinish(long ctx, byte[] signature, int sigOff, int sigLen) throws SignatureException;
 
-    private final String digestName_;
     private byte[] oneByteArray_ = null;
-    private final InputBuffer<byte[], EvpContext, RuntimeException> signingBuffer;
-    private final InputBuffer<Boolean, EvpContext, SignatureException> verifyingBuffer;
+    private InputBuffer<byte[], EvpContext, SignatureException> signingBuffer;
+    private InputBuffer<Boolean, EvpContext, SignatureException> verifyingBuffer;
 
     /**
      * Creates a new instances of this class.
@@ -320,21 +327,25 @@ class EvpSignature extends EvpSignatureBase {
      *      href="https://www.openssl.org/docs/man1.1.0/crypto/EVP_get_digestbyname.html">EVP_get_digestbyname</a>
      */
     private EvpSignature(AmazonCorrettoCryptoProvider provider, final EvpKeyType keyType, final int paddingType, final String digestName) {
-        super(provider, keyType, paddingType);
+        super(provider, keyType, paddingType, Utils.getMdPtr(digestName));
         Loader.checkNativeLibraryAvailability();
-        digestName_ = digestName;
 
-        signingBuffer = new InputBuffer<byte[], EvpContext, RuntimeException>(1024)
+        signingBuffer = getSigningBuffer();
+        verifyingBuffer = getVerifyingBuffer();
+    }
+
+    private InputBuffer<byte[], EvpContext, SignatureException> getSigningBuffer() {
+        return new InputBuffer<byte[], EvpContext, SignatureException>(1024)
             .withInitialUpdater((src, offset, length) ->
                 new EvpContext(key_.use(ptr ->
                     signStart(ptr,
-                        digestName_, paddingType_, null, 0,
+                        digest_, paddingType_, pssMgfMd_, pssSaltLen_,
                         src, offset, length)))
             )
             .withInitialUpdater((src) ->
                 new EvpContext(key_.use(ptr ->
                     signStartBuffer(ptr,
-                        digestName_, paddingType_, null, 0, src)))
+                        digest_, paddingType_, pssMgfMd_, pssSaltLen_, src)))
             )
             .withUpdater((ctx, src, offset, length) ->
                 ctx.useVoid(ptr -> signUpdate(ptr, src, offset, length))
@@ -348,20 +359,23 @@ class EvpSignature extends EvpSignatureBase {
             .withSinglePass((src, offset, length) ->
                 key_.use(ptr ->
                     sign(ptr,
-                            digestName_, paddingType, null, 0,
+                            digest_, paddingType_, pssMgfMd_, pssSaltLen_,
                             src, offset, length))
             );
-        verifyingBuffer = new InputBuffer<Boolean, EvpContext, SignatureException>(1024)
+    }
+
+    private InputBuffer<Boolean, EvpContext, SignatureException> getVerifyingBuffer() {
+        return new InputBuffer<Boolean, EvpContext, SignatureException>(1024)
             .withInitialUpdater((src, offset, length) ->
                 new EvpContext(key_.use(ptr ->
-                    verifyStart(ptr, digestName_,
-                        paddingType_, null, 0,
+                    verifyStart(ptr, digest_,
+                        paddingType_, pssMgfMd_, pssSaltLen_,
                         src, offset, length)))
             )
             .withInitialUpdater((src) ->
                 new EvpContext(key_.use(ptr ->
                     verifyStartBuffer(ptr,
-                        digestName_, paddingType_, null, 0, src)))
+                        digest_, paddingType_, pssMgfMd_, pssSaltLen_, src)))
             )
             .withUpdater((ctx, src, offset, length) ->
                 ctx.useVoid(ptr -> verifyUpdate(ptr, src, offset, length))
@@ -376,6 +390,21 @@ class EvpSignature extends EvpSignatureBase {
     protected synchronized void engineReset() {
         signingBuffer.reset();
         verifyingBuffer.reset();
+    }
+
+    @Override
+    protected synchronized void engineSetParameter(final AlgorithmParameterSpec params)
+            throws InvalidAlgorithmParameterException {
+        super.engineSetParameter(params);
+        if (params instanceof PSSParameterSpec) {
+            // referesh signing and verifying buffer closures now that we've updated PSS params
+            signingBuffer = getSigningBuffer();
+            verifyingBuffer = getVerifyingBuffer();
+        }
+    }
+
+    protected boolean isBufferEmpty() {
+        return signingBuffer.size() == 0 && verifyingBuffer.size() == 0;
     }
 
     @Override
@@ -425,7 +454,7 @@ class EvpSignature extends EvpSignatureBase {
     }
 
     @Override
-    protected synchronized boolean engineVerify(byte[] sigBytes, int off, int len)
+    protected synchronized boolean engineVerify(final byte[] sigBytes, final int off, final int len)
             throws SignatureException {
         ensureInitialized(false);
         byte[] tempSig = maybeConvertSignatureToVerify(sigBytes, off, len);
@@ -448,7 +477,7 @@ class EvpSignature extends EvpSignatureBase {
                 )
                 .withSinglePass((src, offset, length) ->
                     key_.use(ptr -> verify(ptr,
-                        digestName_, paddingType_, null, 0,
+                        digest_, paddingType_, pssMgfMd_, pssSaltLen_,
                         src, offset, length, finalSigBytes, finalOff, finalLen))
                 ).doFinal();
         } finally {
@@ -459,61 +488,67 @@ class EvpSignature extends EvpSignatureBase {
     }
 
     static final class SHA1withRSA extends EvpSignature {
-        SHA1withRSA(AmazonCorrettoCryptoProvider provider) {
+        SHA1withRSA(final AmazonCorrettoCryptoProvider provider) {
             super(provider, EvpKeyType.RSA, RSA_PKCS1_PADDING, "sha1");
         }
     }
 
     static final class SHA224withRSA extends EvpSignature {
-        SHA224withRSA(AmazonCorrettoCryptoProvider provider) {
+        SHA224withRSA(final AmazonCorrettoCryptoProvider provider) {
             super(provider, EvpKeyType.RSA, RSA_PKCS1_PADDING, "sha224");
         }
     }
 
     static final class SHA256withRSA extends EvpSignature {
-        SHA256withRSA(AmazonCorrettoCryptoProvider provider) {
+        SHA256withRSA(final AmazonCorrettoCryptoProvider provider) {
             super(provider, EvpKeyType.RSA, RSA_PKCS1_PADDING, "sha256");
         }
     }
 
     static final class SHA384withRSA extends EvpSignature {
-        SHA384withRSA(AmazonCorrettoCryptoProvider provider) {
+        SHA384withRSA(final AmazonCorrettoCryptoProvider provider) {
             super(provider, EvpKeyType.RSA, RSA_PKCS1_PADDING, "sha384");
         }
     }
 
     static final class SHA512withRSA extends EvpSignature {
-        SHA512withRSA(AmazonCorrettoCryptoProvider provider) {
+        SHA512withRSA(final AmazonCorrettoCryptoProvider provider) {
             super(provider, EvpKeyType.RSA, RSA_PKCS1_PADDING, "sha512");
         }
     }
 
+    static final class RSASSA_PSS extends EvpSignature {
+        RSASSA_PSS(final AmazonCorrettoCryptoProvider provider) {
+            super(provider, EvpKeyType.RSA, RSA_PKCS1_PSS_PADDING, null);
+        }
+    }
+
     static final class SHA1withECDSA extends EvpSignature {
-        SHA1withECDSA(AmazonCorrettoCryptoProvider provider) {
+        SHA1withECDSA(final AmazonCorrettoCryptoProvider provider) {
             super(provider, EvpKeyType.EC, 0, "sha1");
         }
     }
 
     static final class SHA224withECDSA extends EvpSignature {
-        SHA224withECDSA(AmazonCorrettoCryptoProvider provider) {
+        SHA224withECDSA(final AmazonCorrettoCryptoProvider provider) {
             super(provider, EvpKeyType.EC, 0, "sha224");
         }
     }
 
     static final class SHA256withECDSA extends EvpSignature {
-        SHA256withECDSA(AmazonCorrettoCryptoProvider provider) {
+        SHA256withECDSA(final AmazonCorrettoCryptoProvider provider) {
             super(provider, EvpKeyType.EC, 0, "sha256");
         }
     }
 
     static final class SHA384withECDSA extends EvpSignature {
-        SHA384withECDSA(AmazonCorrettoCryptoProvider provider) {
+        SHA384withECDSA(final AmazonCorrettoCryptoProvider provider) {
             super(provider, EvpKeyType.EC, 0, "sha384");
         }
     }
 
     static final class SHA512withECDSA extends EvpSignature {
-        SHA512withECDSA(AmazonCorrettoCryptoProvider provider) {
+        SHA512withECDSA(final AmazonCorrettoCryptoProvider provider) {
             super(provider, EvpKeyType.EC, 0, "sha512");
         }
     }

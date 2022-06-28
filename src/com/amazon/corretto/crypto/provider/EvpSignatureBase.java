@@ -5,6 +5,7 @@ package com.amazon.corretto.crypto.provider;
 
 import java.math.BigInteger;
 import java.security.AlgorithmParameters;
+import java.security.GeneralSecurityException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.InvalidParameterException;
@@ -14,7 +15,10 @@ import java.security.PublicKey;
 import java.security.SignatureException;
 import java.security.SignatureSpi;
 import java.security.interfaces.ECKey;
+import java.security.interfaces.RSAKey;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.spec.MGF1ParameterSpec;
+import java.security.spec.PSSParameterSpec;
 import java.util.Arrays;
 import java.util.Base64;
 
@@ -22,23 +26,57 @@ abstract class EvpSignatureBase extends SignatureSpi {
     // Package visible so main Provider can use it
     static final String P1363_FORMAT_SUFFIX = "inP1363Format";
     protected static final int RSA_PKCS1_PADDING = 1;
+    protected static final int RSA_PKCS1_PSS_PADDING = 6;
     protected final AmazonCorrettoCryptoProvider provider_;
     protected final EvpKeyType keyType_;
-    protected final int paddingType_;
+    protected int paddingType_;
     protected Key untranslatedKey_ = null;
     protected EvpKey key_ = null;
     protected boolean signMode;
     protected int keyUsageCount_ = 0;
     protected String algorithmName_ = null;
+    protected PSSParameterSpec pssParams_ = null;
+    // While digest_ isn't needed for the all instances of this abstract class, it's cleaner to manage it with the
+    // rest of the signature parameter values.
+    protected long digest_ = 0; // Must be kept in sync with pssParams_ or main algorithm name.
+    protected long pssMgfMd_ = 0; // Must be kept in sync with pssParams_
+    protected int pssSaltLen_ = 0; // Must be kept in sync with pssParams_
 
     EvpSignatureBase(
             final AmazonCorrettoCryptoProvider provider,
             final EvpKeyType keyType,
-            final int paddingType
+            final int paddingType,
+            final long digest
     ) {
         provider_ = provider;
         keyType_ = keyType;
         paddingType_ = paddingType;
+        if (paddingType_ == RSA_PKCS1_PSS_PADDING) {
+            internalSetParams(PSSParameterSpec.DEFAULT);
+            // digest_ is set by internalSetParameters
+        } else {
+            internalSetParams(null);
+            // Overwrite the 0 set by internalSetParameters
+            digest_ = digest;
+        }
+    }
+
+    /**
+     * Internal utility function to ensure that when we set a new parameter spec we properly parse it and keep
+     * all other extract values in sync.
+     */
+    protected void internalSetParams(final PSSParameterSpec params) {
+        if (params == null) {
+            pssParams_ = null;
+            digest_ = 0;
+            pssMgfMd_ = 0;
+            pssSaltLen_ = 0;
+        } else {
+            pssParams_ = params;
+            digest_ = Utils.getMdPtr(params.getDigestAlgorithm());
+            pssMgfMd_ = Utils.getMdPtr(((MGF1ParameterSpec) params.getMGFParameters()).getDigestAlgorithm());
+            pssSaltLen_ = params.getSaltLength();
+        }
     }
 
     protected abstract void engineReset();
@@ -113,13 +151,82 @@ abstract class EvpSignatureBase extends SignatureSpi {
     @Override
     protected synchronized void engineSetParameter(final AlgorithmParameterSpec params)
             throws InvalidAlgorithmParameterException {
-        if (params != null) {
-            throw new InvalidAlgorithmParameterException("No parameters supported by this algorithm");
+        if (params instanceof PSSParameterSpec) {
+            final PSSParameterSpec pssParams = (PSSParameterSpec) params;
+            if (keyType_ != EvpKeyType.RSA || paddingType_ != RSA_PKCS1_PSS_PADDING) {
+                throw new InvalidAlgorithmParameterException("PSS params only supported for RSASSA-PSS signatures");
+            }
+            if (!isBufferEmpty()) {
+                throw new IllegalStateException("Cannot update PSS parameters with buffered data, reset Signature.");
+            }
+            if (!"MGF1".equals(pssParams.getMGFAlgorithm())) {
+                throw new InvalidAlgorithmParameterException("Invalid PSS MGF algorithm");
+            }
+            // 1 is currently the only supported trailer field:
+            //
+            // >  trailerField is the trailer field number, for compatibility with
+            // >  the draft IEEE P1363a [27].  It shall be 1 for this version of the
+            // >  document, which represents the trailer field with hexadecimal
+            // >  value 0xbc.  Other trailer fields (including the trailer field
+            // >  HashID || 0xcc in IEEE P1363a) are not supported in this document
+            //
+            // https://datatracker.ietf.org/doc/html/rfc3447#appendix-A.2.3
+            if (pssParams.getTrailerField() != PSSParameterSpec.DEFAULT.getTrailerField()) {
+                // NOTE: PSSParameterSpec throws IllegalArgumentException instead of InvalidAlgorithmParameterException
+                //       so we match that behavior here.
+                throw new IllegalArgumentException("Invalid PSS trailer field");
+            }
+            if (pssParams.getMGFParameters() == null) {
+                throw new InvalidAlgorithmParameterException("PSS parameters must specify MGF1 parameters");
+            }
+            // Cache MD struct ptrs, validate digest names and salt len, update params
+            try {
+                Utils.getMdPtr(pssParams.getDigestAlgorithm());
+                Utils.getMdPtr(((MGF1ParameterSpec) pssParams.getMGFParameters()).getDigestAlgorithm());
+            } catch (Exception e) {
+                throw new InvalidAlgorithmParameterException();
+            }
+            // RFC 3447 does not specify an explicit max or min on salt lengh,
+            // but does constrain it relative to other parameters:
+            //
+            // > If emLen < hLen + sLen + 2, output "encoding error" and stop.
+            //
+            // https://datatracker.ietf.org/doc/html/rfc3447#section-9.1.1
+            //
+            // Additionally, AWS-LC reserves negative salt lengths:
+            // https://github.com/awslabs/aws-lc/blob/main/crypto/fipsmodule/rsa/padding.c#L649-L662
+            final int saltLen = pssParams.getSaltLength();
+            final int mdLen = Utils.getMdLen(Utils.getMdPtr(pssParams.getDigestAlgorithm()));
+            // If key is not yet set, assume it has a 2048-bit modulus. Even if a smaller key ends up being
+            // used, AWS-LC will detect this and throw an error here:
+            // https://github.com/awslabs/aws-lc/blob/main/crypto/fipsmodule/rsa/padding.c#L661
+            final int emLen = key_ != null
+                ? (((RSAKey) key_).getModulus().bitLength() + 7) / 8
+                : 2048 / 8;
+            if (saltLen < 0 || saltLen > emLen - mdLen - 2) {
+                // NOTE: PSSParameterSpec throws IllegalArgumentException instead of InvalidAlgorithmParameterException
+                //       so we match that behavior here.
+                throw new IllegalArgumentException("PSS salt length invalid");
+            }
+            internalSetParams(pssParams);
+        } else if (params != null) {
+            throw new InvalidAlgorithmParameterException("Specified parameters supported by this algorithm");
         }
     }
 
+    protected abstract boolean isBufferEmpty();
+
     @Override
     protected synchronized AlgorithmParameters engineGetParameters() {
+        if (paddingType_ == RSA_PKCS1_PSS_PADDING && pssParams_ != null) {
+            try {
+                final AlgorithmParameters params = AlgorithmParameters.getInstance("RSASSA-PSS");
+                params.init(pssParams_);
+                return params;
+            } catch (final GeneralSecurityException ex) {
+                throw new AssertionError(ex);
+            }
+        }
         return null;
     }
 
