@@ -720,6 +720,12 @@ add_custom_target(check-recursive-init
 
     DEPENDS accp-jar tests-jar)
 
+if (TEST_JAVA_MAJOR_VERSION VERSION_GREATER 11)
+    set(INSTALL_PROPERTY_FILE ${ORIG_SRCROOT}/etc/amazon-corretto-crypto-provider-jdk15.security)
+else()
+    set(INSTALL_PROPERTY_FILE ${ORIG_SRCROOT}/etc/amazon-corretto-crypto-provider.security)
+endif()
+
 add_custom_target(check-install-via-properties
     COMMAND ${TEST_JAVA_EXECUTABLE}
         ${COVERAGE_ARGUMENTS}
@@ -728,7 +734,7 @@ add_custom_target(check-install-via-properties
         ${EXTERNAL_LIB_PROPERTY}
         -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
         -Dtest.data.dir=${TEST_DATA_DIR}
-        -Djava.security.properties=${ORIG_SRCROOT}/etc/amazon-corretto-crypto-provider.security
+        -Djava.security.properties=${INSTALL_PROPERTY_FILE}
         ${TEST_JAVA_ARGS}
         com.amazon.corretto.crypto.provider.test.SecurityPropertyTester
 
@@ -746,7 +752,7 @@ add_custom_target(check-external-lib
         -Dcom.amazon.corretto.crypto.provider.useExternalLib=true
         -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
         -Dtest.data.dir=${TEST_DATA_DIR}
-        -Djava.security.properties=${ORIG_SRCROOT}/etc/amazon-corretto-crypto-provider.security
+        -Djava.security.properties=${INSTALL_PROPERTY_FILE}
         ${TEST_JAVA_ARGS}
         com.amazon.corretto.crypto.provider.test.SecurityPropertyTester
 
@@ -760,7 +766,7 @@ add_custom_target(check-install-via-properties-recursive
         ${EXTERNAL_LIB_PROPERTY}
         -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
         -Dtest.data.dir=${TEST_DATA_DIR}
-        -Djava.security.properties=${ORIG_SRCROOT}/etc/amazon-corretto-crypto-provider.security
+        -Djava.security.properties=${INSTALL_PROPERTY_FILE}
         ${TEST_JAVA_ARGS}
         com.amazon.corretto.crypto.provider.test.SecurityPropertyRecursiveTester
 
@@ -774,7 +780,7 @@ add_custom_target(check-install-via-properties-with-debug
         ${EXTERNAL_LIB_PROPERTY}
         -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
         -Dtest.data.dir=${TEST_DATA_DIR}
-        -Djava.security.properties=${ORIG_SRCROOT}/etc/amazon-corretto-crypto-provider.security
+        -Djava.security.properties=${INSTALL_PROPERTY_FILE}
         -Djava.security.debug=all
         ${TEST_JAVA_ARGS}
         com.amazon.corretto.crypto.provider.test.SecurityPropertyTester

@@ -25,7 +25,7 @@ version=$($TEST_JAVA_HOME/bin/java -version 2>&1 | head -1 | cut -d'"' -f2 | sed
 # The JDK version should be least 10 for a regular ACCP build. We can
 # still test on older versions with the TEST_JAVA_HOME property.
 if (( "$version" <= "10" )); then
-	./gradlew -DTEST_JAVA_HOME=$TEST_JAVA_HOME -DFIPS=$testing_fips test_integration
+	./gradlew -DTEST_JAVA_HOME=$TEST_JAVA_HOME -DTEST_JAVA_MAJOR_VERSION=$version -DFIPS=$testing_fips test_integration
 	exit $?
 fi
 
@@ -35,6 +35,4 @@ fi
 export JAVA_HOME=$TEST_JAVA_HOME
 export PATH=$JAVA_HOME/bin:$PATH
 
-# TEST_JAVA_MAJOR_VERSION is necessary in Java17+ for certain unit tests to
-# perform deep reflection on nonpublic members.
-./gradlew -DTEST_JAVA_MAJOR_VERSION=$version -DFIPS=$testing_fips test_integration
+./gradlew -DFIPS=$testing_fips test_integration
