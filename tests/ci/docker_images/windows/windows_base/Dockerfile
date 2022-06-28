@@ -22,7 +22,4 @@ choco install cmake --version 3.15.4 --installargs 'ADD_CMAKE_TO_PATH=""System""
 # Remove Strawberryperl's GCC from path because it override's MSVC's C.
 RUN setx /M PATH "%PATH:C:\Strawberry\c\bin;=%"
 
-# run the gradlew script just to install gradle in the image
-RUN .\gradlew.bat --no-daemon generateEclipseClasspath
-
 CMD [ "cmd.exe" ]
