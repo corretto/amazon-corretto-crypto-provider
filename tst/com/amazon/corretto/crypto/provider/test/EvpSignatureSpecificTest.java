@@ -17,6 +17,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import java.util.List;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
+import java.security.AlgorithmParameters;
 import java.security.GeneralSecurityException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
@@ -419,13 +420,13 @@ public final class EvpSignatureSpecificTest {
 
         signature = Signature.getInstance("RSASSA-PSS", NATIVE_PROVIDER);
         signature.initSign(pair.getPrivate());
-        spec = signature.getParameters().getParameterSpec(PSSParameterSpec.class);
+        spec = getPssParams(signature);
         assertEquals("SHA-1", spec.getDigestAlgorithm());
         assertEquals("SHA-1", ((MGF1ParameterSpec) spec.getMGFParameters()).getDigestAlgorithm());
 
         signature = Signature.getInstance("RSASSA-PSS", NATIVE_PROVIDER);
         signature.initVerify(pair.getPublic());
-        spec = signature.getParameters().getParameterSpec(PSSParameterSpec.class);
+        spec = getPssParams(signature);
         assertEquals("SHA-1", spec.getDigestAlgorithm());
         assertEquals("SHA-1", ((MGF1ParameterSpec) spec.getMGFParameters()).getDigestAlgorithm());
 
@@ -433,7 +434,7 @@ public final class EvpSignatureSpecificTest {
         signature = Signature.getInstance("RSASSA-PSS", NATIVE_PROVIDER);
         signature.setParameter(null);
         signature.initSign(pair.getPrivate());
-        spec = signature.getParameters().getParameterSpec(PSSParameterSpec.class);
+        spec = getPssParams(signature);
         assertEquals("SHA-1", spec.getDigestAlgorithm());
         assertEquals("SHA-1", ((MGF1ParameterSpec) spec.getMGFParameters()).getDigestAlgorithm());
     }
@@ -455,8 +456,8 @@ public final class EvpSignatureSpecificTest {
         verifier.setParameter(spec1);
 
         // Assert that set values persisted
-        assertPssParamsEqual(spec1, signer.getParameters().getParameterSpec(PSSParameterSpec.class));
-        assertPssParamsEqual(spec1, verifier.getParameters().getParameterSpec(PSSParameterSpec.class));
+        assertPssParamsEqual(spec1, getPssParams(signer));
+        assertPssParamsEqual(spec1, getPssParams(verifier));
 
         // Update message digest, assert that we can't upate params, and that signature verifies.
         signer.update(MESSAGE);
@@ -468,9 +469,22 @@ public final class EvpSignatureSpecificTest {
         // Finally, assert that we can set params after sign/verify reinit
         signer.setParameter(spec2);
         verifier.setParameter(spec2);
-        assertPssParamsEqual(spec2, signer.getParameters().getParameterSpec(PSSParameterSpec.class));
-        assertPssParamsEqual(spec2, verifier.getParameters().getParameterSpec(PSSParameterSpec.class));
+        assertPssParamsEqual(spec2, getPssParams(signer));
+        assertPssParamsEqual(spec2, getPssParams(verifier));
     }
+
+    // RSASSA-PSS not available on Java10, so skip the test if we can't get get a AlgorithmParameters
+    // object for it
+    private static PSSParameterSpec getPssParams(Signature signature) {
+        try {
+            final AlgorithmParameters params = signature.getParameters();
+            return params.getParameterSpec(PSSParameterSpec.class);
+        } catch (UnsupportedOperationException | GeneralSecurityException e) {
+            assumeTrue(false, "Current JDK doesn't support RSASSA-PSS: " + e.getMessage());
+            return null;    // unreachable, appeases the compiler/linter;
+        }
+    }
+
 
     private static void assertPssParamsEqual(PSSParameterSpec s1, PSSParameterSpec s2) {
         assertEquals(s1.getDigestAlgorithm(), s2.getDigestAlgorithm());
