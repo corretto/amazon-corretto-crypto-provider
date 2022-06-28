@@ -6,7 +6,7 @@ version: 0.2
 # Doc for batch https://docs.aws.amazon.com/codebuild/latest/userguide/batch-build-buildspec.html#build-spec.batch.build-list
 batch:
   build-list:
-    - identifier: windows_msvc2015_corretto_x64
+    - identifier: windows_msvc2015_corretto8_x64
       buildspec: ./tests/ci/codebuild/windows-x86/windows-msvc2015.yml
       env:
         # https://docs.aws.amazon.com/codebuild/latest/userguide/build-env-ref-compute-types.html
@@ -14,12 +14,51 @@ batch:
         privileged-mode: false
         compute-type: BUILD_GENERAL1_LARGE
         image: ECR_REPO_PLACEHOLDER:vs2015_corretto_latest
+        variables:
+          TEST_JAVA_HOME: "C:\Program Files\Amazon Corretto\jdk1.8.0_332\bin"
+    - identifier: windows_msvc2015_corretto11_x64
+      buildspec: ./tests/ci/codebuild/windows-x86/windows-msvc2015.yml
+      env:
+        type: WINDOWS_SERVER_2019_CONTAINER
+        privileged-mode: false
+        compute-type: BUILD_GENERAL1_LARGE
+        image: ECR_REPO_PLACEHOLDER:vs2015_corretto_latest
+        variables:
+          TEST_JAVA_HOME: "C:\Program Files\Amazon Corretto\jdk11.0.15_9\bin"
+    - identifier: windows_msvc2015_corretto17_x64
+      buildspec: ./tests/ci/codebuild/windows-x86/windows-msvc2015.yml
+      env:
+        type: WINDOWS_SERVER_2019_CONTAINER
+        privileged-mode: false
+        compute-type: BUILD_GENERAL1_LARGE
+        image: ECR_REPO_PLACEHOLDER:vs2015_corretto_latest
+        variables:
+          TEST_JAVA_HOME: "C:\Program Files\Amazon Corretto\jdk17.0.3_6\bin"
 
-    - identifier: windows_msvc2017_corretto_x64
+    - identifier: windows_msvc2017_corretto8_x64
       buildspec: ./tests/ci/codebuild/windows-x86/windows-msvc2017.yml
       env:
-        # https://docs.aws.amazon.com/codebuild/latest/userguide/build-env-ref-compute-types.html
         type: WINDOWS_SERVER_2019_CONTAINER
         privileged-mode: false
         compute-type: BUILD_GENERAL1_LARGE
         image: ECR_REPO_PLACEHOLDER:vs2017_corretto_latest
+        variables:
+          TEST_JAVA_HOME: "C:\Program Files\Amazon Corretto\jdk1.8.0_332\bin"
+    - identifier: windows_msvc2017_corretto11_x64
+      buildspec: ./tests/ci/codebuild/windows-x86/windows-msvc2017.yml
+      env:
+        type: WINDOWS_SERVER_2019_CONTAINER
+        privileged-mode: false
+        compute-type: BUILD_GENERAL1_LARGE
+        image: ECR_REPO_PLACEHOLDER:vs2017_corretto_latest
+        variables:
+          TEST_JAVA_HOME: "C:\Program Files\Amazon Corretto\jdk11.0.15_9\bin"
+    - identifier: windows_msvc2017_corretto17_x64
+      buildspec: ./tests/ci/codebuild/windows-x86/windows-msvc2017.yml
+      env:
+        type: WINDOWS_SERVER_2019_CONTAINER
+        privileged-mode: false
+        compute-type: BUILD_GENERAL1_LARGE
+        image: ECR_REPO_PLACEHOLDER:vs2017_corretto_latest
+        variables:
+          TEST_JAVA_HOME: "C:\Program Files\Amazon Corretto\jdk17.0.3_6\bin"
