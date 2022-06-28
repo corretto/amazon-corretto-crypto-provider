@@ -69,8 +69,8 @@ import org.junit.jupiter.params.provider.MethodSource;
 @Execution(ExecutionMode.CONCURRENT)
 @ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
 public class EvpKeyFactoryTest {
-    private static Set<String> ALGORITHMS = new HashSet<>();
-    private static Map<String, List<Arguments>> KEYPAIRS = new HashMap<>();
+    private static final Set<String> ALGORITHMS = new HashSet<>();
+    private static final Map<String, List<Arguments>> KEYPAIRS = new HashMap<>();
 
     @BeforeAll
     public static void setupParameters() throws Exception {
@@ -118,11 +118,11 @@ public class EvpKeyFactoryTest {
     }
 
     public static List<Arguments> rsaPairs() {
-        return KEYPAIRS.get("RSA");
+        return new ArrayList<>(KEYPAIRS.get("RSA"));
     }
 
     public static List<Arguments> ecPairs() {
-        return KEYPAIRS.get("EC");
+        return new ArrayList<>(KEYPAIRS.get("EC"));
     }
 
     public static List<Arguments> badEcPublicKeys() throws Exception {
