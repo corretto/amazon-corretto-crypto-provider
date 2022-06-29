@@ -39,6 +39,7 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
     private static native long ec2Evp(byte[] s, byte[] wx, byte[] wy, byte[] params, boolean checkPrivate) throws InvalidKeySpecException;
 
     protected EvpKeyFactory(EvpKeyType type, AmazonCorrettoCryptoProvider provider) {
+        Loader.checkNativeLibraryAvailability();
         this.type = type;
         this.provider = provider;
         if (this.type == null) {
