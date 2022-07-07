@@ -68,6 +68,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 @ExtendWith(TestResultLogger.class)
 @Execution(ExecutionMode.CONCURRENT)
 @ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
+@ResourceLock(value = TestUtil.RESOURCE_PROVIDER, mode = ResourceAccessMode.READ_WRITE)
 public class EvpKeyFactoryTest {
     private static final Set<String> ALGORITHMS = new HashSet<>();
     private static final Map<String, List<Arguments>> KEYPAIRS = new HashMap<>();
