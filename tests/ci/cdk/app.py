@@ -36,7 +36,7 @@ ACCPGitHubCIStack(app, "accp-ci-pr-integration-linux-arm", LINUX_ECR_REPO, arm_b
 extra_build_spec_file = "./cdk/codebuild/dieharder_overkill_omnibus.yaml"
 ACCPGitHubCIStack(app, "accp-ci-overkill-dieharder", LINUX_ECR_REPO, extra_build_spec_file, env=env)
 
-# Renable the code below when ACCP adds support for Windows.
+# TODO: Renable the code below when ACCP adds support for Windows.
 # Issue: https://github.com/corretto/amazon-corretto-crypto-provider/issues/48
 #
 # win_x86_build_spec_file = "./cdk/codebuild/pr_integration_windows_x86_omnibus.yaml"

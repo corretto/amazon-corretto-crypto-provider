@@ -15,7 +15,7 @@ batch:
         compute-type: BUILD_GENERAL1_LARGE
         image: ECR_REPO_PLACEHOLDER:vs2015_corretto_latest
         variables:
-          TEST_JAVA_HOME: "C:\Program Files\Amazon Corretto\jdk1.8.0_332\bin"
+          TEST_JAVA_HOME: C:\Program Files\Amazon Corretto\jdk1.8.0_332\bin
     - identifier: windows_msvc2015_corretto11_x64
       buildspec: ./tests/ci/codebuild/windows-x86/windows-msvc2015.yml
       env:
@@ -24,7 +24,7 @@ batch:
         compute-type: BUILD_GENERAL1_LARGE
         image: ECR_REPO_PLACEHOLDER:vs2015_corretto_latest
         variables:
-          TEST_JAVA_HOME: "C:\Program Files\Amazon Corretto\jdk11.0.15_9\bin"
+          TEST_JAVA_HOME: C:\Program Files\Amazon Corretto\jdk11.0.15_9\bin
     - identifier: windows_msvc2015_corretto17_x64
       buildspec: ./tests/ci/codebuild/windows-x86/windows-msvc2015.yml
       env:
@@ -33,7 +33,7 @@ batch:
         compute-type: BUILD_GENERAL1_LARGE
         image: ECR_REPO_PLACEHOLDER:vs2015_corretto_latest
         variables:
-          TEST_JAVA_HOME: "C:\Program Files\Amazon Corretto\jdk17.0.3_6\bin"
+          TEST_JAVA_HOME: C:\Program Files\Amazon Corretto\jdk17.0.3_6\bin
 
     - identifier: windows_msvc2017_corretto8_x64
       buildspec: ./tests/ci/codebuild/windows-x86/windows-msvc2017.yml
@@ -43,7 +43,7 @@ batch:
         compute-type: BUILD_GENERAL1_LARGE
         image: ECR_REPO_PLACEHOLDER:vs2017_corretto_latest
         variables:
-          TEST_JAVA_HOME: "C:\Program Files\Amazon Corretto\jdk1.8.0_332\bin"
+          TEST_JAVA_HOME: C:\Program Files\Amazon Corretto\jdk1.8.0_332\bin
     - identifier: windows_msvc2017_corretto11_x64
       buildspec: ./tests/ci/codebuild/windows-x86/windows-msvc2017.yml
       env:
@@ -52,7 +52,7 @@ batch:
         compute-type: BUILD_GENERAL1_LARGE
         image: ECR_REPO_PLACEHOLDER:vs2017_corretto_latest
         variables:
-          TEST_JAVA_HOME: "C:\Program Files\Amazon Corretto\jdk11.0.15_9\bin"
+          TEST_JAVA_HOME: C:\Program Files\Amazon Corretto\jdk11.0.15_9\bin
     - identifier: windows_msvc2017_corretto17_x64
       buildspec: ./tests/ci/codebuild/windows-x86/windows-msvc2017.yml
       env:
@@ -61,4 +61,4 @@ batch:
         compute-type: BUILD_GENERAL1_LARGE
         image: ECR_REPO_PLACEHOLDER:vs2017_corretto_latest
         variables:
-          TEST_JAVA_HOME: "C:\Program Files\Amazon Corretto\jdk17.0.3_6\bin"
+          TEST_JAVA_HOME: C:\Program Files\Amazon Corretto\jdk17.0.3_6\bin
