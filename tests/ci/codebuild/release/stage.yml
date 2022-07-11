@@ -21,9 +21,9 @@ phases:
       # Debugging only
       - aws sts get-caller-identity
       # Retrieve encrypted configuration from S3
-      - aws s3 cp s3://${CONFIG_BUCKET}/${JKS_FILENAME}.enc $HOME/${JKS_FILENAME}.enc
-      - aws s3 cp s3://${CONFIG_BUCKET}/${GPG_FILENAME} $HOME/${GPG_FILENAME}.enc
-      - aws s3 cp s3://${CONFIG_BUCKET}/${PROPERTIES_FILENAME}.enc $HOME/${PROPERTIES_FILENAME}.enc
+      - aws s3 cp s3://${CONFIG_PREFIX}/${JKS_FILENAME}.enc $HOME/${JKS_FILENAME}.enc
+      - aws s3 cp s3://${CONFIG_PREFIX}/${GPG_FILENAME}.enc $HOME/${GPG_FILENAME}.enc
+      - aws s3 cp s3://${CONFIG_PREFIX}/${PROPERTIES_FILENAME}.enc $HOME/${PROPERTIES_FILENAME}.enc
       # Decrypt configuration
       - mkdir -p $HOME/.gradle
       - aws-encryption-cli --decrypt -S --wrapping-keys key=${KMS_ARN} --commitment-policy require-encrypt-allow-decrypt -i $HOME/${JKS_FILENAME}.enc -o $HOME/.gradle/${JKS_FILENAME} --encryption-context filename=${JKS_FILENAME}
