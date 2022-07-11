@@ -403,6 +403,9 @@ class jni_borrow {
 };
 
 inline void java_buffer::get_bytes(raii_env &env, uint8_t *dest, size_t offset, size_t len) const {
+    if (len == 0) {
+        return;
+    }
     check_bounds(offset, len);
 
     if (env.is_locked() || m_direct_buffer) {
@@ -415,6 +418,9 @@ inline void java_buffer::get_bytes(raii_env &env, uint8_t *dest, size_t offset, 
 }
 
 inline void java_buffer::put_bytes(raii_env &env, const uint8_t *src, size_t offset, size_t len) {
+    if (len == 0) {
+        return;
+    }
     check_bounds(offset, len);
 
     if (env.is_locked() || m_direct_buffer) {

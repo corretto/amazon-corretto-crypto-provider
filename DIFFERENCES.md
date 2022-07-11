@@ -70,6 +70,10 @@ This is equivalent to using a [GCMParameterSpec](https://docs.oracle.com/javase/
 By supporting the same ParameterSpec as other ciphers (such as `AES/CBC/PKCS5Padding`, which should not be used as it is no longer secure), ACCP makes it easier to migrate to the secure choice of `AES/GCM/NoPadding`.
 (This behavior is identical to how [BouncyCastle](https://bouncycastle.org/java.html) treats `IvParameterSpec` when used with AES-GCM.)
 
+## AES-KWP restricted support for IvParameterSpec
+
+While JCE allows for callers to [explicitly specify alternate IV values in AES KWP](https://github.com/corretto/corretto-17/blob/4922f0805033d2f4a872add164f05320ef1592d3/src/java.base/share/classes/com/sun/crypto/provider/KeyWrapCipher.java#L637-L639), AWS-LC does not, so neither does ACCP. AWS-LC is responseible for determing the value of the AIV as described [here in RFC 5649](ACCP restricts KWP's IV to the constant 4-byte value described [here](https://datatracker.ietf.org/doc/html/rfc5649#section-3).
+
 ## KeyAgreement supports reuse without reinitialization
 ACCP permits reuse of a [KeyAgreement](https://docs.oracle.com/javase/8/docs/api/javax/crypto/KeyAgreement.html) object without calling `.init()` more than once.
 This results in better performance for Static-Ephemeral key agreement protocols.
