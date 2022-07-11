@@ -36,6 +36,7 @@ abstract class EvpKey implements Key, Destroyable {
     protected static native byte[] getDerEncodedParams(long ptr);
 
     EvpKey(final InternalKey key, final EvpKeyType type, final boolean isPublicKey) {
+        Loader.checkNativeLibraryAvailability();
         this.internalKey = key;
         this.type = type;
         this.isPublicKey = isPublicKey;
