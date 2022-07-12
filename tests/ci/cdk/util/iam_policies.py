@@ -82,3 +82,24 @@ def ecr_power_user_policy_in_json(ecr_repo_names):
             }
         ]
     }
+
+def s3_read_write_policy_in_json(s3_bucket_name):
+    """
+    Define an IAM policy statement for reading and writing to S3 bucket.
+    :return: an IAM policy statement in json.
+    """
+    return {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Action": [
+                    "s3:Put*",
+                    "s3:Get*"
+                ],
+                "Resource": [
+                    "arn:aws:s3:::{}/*".format(s3_bucket_name)
+                ]
+            }
+        ]
+    }
