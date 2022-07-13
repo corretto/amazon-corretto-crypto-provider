@@ -7,14 +7,3 @@ phases:
   build:
     commands:
       - ./tests/ci/run_accp_overkill.sh --fips
-reports:
-  unit-tests:
-    files:
-      - 'build/reports/unit-tests/**'
-    discard-paths: yes
-    file-format: JunitXml
-  integration-tests:
-    files:
-      - 'build/reports/integration-tests/**'
-    discard-paths: yes
-    file-format: JunitXml
