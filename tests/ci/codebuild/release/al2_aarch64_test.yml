@@ -45,12 +45,10 @@ reports:
   unit-tests:
     files:
       - 'build/reports/unit-tests/**'
-    #base-directory: location
     discard-paths: yes
     file-format: JunitXml
   integration-tests:
     files:
       - 'build/reports/integration-tests/**'
-    #base-directory: location
     discard-paths: yes
     file-format: JunitXml
