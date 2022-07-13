@@ -15,7 +15,7 @@ phases:
       - yum -y update
       - yum -y group install 'Development Tools'
       - curl -L -O https://downloads.sourceforge.net/ltp/lcov-1.14-1.noarch.rpm
-      - yum -y install cmake3; alias cmake=cmake3
+      - yum -y install cmake3
       - yum -y install gsl-devel wget
       - mkdir go_tmp
       - cd go_tmp

@@ -14,10 +14,6 @@ phases:
     commands:
       - yum -y update
       - yum -y group install 'Development Tools'
-      # - curl -L -O https://github.com/Kitware/CMake/releases/download/v3.24.0-rc2/cmake-3.24.0-rc2.tar.gz
-      - curl -L -O https://downloads.sourceforge.net/ltp/lcov-1.14-1.noarch.rpm
-      # - tar xzf cmake-3.24.0-rc2.tar.gz
-      # - (cd cmake-3.24.0-rc2 && ./bootstrap && make && make install)
       - yum -y install cmake3
       - yum -y install gsl-devel wget
       - mkdir go_tmp
@@ -36,9 +32,7 @@ phases:
       - git submodule update --init --recursive
       - pwd
       - ls
-      # TODO: Pull from maven rather than from local location
       # TODO: Do we want to reintroduce dieharder for some configurations?
-      # - ./gradlew -DFIPS=${FIPS} -DstagingUrl=${STAGING_URL} test test_extra_checks test_integration test_integration_extra_checks
       - ./gradlew -DcmakeBin=cmake3 -DFIPS=${FIPS} -DstagingProperties=true test test_extra_checks test_integration test_integration_extra_checks
       - ./gradlew -DcmakeBin=cmake3 -DFIPS=${FIPS} -DTEST_JAVA_HOME=$JAVA_8_HOME -DTEST_JAVA_MAJOR_VERSION=8 -DstagingProperties=true minimal_clean test test_extra_checks test_integration test_integration_extra_checks
 artifacts:

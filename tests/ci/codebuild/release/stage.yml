@@ -30,7 +30,7 @@ phases:
       - aws-encryption-cli --decrypt -S --wrapping-keys key=${KMS_ARN} --commitment-policy require-encrypt-allow-decrypt -i $HOME/${GPG_FILENAME}.enc -o $HOME/${GPG_FILENAME} --encryption-context filename=${GPG_FILENAME}
       - aws-encryption-cli --decrypt -S --wrapping-keys key=${KMS_ARN} --commitment-policy require-encrypt-allow-decrypt -i $HOME/${PROPERTIES_FILENAME}.enc -o $HOME/.gradle/gradle.properties --encryption-context filename=${PROPERTIES_FILENAME}
       - tar -xzvpf $HOME/${GPG_FILENAME}
-      # TODO: Remove next two debugging lines
+      # Next two lines are for debugging only. They can be removed but are helpful.
       - ./gradlew --info -DFIPS=${FIPS} fakePublish
       - find build/fake_maven/
       - ./gradlew --info -DFIPS=${FIPS} fakePublish publishToSonatype closeSonatypeStagingRepository
