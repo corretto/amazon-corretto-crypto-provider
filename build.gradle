@@ -5,14 +5,36 @@ import groovy.xml.*
 
 plugins {
     id 'maven-publish'
+    id "io.github.gradle-nexus.publish-plugin" version "1.1.0"
     id 'signing'
+    id "com.google.osdetector" version "1.7.0"
 }
 
 group = 'software.amazon.cryptools'
 version = '2.0.0'
 ext.isFips = Boolean.getBoolean('FIPS')
 
-def awslcSrcPath = "aws-lc/"
+def awslcSrcPath = "${projectDir}/aws-lc/"
+def cmakeBin = System.properties['cmakeBin'] != null ? System.properties['cmakeBin'] : "cmake";
+
+ext.isJceSigned = { pathToJar ->
+    def stdout = new ByteArrayOutputStream()
+    exec {
+        executable "jarsigner"
+        args "-verify", pathToJar
+        standardOutput = stdout;
+    }
+    return stdout.toString().contains("jar verified")
+}
+
+ext.assertJceSigned = { pathToJar ->
+    if (!isJceSigned(pathToJar)) {
+        ant.fail("${pathToJar} is not signed")
+    } else {
+        println "${pathToJar} is signed"
+    }
+    return pathToJar
+}
 
 configurations {
     jacocoAgent
@@ -69,12 +91,15 @@ task buildAwsLc {
         if (file(awslcSrcPath).list().size() == 0) {
             throw new GradleException("aws-lc dir empty! run 'git submodule update --init --recursive' to populate.")
         }
+        mkdir "${buildDir}/awslc"
+        mkdir sharedObjectOutDir
+        mkdir cMakeBuildDir
     }
 
     doLast {
         exec {
             workingDir awslcSrcPath
-            executable 'cmake'
+            executable cmakeBin
             args "-B${cMakeBuildDir}"
             args '-DBUILD_SHARED_LIBS=ON'
             args '-DCMAKE_BUILD_TYPE=RelWithDebInfo'
@@ -84,6 +109,7 @@ task buildAwsLc {
             if (isFips) {
                 args '-DFIPS=1'
             }
+            args '.'
         }
         exec {
             workingDir awslcSrcPath
@@ -108,18 +134,39 @@ task executeCmake(type: Exec) {
 
     workingDir "${buildDir}/cmake"
     def prebuiltJar = null
-    if (project.hasProperty('stagingUrl')) {
+    def projectName = isFips ? project.name + "-FIPS" : project.name
+    def prebuiltJarFileName = "${projectName}-${version}-${osdetector.classifier}.jar"
+    if (System.properties['stagingProperties'] != null) {
+        def stagingProperties = new Properties()
+        if (isFips) {
+            stagingProperties.load(
+                new java.io.FileInputStream("${System.env.CODEBUILD_SRC_DIR_Stage_FIPS}/fake_maven/staging.properties"));
+        } else {
+            stagingProperties.load(
+                new java.io.FileInputStream("${System.env.CODEBUILD_SRC_DIR_Stage}/fake_maven/staging.properties"));
+        }
+        println "Loaded staging id is " + stagingProperties['staging.id']
+        def repoBase = "https://aws.oss.sonatype.org/content/repositories/" + stagingProperties['staging.id']
         mkdir "${buildDir}/tmp"
         exec {
             workingDir "${buildDir}/tmp"
-            commandLine 'wget', "${stagingUrl}/software/amazon/cryptools/${project.name}/${stagingVersion}/${project.name}-${stagingVersion}-linux-x86_64.jar"
+            commandLine 'wget', "${repoBase}/software/amazon/cryptools/${projectName}/${version}/${prebuiltJarFileName}"
         }
-        prebuiltJar = "${buildDir}/tmp/${project.name}-${stagingVersion}-linux-x86_64.jar"
+        prebuiltJar = assertJceSigned("${buildDir}/tmp/${prebuiltJarFileName}")
     } else if (System.properties['prebuiltJar'] != null) {
         prebuiltJar = "${projectDir}/" + System.properties['prebuiltJar']
+    } else if (System.properties['fakeMaven'] != null) {
+        def fakeMavenBase
+        if (isFips) {
+            fakeMavenBase = System.env.CODEBUILD_SRC_DIR_Stage_FIPS
+        } else {
+            fakeMavenBase = System.env.CODEBUILD_SRC_DIR_Stage
+        }
+        fakeMavenBase = "${fakeMavenBase}/fake_maven"
+        prebuiltJar = "${fakeMavenBase}/${prebuiltJarFileName}"
     }
 
-    executable 'cmake'
+    executable cmakeBin
     args "-DTEST_CLASSPATH=${configurations.testDep.asPath}", "-DJACOCO_AGENT_JAR=${configurations.jacocoAgent.singleFile}"
     args "-DOPENSSL_ROOT_DIR=${buildDir}/awslc/bin", '-DCMAKE_BUILD_TYPE=Release', '-DPROVIDER_VERSION_STRING=' + version
     args "-DTEST_RUNNER_JAR=${configurations.testRunner.singleFile}"
@@ -131,6 +178,7 @@ task executeCmake(type: Exec) {
 
     if (prebuiltJar != null) {
        args '-DSIGNED_JAR=' + prebuiltJar
+       print "Using SIGNED_JAR=${prebuiltJar}"
     }
 
     if (System.properties['TEST_JAVA_HOME'] != null) {
@@ -228,16 +276,35 @@ task src_jar {
     }
 }
 
-task test_extra_checks(type: Exec) {
+task test_extra_checks_exec(type: Exec) {
     dependsOn executeCmake
     workingDir "${buildDir}/cmake"
     commandLine 'make', 'check-junit-extra-checks'
+
 }
 
-task test(type: Exec) {
+task test_extra_checks(type: Copy) {
+    doFirst {
+        mkdir "${buildDir}/reports/unit-tests"
+    }
+    dependsOn test_extra_checks_exec
+    from "${buildDir}/cmake/unit-tests/"
+    into "${buildDir}/reports/unit-tests"
+}
+
+task test_exec(type: Exec) {
     dependsOn executeCmake
     workingDir "${buildDir}/cmake"
     commandLine 'make', 'check'
+}
+
+task test(type: Copy) {
+    doFirst {
+        mkdir "${buildDir}/reports/unit-tests"
+    }
+    dependsOn test_exec
+    from "${buildDir}/cmake/unit-tests/"
+    into "${buildDir}/reports/unit-tests"
 }
 
 task checkstyle(type: Exec) {
@@ -252,10 +319,19 @@ task single_test(type: Exec) {
     commandLine 'make', 'check-junit-single'
 }
 
-task test_integration(type: Exec) {
+task test_integration_exec(type: Exec) {
     dependsOn executeCmake
     workingDir "${buildDir}/cmake"
     commandLine 'make', 'check-integration'
+}
+
+task test_integration(type: Copy) {
+    doFirst {
+        mkdir "${buildDir}/reports/integration-tests"
+    }
+    dependsOn test_integration_exec
+    from "${buildDir}/cmake/integration-tests/"
+    into "${buildDir}/reports/integration-tests"
 }
 
 task test_integration_extra_checks(type: Exec) {
@@ -296,7 +372,7 @@ task coverage_cmake(type: Exec) {
         mkdir "${buildDir}/cmake-coverage"
     }
     workingDir "${buildDir}/cmake-coverage"
-    executable 'cmake'
+    executable cmakeBin
     args "-DTEST_CLASSPATH=${configurations.testDep.asPath}"
     args "-DJACOCO_AGENT_JAR=${configurations.jacocoAgent.singleFile}"
     args "-DOPENSSL_ROOT_DIR=${buildDir}/awslc/bin"
@@ -377,19 +453,96 @@ task overkill {
     dependsOn test, test_extra_checks, test_integration, test_integration_extra_checks, dieharder_all
 }
 
+task fakePublish {
+     dependsOn emptyJar
+     outputs.dir("${buildDir}/fake_maven")
+
+    def x64Base = "${System.env.CODEBUILD_SRC_DIR_Linux_x64_Artifacts}/lib"
+    def aarch64Base = "${System.env.CODEBUILD_SRC_DIR_Linux_aarch64_Artifacts}/lib"
+    def newPrefix = "AmazonCorrettoCryptoProvider-${version}"
+    if (isFips) {
+        x64Base = "${System.env.CODEBUILD_SRC_DIR_Linux_x64_Artifacts_FIPS}/lib"
+        aarch64Base = "${System.env.CODEBUILD_SRC_DIR_Linux_aarch64_Artifacts_FIPS}/lib"
+        newPrefix = "AmazonCorrettoCryptoProvider-FIPS-${version}"
+    }
+    def x86Jar = "${x64Base}/AmazonCorrettoCryptoProvider.jar"
+    def aarch64Jar = "${aarch64Base}/AmazonCorrettoCryptoProvider.jar"
+    def sourceJar = "${x64Base}/AmazonCorrettoCryptoProvider-sources.jar"
+    def javadocJar = "${x64Base}/AmazonCorrettoCryptoProvider-javadoc.jar"
+
+    doLast {
+        println "Running on " + osdetector.classifier
+        println aarch64Jar
+        println file(aarch64Jar).file
+        println x86Jar
+        println file(x86Jar).file
+        println sourceJar
+        println file(sourceJar).file
+        println javadocJar
+        println file(javadocJar).file
+
+        def destinationDir = "${buildDir}/fake_maven"
+        copy {
+            from aarch64Jar
+            rename 'AmazonCorrettoCryptoProvider.jar', "${newPrefix}-linux-aarch_64.jar"
+            into "${destinationDir}"
+        }
+        copy {
+            from x64Base
+            rename { String filename ->
+                if (filename.equals("AmazonCorrettoCryptoProvider.jar")) {
+                    return "${newPrefix}-linux-x86_64.jar"
+                } else {
+                    return filename.replace("AmazonCorrettoCryptoProvider-", "${newPrefix}-")
+                }
+            }
+            into "${destinationDir}"
+        }
+        if (project.hasProperty('jcecertAlias')) {
+            ant.signjar(
+                alias: jcecertAlias,
+                jar: "${destinationDir}/${newPrefix}-linux-aarch_64.jar",
+                storepass: jcecertPassword,
+                keystore: "${project.gradle.gradleUserHomeDir}/${jcecertJks}",
+                tsaurl: "http://timestamp.digicert.com"
+            )
+            ant.signjar(
+                alias: jcecertAlias,
+                jar: "${destinationDir}/${newPrefix}-linux-x86_64.jar",
+                storepass: jcecertPassword,
+                keystore: "${project.gradle.gradleUserHomeDir}/${jcecertJks}",
+                tsaurl: "http://timestamp.digicert.com"
+            )
+        }
+        // Fake publish doesn't bother with the empty jar
+    }
+
+}
 
 if (project.hasProperty('mavenUser') && project.hasProperty('jcecertAlias')) {
     publishing {
         publications {
             mavenJava(MavenPublication) {
-                artifactId = project.name
-                artifact source: file("${buildDir}/lib/AmazonCorrettoCryptoProvider.jar"),classifier:"linux-x86_64",extension:"jar"
+                def pomName = "Amazon Corretto Crypto Provider"
+                if (isFips) {
+                    artifactId = project.name + "-FIPS"
+                    pomName = pomName + " (FIPS)"
+                } else {
+                    artifactId = project.name
+                }
+                def fakeMavenBase = "${buildDir}/fake_maven/${artifactId}-${version}-"
+                def x86Jar = "${fakeMavenBase}linux-x86_64.jar"
+                def aarch64Jar = "${fakeMavenBase}linux-aarch_64.jar"
+                def sourceJar = "${fakeMavenBase}sources.jar"
+                def javadocJar = "${fakeMavenBase}javadoc.jar"
+                artifact source: file(x86Jar),classifier:"linux-x86_64",extension:"jar"
+                artifact source: file(aarch64Jar),classifier:"linux-aarch_64",extension:"jar"
                 artifact emptyJar
-                artifact javadoc
-                artifact source: file("${buildDir}/lib/AmazonCorrettoCryptoProvider-sources.jar"),classifier:"sources",extension:"jar"
+                artifact source: file(javadocJar),classifier:"javadoc",extension:"jar"
+                artifact source: file(sourceJar),classifier:"sources",extension:"jar"
 
                 pom {
-                    name = "Amazon Corretto Crypto Provider"
+                    name = pomName
                     description = 'The Amazon Corretto Crypto Provider (ACCP) is a collection of high-performance cryptographic implementations exposed via the standard JCA/JCE interfaces.'
                     url = 'https://github.com/corretto/amazon-corretto-crypto-provider'
                     licenses {
@@ -413,19 +566,49 @@ if (project.hasProperty('mavenUser') && project.hasProperty('jcecertAlias')) {
                 }
             }
         }
+    }
+
+    nexusPublishing {
         repositories {
-            maven {
-                url = 'https://aws.oss.sonatype.org/service/local/staging/deploy/maven2/'
-                credentials {
-                    username mavenUser
-                    password mavenPassword
-                }
+            sonatype {
+                nexusUrl = uri('https://aws.oss.sonatype.org/service/local/')
+                username = mavenUser
+                password = mavenPassword
             }
         }
     }
 
     signing {
         sign publishing.publications.mavenJava
+    }
+
+    closeSonatypeStagingRepository {
+        doLast {
+            def idAsString = stagingRepositoryId.get()
+            def fw = new java.io.FileWriter("${buildDir}/fake_maven/staging.properties")
+            fw.write("staging.id=${idAsString}\n");
+            fw.flush()
+            fw.close()
+            println "StagingId: ${idAsString}"
+        }
+    }
+    releaseSonatypeStagingRepository {
+        if (System.properties['stagingProperties']) {
+            def stagingProperties = new Properties()
+            if (isFips) {
+                stagingProperties.load(
+                    new java.io.FileInputStream("${System.env.CODEBUILD_SRC_DIR_Stage_FIPS}/fake_maven/staging.properties"));
+            } else {
+                stagingProperties.load(
+                    new java.io.FileInputStream("${System.env.CODEBUILD_SRC_DIR_Stage}/fake_maven/staging.properties"));
+            }
+            println "Loaded staging id is " + stagingProperties['staging.id']
+            stagingRepositoryId = stagingProperties['staging.id']
+        }
+        doFirst {
+            // TODO: Remove this once we want to automate releases
+            ant.fail("Release from gradle is currently disabled")
+        }
     }
 } else {
     task publish(overwrite: true) {
@@ -439,9 +622,7 @@ if (project.hasProperty('mavenUser') && project.hasProperty('jcecertAlias')) {
             ant.fail('Insufficient configuration for signing')
         }
     }
-
 }
-
 task clean(overwrite: true, type: Delete) {
    delete "${buildDir}/cmake"
    delete "${buildDir}/cmake-coverage"
