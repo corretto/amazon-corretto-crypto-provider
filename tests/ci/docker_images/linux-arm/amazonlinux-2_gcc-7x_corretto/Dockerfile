@@ -32,4 +32,4 @@ RUN ./gradlew --no-daemon generateEclipseClasspath
 
 ENV CC=gcc
 ENV CXX=g++
-ENV JAVA_HOME=/usr/lib/jvm/java-11-amazon-corretto.arm_64
+ENV JAVA_HOME=/usr/lib/jvm/java-11-amazon-corretto.aarch64
