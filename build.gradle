@@ -12,7 +12,22 @@ group = 'software.amazon.cryptools'
 version = '2.0.0'
 ext.isFips = Boolean.getBoolean('FIPS')
 
-def awslcSrcPath = "aws-lc/"
+def awslcSrcPath = "aws-lc"
+def cmake_cmd = 'cmake'
+
+// Pick cmake3 if possible. AL2 uses cmake3 for CMake versions larger than 3.
+// ACCP requires CMake to be at least 3.8 or newer.
+def result = exec {
+    executable "bash" args "-l", "-c", 'command -v cmake3'
+    args '--version'
+    ignoreExitValue true
+    // Redirects the output of the test command.
+    standardOutput = new ByteArrayOutputStream()
+    errorOutput = standardOutput
+}
+if(result.getExitValue() == 0){
+    cmake_cmd = 'cmake3'
+}
 
 configurations {
     jacocoAgent
@@ -74,7 +89,8 @@ task buildAwsLc {
     doLast {
         exec {
             workingDir awslcSrcPath
-            executable 'cmake'
+            executable cmake_cmd
+            args "./"
             args "-B${cMakeBuildDir}"
             args '-DBUILD_SHARED_LIBS=ON'
             args '-DCMAKE_BUILD_TYPE=RelWithDebInfo'
@@ -104,7 +120,6 @@ task executeCmake(type: Exec) {
     inputs.dir("${projectDir}/template-src")
 
     dependsOn buildAwsLc
-
     workingDir "${buildDir}/cmake"
     def prebuiltJar = null
     if (project.hasProperty('stagingUrl')) {
@@ -118,7 +133,7 @@ task executeCmake(type: Exec) {
         prebuiltJar = "${projectDir}/" + System.properties['prebuiltJar']
     }
 
-    executable 'cmake'
+    executable cmake_cmd
     args "-DTEST_CLASSPATH=${configurations.testDep.asPath}", "-DJACOCO_AGENT_JAR=${configurations.jacocoAgent.singleFile}"
     args "-DOPENSSL_ROOT_DIR=${buildDir}/awslc/bin", '-DCMAKE_BUILD_TYPE=Release', '-DPROVIDER_VERSION_STRING=' + version
     args "-DTEST_RUNNER_JAR=${configurations.testRunner.singleFile}"
@@ -294,7 +309,7 @@ task coverage_cmake(type: Exec) {
         mkdir "${buildDir}/cmake-coverage"
     }
     workingDir "${buildDir}/cmake-coverage"
-    executable 'cmake'
+    executable cmake_cmd
     args "-DTEST_CLASSPATH=${configurations.testDep.asPath}"
     args "-DJACOCO_AGENT_JAR=${configurations.jacocoAgent.singleFile}"
     args "-DOPENSSL_ROOT_DIR=${buildDir}/awslc/bin"
