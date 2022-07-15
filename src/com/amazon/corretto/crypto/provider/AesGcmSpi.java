@@ -211,6 +211,7 @@ final class AesGcmSpi extends CipherSpi {
     private final AccessibleByteArrayOutputStream decryptAADBuf = new AccessibleByteArrayOutputStream();
 
     AesGcmSpi(final AmazonCorrettoCryptoProvider provider) {
+        Loader.checkNativeLibraryAvailability();
         this.provider = provider;
     }
 

@@ -1,0 +1,56 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+version: 0.2
+
+env:
+  variables:
+    GO_TAG: go1.18.3
+phases:
+  # TODO: Everything in the install section should be moved into a prebuilt image
+  install:
+    runtime-versions:
+      java: corretto11
+    commands:
+      - yum -y update
+      - yum -y group install 'Development Tools'
+      - curl -L -O https://downloads.sourceforge.net/ltp/lcov-1.14-1.noarch.rpm
+      - yum -y install cmake3
+      - yum -y install gsl-devel wget
+      - mkdir go_tmp
+      - cd go_tmp
+      - wget https://dl.google.com/go/$GO_TAG.linux-amd64.tar.gz
+      - tar -xvf $GO_TAG.linux-amd64.tar.gz
+      - mv go ../go_root
+      - cd ..
+  build:
+    commands:
+      # TODO: Move this to the docker image also
+      - export GOROOT=$(pwd)/go_root
+      - export GO111MODULE=on
+      - export PATH=$GOROOT/bin:$PATH
+      # TODO: Can we move the recursive pull logic upstream?
+      - git submodule update --init --recursive
+      - pwd
+      - find ${CODEBUILD_SRC_DIR_Stage_FIPS} -follow
+      - find ${CODEBUILD_SRC_DIR_Stage} -follow
+      # TODO: Do we want to reintroduce dieharder for some configurations?
+      - ./gradlew -DcmakeBin=cmake3 -DFIPS=${FIPS} -DTEST_JAVA_HOME=$JAVA_8_HOME -DTEST_JAVA_MAJOR_VERSION=8 -DstagingProperties=true test test_extra_checks test_integration test_integration_extra_checks
+      - ./gradlew -DcmakeBin=cmake3 -DFIPS=${FIPS} -DstagingProperties=true minimal_clean test test_extra_checks test_integration test_integration_extra_checks
+artifacts:
+  files:
+    - 'lib/**/*'
+  discard-paths: no
+  base-directory: 'build'
+  name: $(date --iso-8601=s)
+reports:
+  unit-tests:
+    files:
+      - 'build/reports/unit-tests/**'
+    discard-paths: yes
+    file-format: JunitXml
+  integration-tests:
+    files:
+      - 'build/reports/integration-tests/**'
+    discard-paths: yes
+    file-format: JunitXml

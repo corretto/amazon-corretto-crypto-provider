@@ -190,10 +190,16 @@ There are several ways to configure the ACCP as the highest priority provider in
 Run the following method early in program start up: `com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider.install()`
 
 ### Via Security Properties
-Add the following Java property to your programs command line: `-Djava.security.properties=/path/to/amazon-corretto-crypto-provider.security` where amazon-corretto-crypto-provider.security is [downloaded from](https://github.com/corretto/amazon-corretto-crypto-provider/blob/master/etc/amazon-corretto-crypto-provider.security) our repository.
+Add the following Java property to your programs command line: `-Djava.security.properties=/path/to/amazon-corretto-crypto-provider.security` where amazon-corretto-crypto-provider.security is downloaded from
+[amazon-corretto-crypto-provider.security](./etc/amazon-corretto-crypto-provider.security) (for JDK versions older than JDK15)
+or [amazon-corretto-crypto-provider-jdk15.security](./etc/amazon-corretto-crypto-provider-jdk15.security) (for JDK15 or newer)
+in our repository.
 
 ### Modify the JVM settings
-Modify the `java.security` file provided by your JVM so that the highest priority provider is the Amazon Corretto Crypto Provider. Look at [amazon-corretto-crypto-provider.security](https://github.com/corretto/amazon-corretto-crypto-provider/blob/master/etc/amazon-corretto-crypto-provider.security) for an example of what this change will look like.
+Modify the `java.security` file provided by your JVM so that the highest priority provider is the Amazon Corretto Crypto Provider.
+Look at [amazon-corretto-crypto-provider.security](./etc/amazon-corretto-crypto-provider.security) (JDKs 11 and older)
+or [amazon-corretto-crypto-provider-jdk15.security](./etc/amazon-corretto-crypto-provider-modules.security) (for JDKs newer than 11)
+for an example of what this change will look like.
 
 ### Verification (Optional)
 If you want to check to verify that ACCP is properly working on your system, you can do any of the following:

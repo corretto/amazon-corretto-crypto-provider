@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.nio.ByteBuffer;
 import java.security.GeneralSecurityException;
@@ -140,17 +141,19 @@ public class EvpSignatureTest {
         }
 
         private Signature getJceSigner() throws NoSuchAlgorithmException, NoSuchProviderException {
-            final Signature ret;
-            // BouncyCastle requires that PSS digest algorithm match MGF1 digest algorithm, which
-            // neither we nor SunRsaSign require. So, use sun as the JCE provider for PSS tests.
             if ("RSASSA-PSS".equals(algorithm)) {
-                ret = Signature.getInstance(algorithm, "SunRsaSign");
-            } else {
-                // BouncyCastle uses a different naming scheme for P1363 schemes
-                final String bcName = algorithm.replace("withECDSAinP1363Format", "withPLAIN-ECDSA");
-                ret = Signature.getInstance(bcName, TestUtil.BC_PROVIDER);
+                // BouncyCastle requires that PSS digest algorithm match MGF1 digest algorithm, which
+                // neither we nor other JCE providers require. So, use higest-priority available JCE provider for
+                // PSS tests. Some JVMs don't support RSASSA-PSS, so skip the current test case if we can't find
+                // an implementation.
+                try {
+                    return Signature.getInstance(algorithm);
+                } catch (NoSuchAlgorithmException e) {
+                    assumeTrue(false, "Current JDK doesn't support RSASSA-PSS: " + e.getMessage());
+                }
             }
-            return ret;
+            final String bcName = algorithm.replace("withECDSAinP1363Format", "withPLAIN-ECDSA");
+            return Signature.getInstance(bcName, TestUtil.BC_PROVIDER);
         }
 
         public int getMessageSizeLimit() {

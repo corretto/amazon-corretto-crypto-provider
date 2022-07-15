@@ -45,9 +45,18 @@ import java.util.regex.Pattern;
  */
 final class Loader {
     static final String PROPERTY_BASE = "com.amazon.corretto.crypto.provider.";
-    private static final String LIBRARY_NAME = "amazonCorrettoCryptoProvider";
+    private static final String TEMP_DIR_PREFIX = "amazonCorrettoCryptoProviderNativeLibraries.";
+    private static final String JNI_LIBRARY_NAME = "amazonCorrettoCryptoProvider";
     private static final String LIBCRYPTO_NAME = "crypto";
+    private static final String[] JAR_RESOURCES = {JNI_LIBRARY_NAME, LIBCRYPTO_NAME};
     private static final Pattern TEST_FILENAME_PATTERN = Pattern.compile("[-a-zA-Z0-9]+(\\.[a-zA-Z0-9]+)*");
+    private static final FileAttribute<Set<PosixFilePermission>> SELF_OWNER_FILE_PERMISSIONS =
+            PosixFilePermissions.asFileAttribute(new HashSet<>(Arrays.asList(
+                    PosixFilePermission.OWNER_READ,
+                    PosixFilePermission.OWNER_WRITE,
+                    PosixFilePermission.OWNER_EXECUTE
+            )));
+
     private static final Logger LOG = Logger.getLogger("AmazonCorrettoCryptoProvider");
 
     // Version strings live in the loader because we want to be able to access them before
@@ -122,28 +131,11 @@ final class Loader {
 
             available = AccessController.doPrivileged((PrivilegedExceptionAction<Boolean>) () -> {
                 // This is to work a JVM runtime bug where FileSystems.getDefault() and
-                // System.loadLibrary() can deadlock. Calling this explicitly shoulf prevent
+                // System.loadLibrary() can deadlock. Calling this explicitly should prevent
                 // the problem from happening, but since we don't know what other threads are
                 // doing, we cannot promise success.
                 FileSystems.getDefault();
-
-                final Path libCryptoPath = writeResourceToTemporaryFile(System.mapLibraryName(LIBCRYPTO_NAME));
-                tryLoadLibrary("accpLcLoader");
-                // Yes, this next bit is horribly evil but we need a way to lock such that it really is global to
-                // everything running in the JVM even if multiple classloaders have loaded multiple copies of this
-                // same class.
-                // We intentionally have nothing in this synchronized block except for a single method call.
-                boolean loadCompleted = false;
-                final String pathAsString = libCryptoPath.toAbsolutePath().toString();
-                synchronized (ClassLoader.getSystemClassLoader()) {
-                    loadCompleted = loadLibCrypto(pathAsString);
-                }
-                maybeDelete(libCryptoPath);
-                if (!loadCompleted) {
-                    LOG.info("Already loaded libcrypto");
-                }
-
-                tryLoadLibrary(LIBRARY_NAME);
+                tryLoadLibrary();
                 return true;
             });
         } catch (final Throwable t) {
@@ -177,63 +169,115 @@ final class Loader {
         RESOURCE_JANITOR = new Janitor();
     }
 
-    private static void maybeDelete(final Path path) {
-        if (!DebugFlag.PRESERVE_NATIVE_LIBRARIES.isEnabled()) {
-            try {
-                Files.delete(path);
-            } catch (IOException ex) {
-                LOG.warning("Unable to delete native library: " + ex);
-            }
+    private static void tryLoadLibraryFromJar() throws IOException {
+        Path privateTempDirectory = createPrivateTmpDir(TEMP_DIR_PREFIX);
+
+        for (String jarResource: JAR_RESOURCES) {
+            String resourceFileName = System.mapLibraryName(jarResource);
+            writeJarResourceToTemporaryFile(privateTempDirectory, resourceFileName);
         }
+
+        /**
+         * Java will internally call dlopen() on libamazonCorrettoCryptoProvider from within this System.load() call.
+         * This will cause the runtime dynamic loader to load ACCP's shared library into a new LOCAL object group that
+         * is a child of the current Java LOCAL object group. Any shared library dependencies of the library being
+         * loaded (such as libcrypto) will also be loaded recursively into the same LOCAL object group until all
+         * transitive shared library dependencies are loaded. The system's regular dynamic loading rules are followed
+         * (namely, any RPATH values present will be used). Since libamazonCorrettoCryptoProvider is built with an RPATH
+         * value of "$ORIGIN", the runtime dynamic loader will always look in the same directory as libACCP for any
+         * shared library dependencies BEFORE attempting to look in any system directories containing potentially
+         * conflicting libraries with the same name.
+         *
+         * This means at runtime the Java process's object group hierarchy would look like this:
+         *
+         *             +------------------------------------------------------------+
+         *             |Group #0: GLOBAL Object Group                               |
+         *             | - Usually empty unless using LD_PRELOAD or dlopen() with   |
+         *             |   RTLD_GLOBAL                                              |
+         *             |                                                            |
+         *             +------------------------------------------------------------+
+         *                                          ^
+         *                                          |
+         *                                          |
+         *             +------------------------------------------------------------+
+         *             |Group #1: LOCAL Object Group                                |
+         *             | - Java and JVM Symbols (libjli), libc, ld-linux, etc       |
+         *             |                                                            |
+         *             +------------------------------------------------------------+
+         *                      ^                                        ^
+         *                      |                                        |
+         *                      |                                        |
+         *   +---------------------------------------+   +---------------------------------------+
+         *   |Group #2: LOCAL Object Group           |   |Group #3: LOCAL Object Group           |
+         *   | - libamazonCorrettoCryptoProvider,    |   | - Any other JNI libraries. (Eg with   |
+         *   |   libcrypto                           |   |   potentially different libcrypto)    |
+         *   |                                       |   |                                       |
+         *   +---------------------------------------+   +---------------------------------------+
+         *
+         * Any shared libraries that are not present in Java's LOCAL object group (Group #1), will be loaded into a
+         * new child LOCAL object group, lower in the object group hierarchy. This can be done multiple times for
+         * multiple different JNI libraries. Note that since both Groups #2 and #3 have Group #1 as a parent, their
+         * library symbols will not conflict with each other since each group only see's symbols from their own
+         * parents in the hierarchy above them. This means it is possible for multiple different JNI libraries to be
+         * loaded at runtime that use different libcrypto implementations so long as those JNI libraries configure
+         * their RPath values correctly, and are compatible with any libraries that have already been loaded above
+         * them in the hierarchy.
+         *
+         * Once a LOCAL object group is created and the recursive library loading is complete, that LOCAL object group
+         * can no longer be modified at runtime other than to be deleted entirely with dlclose(). Subsequent
+         * System.load() or dlopen(..., RTLD_LOCAL) calls will only create new child LOCAL Object Groups below the
+         * current object group in the hierarchy, and will only load in shared libraries that are not present in the
+         * caller's object group's hierarchy.
+         *
+         * Links:
+         *  - https://docs.oracle.com/cd/E19957-01/806-0641/6j9vuquj2/index.html
+         *  - http://people.redhat.com/drepper/dsohowto.pdf
+         *  - https://docs.oracle.com/cd/E23824_01/pdf/819-0690.pdf
+         *  - https://man7.org/linux/man-pages/man3/dlopen.3.html
+         */
+        Path accpJniSharedLibraryPath = privateTempDirectory.resolve(System.mapLibraryName(JNI_LIBRARY_NAME)).toAbsolutePath();
+        System.load(accpJniSharedLibraryPath.toString());
+
+        // If loading library from JAR file, then the compile-time and run-time libcrypto versions should be an exact match.
+        validateLibcryptoVersion(false);
+
+        maybeDeletePrivateTempDir(privateTempDirectory);
     }
 
-    private static Path writeResourceToTemporaryFile(final String resourceName) throws IOException {
-        final int index = resourceName.lastIndexOf('.');
-        final String prefix = resourceName.substring(0, index);
-        final String suffix = resourceName.substring(index, resourceName.length());
 
-        final Path libPath = createTmpFile(prefix, suffix);
+    private static void tryLoadLibraryFromSystem() {
+        /**
+         * Attempt to load library using system's default shared library lookup paths
+         */
+        System.loadLibrary(JNI_LIBRARY_NAME);
 
-        try (InputStream is = Loader.class.getResourceAsStream(resourceName);
-                OutputStream os = Files.newOutputStream(libPath, StandardOpenOption.CREATE,
-                        StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING)) {
-            final byte[] buffer = new byte[16 * 1024];
-            int read = is.read(buffer);
-            while (read >= 0) {
-                os.write(buffer, 0, read);
-                read = is.read(buffer);
-            }
-            os.flush();
-        }
-        return libPath;
+        // If loading from system directory, ensure compile-time and run-time libcrypto have same major and minor version
+        validateLibcryptoVersion(true);
     }
 
-    private static void tryLoadLibrary(final String libraryName) throws Exception {
+    private static void tryLoadLibrary() throws Exception {
         // First, try to find the library in our own jar
-        final boolean useExternalLib = Boolean.valueOf(getProperty("useExternalLib", "false"));
+        final boolean useExternalLib = Boolean.parseBoolean(getProperty("useExternalLib", "false"));
+        boolean successfullyLoadedLibrary = false;
         Exception loadingException = null;
 
-        if (useExternalLib) {
-            loadingException = new RuntimeCryptoException("Skipping bundled library due to system property");
-        } else if (libraryName != null) {
-            final Path libPath = writeResourceToTemporaryFile(System.mapLibraryName(libraryName));
+        if (!useExternalLib) {
             try {
-                System.load(libPath.toAbsolutePath().toString());
-            } catch (final Exception ex) {
-                loadingException = ex;
-            } finally {
-                maybeDelete(libPath);
+                tryLoadLibraryFromJar();
+                successfullyLoadedLibrary = true;
+            } catch (Exception e) {
+                loadingException = e;
             }
-        } else {
-            loadingException = new RuntimeCryptoException("Skipping bundled library null mapped name");
         }
 
-        if (loadingException != null) {
+        if (!successfullyLoadedLibrary) {
             // We failed to load the library from our JAR but don't know why.
             // Try to load it directly off of the system path.
+            if (loadingException == null) {
+                loadingException = new RuntimeCryptoException("Skipping bundled library due to system property");
+            }
             try {
-                System.loadLibrary(libraryName);
-                return;
+                tryLoadLibraryFromSystem();
             } catch (final Throwable suppressedError) {
                 loadingException.addSuppressed(suppressedError);
                 throw loadingException;
@@ -257,12 +301,14 @@ final class Loader {
     }
 
     private static native String getNativeLibraryVersion();
+
     /**
-     * Attempts to load (mangled) lib crypto from the specified path.
-     * @param libraryPath the absolute path to load the library or
-     * @return true if the library was loaded
+     * Validates that the LibCrypto available at runtime is the same as what was available at compile time. If
+     * fuzzyMatch is true, then only the major and minor version values of libcrypto's version number is compared.
      */
-    private static native boolean loadLibCrypto(String libraryPath);
+    private static native boolean validateLibcryptoVersion(boolean fuzzyMatch);
+
+
     /**
      * Indicates if libcrypto is a FIPS build or not.
      * Equivalent to {@code FIPS_mode() == 1}
@@ -289,68 +335,122 @@ final class Loader {
         }
     }
 
+    private static void maybeDelete(final Path path) {
+        if (!DebugFlag.PRESERVE_NATIVE_LIBRARIES.isEnabled()) {
+            try {
+                Files.delete(path);
+            } catch (IOException ex) {
+                LOG.warning("Unable to delete native library: " + ex);
+            }
+        }
+    }
+
+    private static void maybeDeletePrivateTempDir(final Path tmpDirectory) {
+        for (String jarResource: JAR_RESOURCES) {
+            String resourceFileName = System.mapLibraryName(jarResource);
+            maybeDelete(tmpDirectory.resolve(resourceFileName));
+        }
+        maybeDelete(tmpDirectory);
+    }
+
+    private static Path writeJarResourceToTemporaryFile(Path tempDirectory, final String resourceFileName) throws IOException {
+        final Path tempResourceFilePath = tempDirectory.resolve(resourceFileName);
+
+        // Create a new temporary file with ourselves as the owner. We need to ensure that we create the file and set
+        // permissions atomically so that an adversary cannot put a symlink or file here which would cause us to write
+        // (or read) to an arbitrary attacker controlled location. If this file already exists at this location, then
+        // a FileAlreadyExistsException will be thrown.
+        Files.createFile(tempResourceFilePath, SELF_OWNER_FILE_PERMISSIONS);
+
+        try (InputStream is = Loader.class.getResourceAsStream(resourceFileName);
+             OutputStream os = Files.newOutputStream(tempResourceFilePath, StandardOpenOption.WRITE,
+                                        StandardOpenOption.TRUNCATE_EXISTING)) {
+            final byte[] buffer = new byte[16 * 1024];
+            int read = is.read(buffer);
+            while (read >= 0) {
+                os.write(buffer, 0, read);
+                read = is.read(buffer);
+            }
+            os.flush();
+        }
+
+        // Ensure we delete any temp files on exit
+        tempResourceFilePath.toFile().deleteOnExit();
+
+        return tempResourceFilePath;
+    }
+
     /**
-     * Unfortunately, we cannot actually use Files.createTempFile, because that internally depends on
-     * SecureRandom, which results in a circular dependency. So, for now, we just read from
-     * /dev/urandom. Clearly this won't work when we start supporting windows systems. We are intentionally taking
-     * as few dependencies here as possible.
+     * We need a source of entropy to create a random temporary directory name at startup before we've loaded native
+     * crypto libraries. So, for now, we just read from /dev/urandom. Clearly this won't work when we start supporting
+     * Windows systems. We are intentionally taking as few dependencies here as possible.
      */
-    private static synchronized Path createTmpFile(final String prefix, final String suffix) throws IOException {
+    private static byte[] bootstrapRng(int numBytes) throws IOException {
         final Path urandomPath = Paths.get("/dev/urandom");
         if (!Files.exists(urandomPath)) {
             throw new AssertionError("/dev/urandom must exist for bootstrapping");
         }
-        final Path tmpDir = Paths.get(System.getProperty("java.io.tmpdir"));
-        if (!Files.isDirectory(tmpDir)) {
-            throw new AssertionError("java.io.tmpdir is not valid: " + tmpDir);
-        }
 
-        final FileAttribute<Set<PosixFilePermission>> permissions =
-                PosixFilePermissions.asFileAttribute(new HashSet<>(Arrays.asList(
-                    PosixFilePermission.OWNER_READ,
-                    PosixFilePermission.OWNER_WRITE,
-                    PosixFilePermission.OWNER_EXECUTE
-        )));
-
-        final byte[] rndBytes = new byte[Long.BYTES]; // Default java tmp files use this much entropy
-        final int RETRY_LIMIT = 1000;
+        final byte[] rndBytes = new byte[numBytes];
+        final int RETRY_LIMIT = 10;
         try (InputStream rndStream = Files.newInputStream(urandomPath, StandardOpenOption.READ)) {
             int attempt = 0;
             // We keep doing this until we can create something new or fail badly
             while (attempt < RETRY_LIMIT) {
                 attempt++;
-                if (rndStream.read(rndBytes) != rndBytes.length) {
-                    throw new AssertionError("Unable to read enough entropy");
+                if (rndStream.read(rndBytes) == rndBytes.length) {
+                    return rndBytes;
                 }
+            }
+        }
+        throw new AssertionError("Unable to read enough entropy");
+    }
 
-                final StringBuilder fileName = new StringBuilder(prefix);
+    /**
+     * Unfortunately, we cannot actually use Files.createTempFile, because that internally depends on
+     * SecureRandom, which results in a circular dependency.
+     */
+    private static synchronized Path createPrivateTmpDir(final String prefix) throws IOException {
+        final Path systemTempDir = Paths.get(System.getProperty("java.io.tmpdir"));
+        if (!Files.isDirectory(systemTempDir)) {
+            throw new AssertionError("java.io.tmpdir is not valid: " + systemTempDir);
+        }
+
+        final int RETRY_LIMIT = 10;
+        int attempt = 0;
+
+        while(attempt < RETRY_LIMIT) {
+            attempt++;
+            try {
+                final byte[] rndBytes = bootstrapRng(Long.BYTES); // Default java tmp files use this much entropy
+                final StringBuilder privateTempDir = new StringBuilder(prefix);
+
                 for (byte b : rndBytes) {
                     // We convert to an unsigned integer first to avoid sign-bit extension when converting to hex.
                     String hexByte = Integer.toHexString(Byte.toUnsignedInt(b));
                     if (hexByte.length() == 1) {
-                        fileName.append('0');
+                        privateTempDir.append('0');
                     }
-                    fileName.append(hexByte);
+                    privateTempDir.append(hexByte);
                 }
-                fileName.append(suffix);
 
-                final Path tmpFile = tmpDir.resolve(fileName.toString());
+                final Path privateDirFullPath = systemTempDir.resolve(privateTempDir.toString());
 
-                try {
-                    final Path result = Files.createFile(tmpFile, permissions);
-                    if (DebugFlag.VERBOSELOGS.isEnabled()) {
-                        LOG.log(Level.FINE, "Created temporary library file after " + attempt + " attempts");
-                    }
-                    result.toFile().deleteOnExit();
-                    return result;
-                } catch (final FileAlreadyExistsException ex) {
-                    // We ignore and retry this exception
-                } catch (final Exception ex) {
-                    // Any other exception is bad and we may need to quash.
-                    throw new AssertionError("Unable to create temporary file");
+                final Path result = Files.createDirectory(privateDirFullPath, SELF_OWNER_FILE_PERMISSIONS);
+                if (DebugFlag.VERBOSELOGS.isEnabled()) {
+                    LOG.log(Level.FINE, "Created temporary library directory");
                 }
+
+                result.toFile().deleteOnExit();
+                return result;
+            } catch (final FileAlreadyExistsException ex) {
+                // We ignore and retry this exception
+            } catch (final Exception ex) {
+                // Any other exception is bad and we may need to quash.
+                throw new AssertionError("Unable to create temporary directory");
             }
         }
-        throw new AssertionError("Unable to create temporary file. Retries exceeded.");
+
+        throw new AssertionError("Unable to create temporary directory. Retries exceeded.");
     }
 }
