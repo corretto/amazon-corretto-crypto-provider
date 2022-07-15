@@ -43,7 +43,11 @@ security.provider.14=sun.security.smartcardio.SunPCSC
 security.provider.15=SunPCSC
 security.provider.16=JdkLDAP
 security.provider.17=JdkSASL
-security.provider.18=SunPKCS11
+security.provider.18=sun.security.mscapi.SunMSCAPI
+security.provider.19=SunMSCAPI
+security.provider.20=apple.security.AppleProvider
+security.provider.21=Apple
+security.provider.22=SunPKCS11
 
 #
 # A list of known strong SecureRandom implementations.
@@ -55,4 +59,4 @@ security.provider.18=SunPKCS11
 # This is a comma-separated list of algorithm and/or algorithm:provider
 # entries.
 #
-securerandom.strongAlgorithms=NIST800-90A/AES-CTR-256:AmazonCorrettoCryptoProvider,NativePRNGBlocking:SUN,DRBG:SUN
+securerandom.strongAlgorithms=DEFAULT:AmazonCorrettoCryptoProvider,NativePRNGBlocking:SUN,DRBG:SUN

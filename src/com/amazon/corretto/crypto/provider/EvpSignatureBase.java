@@ -10,6 +10,7 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.InvalidParameterException;
 import java.security.Key;
+import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SignatureException;
@@ -223,6 +224,10 @@ abstract class EvpSignatureBase extends SignatureSpi {
                 final AlgorithmParameters params = AlgorithmParameters.getInstance("RSASSA-PSS");
                 params.init(pssParams_);
                 return params;
+            } catch (final NoSuchAlgorithmException ex) {
+                // NOTE: this method can only throw unchecked exceptions, and UnsupportedOperationException
+                // seems like the most appropriate for JDK platforms that don't support RSASSA-PSS.
+                throw new UnsupportedOperationException("RSASSA-PSS unsupported.", ex);
             } catch (final GeneralSecurityException ex) {
                 throw new AssertionError(ex);
             }

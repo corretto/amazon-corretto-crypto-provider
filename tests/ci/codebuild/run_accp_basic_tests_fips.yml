@@ -7,3 +7,9 @@ phases:
   build:
     commands:
       - ./tests/ci/run_accp_basic_tests.sh --fips
+reports:
+  unit-tests:
+    files:
+      - 'build/reports/unit-tests/**'
+    discard-paths: yes
+    file-format: JunitXml

@@ -115,7 +115,7 @@ JNIEXPORT long JNICALL Java_com_amazon_corretto_crypto_provider_EcGen_generateEv
     jbyteArray paramsDer,
     jboolean checkConsistency)
 {
-    std::vector<uint8_t, SecureAlloc<uint8_t>> derBuf;
+    std::vector<uint8_t, SecureAlloc<uint8_t> > derBuf;
     EC_KEY_auto ecParams;
     EVP_PKEY_auto params_as_pkey = EVP_PKEY_auto::from(EVP_PKEY_new());
     EVP_PKEY_auto key;
