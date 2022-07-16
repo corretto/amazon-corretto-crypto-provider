@@ -34,7 +34,7 @@ phases:
       - pwd
       - ls
       # Todo: Readd coverage for slower build but higher test coverage
-      - ./gradlew -DcmakeBin=cmake3 -DFIPS=${FIPS} build src_jar javadoc test test_integration
+      - ./gradlew -DFIPS=${FIPS} build src_jar javadoc test test_integration
 artifacts:
   files:
     - 'lib/**/*'

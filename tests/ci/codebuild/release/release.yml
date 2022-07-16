@@ -34,6 +34,6 @@ phases:
       - pwd
       - ls
       # TODO: Uncomment next line to actually release
-      # - ./gradlew -DcmakeBin=cmake3 -DFIPS=${FIPS} -DstagingProperties=true releaseSonatypeStagingRepository
+      # - ./gradlew -DFIPS=${FIPS} -DstagingProperties=true releaseSonatypeStagingRepository
       # This next no-op task is just a place holder so that we can execute this file safely without releasing
-      - ./gradlew -DcmakeBin=cmake3 -DFIPS=${FIPS} -DstagingProperties=true tasks
+      - ./gradlew -DFIPS=${FIPS} -DstagingProperties=true tasks
