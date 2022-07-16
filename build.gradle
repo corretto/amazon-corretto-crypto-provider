@@ -30,7 +30,7 @@ def detect_cmake3 = {
     return "cmake"
 }
 
-cmakeBin = detect_cmake3()
+def cmakeBin = detect_cmake3()
 
 ext.isJceSigned = { pathToJar ->
     def stdout = new ByteArrayOutputStream()
