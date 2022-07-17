@@ -69,7 +69,7 @@ batch:
     - identifier: amazonlinux2_gcc7x_corretto8_pr_arm
       buildspec: ./tests/ci/codebuild/run_accp_basic_tests.yml
       env:
-        type: LINUX_CONTAINER
+        type: ARM_CONTAINER
         privileged-mode: false
         compute-type: BUILD_GENERAL1_LARGE
         image: ECR_REPO_PLACEHOLDER:amazonlinux-2_gcc-7x_corretto_arm_latest
@@ -79,7 +79,7 @@ batch:
     - identifier: amazonlinux2_gcc7x_corretto11_pr_arm
       buildspec: ./tests/ci/codebuild/run_accp_basic_tests.yml
       env:
-        type: LINUX_CONTAINER
+        type: ARM_CONTAINER
         privileged-mode: false
         compute-type: BUILD_GENERAL1_LARGE
         image: ECR_REPO_PLACEHOLDER:amazonlinux-2_gcc-7x_corretto_arm_latest
@@ -89,7 +89,7 @@ batch:
     - identifier: amazonlinux2_gcc7x_corretto17_pr_arm
       buildspec: ./tests/ci/codebuild/run_accp_basic_tests.yml
       env:
-        type: LINUX_CONTAINER
+        type: ARM_CONTAINER
         privileged-mode: false
         compute-type: BUILD_GENERAL1_LARGE
         image: ECR_REPO_PLACEHOLDER:amazonlinux-2_gcc-7x_corretto_arm_latest
@@ -99,7 +99,7 @@ batch:
     - identifier: amazonlinux2_gcc7x_corretto8_test_integration_arm
       buildspec: ./tests/ci/codebuild/run_accp_test_integration.yml
       env:
-        type: LINUX_CONTAINER
+        type: ARM_CONTAINER
         privileged-mode: false
         compute-type: BUILD_GENERAL1_LARGE
         image: ECR_REPO_PLACEHOLDER:amazonlinux-2_gcc-7x_corretto_arm_latest
@@ -109,7 +109,7 @@ batch:
     - identifier: amazonlinux2_gcc7x_corretto11_test_integration_arm
       buildspec: ./tests/ci/codebuild/run_accp_test_integration.yml
       env:
-        type: LINUX_CONTAINER
+        type: ARM_CONTAINER
         privileged-mode: false
         compute-type: BUILD_GENERAL1_LARGE
         image: ECR_REPO_PLACEHOLDER:amazonlinux-2_gcc-7x_corretto_arm_latest
@@ -119,7 +119,7 @@ batch:
     - identifier: amazonlinux2_gcc7x_corretto17_test_integration_arm
       buildspec: ./tests/ci/codebuild/run_accp_test_integration.yml
       env:
-        type: LINUX_CONTAINER
+        type: ARM_CONTAINER
         privileged-mode: false
         compute-type: BUILD_GENERAL1_LARGE
         image: ECR_REPO_PLACEHOLDER:amazonlinux-2_gcc-7x_corretto_arm_latest
@@ -190,7 +190,7 @@ batch:
     - identifier: amazonlinux2_gcc7x_corretto8_pr_arm_fips
       buildspec: ./tests/ci/codebuild/run_accp_basic_tests_fips.yml
       env:
-        type: LINUX_CONTAINER
+        type: ARM_CONTAINER
         privileged-mode: false
         compute-type: BUILD_GENERAL1_LARGE
         image: ECR_REPO_PLACEHOLDER:amazonlinux-2_gcc-7x_corretto_arm_latest
@@ -200,7 +200,7 @@ batch:
     - identifier: amazonlinux2_gcc7x_corretto11_pr_arm_fips
       buildspec: ./tests/ci/codebuild/run_accp_basic_tests_fips.yml
       env:
-        type: LINUX_CONTAINER
+        type: ARM_CONTAINER
         privileged-mode: false
         compute-type: BUILD_GENERAL1_LARGE
         image: ECR_REPO_PLACEHOLDER:amazonlinux-2_gcc-7x_corretto_arm_latest
@@ -210,7 +210,7 @@ batch:
     - identifier: amazonlinux2_gcc7x_corretto17_pr_arm_fips
       buildspec: ./tests/ci/codebuild/run_accp_basic_tests_fips.yml
       env:
-        type: LINUX_CONTAINER
+        type: ARM_CONTAINER
         privileged-mode: false
         compute-type: BUILD_GENERAL1_LARGE
         image: ECR_REPO_PLACEHOLDER:amazonlinux-2_gcc-7x_corretto_arm_latest
@@ -220,7 +220,7 @@ batch:
     - identifier: amazonlinux2_gcc7x_corretto8_test_integration_arm_fips
       buildspec: ./tests/ci/codebuild/run_accp_test_integration_fips.yml
       env:
-        type: LINUX_CONTAINER
+        type: ARM_CONTAINER
         privileged-mode: false
         compute-type: BUILD_GENERAL1_LARGE
         image: ECR_REPO_PLACEHOLDER:amazonlinux-2_gcc-7x_corretto_arm_latest
@@ -230,7 +230,7 @@ batch:
     - identifier: amazonlinux2_gcc7x_corretto11_test_integration_arm_fips
       buildspec: ./tests/ci/codebuild/run_accp_test_integration_fips.yml
       env:
-        type: LINUX_CONTAINER
+        type: ARM_CONTAINER
         privileged-mode: false
         compute-type: BUILD_GENERAL1_LARGE
         image: ECR_REPO_PLACEHOLDER:amazonlinux-2_gcc-7x_corretto_arm_latest
@@ -240,7 +240,7 @@ batch:
     - identifier: amazonlinux2_gcc7x_corretto17_test_integration_arm_fips
       buildspec: ./tests/ci/codebuild/run_accp_test_integration_fips.yml
       env:
-        type: LINUX_CONTAINER
+        type: ARM_CONTAINER
         privileged-mode: false
         compute-type: BUILD_GENERAL1_LARGE
         image: ECR_REPO_PLACEHOLDER:amazonlinux-2_gcc-7x_corretto_arm_latest

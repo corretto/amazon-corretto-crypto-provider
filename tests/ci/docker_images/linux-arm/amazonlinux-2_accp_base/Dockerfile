@@ -5,8 +5,6 @@ FROM arm64v8/amazonlinux:2
 
 SHELL ["/bin/bash", "-c"]
 
-ENV DEPENDENCIES_DIR=/home/dependencies
-
 RUN set -ex && \
     yum -y update && yum install -y \
     cmake \
