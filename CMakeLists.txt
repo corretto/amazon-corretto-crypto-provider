@@ -509,6 +509,8 @@ endif()
 if(NOT CXX_FLAG_CXX11)
 # Maybe the old name will work? c++0x is a deprecated name but if we're on an old compiler we need to use it
     CHECK_ENABLE_CXX_FLAG(CXX_FLAG_CXX0x --std=c++0x)
+# On gcc4.1, we get "cc1plus: warning: -Wuninitialized is not supported without -O" if this isn't added.
+    CHECK_ENABLE_CXX_FLAG(CXX_FLAG_TEST -O)
 endif()
 
 if(CXX_FLAG_CXX11 OR CXX_FLAG_CXX0x)
