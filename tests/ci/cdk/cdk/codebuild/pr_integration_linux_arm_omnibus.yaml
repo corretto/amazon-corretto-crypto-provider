@@ -66,6 +66,65 @@ batch:
         variables:
           TEST_JAVA_HOME: /usr/lib/jvm/java-17-amazon-corretto
 
+    - identifier: amazonlinux2_gcc7x_corretto8_pr_arm
+      buildspec: ./tests/ci/codebuild/run_accp_basic_tests.yml
+      env:
+        type: ARM_CONTAINER
+        privileged-mode: false
+        compute-type: BUILD_GENERAL1_LARGE
+        image: ECR_REPO_PLACEHOLDER:amazonlinux-2_gcc-7x_corretto_arm_latest
+        variables:
+          TEST_JAVA_HOME: /usr/lib/jvm/java-1.8.0-amazon-corretto.aarch64
+
+    - identifier: amazonlinux2_gcc7x_corretto11_pr_arm
+      buildspec: ./tests/ci/codebuild/run_accp_basic_tests.yml
+      env:
+        type: ARM_CONTAINER
+        privileged-mode: false
+        compute-type: BUILD_GENERAL1_LARGE
+        image: ECR_REPO_PLACEHOLDER:amazonlinux-2_gcc-7x_corretto_arm_latest
+        variables:
+          TEST_JAVA_HOME: /usr/lib/jvm/java-11-amazon-corretto.aarch64
+
+    - identifier: amazonlinux2_gcc7x_corretto17_pr_arm
+      buildspec: ./tests/ci/codebuild/run_accp_basic_tests.yml
+      env:
+        type: ARM_CONTAINER
+        privileged-mode: false
+        compute-type: BUILD_GENERAL1_LARGE
+        image: ECR_REPO_PLACEHOLDER:amazonlinux-2_gcc-7x_corretto_arm_latest
+        variables:
+          TEST_JAVA_HOME: /usr/lib/jvm/java-17-amazon-corretto.aarch64
+
+    - identifier: amazonlinux2_gcc7x_corretto8_test_integration_arm
+      buildspec: ./tests/ci/codebuild/run_accp_test_integration.yml
+      env:
+        type: ARM_CONTAINER
+        privileged-mode: false
+        compute-type: BUILD_GENERAL1_LARGE
+        image: ECR_REPO_PLACEHOLDER:amazonlinux-2_gcc-7x_corretto_arm_latest
+        variables:
+          TEST_JAVA_HOME: /usr/lib/jvm/java-1.8.0-amazon-corretto.aarch64
+
+    - identifier: amazonlinux2_gcc7x_corretto11_test_integration_arm
+      buildspec: ./tests/ci/codebuild/run_accp_test_integration.yml
+      env:
+        type: ARM_CONTAINER
+        privileged-mode: false
+        compute-type: BUILD_GENERAL1_LARGE
+        image: ECR_REPO_PLACEHOLDER:amazonlinux-2_gcc-7x_corretto_arm_latest
+        variables:
+          TEST_JAVA_HOME: /usr/lib/jvm/java-11-amazon-corretto.aarch64
+
+    - identifier: amazonlinux2_gcc7x_corretto17_test_integration_arm
+      buildspec: ./tests/ci/codebuild/run_accp_test_integration.yml
+      env:
+        type: ARM_CONTAINER
+        privileged-mode: false
+        compute-type: BUILD_GENERAL1_LARGE
+        image: ECR_REPO_PLACEHOLDER:amazonlinux-2_gcc-7x_corretto_arm_latest
+        variables:
+          TEST_JAVA_HOME: /usr/lib/jvm/java-17-amazon-corretto.aarch64
 
     # ACCP FIPS dimensions.
     - identifier: ubuntu2004_gcc7x_corretto8_pr_arm_fips
@@ -127,3 +186,63 @@ batch:
         image: ECR_REPO_PLACEHOLDER:ubuntu-20.04_gcc-7x_corretto_arm_latest
         variables:
           TEST_JAVA_HOME: /usr/lib/jvm/java-17-amazon-corretto
+
+    - identifier: amazonlinux2_gcc7x_corretto8_pr_arm_fips
+      buildspec: ./tests/ci/codebuild/run_accp_basic_tests_fips.yml
+      env:
+        type: ARM_CONTAINER
+        privileged-mode: false
+        compute-type: BUILD_GENERAL1_LARGE
+        image: ECR_REPO_PLACEHOLDER:amazonlinux-2_gcc-7x_corretto_arm_latest
+        variables:
+          TEST_JAVA_HOME: /usr/lib/jvm/java-1.8.0-amazon-corretto.aarch64
+
+    - identifier: amazonlinux2_gcc7x_corretto11_pr_arm_fips
+      buildspec: ./tests/ci/codebuild/run_accp_basic_tests_fips.yml
+      env:
+        type: ARM_CONTAINER
+        privileged-mode: false
+        compute-type: BUILD_GENERAL1_LARGE
+        image: ECR_REPO_PLACEHOLDER:amazonlinux-2_gcc-7x_corretto_arm_latest
+        variables:
+          TEST_JAVA_HOME: /usr/lib/jvm/java-11-amazon-corretto.aarch64
+
+    - identifier: amazonlinux2_gcc7x_corretto17_pr_arm_fips
+      buildspec: ./tests/ci/codebuild/run_accp_basic_tests_fips.yml
+      env:
+        type: ARM_CONTAINER
+        privileged-mode: false
+        compute-type: BUILD_GENERAL1_LARGE
+        image: ECR_REPO_PLACEHOLDER:amazonlinux-2_gcc-7x_corretto_arm_latest
+        variables:
+          TEST_JAVA_HOME: /usr/lib/jvm/java-17-amazon-corretto.aarch64
+
+    - identifier: amazonlinux2_gcc7x_corretto8_test_integration_arm_fips
+      buildspec: ./tests/ci/codebuild/run_accp_test_integration_fips.yml
+      env:
+        type: ARM_CONTAINER
+        privileged-mode: false
+        compute-type: BUILD_GENERAL1_LARGE
+        image: ECR_REPO_PLACEHOLDER:amazonlinux-2_gcc-7x_corretto_arm_latest
+        variables:
+          TEST_JAVA_HOME: /usr/lib/jvm/java-1.8.0-amazon-corretto.aarch64
+
+    - identifier: amazonlinux2_gcc7x_corretto11_test_integration_arm_fips
+      buildspec: ./tests/ci/codebuild/run_accp_test_integration_fips.yml
+      env:
+        type: ARM_CONTAINER
+        privileged-mode: false
+        compute-type: BUILD_GENERAL1_LARGE
+        image: ECR_REPO_PLACEHOLDER:amazonlinux-2_gcc-7x_corretto_arm_latest
+        variables:
+          TEST_JAVA_HOME: /usr/lib/jvm/java-11-amazon-corretto.aarch64
+
+    - identifier: amazonlinux2_gcc7x_corretto17_test_integration_arm_fips
+      buildspec: ./tests/ci/codebuild/run_accp_test_integration_fips.yml
+      env:
+        type: ARM_CONTAINER
+        privileged-mode: false
+        compute-type: BUILD_GENERAL1_LARGE
+        image: ECR_REPO_PLACEHOLDER:amazonlinux-2_gcc-7x_corretto_arm_latest
+        variables:
+          TEST_JAVA_HOME: /usr/lib/jvm/java-17-amazon-corretto.aarch64

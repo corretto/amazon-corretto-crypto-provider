@@ -35,8 +35,8 @@ phases:
       - find ${CODEBUILD_SRC_DIR_Stage_FIPS} -follow
       - find ${CODEBUILD_SRC_DIR_Stage} -follow
       # TODO: Do we want to reintroduce dieharder for some configurations?
-      - ./gradlew -DcmakeBin=cmake3 -DFIPS=${FIPS} -DTEST_JAVA_HOME=$JAVA_8_HOME -DTEST_JAVA_MAJOR_VERSION=8 -DstagingProperties=true test test_extra_checks test_integration test_integration_extra_checks
-      - ./gradlew -DcmakeBin=cmake3 -DFIPS=${FIPS} -DstagingProperties=true minimal_clean test test_extra_checks test_integration test_integration_extra_checks
+      - ./gradlew -DFIPS=${FIPS} -DTEST_JAVA_HOME=$JAVA_8_HOME -DTEST_JAVA_MAJOR_VERSION=8 -DstagingProperties=true test test_extra_checks test_integration test_integration_extra_checks
+      - ./gradlew -DFIPS=${FIPS} -DstagingProperties=true minimal_clean test test_extra_checks test_integration test_integration_extra_checks
 artifacts:
   files:
     - 'lib/**/*'

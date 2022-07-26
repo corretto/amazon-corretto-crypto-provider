@@ -14,3 +14,5 @@ docker build -t ubuntu-20.04:accp_base-arm ubuntu-20.04_accp_base
 # `../../../../` passes in the Dockerfile in this folder but uses the root directory for the context so it has access to
 # our project's gradle script.
 docker build -t ubuntu-20.04:gcc-7x_corretto-arm -f ubuntu-20.04_gcc-7x_corretto/Dockerfile ../../../../
+docker build -t amazonlinux-2:accp_base-arm amazonlinux-2_accp_base
+docker build -t amazonlinux-2:gcc-7x_corretto-arm -f amazonlinux-2_gcc-7x_corretto/Dockerfile ../../../../

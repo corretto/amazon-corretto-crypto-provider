@@ -15,7 +15,22 @@ version = '2.0.0'
 ext.isFips = Boolean.getBoolean('FIPS')
 
 def awslcSrcPath = "${projectDir}/aws-lc/"
-def cmakeBin = System.properties['cmakeBin'] != null ? System.properties['cmakeBin'] : "cmake";
+
+// Execute cmake3 command to see if it exists. Mainly to support AL2.
+def detect_cmake3 = {
+    def exec_cmake3 = exec {
+        executable "bash" args "-l", "-c", 'command -v cmake3'
+        ignoreExitValue true
+        standardOutput = new ByteArrayOutputStream()
+        errorOutput = standardOutput
+    }
+    if(exec_cmake3.getExitValue() == 0) {
+        return "cmake3"
+    }
+    return "cmake"
+}
+
+def cmakeBin = detect_cmake3()
 
 ext.isJceSigned = { pathToJar ->
     def stdout = new ByteArrayOutputStream()
