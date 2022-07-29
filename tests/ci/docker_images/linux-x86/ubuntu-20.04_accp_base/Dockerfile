@@ -17,6 +17,8 @@ RUN apt-get install -y cmake
 RUN apt-get install -y dieharder
 RUN apt-get install -y lcov
 RUN apt-get install -y wget
+RUN apt-get install -y python3-pip
+RUN pip3 install gcovr
 
 # developement niceties
 RUN apt-get install -y ninja-build

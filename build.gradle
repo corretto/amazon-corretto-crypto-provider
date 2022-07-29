@@ -435,7 +435,6 @@ task coverage_cmake(type: Exec) {
         args '-DSINGLE_TEST=' + System.properties['SINGLE_TEST']
 
     }
-
 }
 
 task coverage_exec(type: Exec) {
@@ -480,6 +479,11 @@ task coverage_cpp_report {
             workingDir "${buildDir}/cmake-coverage"
             commandLine 'lcov', '-e', "${buildDir}/cmake-coverage/coverage.info", 'csrc/*', '--rc', 'lcov_branch_coverage=1'
             standardOutput = new FileOutputStream("${buildDir}/reports/cpp/coverage.info")
+        }
+        exec {
+            workingDir "${buildDir}/cmake-coverage"
+            commandLine 'gcovr', '-r', "${projectDir}", '--cobertura-pretty'
+            standardOutput = new FileOutputStream("${buildDir}/reports/cpp/cobertura.xml")
         }
         exec {
              workingDir projectDir

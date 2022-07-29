@@ -25,7 +25,7 @@ version=$($TEST_JAVA_HOME/bin/java -version 2>&1 | head -1 | cut -d'"' -f2 | sed
 # The JDK version should be least 10 for a regular ACCP build. We can
 # still test on older versions with the TEST_JAVA_HOME property.
 if (( "$version" <= "10" )); then
-	./gradlew -DTEST_JAVA_HOME=$TEST_JAVA_HOME -DTEST_JAVA_MAJOR_VERSION=$version -DFIPS=$testing_fips test
+	./gradlew -DTEST_JAVA_HOME=$TEST_JAVA_HOME -DTEST_JAVA_MAJOR_VERSION=$version -DFIPS=$testing_fips coverage test
 	exit $?
 fi
 

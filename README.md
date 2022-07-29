@@ -151,6 +151,7 @@ Building this provider requires a 64 bit Linux build system with the following p
 * [cmake](https://cmake.org/) 3.8 or newer
 * C++ build chain
 * [lcov](http://ltp.sourceforge.net/coverage/lcov.php) for coverage metrics
+* [gcovr](https://gcovr.com/en/stable/) for reporting coverage metrics in CodeBuild
 * [dieharder](http://webhome.phy.duke.edu/~rgb/General/dieharder.php) for entropy tests
 
 1. Download the repository via `git clone --recurse-submodules`
