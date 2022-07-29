@@ -130,48 +130,16 @@ add_custom_command(
     COMMENT "Generating hash function SPI classes..."
     )
 
-set(ACCP_SRC
-        src/com/amazon/corretto/crypto/provider/AccessibleByteArrayOutputStream.java
-        src/com/amazon/corretto/crypto/provider/AesGcmSpi.java
-        src/com/amazon/corretto/crypto/provider/ConstantTime.java
-        src/com/amazon/corretto/crypto/provider/DebugFlag.java
-        src/com/amazon/corretto/crypto/provider/EcGen.java
-        src/com/amazon/corretto/crypto/provider/EvpHmac.java
-        src/com/amazon/corretto/crypto/provider/EvpKeyAgreement.java
-        src/com/amazon/corretto/crypto/provider/EvpKey.java
-        src/com/amazon/corretto/crypto/provider/EvpEcKey.java
-        src/com/amazon/corretto/crypto/provider/EvpEcPublicKey.java
-        src/com/amazon/corretto/crypto/provider/EvpEcPrivateKey.java
-        src/com/amazon/corretto/crypto/provider/EvpRsaKey.java
-        src/com/amazon/corretto/crypto/provider/EvpRsaPublicKey.java
-        src/com/amazon/corretto/crypto/provider/EvpRsaPrivateKey.java
-        src/com/amazon/corretto/crypto/provider/EvpRsaPrivateCrtKey.java
-        src/com/amazon/corretto/crypto/provider/EvpKeyFactory.java
-        src/com/amazon/corretto/crypto/provider/EvpKeyType.java
-        src/com/amazon/corretto/crypto/provider/EvpSignature.java
-        src/com/amazon/corretto/crypto/provider/EvpSignatureBase.java
-        src/com/amazon/corretto/crypto/provider/EvpSignatureRaw.java
-        src/com/amazon/corretto/crypto/provider/EcUtils.java
-        src/com/amazon/corretto/crypto/provider/ExtraCheck.java
-        src/com/amazon/corretto/crypto/provider/InputBuffer.java
-        src/com/amazon/corretto/crypto/provider/Janitor.java
-        src/com/amazon/corretto/crypto/provider/LibCryptoRng.java
-        src/com/amazon/corretto/crypto/provider/Loader.java
-        src/com/amazon/corretto/crypto/provider/AmazonCorrettoCryptoProvider.java
-        src/com/amazon/corretto/crypto/provider/NativeResource.java
-        src/com/amazon/corretto/crypto/provider/MiscInterfaces.java
-        src/com/amazon/corretto/crypto/provider/ReflectiveTools.java
-        src/com/amazon/corretto/crypto/provider/RsaCipher.java
-        src/com/amazon/corretto/crypto/provider/RsaGen.java
-        src/com/amazon/corretto/crypto/provider/RuntimeCryptoException.java
-        src/com/amazon/corretto/crypto/provider/SelfTestFailureException.java
-        src/com/amazon/corretto/crypto/provider/SelfTestResult.java
-        src/com/amazon/corretto/crypto/provider/SelfTestStatus.java
-        src/com/amazon/corretto/crypto/provider/SelfTestSuite.java
-        src/com/amazon/corretto/crypto/provider/ServiceProviderFactory.java
-        src/com/amazon/corretto/crypto/provider/Utils.java
-        ${GENERATED_JAVA_SRC}
-)
+# NOTE: CMake introduced the CONFIGURE_DEPENDS feature in 3.12, so condition
+#       its use on CMake version. If the feature is not available, you may need
+#       to `touch CMakeLists.txt` after adding/removing files for them to be
+#       detected by CMake.
+if (${CMAKE_VERSION} VERSION_LESS "3.12.0")
+    file(GLOB ACCP_SRC "src/com/amazon/corretto/crypto/provider/*.java")
+else()
+    file(GLOB ACCP_SRC CONFIGURE_DEPENDS "src/com/amazon/corretto/crypto/provider/*.java")
+endif()
+set(ACCP_SRC ${ACCP_SRC} ${GENERATED_JAVA_SRC})
 
 set(BASE_JAVA_COMPILE_FLAGS ${CMAKE_JAVA_COMPILE_FLAGS} -h "${JNI_HEADER_DIR}" -Werror -Xlint)
 
@@ -553,59 +521,21 @@ target_link_libraries(amazonCorrettoCryptoProvider Threads::Threads)
 # Take a dependency on our libcrypto.so file
 target_link_libraries(amazonCorrettoCryptoProvider ${OPENSSL_CRYPTO_LIBRARY})
 
+# NOTE: CMake introduced the CONFIGURE_DEPENDS feature in 3.12, so condition
+#       its use on CMake version. If the feature is not available, you may need
+#       to `touch CMakeLists.txt` after adding/removing files for them to be
+#       detected by CMake.
+if (${CMAKE_VERSION} VERSION_LESS "3.12.0")
+    file(GLOB_RECURSE ACCP_TEST_SRC "tst/com/amazon/corretto/crypto/provider/*.java")
+else()
+    file(GLOB_RECURSE ACCP_TEST_SRC CONFIGURE_DEPENDS "tst/com/amazon/corretto/crypto/provider/*.java")
+endif()
+
+
 ## Tests
 add_jar(
     tests-code-jar
-    SOURCES
-        tst/com/amazon/corretto/crypto/provider/test/AccessibleByteArrayOutputStreamTest.java
-        tst/com/amazon/corretto/crypto/provider/test/AESGenerativeTest.java
-        tst/com/amazon/corretto/crypto/provider/test/AesTest.java
-        tst/com/amazon/corretto/crypto/provider/test/ConstantTimeTests.java
-        tst/com/amazon/corretto/crypto/provider/test/EcGenTest.java
-        tst/com/amazon/corretto/crypto/provider/test/EvpKeyAgreementTest.java
-        tst/com/amazon/corretto/crypto/provider/test/EvpKeyAgreementSpecificTest.java
-        tst/com/amazon/corretto/crypto/provider/test/EvpSignatureSpecificTest.java
-        tst/com/amazon/corretto/crypto/provider/test/EvpSignatureTest.java
-        tst/com/amazon/corretto/crypto/provider/test/HashFunctionTester.java
-        tst/com/amazon/corretto/crypto/provider/test/HmacTest.java
-        tst/com/amazon/corretto/crypto/provider/test/InputBufferTest.java
-        tst/com/amazon/corretto/crypto/provider/test/JanitorTest.java
-        tst/com/amazon/corretto/crypto/provider/test/EvpKeyFactoryTest.java
-        tst/com/amazon/corretto/crypto/provider/test/LibCryptoRngTest.java
-        tst/com/amazon/corretto/crypto/provider/test/MD5Test.java
-        tst/com/amazon/corretto/crypto/provider/test/MiscSingleThreadedTests.java
-        tst/com/amazon/corretto/crypto/provider/test/NativeTestHooks.java
-        tst/com/amazon/corretto/crypto/provider/test/NativeTest.java
-        tst/com/amazon/corretto/crypto/provider/test/RecursiveInitializationTest.java
-        tst/com/amazon/corretto/crypto/provider/test/RsaCipherTest.java
-        tst/com/amazon/corretto/crypto/provider/test/RsaGenTest.java
-        tst/com/amazon/corretto/crypto/provider/test/SecurityPropertyTester.java
-        tst/com/amazon/corretto/crypto/provider/test/SecurityPropertyRecursiveTester.java
-        tst/com/amazon/corretto/crypto/provider/test/SHA1Test.java
-        tst/com/amazon/corretto/crypto/provider/test/SHA256Test.java
-        tst/com/amazon/corretto/crypto/provider/test/SHA384Test.java
-        tst/com/amazon/corretto/crypto/provider/test/SHA512Test.java
-        tst/com/amazon/corretto/crypto/provider/test/SecurityManagerTest.java
-        tst/com/amazon/corretto/crypto/provider/test/SelfTestSuiteTest.java
-        tst/com/amazon/corretto/crypto/provider/test/ServiceSelfTestMetaTest.java
-        tst/com/amazon/corretto/crypto/provider/test/TestProviderInstallation.java
-        tst/com/amazon/corretto/crypto/provider/test/TestResultLogger.java
-        tst/com/amazon/corretto/crypto/provider/test/TestUtil.java
-        tst/com/amazon/corretto/crypto/provider/test/ThrowingRunnable.java
-        tst/com/amazon/corretto/crypto/provider/test/UtilsTest.java
-        tst/com/amazon/corretto/crypto/provider/test/integration/CustomTrustManager.java
-        tst/com/amazon/corretto/crypto/provider/test/integration/ExternalHTTPSIntegrationTest.java
-        tst/com/amazon/corretto/crypto/provider/test/integration/HTTPSTestParameters.java
-        tst/com/amazon/corretto/crypto/provider/test/integration/LocalHTTPSIntegrationTest.java
-        tst/com/amazon/corretto/crypto/provider/test/integration/TestCertificateGenerator.java
-        tst/com/amazon/corretto/crypto/provider/test/integration/TestHTTPSServer.java
-        # Not tests, but things we need related to tests
-        tst/com/amazon/corretto/crypto/provider/test/AESBench.java
-        tst/com/amazon/corretto/crypto/provider/test/Benchmark.java
-        tst/com/amazon/corretto/crypto/provider/coverage/ReportGenerator.java
-        tst/com/amazon/corretto/crypto/provider/test/RspTestEntry.java
-        tst/com/amazon/corretto/crypto/provider/test/SecureRandomGenerator.java
-
+    SOURCES ${ACCP_TEST_SRC}
     INCLUDE_JARS ${TEST_CLASSPATH_LIST} code-only-jar
 )
 set_target_properties(tests-code-jar PROPERTIES EXCLUDE_FROM_ALL 1)

@@ -12,6 +12,7 @@ RUN set -ex && \
     make \
     ninja-build \
     perl \
+    python3-pip \
     golang \
     which \
     git \
@@ -22,6 +23,8 @@ RUN set -ex && \
     yum clean all && \
     rm -rf /tmp/* && \
     rm -rf /var/cache/yum
+
+RUN pip3 install gcovr
 
 # Get lcov from source because AL2 doesn't have support for installing directly.
 RUN wget http://downloads.sourceforge.net/ltp/lcov-1.14-1.noarch.rpm && \

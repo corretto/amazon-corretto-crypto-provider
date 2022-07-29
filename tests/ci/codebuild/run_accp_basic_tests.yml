@@ -13,3 +13,11 @@ reports:
       - 'build/reports/unit-tests/**'
     discard-paths: yes
     file-format: JunitXml
+  java-coverage-report:
+    files:
+      - 'build/cmake-coverage/coverage/results/coverage-report.xml'
+    file-format: 'JACOCOXML'
+  cpp-coverage-report:
+    files:
+      - 'build/reports/cpp/cobertura.xml'
+    file-format: 'COBERTURAXML'

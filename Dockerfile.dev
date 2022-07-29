@@ -25,10 +25,13 @@ ENV JAVA_HOME=/usr/lib/jvm/java-11-amazon-corretto/
 RUN echo 'export JAVA_HOME=/usr/lib/jvm/java-11-amazon-corretto/' >> /home/.bashrc
 
 # required dependencies for building/testing
+RUN apt-get update
 RUN apt-get install -y build-essential
 RUN apt-get install -y cmake
 RUN apt-get install -y dieharder
 RUN apt-get install -y lcov
+RUN apt-get install -y python3-pip
+RUN pip3 install gcovr
 
 # developement niceties
 RUN apt-get install -y ninja-build
