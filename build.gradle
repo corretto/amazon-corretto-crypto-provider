@@ -112,7 +112,9 @@ task buildAwsLc {
     }
 
     doLast {
-        // TODO: Remove this when we finally deprecate gcc4.1.2 internally.
+        // TODO: Remove this when we finally deprecate gcc4.1.2/Cmake 3.9 internally.
+        // Behavior of how older versions of Cmake take in the the build and source
+        // directory arguments is slightly different.
         if (Boolean.getBoolean('LEGACY_BUILD')) {
             exec {
                 workingDir cMakeBuildDir
