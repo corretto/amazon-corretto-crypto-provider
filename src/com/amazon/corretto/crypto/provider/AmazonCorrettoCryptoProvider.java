@@ -101,6 +101,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
             }
         }
 
+        addService("Signature", "RSASSA-PSS", "EvpSignature$RSASSA_PSS");
         addService("Signature", "NONEwithECDSA", "EvpSignatureRaw$NONEwithECDSA");
     }
 
@@ -265,15 +266,16 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
         Utils.optionsFromProperty(ExtraCheck.class, extraChecks, "extrachecks");
 
-        if (!Loader.IS_AVAILABLE && DebugFlag.VERBOSELOGS.isEnabled()) {
-            getLogger("AmazonCorrettoCryptoProvider").fine("Native JCE libraries are unavailable - disabling");
+        if (!Loader.IS_AVAILABLE) {
+            if (DebugFlag.VERBOSELOGS.isEnabled()) {
+                getLogger("AmazonCorrettoCryptoProvider").fine("Native JCE libraries are unavailable - disabling");
+            }
 
-            // Don't implement anything
+            // If Loading failed, do not register any algorithms
             return;
         }
 
         buildServiceMap();
-
         initializeSelfTests();
     }
 

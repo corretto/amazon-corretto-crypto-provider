@@ -27,6 +27,8 @@ class ACCPGitHubCIStack(core.Stack):
             fetch_submodules=True,
             webhook_filters=[
                 codebuild.FilterGroup.in_event_of(
+                    codebuild.EventAction.PUSH,
+                    codebuild.EventAction.PULL_REQUEST_MERGED,
                     codebuild.EventAction.PULL_REQUEST_CREATED,
                     codebuild.EventAction.PULL_REQUEST_UPDATED,
                     codebuild.EventAction.PULL_REQUEST_REOPENED)
@@ -54,6 +56,7 @@ class ACCPGitHubCIStack(core.Stack):
             project_name=id,
             source=git_hub_source,
             role=role,
+            badge=True,
             timeout=core.Duration.minutes(180),
             environment=codebuild.BuildEnvironment(compute_type=codebuild.ComputeType.SMALL,
                                                    privileged=False,

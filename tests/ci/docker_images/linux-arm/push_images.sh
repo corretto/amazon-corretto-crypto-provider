@@ -16,3 +16,4 @@ $(aws ecr get-login --no-include-email)
 
 # Tag images with date to help find old images, CodeBuild uses the latest tag and gets updated automatically
 tag_and_push_img 'ubuntu-20.04:gcc-7x_corretto-arm' "${ECS_REPO}:ubuntu-20.04_gcc-7x_corretto_arm"
+tag_and_push_img 'amazonlinux-2:gcc-7x_corretto-arm' "${ECS_REPO}:amazonlinux-2_gcc-7x_corretto_arm"

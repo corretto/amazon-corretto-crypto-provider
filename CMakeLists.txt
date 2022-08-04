@@ -86,7 +86,8 @@ string(REPLACE ":" ";" TEST_CLASSPATH_LIST "${TEST_CLASSPATH}")
 
 # Needed as we abuse some of the test compile macros to test shared lib links
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-
+# CMake's default RPath handling includes the full build directory path, which isn't needed. Turn it off.
+set(CMAKE_SKIP_RPATH TRUE)
 set(GENERATE_HASHERS ${CMAKE_CURRENT_SOURCE_DIR}/build-tools/bin/generate-java-hash-spi)
 set(GENERATED_JAVA_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated-java/com/amazon/corretto/crypto/provider)
 set(JNI_HEADER_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated-include)
@@ -216,6 +217,8 @@ if (SIGNED_JAR)
     add_custom_command(
         OUTPUT ${ACCP_JAR}
         COMMAND ${CMAKE_COMMAND} -E copy ${SIGNED_JAR} ${ACCP_JAR}
+        COMMAND ${CMAKE_COMMAND} -E echo Copied ${SIGNED_JAR} to ${ACCP_JAR}
+        COMMAND ${CMAKE_COMMAND} -E copy ${OPENSSL_CRYPTO_LIBRARY} $<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
     )
 else()
 # CMake's UseJar doesn't let us control the paths that resource files are
@@ -231,9 +234,9 @@ else()
         COMMAND ${Java_JAR_EXECUTABLE} uf ${ACCP_JAR_TMP} -C ${CMAKE_CURRENT_SOURCE_DIR}/extra-jar-files .
         COMMAND ${Java_JAR_EXECUTABLE} uf ${ACCP_JAR_TMP} -C $<TARGET_PROPERTY:module-jar,CLASSDIR> module-info.class
         COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/tmplib/com/amazon/corretto/crypto/provider/
+        COMMAND ${CMAKE_COMMAND} -E copy ${OPENSSL_CRYPTO_LIBRARY} $<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
         COMMAND ${CMAKE_COMMAND} -E copy ${OPENSSL_CRYPTO_LIBRARY} ${CMAKE_CURRENT_BINARY_DIR}/tmplib/com/amazon/corretto/crypto/provider/
         COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:amazonCorrettoCryptoProvider> ${CMAKE_CURRENT_BINARY_DIR}/tmplib/com/amazon/corretto/crypto/provider/
-        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:accpLcLoader> ${CMAKE_CURRENT_BINARY_DIR}/tmplib/com/amazon/corretto/crypto/provider/
         COMMAND ${Java_JAR_EXECUTABLE} uf ${ACCP_JAR_TMP} -C ${CMAKE_CURRENT_BINARY_DIR}/tmplib/ com/amazon/corretto/crypto/provider/
         COMMAND ${Java_JAR_EXECUTABLE} uf ${ACCP_JAR_TMP} -C ${CMAKE_CURRENT_BINARY_DIR}/generated-java/ com/amazon/corretto/crypto/provider/version.properties
         COMMAND ${CMAKE_COMMAND} -E copy ${ACCP_JAR_TMP} ${ACCP_JAR}
@@ -267,12 +270,6 @@ ADD_CUSTOM_COMMAND(
 include_directories(${OPENSSL_INCLUDE_DIR} ${JNI_INCLUDE_DIRS} ${JNI_HEADER_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
 
 add_library(
-    accpLcLoader SHARED
-        csrc/accp_lc_loader.cpp
-        ${JNI_HEADER_DIR}/generated-headers.h
-)
-
-add_library(
     amazonCorrettoCryptoProvider SHARED
         csrc/aes_gcm.cpp
         csrc/agreement.cpp
@@ -300,6 +297,11 @@ add_library(
         ${JNI_HEADER_DIR}/generated-headers.h
 )
 
+# We MUST set ACCP's RPATH to "$ORIGIN" so that the runtime dynamic loader will look in the same directory as ACCP for
+# any shared library dependencies BEFORE looking for a system-installed depencencies (such as libcrypto). If RPath is
+# not set, the loader may attempt to load an incompatible system-installed libcrypto and cause runtime crashes.
+set_target_properties(amazonCorrettoCryptoProvider PROPERTIES LINK_FLAGS "-Wl,-rpath,\$ORIGIN")
+
 add_custom_command(
     OUTPUT ${ACCP_JAR_SOURCE}
     COMMAND ${Java_JAR_EXECUTABLE} cf ${ACCP_JAR_SOURCE} -C ${CMAKE_CURRENT_SOURCE_DIR}/src .
@@ -315,6 +317,7 @@ if(ENABLE_NATIVE_TEST_HOOKS)
   add_executable(test_keyutils EXCLUDE_FROM_ALL
         csrc/test_keyutils.cpp
     )
+    set_target_properties(test_keyutils PROPERTIES LINK_FLAGS "-Wl,-rpath,\$ORIGIN")
     target_link_libraries(test_keyutils ${OPENSSL_CRYPTO_LIBRARY})
     target_link_libraries(test_keyutils amazonCorrettoCryptoProvider)
 endif()
@@ -373,7 +376,6 @@ CHECK_LIBRARY_EXISTS(m "sqrt" "" HAVE_LIBM)
 
 if(HAVE_LIBDL)
     target_link_libraries(amazonCorrettoCryptoProvider dl)
-    target_link_libraries(accpLcLoader dl)
 endif()
 
 if(HAVE_LIBM)
@@ -460,9 +462,6 @@ int main(int, char **) noexcept {}
 set(CMAKE_REQUIRED_FLAGS "${OLD_CMAKE_REQUIRED_FLAGS}")
 set(CMAKE_EXE_LINKER_FLAGS "${OLD_CMAKE_EXE_LINKER_FLAGS}")
 
-# We do not declare an explicit on libcrypto to ensure we're using our bundled version.
-# If this ends up being a problem on some platforms we can figure out a different way to manage this.
-
 # Miscellaneous linker flag tests. Unfortunately cmake doesn't have built-in
 # functionality for a linker flag test, so we have to roll our own.
 
@@ -510,6 +509,8 @@ endif()
 if(NOT CXX_FLAG_CXX11)
 # Maybe the old name will work? c++0x is a deprecated name but if we're on an old compiler we need to use it
     CHECK_ENABLE_CXX_FLAG(CXX_FLAG_CXX0x --std=c++0x)
+# On gcc4.1, we get "cc1plus: warning: -Wuninitialized is not supported without -O" if this isn't added.
+    CHECK_ENABLE_CXX_FLAG(CXX_FLAG_TEST -O)
 endif()
 
 if(CXX_FLAG_CXX11 OR CXX_FLAG_CXX0x)
@@ -545,10 +546,12 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DPROVIDER_VERSION_STRING=${PROVIDER_VER
 string(STRIP "${PROBED_LINKED_FLAGS}" PROBED_LINKED_FLAGS)
 MESSAGE(STATUS "probed flags ${PROBED_LINKED_FLAGS}")
 target_link_libraries(amazonCorrettoCryptoProvider ${PROBED_LINKED_FLAGS})
-target_link_libraries(accpLcLoader ${PROBED_LINKED_FLAGS})
 
 # Add pthread support
 target_link_libraries(amazonCorrettoCryptoProvider Threads::Threads)
+
+# Take a dependency on our libcrypto.so file
+target_link_libraries(amazonCorrettoCryptoProvider ${OPENSSL_CRYPTO_LIBRARY})
 
 ## Tests
 add_jar(
@@ -642,7 +645,7 @@ else()
 endif()
 
 if(ALWAYS_ALLOW_EXTERNAL_LIB)
-    set(EXTERNAL_LIB_PROPERTY "-Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>:$<TARGET_FILE_DIR:accpLcLoader>")
+    set(EXTERNAL_LIB_PROPERTY "-Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>")
 endif()
 
 set(TEST_RUNNER_ARGUMENTS
@@ -721,6 +724,12 @@ add_custom_target(check-recursive-init
 
     DEPENDS accp-jar tests-jar)
 
+if (TEST_JAVA_MAJOR_VERSION VERSION_GREATER 11)
+    set(INSTALL_PROPERTY_FILE ${ORIG_SRCROOT}/etc/amazon-corretto-crypto-provider-jdk15.security)
+else()
+    set(INSTALL_PROPERTY_FILE ${ORIG_SRCROOT}/etc/amazon-corretto-crypto-provider.security)
+endif()
+
 add_custom_target(check-install-via-properties
     COMMAND ${TEST_JAVA_EXECUTABLE}
         ${COVERAGE_ARGUMENTS}
@@ -729,7 +738,7 @@ add_custom_target(check-install-via-properties
         ${EXTERNAL_LIB_PROPERTY}
         -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
         -Dtest.data.dir=${TEST_DATA_DIR}
-        -Djava.security.properties=${ORIG_SRCROOT}/etc/amazon-corretto-crypto-provider.security
+        -Djava.security.properties=${INSTALL_PROPERTY_FILE}
         ${TEST_JAVA_ARGS}
         com.amazon.corretto.crypto.provider.test.SecurityPropertyTester
 
@@ -743,11 +752,11 @@ add_custom_target(check-external-lib
         ${TEST_FIPS_PROPERTY}
         -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
         # Since this tests external loading we always provide this property
-        -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>:$<TARGET_FILE_DIR:accpLcLoader>
+        -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
         -Dcom.amazon.corretto.crypto.provider.useExternalLib=true
         -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
         -Dtest.data.dir=${TEST_DATA_DIR}
-        -Djava.security.properties=${ORIG_SRCROOT}/etc/amazon-corretto-crypto-provider.security
+        -Djava.security.properties=${INSTALL_PROPERTY_FILE}
         ${TEST_JAVA_ARGS}
         com.amazon.corretto.crypto.provider.test.SecurityPropertyTester
 
@@ -761,7 +770,7 @@ add_custom_target(check-install-via-properties-recursive
         ${EXTERNAL_LIB_PROPERTY}
         -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
         -Dtest.data.dir=${TEST_DATA_DIR}
-        -Djava.security.properties=${ORIG_SRCROOT}/etc/amazon-corretto-crypto-provider.security
+        -Djava.security.properties=${INSTALL_PROPERTY_FILE}
         ${TEST_JAVA_ARGS}
         com.amazon.corretto.crypto.provider.test.SecurityPropertyRecursiveTester
 
@@ -775,7 +784,7 @@ add_custom_target(check-install-via-properties-with-debug
         ${EXTERNAL_LIB_PROPERTY}
         -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
         -Dtest.data.dir=${TEST_DATA_DIR}
-        -Djava.security.properties=${ORIG_SRCROOT}/etc/amazon-corretto-crypto-provider.security
+        -Djava.security.properties=${INSTALL_PROPERTY_FILE}
         -Djava.security.debug=all
         ${TEST_JAVA_ARGS}
         com.amazon.corretto.crypto.provider.test.SecurityPropertyTester
@@ -796,6 +805,7 @@ add_custom_target(checkstyle
 
 if(ENABLE_NATIVE_TEST_HOOKS)
     add_custom_target(check-keyutils
+        COMMAND ${CMAKE_COMMAND} -E copy ${OPENSSL_CRYPTO_LIBRARY} $<TARGET_FILE_DIR:test_keyutils>
         COMMAND $<TARGET_FILE:test_keyutils>
     )
     add_dependencies(check check-keyutils)

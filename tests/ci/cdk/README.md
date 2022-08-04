@@ -46,25 +46,27 @@ Notes:
 * `GITHUB_BRANCH` specifies the branch on the GitHub repo that has the CI scripts you wish to deploy. Default is `develop` if not defined.
 * https://github.com/${GITHUB_REPO_OWNER}/amazon-corretto-crypto-provider.git
 
+**NOTE**: Ensure that your local default AWS region matches CDK's. `run-cdk.sh` will look at `CDK_DEPLOY_REGION`, and AWS SDK/CLI will look at `AWS_DEFAULT_REGION`. These two variables should match.
+
 To set up the ACCP CI (create/update docker images and deploy CI resources), run command:
 ```
-./run-cdk.sh --aws-account=${AWS_ACCOUNT} --github-repo-owner=${GITHUB_REPO_OWNER}  --github-source-version=${GITHUB_BRANCH} --action deploy-ci
+./run-cdk.sh --aws-account ${AWS_ACCOUNT} --github-repo-owner ${GITHUB_REPO_OWNER}  --github-source-version ${GITHUB_BRANCH} --action deploy-ci
 ```
 
 To create/update Linux Docker images, run command:
 ```
-./run-cdk.sh --aws-account=${AWS_ACCOUNT} --github-repo-owner=${GITHUB_REPO_OWNER}  --github-source-version=${GITHUB_BRANCH} --action build-linux-img
+./run-cdk.sh --aws-account ${AWS_ACCOUNT} --github-repo-owner ${GITHUB_REPO_OWNER}  --github-source-version ${GITHUB_BRANCH} --action build-linux-img
 ```
 
 To deploy CI resources for the ACCP CI, run command:
 ```
-./run-cdk.sh --aws-account=${AWS_ACCOUNT} --github-repo-owner=${GITHUB_REPO_OWNER}  --github-source-version=${GITHUB_BRANCH} --action update-ci
+./run-cdk.sh --aws-account ${AWS_ACCOUNT} --github-repo-owner ${GITHUB_REPO_OWNER}  --github-source-version ${GITHUB_BRANCH} --action update-ci
 ```
 
 To destroy ACCP CI resources created above, run command:
 ```
 # NOTE: this command will destroy all resources (AWS CodeBuild and ECR).
-./run-cdk.sh --aws-account=${AWS_ACCOUNT} --github-repo-owner=${GITHUB_REPO_OWNER}  --github-source-version=${GITHUB_BRANCH} --action destroy-ci
+./run-cdk.sh --aws-account ${AWS_ACCOUNT} --github-repo-owner ${GITHUB_REPO_OWNER}  --github-source-version ${GITHUB_BRANCH} --action destroy-ci
 ```
 
 For help, run command:

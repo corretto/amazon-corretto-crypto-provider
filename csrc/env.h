@@ -51,7 +51,6 @@ class java_ex {
 
         const char *m_java_classname;
         const std::string m_message;
-        const char *m_message_cstr;
 #ifdef BACKTRACE_ON_EXCEPTION
         std::vector<void *> m_trace;
         void capture_trace() COLD { AmazonCorrettoCryptoProvider::capture_trace(m_trace); }
@@ -61,16 +60,18 @@ class java_ex {
 
     public:
         java_ex(jthrowable exception) COLD
-            : m_java_exception(exception), m_java_classname(nullptr), m_message(), m_message_cstr("")
+            : m_java_exception(exception), m_java_classname(nullptr), m_message()
         { }
 
         java_ex(const char *java_classname, const char *message) COLD
-            : m_java_exception(nullptr), m_java_classname(java_classname), m_message(), m_message_cstr(message)
-        { capture_trace(); }
+            : m_java_exception(nullptr), m_java_classname(java_classname), m_message(std::string(message)) {
+            capture_trace();
+        }
 
         java_ex(const char *java_classname, const std::string &message) COLD
-            : m_java_exception(nullptr), m_java_classname(java_classname), m_message(message), m_message_cstr(nullptr)
-        { capture_trace(); }
+            : m_java_exception(nullptr), m_java_classname(java_classname), m_message(message) {
+            capture_trace();
+        }
 
         /**
          * Constructs an exception based on the openssl error code.

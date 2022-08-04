@@ -17,10 +17,9 @@ random number generator will output data which looks non-random.
 
 | Build Name | master branch | develop branch |
 | ---------- | ------------- | -------------- |
-| Unit Tests | ![Build Badge](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiMVYvdkw0MjJrcWJjdzc4TlNLcjdacGZDRVlWS0I2d1F1dThPM2RkNDZOVDlUMVJjU2o3TlAyTFZ2SlhtK1RnRm9LN09ySURjN2RYbjN3RmQ3bmFUZTBZPSIsIml2UGFyYW1ldGVyU3BlYyI6Inp3RWNaSXJtWVhISVUxU28iLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=master) | ![Build Badge](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiMVYvdkw0MjJrcWJjdzc4TlNLcjdacGZDRVlWS0I2d1F1dThPM2RkNDZOVDlUMVJjU2o3TlAyTFZ2SlhtK1RnRm9LN09ySURjN2RYbjN3RmQ3bmFUZTBZPSIsIml2UGFyYW1ldGVyU3BlYyI6Inp3RWNaSXJtWVhISVUxU28iLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=develop) |
-| Integ Tests | ![Build Badge](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiOHE2R2FnSVEwTDEvcTdUQXMxdkpuY1ROdFBveHNGM3U0Uk81UkJxaUY2U1MvS1pPaFBmZWZSZS9FZHM5U1V2MUc1NEkzWDlLbjFpYjRXQkVNQ050VWVvPSIsIml2UGFyYW1ldGVyU3BlYyI6IlkycVZtSjNCM25SOW9iWlgiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=master) | ![Build Badge](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiOHE2R2FnSVEwTDEvcTdUQXMxdkpuY1ROdFBveHNGM3U0Uk81UkJxaUY2U1MvS1pPaFBmZWZSZS9FZHM5U1V2MUc1NEkzWDlLbjFpYjRXQkVNQ050VWVvPSIsIml2UGFyYW1ldGVyU3BlYyI6IlkycVZtSjNCM25SOW9iWlgiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=develop) |
-| Dieharder Tests | ![Build Badge](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoia0IxUitySWNCQ2hCSGN0T0xUZjV2VzNWb1hTZ2ljMzN1dnJienNQbFZRUGtTOXZJKzJmMUVvZk12MTM2enlWb1lmTTcrdUVlZStNYWx5V0taeU9naG1NPSIsIml2UGFyYW1ldGVyU3BlYyI6ImxIMlNyM1IzUHpFalAwQ20iLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=master) | ![Build Badge](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoia0IxUitySWNCQ2hCSGN0T0xUZjV2VzNWb1hTZ2ljMzN1dnJienNQbFZRUGtTOXZJKzJmMUVvZk12MTM2enlWb1lmTTcrdUVlZStNYWx5V0taeU9naG1NPSIsIml2UGFyYW1ldGVyU3BlYyI6ImxIMlNyM1IzUHpFalAwQ20iLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=develop) |
-| Overkill | ![Build Badge](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiQjBiWm5McXZDazZ3MnI3UnRjZWJJZkZRM200L2tqM3E0ZWJjVmc1RHBXbWRuMWZ5dHdXU3A0Tms4ZEVJNDBDdWdnQWdnTjkxTXBmNGxIWElVTFNPU1VVPSIsIml2UGFyYW1ldGVyU3BlYyI6Ikh5M0lRSHdFSkdoUC9hb2YiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=master) | ![Build Badge](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiQjBiWm5McXZDazZ3MnI3UnRjZWJJZkZRM200L2tqM3E0ZWJjVmc1RHBXbWRuMWZ5dHdXU3A0Tms4ZEVJNDBDdWdnQWdnTjkxTXBmNGxIWElVTFNPU1VVPSIsIml2UGFyYW1ldGVyU3BlYyI6Ikh5M0lRSHdFSkdoUC9hb2YiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=develop) |
+| x86        | ![Build Badge](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiRW4zZUhmeHlJbHRVQnNBZGZEbVJUa0pOK0J0MmtnNVB2dVZZSWhLbUtaNWYxNG96WWg4emN1SjJKL3VSUk9obFl0MnBtajBxejlVWDFiR3ppZGd3U1lrPSIsIml2UGFyYW1ldGVyU3BlYyI6IkFsUkpiMDRkRjZQb1U3Ly8iLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=master) | ![Build Badge](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiRW4zZUhmeHlJbHRVQnNBZGZEbVJUa0pOK0J0MmtnNVB2dVZZSWhLbUtaNWYxNG96WWg4emN1SjJKL3VSUk9obFl0MnBtajBxejlVWDFiR3ppZGd3U1lrPSIsIml2UGFyYW1ldGVyU3BlYyI6IkFsUkpiMDRkRjZQb1U3Ly8iLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=develop) |
+| aarch64    | ![Build Badge](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiMEVNSXhZYmdEOWFrcE1HdE9nQmdwVlZFZXRYVnloc05TMXhoZ0tTVUQ1ZlMzeWRrZTArSUxUdzY2RVJRbUtXak5zU2ZCamJBS3JxUEFxZFJ2ZVNkcGVNPSIsIml2UGFyYW1ldGVyU3BlYyI6Ii80UEZpYWc2RjJZLzZDQ0wiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=master) | ![Build Badge](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiMEVNSXhZYmdEOWFrcE1HdE9nQmdwVlZFZXRYVnloc05TMXhoZ0tTVUQ1ZlMzeWRrZTArSUxUdzY2RVJRbUtXak5zU2ZCamJBS3JxUEFxZFJ2ZVNkcGVNPSIsIml2UGFyYW1ldGVyU3BlYyI6Ii80UEZpYWc2RjJZLzZDQ0wiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=develop) |
+| Dieharder/Overkill Tests | ![Build Badge](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiRU14ZXM3ZkE4TGduVGV6dkxxWitxbkk3Ump2TnF3elkvYVRzcnkwQ3l4czl1OGRkc3NWblQ2Q0hxQkM2OWJ4VGdmL0x0Y01WYVVkWTdKYXNvbUpvS01VPSIsIml2UGFyYW1ldGVyU3BlYyI6Ilk3Y1NzbGNEZXZXY05CN2IiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=master) | ![Build Badge](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiRU14ZXM3ZkE4TGduVGV6dkxxWitxbkk3Ump2TnF3elkvYVRzcnkwQ3l4czl1OGRkc3NWblQ2Q0hxQkM2OWJ4VGdmL0x0Y01WYVVkWTdKYXNvbUpvS01VPSIsIml2UGFyYW1ldGVyU3BlYyI6Ilk3Y1NzbGNEZXZXY05CN2IiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=develop) |
 
 ## Supported Algorithms
 MessageDigest algorithms:
@@ -43,8 +42,8 @@ Cipher algorithms:
 * AES_256/GCM/NoPadding
 * RSA/ECB/NoPadding
 * RSA/ECB/PKCS1Padding
+* RSA/ECB/OAEPPadding
 * RSA/ECB/OAEPWithSHA-1AndMGF1Padding
-
 
 Signature algorithms:
 * SHA1withRSA
@@ -63,6 +62,7 @@ Signature algorithms:
 * SHA384withECDSAinP1363Format
 * SHA512withECDSA
 * SHA512withECDSAinP1363Format
+* RSASSA-PSS
 
 KeyPairGenerator algorithms:
 * EC
@@ -190,10 +190,16 @@ There are several ways to configure the ACCP as the highest priority provider in
 Run the following method early in program start up: `com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider.install()`
 
 ### Via Security Properties
-Add the following Java property to your programs command line: `-Djava.security.properties=/path/to/amazon-corretto-crypto-provider.security` where amazon-corretto-crypto-provider.security is [downloaded from](https://github.com/corretto/amazon-corretto-crypto-provider/blob/master/etc/amazon-corretto-crypto-provider.security) our repository.
+Add the following Java property to your programs command line: `-Djava.security.properties=/path/to/amazon-corretto-crypto-provider.security` where amazon-corretto-crypto-provider.security is downloaded from
+[amazon-corretto-crypto-provider.security](./etc/amazon-corretto-crypto-provider.security) (for JDK versions older than JDK15)
+or [amazon-corretto-crypto-provider-jdk15.security](./etc/amazon-corretto-crypto-provider-jdk15.security) (for JDK15 or newer)
+in our repository.
 
 ### Modify the JVM settings
-Modify the `java.security` file provided by your JVM so that the highest priority provider is the Amazon Corretto Crypto Provider. Look at [amazon-corretto-crypto-provider.security](https://github.com/corretto/amazon-corretto-crypto-provider/blob/master/etc/amazon-corretto-crypto-provider.security) for an example of what this change will look like.
+Modify the `java.security` file provided by your JVM so that the highest priority provider is the Amazon Corretto Crypto Provider.
+Look at [amazon-corretto-crypto-provider.security](./etc/amazon-corretto-crypto-provider.security) (JDKs 11 and older)
+or [amazon-corretto-crypto-provider-jdk15.security](./etc/amazon-corretto-crypto-provider-modules.security) (for JDKs newer than 11)
+for an example of what this change will look like.
 
 ### Verification (Optional)
 If you want to check to verify that ACCP is properly working on your system, you can do any of the following:
