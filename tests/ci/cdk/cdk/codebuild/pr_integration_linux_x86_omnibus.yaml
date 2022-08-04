@@ -126,6 +126,15 @@ batch:
         variables:
           TEST_JAVA_HOME: /usr/lib/jvm/java-17-amazon-corretto.x86_64
 
+    # Test non-C++11 support.
+    - identifier: ubuntu1004_gcc4_1x_corretto11_pr_x86
+      buildspec: ./tests/ci/codebuild/run_accp_legacy_build.yml
+      env:
+        type: LINUX_CONTAINER
+        privileged-mode: false
+        compute-type: BUILD_GENERAL1_LARGE
+        image: ECR_REPO_PLACEHOLDER:ubuntu-10.04_gcc-4.1x_corretto_x86_latest
+
     # ACCP FIPS dimensions.
     - identifier: ubuntu2004_gcc7x_corretto8_pr_x86_fips
       buildspec: ./tests/ci/codebuild/run_accp_basic_tests_fips.yml

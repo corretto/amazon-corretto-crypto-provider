@@ -112,19 +112,43 @@ task buildAwsLc {
     }
 
     doLast {
-        exec {
-            workingDir awslcSrcPath
-            executable cmakeBin
-            args "-B${cMakeBuildDir}"
-            args '-DBUILD_SHARED_LIBS=ON'
-            args '-DCMAKE_BUILD_TYPE=RelWithDebInfo'
-            args "-DCMAKE_INSTALL_PREFIX=${sharedObjectOutDir}"
-            args "-DCMAKE_VERBOSE_MAKEFILE:BOOL=ON"
+        // TODO: Remove this when we finally deprecate gcc4.1.2/Cmake 3.9 internally.
+        // Behavior of how older versions of Cmake take in the the build and source
+        // directory arguments is slightly different.
+        // FIPS isn't tested for this dimension. The only thing we care about for the
+        // legacy build is non C++11 and CMake 3.9 compatibility.
+        if (Boolean.getBoolean('LEGACY_BUILD')) {
+            exec {
+                workingDir cMakeBuildDir
+                executable cmakeBin
+                args "-DBUILD_TESTING=OFF"
+                args "-DBUILD_LIBSSL=OFF"
+                args "-DCMAKE_BUILD_TYPE=Debug"
+                args "-DMY_ASSEMBLER_IS_TOO_OLD_FOR_AVX=ON"
+                args "-std=gnu99"
+                args "-fgnu89-inline"
+                args '-DBUILD_SHARED_LIBS=ON'
+                args "-DCMAKE_INSTALL_PREFIX=${sharedObjectOutDir}"
+                args "-DCMAKE_VERBOSE_MAKEFILE:BOOL=ON"
 
-            if (isFips) {
-                args '-DFIPS=1'
+                args "${awslcSrcPath}"
             }
-            args '.'
+        }
+        else {
+            exec {
+                workingDir awslcSrcPath
+                executable cmakeBin
+                args "-B${cMakeBuildDir}"
+                args '-DBUILD_SHARED_LIBS=ON'
+                args '-DCMAKE_BUILD_TYPE=RelWithDebInfo'
+                args "-DCMAKE_INSTALL_PREFIX=${sharedObjectOutDir}"
+                args "-DCMAKE_VERBOSE_MAKEFILE:BOOL=ON"
+
+                if (isFips) {
+                    args '-DFIPS=1'
+                }
+                args '.'
+            }
         }
         exec {
             workingDir awslcSrcPath
@@ -194,6 +218,10 @@ task executeCmake(type: Exec) {
     if (prebuiltJar != null) {
        args '-DSIGNED_JAR=' + prebuiltJar
        print "Using SIGNED_JAR=${prebuiltJar}"
+    }
+
+    if (System.properties['JAVA_HOME'] != null) {
+        args '-DJAVA_HOME=' + System.properties['JAVA_HOME']
     }
 
     if (System.properties['TEST_JAVA_HOME'] != null) {
@@ -397,6 +425,10 @@ task coverage_cmake(type: Exec) {
     args "-DCMAKE_VERBOSE_MAKEFILE:BOOL=ON"
     if (isFips) {
         args "-DFIPS=ON"
+    }
+
+    if (System.properties['JAVA_HOME'] != null) {
+        args '-DJAVA_HOME=' + System.properties['JAVA_HOME']
     }
 
     if (System.properties['SINGLE_TEST'] != null) {

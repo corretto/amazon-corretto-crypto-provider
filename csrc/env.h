@@ -64,7 +64,8 @@ class java_ex {
         { }
 
         java_ex(const char *java_classname, const char *message) COLD
-            : java_ex(java_classname, std::string(message)) {
+            : m_java_exception(nullptr), m_java_classname(java_classname), m_message(std::string(message)) {
+            capture_trace();
         }
 
         java_ex(const char *java_classname, const std::string &message) COLD

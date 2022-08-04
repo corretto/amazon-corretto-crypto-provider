@@ -16,3 +16,9 @@ docker build -t ubuntu-20.04:accp_base ubuntu-20.04_accp_base
 docker build -t ubuntu-20.04:gcc-7x_corretto -f ubuntu-20.04_gcc-7x_corretto/Dockerfile ../../../../
 docker build -t amazonlinux-2:accp_base amazonlinux-2_accp_base
 docker build -t amazonlinux-2:gcc-7x_corretto -f amazonlinux-2_gcc-7x_corretto/Dockerfile ../../../../
+
+#################################################
+# Build legacy docker image that uses gcc 4.1.3 #
+#################################################
+
+./build_legacy_image.sh ubuntu-10.04_gcc-4.1x_corretto
