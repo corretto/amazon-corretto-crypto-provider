@@ -18,6 +18,7 @@ RUN sed -i -re 's/([a-z]{2}\.)?archive.ubuntu.com|security.ubuntu.com/old-releas
     g++-4.1 \
     make \
     perl \
+    python-pip \
     java-common \
     alien
 
@@ -32,6 +33,11 @@ COPY tests/ci/docker_images/linux-x86/dependencies/lcov-1.14-1.noarch.rpm /tmp/l
 RUN cd /tmp && \
     alien lcov-1.14-1.noarch.rpm && \
     dpkg --install lcov_1.14-2_all.deb
+
+# Pull gcovr as an external pip package due to obsolete wget.
+COPY tests/ci/docker_images/linux-x86/dependencies/gcovr-2.0.tar.gz /tmp/gcovr-2.0.tar.gz
+RUN cd /tmp && \
+    pip install /tmp/gcovr-2.0.tar.gz
 
 # Pull cmake as an external source since the wget version
 # on this image is too old to access the cmake repo.

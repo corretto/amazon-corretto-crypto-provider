@@ -17,6 +17,7 @@ cd dependencies
 wget -O cmake-3.9.6.tar.gz https://cmake.org/files/v3.9/cmake-3.9.6.tar.gz
 wget -O amazon-corretto-11-x64-linux-jdk.deb https://corretto.aws/downloads/latest/amazon-corretto-11-x64-linux-jdk.deb
 wget -O lcov-1.14-1.noarch.rpm http://downloads.sourceforge.net/ltp/lcov-1.14-1.noarch.rpm
+wget -O gcovr-2.0.tar.gz https://files.pythonhosted.org/packages/57/58/f57a3ab2df4b504156ae440880ce3432c85190e3050c6d8000a59978ef51/gcovr-2.0.tar.gz
 cd ..
 docker build -t ubuntu-10.04:gcc-4.1x_corretto -f ${docker_name}/Dockerfile ../../../../
 
