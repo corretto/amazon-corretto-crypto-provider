@@ -482,7 +482,7 @@ task coverage_cpp_report {
         }
         exec {
             workingDir "${buildDir}/cmake-coverage"
-            commandLine 'gcovr', '-r', "${projectDir}", '--cobertura-pretty'
+            commandLine 'gcovr', '-r', "${projectDir}", '--xml'
             standardOutput = new FileOutputStream("${buildDir}/reports/cpp/cobertura.xml")
         }
         exec {
