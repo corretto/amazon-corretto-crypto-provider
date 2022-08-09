@@ -57,7 +57,8 @@ class CustomTrustManager implements X509TrustManager {
         for (X509Certificate cert: chain) {
             final Date notAfter = cert.getNotAfter();
             final String subjectName = cert.getSubjectX500Principal().getName(X500Principal.RFC2253);
-            if (subjectName.contains(".badssl.com,") && notAfter.before(now)) {
+            if ((subjectName.contains(".badssl.com,") || subjectName.endsWith(".badssl.com"))
+                    && notAfter.before(now)) {
                 getLogger("CustomTrustManager").warning(String.format("%s has expired as of %s. Skipping validation.",
                         subjectName, notAfter));
                 return;
