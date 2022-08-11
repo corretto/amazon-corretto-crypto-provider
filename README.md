@@ -40,6 +40,7 @@ Cipher algorithms:
 * AES/GCM/NoPadding
 * AES_128/GCM/NoPadding
 * AES_256/GCM/NoPadding
+* AES/KWP/NoPadding
 * RSA/ECB/NoPadding
 * RSA/ECB/PKCS1Padding
 * RSA/ECB/OAEPPadding

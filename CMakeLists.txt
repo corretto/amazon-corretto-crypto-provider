@@ -240,6 +240,7 @@ include_directories(${OPENSSL_INCLUDE_DIR} ${JNI_INCLUDE_DIRS} ${JNI_HEADER_DIR}
 add_library(
     amazonCorrettoCryptoProvider SHARED
         csrc/aes_gcm.cpp
+        csrc/aes_kwp.cpp
         csrc/agreement.cpp
         csrc/bn.cpp
         csrc/buffer.cpp
