@@ -268,7 +268,7 @@ final class AesGcmSpi extends CipherSpi {
 
     @Override
     protected byte[] engineGetIV() {
-        return iv.clone();
+        return (iv == null) ? null : iv.clone();
     }
 
     @Override
