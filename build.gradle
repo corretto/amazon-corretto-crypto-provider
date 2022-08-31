@@ -6,6 +6,10 @@ import groovy.xml.*
 plugins {
     id 'maven-publish'
     id 'signing'
+    id "com.google.osdetector" version "1.7.0"
+    id "me.champeau.jmh" version "0.6.7"
+    id "io.morethan.jmhreport" version "0.9.0"
+    id 'java'
 }
 
 group = 'software.amazon.cryptools'
@@ -13,6 +17,70 @@ version = '1.7.0'
 
 def openssl_version = '1.1.1n'
 def opensslSrcPath = "${buildDir}/openssl/openssl-${openssl_version}"
+
+jmh {
+    includeTests = true
+    fork = 1
+    benchmarkMode = ['thrpt']
+    threads = 1
+    timeUnit = 's'
+    iterations = 5
+    timeOnIteration = '3s'
+    warmup = '1s'
+    warmupForks = 1
+    warmupIterations = 3
+    resultFormat = 'JSON'
+    duplicateClassesStrategy = DuplicatesStrategy.WARN
+    jvmArgs = [
+        "-Djava.library.path=${rootDir}/build/cmake:" + System.getProperty("java.library.path") + ":/usr/lib/jvm/java/lib",
+        "-DversionStr=${version}",
+    ]
+
+    sourceSets {
+        jmh.java.srcDirs += files(["${rootDir}/build/cmake"])
+        main.java.srcDirs += files(["${rootDir}/src/com/amazon/corretto/crypto/provider"])
+    }
+}
+
+jmhReport {
+    jmhResultPath = project.file('build/results/jmh/results.json')
+    jmhReportOutput = project.file('build/results/jmh')
+}
+
+// Execute cmake3 command to see if it exists. Mainly to support AL2.
+def detect_cmake3 = {
+    def exec_cmake3 = exec {
+        executable "bash" args "-l", "-c", 'command -v cmake3'
+        ignoreExitValue true
+        standardOutput = new ByteArrayOutputStream()
+        errorOutput = standardOutput
+    }
+    if(exec_cmake3.getExitValue() == 0) {
+        return "cmake3"
+    }
+    return "cmake"
+}
+
+def cmakeBin = detect_cmake3()
+
+ext.isJceSigned = { pathToJar ->
+    def stdout = new ByteArrayOutputStream()
+    exec {
+        executable "jarsigner"
+        args "-verify", pathToJar
+        standardOutput = stdout;
+    }
+    return stdout.toString().contains("jar verified")
+}
+
+ext.assertJceSigned = { pathToJar ->
+    if (!isJceSigned(pathToJar)) {
+        ant.fail("${pathToJar} is not signed")
+    } else {
+        println "${pathToJar} is signed"
+    }
+    return pathToJar
+}
 
 configurations {
     openssl
@@ -57,15 +125,17 @@ dependencies {
     // Separate so we can extract the jar for the checker specifically
     checkstyle group: 'com.puppycrawl.tools', name: 'checkstyle', version: '9.3'
 
-    testDep 'org.junit.jupiter:junit-jupiter:5.6.2'
-    testDep 'org.junit.vintage:junit-vintage-engine:5.6.2'
+    jmh 'org.bouncycastle:bcprov-debug-jdk15on:1.69'
+
+    testDep 'org.apiguardian:apiguardian-api:1.1.2'
+    testDep 'org.junit.jupiter:junit-jupiter:5.8.2'
+    testDep 'org.junit.vintage:junit-vintage-engine:5.8.2'
     testDep 'org.bouncycastle:bcprov-debug-jdk15on:1.69'
     testDep 'org.bouncycastle:bcpkix-jdk15on:1.69'
     testDep 'commons-codec:commons-codec:1.12'
     testDep 'org.hamcrest:hamcrest:2.1'
     testDep 'org.jacoco:org.jacoco.core:0.8.3'
     testDep 'org.jacoco:org.jacoco.report:0.8.3'
-
 
     openssl "openssl-src:openssl:${openssl_version}@tar.gz"
 }
@@ -213,7 +283,7 @@ task emptyJar(type: Jar) {
     destinationDirectory = file("${buildDir}/lib")
 }
 
-task javadoc(type: Jar) {
+task accp_javadoc(type: Jar) {
     dependsOn executeCmake
     doFirst {
         mkdir "${buildDir}/lib"
@@ -252,10 +322,19 @@ task test_extra_checks(type: Exec) {
     commandLine 'make', 'check-junit-extra-checks'
 }
 
-task test(type: Exec) {
+task test_exec(type: Exec) {
     dependsOn executeCmake
     workingDir "${buildDir}/cmake"
     commandLine 'make', 'check'
+}
+
+task unit_tests(type: Copy) {
+    doFirst {
+        mkdir "${buildDir}/reports/unit-tests"
+    }
+    dependsOn test_exec
+    from "${buildDir}/cmake/unit-tests/"
+    into "${buildDir}/reports/unit-tests"
 }
 
 task checkstyle(type: Exec) {
@@ -296,6 +375,12 @@ task dieharder_threads(type: Exec) {
 
 task dieharder_all {
     dependsOn dieharder, dieharder_threads
+}
+
+task bench(type: Exec) {
+    dependsOn executeCmake
+    workingDir "${buildDir}/cmake"
+    commandLine 'make', 'run-benchmark'
 }
 
 task coverage_clean(type: Delete) {
@@ -384,11 +469,11 @@ task coverage {
 }
 
 task release {
-    dependsOn build, test, coverage, javadoc, src_jar, checkstyle
+    dependsOn build, unit_tests, coverage, accp_javadoc, src_jar, checkstyle
 }
 
 task overkill {
-    dependsOn test, test_extra_checks, test_integration, test_integration_extra_checks, dieharder_all
+    dependsOn unit_tests, test_extra_checks, test_integration, test_integration_extra_checks, dieharder_all
 }
 
 
