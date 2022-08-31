@@ -47,6 +47,7 @@ final class Loader {
     static final String PROPERTY_BASE = "com.amazon.corretto.crypto.provider.";
     private static final String TEMP_DIR_PREFIX = "amazonCorrettoCryptoProviderNativeLibraries.";
     private static final String JNI_LIBRARY_NAME = "amazonCorrettoCryptoProvider";
+    private static final String PROPERTY_VERSION_STR = "versionStr";
     private static final String LIBCRYPTO_NAME = "crypto";
     private static final String[] JAR_RESOURCES = {JNI_LIBRARY_NAME, LIBCRYPTO_NAME};
     private static final Pattern TEST_FILENAME_PATTERN = Pattern.compile("[-a-zA-Z0-9]+(\\.[a-zA-Z0-9]+)*");
@@ -117,9 +118,12 @@ final class Loader {
         try {
             versionStr = AccessController.doPrivileged((PrivilegedExceptionAction<String>) () -> {
                 try (InputStream is = Loader.class.getResourceAsStream("version.properties")) {
+                    if (is == null) {
+                        return System.getProperty(PROPERTY_VERSION_STR);
+                    }
                     Properties p = new Properties();
                     p.load(is);
-                    return p.getProperty("versionStr");
+                    return p.getProperty(PROPERTY_VERSION_STR);
                 }
             });
 

@@ -796,15 +796,6 @@ add_custom_target(check-integration
 
 set_target_properties(check-integration PROPERTIES EXCLUDE_FROM_ALL 1)
 
-add_custom_target(run-benchmark
-    COMMAND ${TEST_JAVA_EXECUTABLE} -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
-        ${EXTERNAL_LIB_PROPERTY}
-        com.amazon.corretto.crypto.provider.test.Benchmark
-
-    DEPENDS accp-jar tests-jar)
-
-set_target_properties(run-benchmark PROPERTIES EXCLUDE_FROM_ALL 1)
-
 if (CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
 
 add_custom_target(run-dieharder-libcrypto-rng
