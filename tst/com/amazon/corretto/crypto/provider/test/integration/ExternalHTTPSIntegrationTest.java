@@ -4,6 +4,7 @@
 package com.amazon.corretto.crypto.provider.test.integration;
 
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assumeMinimumVersion;
+import static java.util.logging.Logger.getLogger;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -11,9 +12,13 @@ import javax.crypto.Cipher;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
+import javax.security.auth.x500.X500Principal;
 import java.net.URL;
+import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
 import java.security.Security;
 import java.util.ArrayList;
+import java.util.Date;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import com.amazon.corretto.crypto.provider.test.TestResultLogger;
@@ -81,7 +86,30 @@ public class ExternalHTTPSIntegrationTest {
         // http://bouncy-castle.1462172.n4.nabble.com/BC-1-54-quot-breaks-quot-SunJSSE-PKCS12-keystore-PBE-td4658064.html
 
         // As such we'll set up our trust manager (and load the CA certs) before we install BC
-        CustomTrustManager customTrustManager = new CustomTrustManager();
+        CustomTrustManager customTrustManager = new CustomTrustManager() {
+            @Override
+            public void checkServerTrusted(X509Certificate[] chain, String authType) throws CertificateException {
+                try {
+                    super.checkServerTrusted(chain, authType);
+                } catch (CertificateException e) {
+                    // Certificates from badssl.com are bad sometimes, and this includes expired. If they are expired,
+                    // skip further validation for them as most of cryptography we care about is in using the certificates
+                    // rather than validating them.
+                    final Date now = new Date();
+                    for (X509Certificate cert : chain) {
+                        final Date notAfter = cert.getNotAfter();
+                        final String subjectName = cert.getSubjectX500Principal().getName(X500Principal.RFC2253);
+                        if ((subjectName.contains(".badssl.com,") || subjectName.endsWith(".badssl.com"))
+                                && notAfter.before(now)) {
+                            getLogger(this.getClass().getSimpleName()).warning(String.format("%s has expired as of %s. Skipping validation.",
+                                    subjectName, notAfter));
+                            return;
+                        }
+                    }
+                    throw e;
+                }
+            }
+        };
 
         Security.insertProviderAt(AmazonCorrettoCryptoProvider.INSTANCE, 1);
         if (useBouncyCastle) {
@@ -106,6 +134,7 @@ public class ExternalHTTPSIntegrationTest {
             connection = (HttpsURLConnection)url.openConnection();
             connection.setSSLSocketFactory(context.getSocketFactory());
             connection.connect();
+
             // We don't actually care what the response code is. Just receiving it means that we successfully
             // negotiated a TLS session and are now speaking HTTP with the underlying server.
             assertTrue(connection.getResponseCode() > 0,

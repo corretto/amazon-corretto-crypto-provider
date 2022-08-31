@@ -3,18 +3,15 @@
 
 package com.amazon.corretto.crypto.provider.test.integration;
 
-import static java.util.logging.Logger.getLogger;
 import static com.amazon.corretto.crypto.provider.test.integration.HTTPSTestParameters.SUPER_SECURE_PASSWORD;
 
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
-import javax.security.auth.x500.X500Principal;
 
 import java.io.InputStream;
 import java.security.KeyStore;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
-import java.util.Date;
 
 /**
  * This adds Amazon Trust roots to the default set of trusted CA root certificates, allowing us to connect to the
@@ -50,21 +47,6 @@ class CustomTrustManager implements X509TrustManager {
     }
 
     @Override public void checkServerTrusted(X509Certificate[] chain, String authType) throws CertificateException {
-        // Certificates from badssl.com are bad sometimes, and this includes expired.
-        // If they are expired, skip further validation for them as most of cryptography we care about is in using
-        // the certificates rather than validating them
-        final Date now = new Date();
-        for (X509Certificate cert: chain) {
-            final Date notAfter = cert.getNotAfter();
-            final String subjectName = cert.getSubjectX500Principal().getName(X500Principal.RFC2253);
-            if ((subjectName.contains(".badssl.com,") || subjectName.endsWith(".badssl.com"))
-                    && notAfter.before(now)) {
-                getLogger("CustomTrustManager").warning(String.format("%s has expired as of %s. Skipping validation.",
-                        subjectName, notAfter));
-                return;
-            }
-        }
-
         try {
             defaultTrustManager.checkServerTrusted(chain, authType);
         } catch (Exception e) {
