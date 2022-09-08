@@ -22,6 +22,18 @@ jobs:
       with:
         submodules: true
 
+    - name: Install lcov
+      run: |
+        env HOMEBREW_NO_AUTO_UPDATE=1 brew install lcov
+    - name: Setup pip
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        cache: 'pip'
+    - name: Install gcovr
+      run: |
+        pip install gcovr
+
     # Set up Corretto 8. The JDK version should be least 10 for a regular ACCP build,
     # but JAVA_HOME will be overwritten with subsequent versions we set up, so we save
     # the path here beforehand.

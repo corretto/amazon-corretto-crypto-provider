@@ -23,8 +23,14 @@
 # JDK8 will determine that there is no class with the short provider name and skip it.
 # JDK9+ will determine that the fully-qualified class is not visible and will skip it.
 #
-# This results in a single list with proper behavior on both JDK8 and JDK9+ systems.
+# Some providers are specified by name only, meaning that they may not work
+# properly on JDK 8. In the case of the Apple provider, this is because our CI
+# Mac images allowed duplicate installs of the Apple provider on Java 8. We use
+# the name-only variant of the provider because the apple.security.AppleProvider
+# is not exported from its module in JDK 11.
 #
+# This results in a single list with proper behavior on both JDK8 and JDK9+ systems
+# for most providers.
 
 security.provider.1=com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider
 security.provider.2=sun.security.provider.Sun
@@ -45,9 +51,8 @@ security.provider.16=JdkLDAP
 security.provider.17=JdkSASL
 security.provider.18=sun.security.mscapi.SunMSCAPI
 security.provider.19=SunMSCAPI
-security.provider.20=apple.security.AppleProvider
-security.provider.21=Apple
-security.provider.22=SunPKCS11
+security.provider.20=Apple
+security.provider.21=SunPKCS11
 
 #
 # A list of known strong SecureRandom implementations.

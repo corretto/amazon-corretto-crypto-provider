@@ -30,6 +30,7 @@ Current values are:
    [PR #191](https://github.com/corretto/amazon-corretto-crypto-provider/pull/191)
 * Add `KeyFactory` implementations for RSA and EC keys. This also includes our own implementations of keys for the same algorithms. [PR #132](https://github.com/corretto/amazon-corretto-crypto-provider/pull/132)
 * Added `amazon-corretto-crypto-provider-jdk15.security` to support JDK15+.
+* Add support for MacOS
 
 ### Patches
 * Improve zeroization of DRBG output. [PR #162](https://github.com/corretto/amazon-corretto-crypto-provider/pull/162)
