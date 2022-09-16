@@ -83,7 +83,7 @@ KeyFactory algorithms:
 # Compatibility & Requirements
 ACCP has the following requirements:
 * JDK8 or newer (This includes both OracleJDK and [Amazon Corretto](https://aws.amazon.com/corretto/))
-* 64-bit Linux running on x86_64 (also known as x64 or AMD64)
+* 64-bit Linux or MacOs running on x86_64 (also known as x64 or AMD64)
 
 If ACCP is used/installed on a system it does not support, it will disable itself and the JVM will behave as if ACCP weren't installed at all.
 
@@ -100,7 +100,8 @@ in the latest version for best performance and bug-fixes.
 
 Whether you're using Maven, Gradle, or some other build system that also pulls
 packages from Maven Central, it's important to specify `linux-x86_64` as the
-classifier. You'll get an empty package otherwise.
+classifier. You'll get an empty package otherwise. Note that ACCP will not be
+available for MacOS on Maven Central until 2.0 is released.
 
 Regardless of how you acquire ACCP (Maven, manual build, etc.) you will still need to follow the guidance in the [Configuration section](#configuration) to enable ACCP in your application.
 
@@ -147,7 +148,7 @@ The OracleJDK requires that JCA providers be cryptographically signed by a trust
 The JARs we publish via Maven and our official [releases](https://github.com/corretto/amazon-corretto-crypto-provider/releases) are signed by our private key,
 but yours will not be.*
 
-Building this provider requires a 64 bit Linux build system with the following prerequisites installed:
+Building this provider requires a 64 bit Linux or MacOS build system with the following prerequisites installed:
 * OpenJDK 10 or newer
 * [cmake](https://cmake.org/) 3.8 or newer
 * C++ build chain
