@@ -329,15 +329,16 @@ public class TestUtil {
                 String.format("Required version %s, Actual version %s", minVersion, providerVersion));
     }
 
-    public static void assumeMinimumJavaVersion(int minVersion) {
-        final int version;
+    public static int getJavaVersion() {
         final String[] parts = System.getProperty("java.specification.version").split("\\.");
         if (parts[0].equals("1")) {
-            version = Integer.parseInt(parts[1]);
-        } else {
-            version = Integer.parseInt(parts[0]);
+            return Integer.parseInt(parts[1]);
         }
-        Assumptions.assumeTrue(version >= minVersion);
+        return Integer.parseInt(parts[0]);
+    }
+
+    public static void assumeMinimumJavaVersion(int minVersion) {
+        Assumptions.assumeTrue(getJavaVersion() >= minVersion);
     }
 
     public synchronized static Provider[] saveProviders() {
