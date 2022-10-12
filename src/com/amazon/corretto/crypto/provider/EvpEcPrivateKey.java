@@ -5,7 +5,6 @@ package com.amazon.corretto.crypto.provider;
 
 import java.math.BigInteger;
 import java.security.interfaces.ECPrivateKey;
-import java.util.Arrays;
 
 import com.amazon.corretto.crypto.provider.EvpKey.CanDerivePublicKey;
 
@@ -22,17 +21,6 @@ class EvpEcPrivateKey extends EvpEcKey implements ECPrivateKey, CanDerivePublicK
 
     EvpEcPrivateKey(final InternalKey key) {
         super(key, false);
-    }
-
-    @Override
-    public boolean equals(final Object obj) {
-        final boolean parentEquals = super.equals(obj);
-        if (parentEquals) {
-            return parentEquals;
-        } else if (Utils.getJavaVersion() == 10 && (obj instanceof ECPrivateKey)) {
-            return this.getS().equals(((ECPrivateKey) obj).getS());
-        }
-        return parentEquals;
     }
 
     @Override

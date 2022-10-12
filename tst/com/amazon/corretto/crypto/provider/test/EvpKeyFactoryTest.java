@@ -440,15 +440,17 @@ public class EvpKeyFactoryTest {
 
         // Currently only Java 10 ECPrivateKeys are not expected to be compatible.
         final boolean expectJceEncodingCompatibility = !(
-                TestUtil.getJavaVersion() == 10 && jceSample instanceof ECPrivateKey
+                (TestUtil.getJavaVersion() == 10
+                        && ((jceSample instanceof ECPrivateKeySpec) || (jceSample instanceof ECPrivateKey)))
+
         );
 
-        assertEquals(nativeSample, jceSample);
         assertEquals(jceSample.getAlgorithm(), nativeSample.getAlgorithm(), "Algorithm");
         assertEquals(jceSample.getFormat(), nativeSample.getFormat(), "Format");
         if (expectJceEncodingCompatibility) {
             // Equality check is done in both directions to ensure that
             // regardless of who's equality code is run, it still passes.
+            assertEquals(nativeSample, jceSample);
             assertEquals(jceSample, nativeSample);
             // Encoded version is expected to be equal if and only if
             // compatibility is epxected
@@ -460,6 +462,8 @@ public class EvpKeyFactoryTest {
             assertEquals(jceSample.hashCode(), nativeSample.hashCode());
         } else if (jceSample instanceof ECPrivateKey) {
             assertEquals(((ECPrivateKey) jceSample).getS(), ((ECPrivateKey) nativeSample).getS());
+        } else if (jceSample instanceof ECPrivateKeySpec) {
+            assertEquals(((ECPrivateKeySpec) jceSample).getS(), ((ECPrivateKeySpec) nativeSample).getS());
         }
 
         // We have special logic for equality checks within our own provider. Try to cover some of that
