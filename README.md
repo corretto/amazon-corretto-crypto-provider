@@ -249,6 +249,11 @@ Thus, these should all be set on the JVM command line using `-D`.
    Takes *positive integer value* which is the requested minimum number of "stripes" used by the `Janitor` for dividing cleaning tasks (messes) among its workers.
    (Current behavior is to default this value to 4 times the CPU core count and then round the value up to the nearest power of two.)
    See `Janitor.java` for for more information.
+* `com.amazon.corretto.crypto.provider.cacheselftestresults` Takes in `true` or `false`
+  (defaults to `true`). If set to `true`, the results of running tests are cached,
+  and the subsequent calls to `AmazonCorrettoCryptoProvider::runSelfTests`
+  would avoid re-running tests; otherwise, each call to `AmazonCorrettoCryptoProvider::runSelfTests`
+  re-run the tests.
 
 
 # License

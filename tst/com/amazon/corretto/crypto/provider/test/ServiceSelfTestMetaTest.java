@@ -164,6 +164,13 @@ public class ServiceSelfTestMetaTest {
         System.setProperty("com.amazon.corretto.crypto.provider.cacheselftestresults", "false");
         accp = new AmazonCorrettoCryptoProvider();
         assertTrue(SelfTestStatus.FAILED != accp.runSelfTests());
-        assertTrue(SelfTestStatus.FAILED != accp.reRunSelfTests());
+        // Let's force a failure and re run the tests
+        Class<?> spiClass = Class.forName(NATIVE_PROVIDER_PACKAGE + ".EvpHmac$SHA256");
+        Object selfTest = TestUtil.sneakyGetField(spiClass, "SELF_TEST");
+        sneakyInvoke(selfTest, "forceFailure");
+        assertTrue(SelfTestStatus.FAILED == accp.getSelfTestStatus());
+        // re-run the tests and confirm that they don't fail anymore
+        assertTrue(SelfTestStatus.FAILED != accp.runSelfTests());
+        assertTrue(SelfTestStatus.FAILED != accp.getSelfTestStatus());
     }
 }

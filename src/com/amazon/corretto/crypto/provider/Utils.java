@@ -529,7 +529,7 @@ final class Utils {
     static boolean getCacheSelfTestResultsProperty() {
         final String relyOnCacheSelfTestResultsStr = Loader.getProperty(CACHE_SELF_TEST_RESULTS, "true").toLowerCase();
         if (!relyOnCacheSelfTestResultsStr.equals("true") && !relyOnCacheSelfTestResultsStr.equals("false")) {
-            System.err.format("Valid values for %s are false and true, with true as default", CACHE_SELF_TEST_RESULTS);
+            LOG.warning(String.format("Valid values for %s are false and true, with true as default", CACHE_SELF_TEST_RESULTS));
             return true;
         }
         return Boolean.parseBoolean(relyOnCacheSelfTestResultsStr);
