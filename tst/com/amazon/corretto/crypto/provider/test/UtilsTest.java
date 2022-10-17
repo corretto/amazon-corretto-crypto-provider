@@ -175,5 +175,16 @@ public class UtilsTest {
         assertFalse(arraysOverlap(arr1, 5, arr1, 0, 5));
         assertTrue(arraysOverlap(arr1, 5, arr1, 1, 5));
     }
-}
 
+    @Test
+    public void givenInvalidValueForCacheSelfTestResultsProperty_whenGetCacheSelfTestResultsProperty_expectTrue() throws Throwable {
+        System.setProperty("com.amazon.corretto.crypto.provider.cacheselftestresults", "dummy");
+        assertTrue((Boolean) sneakyInvoke(UTILS_CLASS, "getCacheSelfTestResultsProperty"));
+    }
+
+    @Test
+    public void givenFalseForCacheSelfTestResultsProperty_whenGetCacheSelfTestResultsProperty_expectFalse() throws Throwable {
+        System.setProperty("com.amazon.corretto.crypto.provider.cacheselftestresults", "False");
+        assertFalse((Boolean) sneakyInvoke(UTILS_CLASS, "getCacheSelfTestResultsProperty"));
+    }
+}

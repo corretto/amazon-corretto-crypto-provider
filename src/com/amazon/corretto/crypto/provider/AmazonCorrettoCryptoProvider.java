@@ -39,6 +39,9 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     public static final String PROVIDER_NAME = "AmazonCorrettoCryptoProvider";
 
     private final EnumSet<ExtraCheck> extraChecks = EnumSet.noneOf(ExtraCheck.class);
+
+    private final boolean relyOnCachedSelfTestResults;
+
     private transient SelfTestSuite selfTestSuite = new SelfTestSuite();
 
     static {
@@ -265,6 +268,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     @SuppressWarnings({"deprecation"})
     public AmazonCorrettoCryptoProvider() {
         super("AmazonCorrettoCryptoProvider", PROVIDER_VERSION, "");
+        this.relyOnCachedSelfTestResults = Utils.getCacheSelfTestResultsProperty();
 
         Utils.optionsFromProperty(ExtraCheck.class, extraChecks, "extrachecks");
 
@@ -344,10 +348,17 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
      * Please see {@link #getSelfTestStatus()} for the algorithms tested and
      * the possible return values. (though this method will never return
      * {@link SelfTestStatus#NOT_RUN}).
+     * The result of running tests are cached, and the subsequent calls would
+     * avoid re-running tests. To modify this behaviour, one can set the system
+     * property <em>com.amazon.corretto.crypto.provider.cacheselftestresults=false</em>
+     * so that every call to this method would result in re-running tests.
      *
      * @see #getSelfTestStatus()
      */
     public SelfTestStatus runSelfTests() {
+        if (!relyOnCachedSelfTestResults) {
+            resetAllSelfTests();
+        }
         return selfTestSuite.runTests();
     }
 
