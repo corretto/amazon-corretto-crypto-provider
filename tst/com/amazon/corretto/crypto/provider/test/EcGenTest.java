@@ -325,9 +325,12 @@ public class EcGenTest {
 
     public static void assertECEquals(final String message, final ECPrivateKey expected,
                                        final ECPrivateKey actual) {
+        final boolean expectEncodingCompat = TestUtil.getJavaVersion() != 10;
+        if (expectEncodingCompat) {
+            assertArrayEquals(expected.getEncoded(), actual.getEncoded(), message);
+        }
         assertEquals(expected.getAlgorithm(), actual.getAlgorithm(), message);
         assertEquals(expected.getFormat(), actual.getFormat(), message);
-        assertArrayEquals(expected.getEncoded(), actual.getEncoded(), message);
         assertEquals(expected.getS(), actual.getS(), message);
         assertECEquals(message, expected.getParams(), actual.getParams());
     }

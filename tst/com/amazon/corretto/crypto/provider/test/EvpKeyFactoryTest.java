@@ -39,6 +39,7 @@ import java.security.interfaces.ECPublicKey;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPrivateCrtKey;
 import java.security.interfaces.RSAPublicKey;
+import java.security.spec.ECParameterSpec;
 import java.security.spec.ECPrivateKeySpec;
 import java.security.spec.ECPublicKeySpec;
 import java.security.spec.InvalidKeySpecException;
@@ -298,7 +299,7 @@ public class EvpKeyFactoryTest {
     public void ecPrivate(final KeyPair keyPair, final String testName, final boolean translate) throws Exception {
         Samples<ECPrivateKey> keys = getSamples(keyPair, true, translate);
 
-        EcGenTest.assertECEquals("ecPrivate", keys.jceSample, keys.nativeSample);
+        EcGenTest.assertECEquals(testName, keys.jceSample, keys.nativeSample);
     }
 
     @ParameterizedTest(name = "{1}, Translate: {2}")
@@ -306,7 +307,7 @@ public class EvpKeyFactoryTest {
     public void ecPublic(final KeyPair keyPair, final String testName, final boolean translate) throws Exception {
         Samples<ECPublicKey> keys = getSamples(keyPair, false, translate);
 
-        EcGenTest.assertECEquals("ecPublic", keys.jceSample, keys.nativeSample);
+        EcGenTest.assertECEquals(testName, keys.jceSample, keys.nativeSample);
     }
 
     @ParameterizedTest(name = "{1}")
@@ -315,7 +316,32 @@ public class EvpKeyFactoryTest {
         Samples<ECPrivateKeySpec> samples = getSamples(keyPair, ECPrivateKeySpec.class, true);
 
         assertEquals(samples.jceSample.getS(), samples.nativeSample.getS(), "S");
-        EcGenTest.assertECEquals("ecPrivateKeySpec", samples.jceSample.getParams(), samples.nativeSample.getParams());
+        EcGenTest.assertECEquals(testName, samples.jceSample.getParams(), samples.nativeSample.getParams());
+    }
+
+    @Test
+    public void testPrivateKey521MostSignificantByteDropped() throws Exception {
+        final KeyFactory kf = KeyFactory.getInstance("EC");
+        final KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC");
+        kpg.initialize(521);
+        final KeyPair keyPair = kpg.generateKeyPair();
+        ECPrivateKey priv = (ECPrivateKey) keyPair.getPrivate();
+        ECParameterSpec paramSpec = priv.getParams();
+        BigInteger s = priv.getS();
+        final byte[] sBytes = s.toByteArray();
+        final int desiredLength = (paramSpec.getCurve().getField().getFieldSize() + 7) / 8;
+        final byte[] newSBytes = new byte[desiredLength];
+        Arrays.fill(newSBytes, (byte) 0xff);
+        final int fillStartIdx = desiredLength - sBytes.length;
+        System.arraycopy(sBytes, fillStartIdx, newSBytes, 0, sBytes.length-fillStartIdx);
+        final BigInteger newS = new BigInteger(newSBytes);
+        final PrivateKey newPriv = kf.generatePrivate(new ECPrivateKeySpec(newS, paramSpec));
+        final KeyPair newKeyPair = new KeyPair(keyPair.getPublic(), newPriv);
+
+        for (boolean isTranslated : new boolean[] {true, false}) {
+            Samples<ECPrivateKey> keys = getSamples(keyPair, true, isTranslated);
+            EcGenTest.assertECEquals("testPrivateKey521MostSignificantByteDropped", keys.jceSample, keys.nativeSample);
+        }
     }
 
     @ParameterizedTest(name = "{1}")
@@ -324,7 +350,7 @@ public class EvpKeyFactoryTest {
         Samples<ECPublicKeySpec> samples = getSamples(keyPair, ECPublicKeySpec.class, false);
 
         assertEquals(samples.jceSample.getW(), samples.nativeSample.getW(), "W");
-        EcGenTest.assertECEquals("ecPrivateKeySpec", samples.jceSample.getParams(), samples.nativeSample.getParams());
+        EcGenTest.assertECEquals(testName, samples.jceSample.getParams(), samples.nativeSample.getParams());
     }
 
     @ParameterizedTest(name = "{1}")
@@ -383,7 +409,7 @@ public class EvpKeyFactoryTest {
         final KeyFactory nativeFactory = KeyFactory.getInstance(algorithm, NATIVE_PROVIDER);
         final KeyFactory jceFactory = KeyFactory.getInstance(algorithm);
         final T nativeSample;
-        final T secondNativeSample; // Used for somer equality tests.
+        final T secondNativeSample; // Used for some equality tests.
         final T jceSample;
         if (isTranslated) {
             if (isPrivate) {
@@ -411,15 +437,34 @@ public class EvpKeyFactoryTest {
                 jceSample = (T) jceFactory.generatePublic(spec);
             }
         }
-        // Check is done in both directions to ensure that regardless of who's equality code is run, it still passes.
-        assertEquals(jceSample, nativeSample);
-        assertEquals(nativeSample, jceSample);
+
+        // Currently only Java 10 ECPrivateKeys are not expected to be compatible.
+        final boolean expectJceEncodingCompatibility = !(
+                (TestUtil.getJavaVersion() == 10
+                        && ((jceSample instanceof ECPrivateKeySpec) || (jceSample instanceof ECPrivateKey)))
+
+        );
+
         assertEquals(jceSample.getAlgorithm(), nativeSample.getAlgorithm(), "Algorithm");
         assertEquals(jceSample.getFormat(), nativeSample.getFormat(), "Format");
-        assertArrayEquals(jceSample.getEncoded(), nativeSample.getEncoded(), "Encoded");
-        // This next check is fragile since the JDK might change how it calculates hashcodes,
-        // but we'll try to match it so that us being equal to them will imply equal hash codes.
-        assertEquals(jceSample.hashCode(), nativeSample.hashCode());
+        if (expectJceEncodingCompatibility) {
+            // Equality check is done in both directions to ensure that
+            // regardless of who's equality code is run, it still passes.
+            assertEquals(nativeSample, jceSample);
+            assertEquals(jceSample, nativeSample);
+            // Encoded version is expected to be equal if and only if
+            // compatibility is epxected
+            assertArrayEquals(jceSample.getEncoded(), nativeSample.getEncoded(), "Encoded");
+            // This next check is fragile since the JDK might change how it
+            // calculates hashcodes, but if compatibility is expected, we'll
+            // try to match it so that us being equal to them will imply equal
+            // hash codes.
+            assertEquals(jceSample.hashCode(), nativeSample.hashCode());
+        } else if (jceSample instanceof ECPrivateKey) {
+            assertEquals(((ECPrivateKey) jceSample).getS(), ((ECPrivateKey) nativeSample).getS());
+        } else if (jceSample instanceof ECPrivateKeySpec) {
+            assertEquals(((ECPrivateKeySpec) jceSample).getS(), ((ECPrivateKeySpec) nativeSample).getS());
+        }
 
         // We have special logic for equality checks within our own provider. Try to cover some of that
         assertEquals(nativeSample, nativeSample);
@@ -475,14 +520,23 @@ public class EvpKeyFactoryTest {
         assertEquals(jceKey.getAlgorithm(), nativeKey.getAlgorithm(), "Algorithm");
         assertEquals(jceKey.getFormat(), nativeKey.getFormat(), "Format");
 
-        // We don't check this for RSAPrivateKeySpec
-        // because ACCP *does* act slightly differently from the other JCE providers.
-        // Since RSAPrivateCrtKeySpec extends RSAPrivateKeySpec, we return it whenever possible,
-        // even when RSAPrivateKeySpec is requested.
-        // By doing this we can preserve the CRT parameters through code which may not be aware of them
-        // and thus still have the higher CRT performance after the key is regenerated from them.
-        if (!RSAPrivateKeySpec.class.equals(specKlass)) {
+        // We don't check this for RSAPrivateKeySpec because ACCP *does* act slightly differently from
+        // the other JCE providers. Since RSAPrivateCrtKeySpec extends RSAPrivateKeySpec, we return it
+        // whenever possible, even when RSAPrivateKeySpec is requested. By doing this we can preserve
+        // the CRT parameters through code which may not be aware of them and thus still have the higher
+        // CRT performance after the key is regenerated from them.
+        //
+        // Additionally, due to the Java 10 bug described in the other overload of getSamples, we do not
+        // expect byte-for-byte compatibility of encoded EC private keys in Java 10, but do expect the
+        // private value S to be logically equivalent.
+        final boolean expectJceEncodingCompatibility = !(
+                (TestUtil.getJavaVersion() == 10 && jceSample instanceof ECPrivateKey)
+                    || RSAPrivateKeySpec.class.equals(specKlass)
+        );
+        if (expectJceEncodingCompatibility) {
             assertArrayEquals(jceKey.getEncoded(), nativeKey.getEncoded(), "Encoded");
+        } else if (jceSample instanceof ECPrivateKey) {
+            assertEquals(((ECPrivateKey) jceSample).getS(), ((ECPrivateKey) nativeSample).getS());
         }
         return new Samples<T>(nativeSample, jceSample);
     }

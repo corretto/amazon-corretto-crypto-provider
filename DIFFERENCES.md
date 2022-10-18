@@ -45,7 +45,6 @@ For more information, see the [changelog](./CHANGELOG.md) notes for version 1.5.
 ACCP might overestimate the amount of space needed when encrypted with `AES/GCM/NoPadding` on versions prior to 1.6.0.
 While this is compliant with the JCE (which [permits overestimation](https://docs.oracle.com/javase/8/docs/api/javax/crypto/Cipher.html#getOutputSize-int-)) it has caused confusion for some developers.
 
-
 ## SecureRandom is never deterministic
 Some implementation of `SecureRandom` (such as `SHA1PRNG`, provided by the default OpenJDK cryptographic providers) can operate deterministically if `SecureRandom.setSeed(byte[])` is called prior to any other methods.
 This behavior allows for insecure seeding and might make the application less secure if it requires the `SecureRandom` instance to provide secure entropy (such as for cryptographic use).
@@ -86,3 +85,15 @@ Alternatively, you can request an AES key of a particular size by appending the 
 (Ex: "AES[128]" or "AES[256]")
 This returns a key of the requested strength or an `InvalidKeyException` if the agreed secret is not long enough for the requested AES key length.
 (This method of specifying key size is identical to the way [BouncyCastle](https://bouncycastle.org/java.html) specifies key size for `KeyAgreement.generateSecret(String)`.)
+
+## EC Key Equality For Truncated Keys on OpenJDK 10
+
+The SunEC provider in OpenJDK10 [has a bug](https://github.com/openjdk/jdk10u/blob/master/src/jdk.crypto.ec/share/classes/sun/security/ec/ECPrivateKeyImpl.java#L94) that causes EC keys with 0-valued leading or trailing bytes to be truncated below their standard size.
+This bug is particularly significant for 521-bit EC keys. Because such keys have only a single bit in the most-significant byte, there is a 50% chance of the leading byte being zero.
+Presumably it also affects other key orders, but with much lower probability. For orders divisible by 8, the probability of a leading or trailing byte being zero is only 2\*(1/256) = 1/128.
+This bug was [fixed](https://github.com/openjdk/jdk11u/commit/eb894e22233a26111c096a7833f23fd7b1f7630f#diff-79d013d90386a4e617702723d7579887196260686b4ec06645b64ad08b00ffd6L94) and backported [to OpenJDK11](https://github.com/openjdk/jdk11u/blob/master/src/jdk.crypto.ec/share/classes/sun/security/ec/ECPrivateKeyImpl.java#L118-L125) and [to OpenJDK8](https://github.com/openjdk/jdk8u/blob/master/jdk/src/share/classes/sun/security/ec/ECPrivateKeyImpl.java#L124) (as well as [corretto 8](https://github.com/corretto/corretto-8/blob/develop/jdk/src/share/classes/sun/security/ec/ECPrivateKeyImpl.java#L123-L136) and up). However, it was not backported to JDK10 because JDK10 is End-of-Life'd (EoL'd).
+
+Under this bug, OpenJDK will represent some EC keys' private value `s` with non-standard byte array lengths.
+ACCP always uses the standard byte array length (i.e. the maximum number of bytes a key of that order can occupy).
+Because both [ACCP](https://github.com/corretto/amazon-corretto-crypto-provider/blob/develop/src/com/amazon/corretto/crypto/provider/EvpKey.java#L123-L153) and [OpenJDK](https://github.com/openjdk/jdk10/blob/master/src/java.base/share/classes/sun/security/pkcs/PKCS8Key.java#L411-L423) determine equality by comparing DER encoding byte-by-byte, under this bug some JDK10 keys with an `s` value numerically equivalent to those of ACCP will be considered unequal.
+Given that this bug is only present in JDK10 (and notably not in _any_ Corretto version, nor more recent OpenJDK versions), and that OpenJDK10 is EoL'd and should be migrated away from, this incompatibility is acceptable.

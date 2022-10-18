@@ -154,7 +154,7 @@ abstract class EvpKey implements Key, Destroyable {
 
     @Override
     public int hashCode() {
-        // TODO: Consider ways to avoid exposing the entire encoded object ot Java for private keys just for a hashCode
+        // TODO: Consider ways to avoid exposing the entire encoded object to Java for private keys just for a hashCode
         Integer result = cachedHashCode;
         if (result == null) {
             synchronized (this) {
