@@ -472,6 +472,11 @@ CHECK_LINKER_FLAG_SUPPORT(USE_GC_SECTIONS "-Wl,--gc-sections")
 # Otherwise, on linux, loading our library will mark the stack as executable.
 CHECK_LINKER_FLAG_SUPPORT(USE_NOEXECSTACK "-Wl,-z -Wl,noexecstack")
 
+# Disabling New DTags ensures that RPath is used instead of RunPath (which has lower priority). Since it's likely that
+# other libcrypto.so files will be in LD_LIBRARY_PATH, we need to ensure that we're using RPath so that our copy of
+# libcrypto.so that is extracted into a temp directory at startup is loaded *before* LD_LIBRARY_PATH is checked.
+CHECK_LINKER_FLAG_SUPPORT(USE_DISABLE_NEW_DTAGS "-Wl,--disable-new-dtags")
+
 ### CXX flag tests
 
 CHECK_ENABLE_CXX_FLAG(CXX_FLAG_WALL -Wall)
