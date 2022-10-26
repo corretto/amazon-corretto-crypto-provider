@@ -13,7 +13,7 @@ import org.junit.jupiter.api.extension.ExtensionContext;
  */
 public class NativeTestHooks {
     // Note: Since we're not sealing this package by including it in the JAR, any native functions in here need to be
-    // generally safe to call. Unsafe functions should go in PrivilegedTestHooks instead.
+    // generally safe to call.
 
     public static native void throwException();
     public static native void getBytes(byte[] array, int offset, int length, int off2, int len2);
