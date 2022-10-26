@@ -530,13 +530,16 @@ public class EvpKeyFactoryTest {
         // expect byte-for-byte compatibility of encoded EC private keys in Java 10, but do expect the
         // private value S to be logically equivalent.
         final boolean expectJceEncodingCompatibility = !(
-                (TestUtil.getJavaVersion() == 10 && jceSample instanceof ECPrivateKey)
+                    (TestUtil.getJavaVersion() == 10
+                        && ((jceSample instanceof ECPrivateKeySpec) || (jceSample instanceof ECPrivateKey)))
                     || RSAPrivateKeySpec.class.equals(specKlass)
         );
         if (expectJceEncodingCompatibility) {
             assertArrayEquals(jceKey.getEncoded(), nativeKey.getEncoded(), "Encoded");
         } else if (jceSample instanceof ECPrivateKey) {
             assertEquals(((ECPrivateKey) jceSample).getS(), ((ECPrivateKey) nativeSample).getS());
+        } else if (jceSample instanceof ECPrivateKeySpec) {
+            assertEquals(((ECPrivateKeySpec) jceSample).getS(), ((ECPrivateKeySpec) nativeSample).getS());
         }
         return new Samples<T>(nativeSample, jceSample);
     }
