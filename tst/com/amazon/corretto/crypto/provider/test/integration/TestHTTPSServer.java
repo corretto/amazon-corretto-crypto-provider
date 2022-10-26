@@ -43,6 +43,7 @@ import java.util.function.Consumer;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
+import com.amazon.corretto.crypto.provider.test.TestUtil;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpsConfigurator;
@@ -166,7 +167,8 @@ public class TestHTTPSServer {
         TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
         tmf.init(keyStore);
 
-        SSLContext sslContext = SSLContext.getInstance("TLSv1.3");
+        String tlsVersion = TestUtil.getJavaVersion() == 10 ? "TLS" : "TLSv1.3";
+        SSLContext sslContext = SSLContext.getInstance(tlsVersion);
         sslContext.init(new KeyManager[] { new SNIKeyManager() }, tmf.getTrustManagers(), null);
 
         HttpsServer server = HttpsServer.create();
