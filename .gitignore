@@ -10,3 +10,5 @@
 *.iml
 *.orig
 /.classpath
+tests/ci/cdk/.idea
+tests/ci/cdk/venv
