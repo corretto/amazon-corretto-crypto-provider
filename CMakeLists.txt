@@ -529,6 +529,15 @@ string(STRIP "${PROBED_LINKED_FLAGS}" PROBED_LINKED_FLAGS)
 MESSAGE(STATUS "probed flags ${PROBED_LINKED_FLAGS}")
 target_link_libraries(amazonCorrettoCryptoProvider ${PROBED_LINKED_FLAGS})
 
+# Statically link libc++ and libgcc on linux to avoid compatibility issues with
+# obsolete system libraries on older platforms. These options don't apply to
+# MacOS/Darwin because its gcc is actually an alias to clang, which does not
+# fully support them.
+if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+   target_link_libraries(amazonCorrettoCryptoProvider -static-libstdc++)
+   target_link_libraries(amazonCorrettoCryptoProvider -static-libgcc)
+endif()
+
 # Add pthread support
 target_link_libraries(amazonCorrettoCryptoProvider Threads::Threads)
 
