@@ -56,8 +56,7 @@ public class EcGenTest {
     public static final String[][] LEGACY_CURVES = new String[][] {
             // Prime Curves
             new String[]{"secp224r1", "NIST P-224", "1.3.132.0.33"},
-            // TODO uncomment below pending https://sim.amazon.com/issues/CryptoAlg-1024
-            // new String[]{"secp256k1", "1.3.132.0.10"},
+            new String[]{"secp256k1", "1.3.132.0.10"},
             };
 
     public static final ECParameterSpec EXPLICIT_CURVE;
