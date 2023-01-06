@@ -119,9 +119,9 @@ class EcGen extends KeyPairGeneratorSpi {
 
     private static byte[] encodeSpec(final AlgorithmParameterSpec spec) {
         try {
-            final AlgorithmParameters toEncode = AlgorithmParameters.getInstance("EC");
-            toEncode.init(spec);
-            return toEncode.getEncoded();
+            AlgorithmParameters parameters = AlgorithmParameters.getInstance("EC");
+            parameters.init(spec);
+            return parameters.getEncoded();
         } catch (final GeneralSecurityException | IOException ex) {
             throw new RuntimeCryptoException(ex);
         }

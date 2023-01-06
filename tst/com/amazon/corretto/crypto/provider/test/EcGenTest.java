@@ -46,19 +46,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 @Execution(ExecutionMode.CONCURRENT)
 @ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
 public class EcGenTest {
-    public static final String[][] KNOWN_CURVES = new String[][] {
-            new String[]{"secp256r1", "NIST P-256", "X9.62 prime256v1", /* "prime256v1", */ "1.2.840.10045.3.1.7"},
-            new String[]{"secp384r1", "NIST P-384", "1.3.132.0.34"},
-            new String[]{"secp521r1", "NIST P-521", "1.3.132.0.35"},
-            };
-
-    // Not supported in JDK17
-    public static final String[][] LEGACY_CURVES = new String[][] {
-            // Prime Curves
-            new String[]{"secp224r1", "NIST P-224", "1.3.132.0.33"},
-            new String[]{"secp256k1", "1.3.132.0.10"},
-            };
-
     public static final ECParameterSpec EXPLICIT_CURVE;
     private static final KeyFactory KEY_FACTORY;
 
@@ -100,7 +87,7 @@ public class EcGenTest {
     }
 
     private static String[][] legacyCurveParams() {
-        return LEGACY_CURVES;
+        return TestUtil.LEGACY_CURVES;
     }
 
     @ParameterizedTest
@@ -113,7 +100,7 @@ public class EcGenTest {
     }
 
     private static String[][] knownCurveParams() {
-        return KNOWN_CURVES;
+        return TestUtil.KNOWN_CURVES;
     }
 
     @ParameterizedTest
@@ -235,7 +222,7 @@ public class EcGenTest {
         final byte[] message = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
         // We're purposefully using Java's ECDSA logic, since we trust it to be correct
         final Signature ecdsa = Signature.getInstance("NONEwithECDSA", "SunEC");
-            for (final String[] names : KNOWN_CURVES) {
+            for (final String[] names : TestUtil.KNOWN_CURVES) {
                 for (final String name : names) {
                 nativeGen.initialize(new ECGenParameterSpec(name));
                 final KeyPair keyPair = nativeGen.generateKeyPair();
@@ -257,7 +244,7 @@ public class EcGenTest {
         final byte[] message = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
         // We're purposefully using Java's ECDSA logic, since we trust it to be correct
         final Signature ecdsa = Signature.getInstance("NONEwithECDSA", "SunEC");
-            for (final String[] names : LEGACY_CURVES) {
+            for (final String[] names : TestUtil.LEGACY_CURVES) {
                 for (final String name : names) {
                 nativeGen.initialize(new ECGenParameterSpec(name));
                 final KeyPair keyPair = nativeGen.generateKeyPair();
@@ -291,8 +278,8 @@ public class EcGenTest {
         final KeyPairGenerator[] generators = new KeyPairGenerator[generatorCount];
         for (int x = 0; x < generatorCount; x++) {
             generators[x] = KeyPairGenerator.getInstance("EC", NATIVE_PROVIDER);
-            final int curveIdx = rng.nextInt(KNOWN_CURVES.length);
-            generators[x].initialize(new ECGenParameterSpec(KNOWN_CURVES[curveIdx][0]));
+            final int curveIdx = rng.nextInt(TestUtil.KNOWN_CURVES.length);
+            generators[x].initialize(new ECGenParameterSpec(TestUtil.KNOWN_CURVES[curveIdx][0]));
         }
 
         final List<TestThread> threads = new ArrayList<>();
@@ -349,6 +336,11 @@ public class EcGenTest {
         assertEquals(expected.getOrder(), actual.getOrder(), message);
         assertEquals(expected.getGenerator(), actual.getGenerator(), message);
         assertEquals(expected.getCurve(), actual.getCurve(), message);
+    }
+
+    public static void assertECEquals(final String message, final ECGenParameterSpec expected,
+            final ECGenParameterSpec actual) {
+        assertEquals(expected.getName(), actual.getName(), message);
     }
 
     private static class TestThread extends Thread {

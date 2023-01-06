@@ -41,6 +41,44 @@ public class TestUtil {
     public static final String NATIVE_PROVIDER_PACKAGE =
         NATIVE_PROVIDER.getClass().getName().substring(0, NATIVE_PROVIDER.getClass().getName().lastIndexOf("."));
 
+    public static final String[][] KNOWN_CURVES = new String[][] {
+            new String[]{"secp256r1", "NIST P-256", "X9.62 prime256v1", /* "prime256v1", */ "1.2.840.10045.3.1.7"},
+            new String[]{"secp384r1", "NIST P-384", "1.3.132.0.34"},
+            new String[]{"secp521r1", "NIST P-521", "1.3.132.0.35"},
+            };
+
+    // Not supported in JDK17
+    public static final String[][] LEGACY_CURVES = new String[][] {
+            // Prime Curves
+            new String[]{"secp224r1", "NIST P-224", "1.3.132.0.33"},
+            new String[]{"secp256k1", "1.3.132.0.10"},
+            };
+
+    public static String getCurveOid(String nameOrOid) {
+        if (nameOrOid == null) {
+            return null;
+        }
+        switch(nameOrOid) {
+            case "secp224r1":
+                return "1.3.132.0.33";
+            case "prime256v1":
+            case "secp256r1":
+                return "1.2.840.10045.3.1.7";
+            case "secp256k1":
+                return "1.3.132.0.10";
+            case "secp384r1":
+                return "1.3.132.0.34";
+            case "secp521r1":
+                return "1.3.132.0.35";
+            default:
+                return nameOrOid;    // if no known curve was specified, assume it's an OID
+        }
+    }
+
+    public static boolean isOid(String name) {
+        return name.matches("^[\\d\\.]+$");
+    }
+
     /**
      * Thread local instances of SecureRandom with no further guarantees about implementation or security.
      *

@@ -191,7 +191,7 @@ void raii_env::buffer_lock_trace() {
     int n = 0;
     for (jni_borrow *p = m_last_buffer_lock; p; p = p->m_prior_borrow) {
         n++;
-        std::cerr << "\t" << p << ": \"" << p->m_trace << "\"" << std::endl;
+        std::cerr << "\t" << p << ": \"" << (p->m_trace ? p->m_trace : "NO TRACE") << "\"" << std::endl;
     }
     std::cerr << "End trace (" << n << " locks)" << std::endl;
 
