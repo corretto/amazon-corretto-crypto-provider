@@ -4,16 +4,14 @@
 package com.amazon.corretto.crypto.provider;
 
 import java.math.BigInteger;
-import java.security.AlgorithmParameters;
-import java.security.NoSuchAlgorithmException;
-import java.security.spec.InvalidParameterSpecException;
+import java.nio.ByteBuffer;
 import java.security.spec.ECField;
 import java.security.spec.ECFieldF2m;
 import java.security.spec.ECFieldFp;
-import java.security.spec.ECGenParameterSpec;
 import java.security.spec.ECParameterSpec;
 import java.security.spec.ECPoint;
 import java.security.spec.EllipticCurve;
+import java.util.Arrays;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
@@ -37,55 +35,55 @@ final class EcUtils {
             final byte[] gx = new byte[128];
             final byte[] gy = new byte[128];
             final byte[] order = new byte[128];
-            final BigInteger bnCofactor;
+            final byte[] oid = new byte[128];       // decoded OID of named curve, to be converted to String
+            final byte[] encoded = new byte[128];   // encoded OID of named curve, not explicit params
 
             final int nid = curveNameToInfo(normalizeName(curveName), m, fieldBasis, a, b,
-                    cofactor, gx, gy, order);
-
-            final ECGenParameterSpec namedSpec = new ECGenParameterSpec(curveName);
-            final ECParameterSpec explicitSpec;
-            if (nid != 0) {
-                // OpenSSL knows about this curve by name
-                bnCofactor = new BigInteger(cofactor);
-                if (bnCofactor.compareTo(MAX_COFACTOR) > 0) {
-                    throw new IllegalArgumentException(
-                            "Requested curve has a cofactor which is too large. Curve: " + curveName
-                                    + " cofactor " + bnCofactor);
-                }
-                final ECField field;
-
-                if (m[0] != 0) {
-                    field = new ECFieldF2m(m[0], new BigInteger(fieldBasis));
-                } else {
-                    field = new ECFieldFp(new BigInteger(fieldBasis));
-                }
-
-                final EllipticCurve curve = new EllipticCurve(field, new BigInteger(a), new BigInteger(
-                        b));
-                final ECPoint g = new ECPoint(new BigInteger(gx), new BigInteger(gy));
-                explicitSpec = new ECParameterSpec(curve, g, new BigInteger(order), bnCofactor.intValue());
-            } else {
-                explicitSpec = null;
-            }
-
-            ECParameterSpec spec;
-            try {
-                // First try to translate this to parameters representing a named curve
-                AlgorithmParameters parameters = AlgorithmParameters.getInstance("EC");
-                parameters.init(namedSpec);
-                spec = parameters.getParameterSpec(ECParameterSpec.class);
-            } catch (final InvalidParameterSpecException ex) {
-                if (explicitSpec != null) {
-                    spec = explicitSpec;
-                } else {
-                    // Neither Java nor OpenSSL know about this curve by name, so throw an exception
+                    cofactor, gx, gy, order, oid, encoded);
+            if (nid == 0) {
                     throw new IllegalArgumentException("Invalid curve name: " + curveName);
-                }
-            } catch (final NoSuchAlgorithmException ex) {
-                throw new RuntimeCryptoException(ex);
             }
 
-            return new ECInfo(curveName, spec, nid);
+            final BigInteger bnCofactor = new BigInteger(cofactor);
+            if (bnCofactor.compareTo(MAX_COFACTOR) > 0) {
+                throw new IllegalArgumentException(
+                        "Requested curve has a cofactor which is too large. Curve: " + curveName
+                                + " cofactor " + bnCofactor);
+            }
+            final ECField field;
+            if (m[0] != 0) {
+                field = new ECFieldF2m(m[0], new BigInteger(fieldBasis));
+            } else {
+                field = new ECFieldFp(new BigInteger(fieldBasis));
+            }
+
+            final EllipticCurve curve = new EllipticCurve(field, new BigInteger(a), new BigInteger(b));
+            final ECPoint g = new ECPoint(new BigInteger(gx), new BigInteger(gy));
+
+            final ECParameterSpec spec = new ECParameterSpec(curve, g, new BigInteger(order), bnCofactor.intValue());
+
+            return new ECInfo(
+                curveName,
+                spec,
+                nid,
+                new String(trimTrailingNullBytes(oid)),
+                trimTrailingNullBytes(encoded)
+            );
+        }
+
+        // We need to trim the trailing null bytes from encoded curve OIDs
+        // because BouncyCastle considers them invalid DER and will throw
+        // exceptions on key specs encoded by ACCP.
+        private byte[] trimTrailingNullBytes(byte[] input) {
+            int firstTrailingNullIdx = input.length;
+            for (int i = input.length-1; i >= 0; i--){
+                if (input[i] == (byte) 0) {
+                    firstTrailingNullIdx = i;
+                } else {
+                    break;
+                }
+            }
+            return Arrays.copyOf(input, firstTrailingNullIdx);
         }
 
         private String normalizeName(final String name) {
@@ -93,7 +91,13 @@ final class EcUtils {
             if (matcher.matches()) {
                 switch (matcher.group(1)) {
                     case "P":
-                        return "secp" + matcher.group(2) + "r1";
+                        // AWS-LC uses "prime256v1" instead of secp256r1 as short name
+                        // https://github.com/aws/aws-lc/blob/fb42ac63b765d1be7bb8cb5537bbd31c6c906976/crypto/obj/objects.txt#L106-L107
+                        if ("256".equals(matcher.group(2))) {
+                            return "prime256v1";
+                        } else {
+                            return "secp" + matcher.group(2) + "r1";
+                        }
                     case "K":
                         return "sect" + matcher.group(2) + "k1";
                     case "B":
@@ -108,11 +112,26 @@ final class EcUtils {
                 }
             } else if (name.startsWith("X9.62 ")) {
                 return name.substring(6);
+            } else if (name.equals("secp256r1")) {
+                return "prime256v1";
             } else {
                 return name;
             }
         }
     };
+
+    private static final ConcurrentHashMap<ByteBuffer, String> EC_NAME_BY_ENCODED = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<EllipticCurve, String> EC_NAME_BY_CURVE = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<Integer, String> EC_NAME_BY_KEY_SIZE = new ConcurrentHashMap<>();
+    static {
+        for (String name : getCurveNames()) {
+            getSpecByName(name);                    // warm cache keyed by name, must come before warming by OID
+            getSpecByName(getOidFromName(name));    // warm cache keyed by OID
+            EC_NAME_BY_CURVE.put(getSpecByName(name).spec.getCurve(), name);
+            EC_NAME_BY_KEY_SIZE.put(getSpecByName(name).spec.getCurve().getField().getFieldSize(), name);
+            EC_NAME_BY_ENCODED.put(ByteBuffer.wrap(getSpecByName(name).encoded), name);
+        }
+    }
 
     private static native int curveNameToInfo(String curveName,
             // Array of length 1 to contain the binary field M return value
@@ -127,9 +146,22 @@ final class EcUtils {
             // Generator
             byte[] gx, byte[] gy,
             // Order of the generator
-            byte[] order);
+            byte[] order,
+            // String representation of OID; AWS-LC doensn't specify encoding but it appears to be ASCII/UTF-9
+            byte[] oid,
+            // DER-encoded info: OID for named, ECParameters for explicit (cf. RFC-3279 2.3.5)
+            byte[] encoded);
     private static native long buildGroup(int nid);
     private static native void freeGroup(long ptr);
+    private static native String[] getCurveNames();
+    private static native String getCurveNameFromEncoded(byte[] encoded);
+
+    static String getOidFromName(String name) {
+        if (name == null) {
+            return null;
+        }
+        return getSpecByName(name) == null ? null : getSpecByName(name).oid;
+    }
 
     private EcUtils() {
         // Prevent instantiation
@@ -137,6 +169,29 @@ final class EcUtils {
 
     static ECInfo getSpecByName(final String curveName) {
         return EC_INFO_CACHE.computeIfAbsent(curveName, EC_INFO_LOADER);
+    }
+
+    static String getNameBySpec(final ECParameterSpec spec) {
+        return EC_NAME_BY_CURVE.get(spec.getCurve());
+    }
+
+    static String getNameByKeySize(final Integer keySize) {
+        return EC_NAME_BY_KEY_SIZE.get(keySize);
+    }
+
+    static String getNameByEncoded(final byte[] encoded) {
+        if (encoded == null) {
+            return null;
+        }
+        String name = EC_NAME_BY_ENCODED.get(ByteBuffer.wrap(encoded));
+        if (name == null) {
+            // If we don't recognize the encoding but it's a known curve, add it to the cache
+            name = getCurveNameFromEncoded(encoded);
+            if (name != null) {
+                EC_NAME_BY_ENCODED.put(ByteBuffer.wrap(encoded.clone()), name);
+            }
+        }
+        return name;
     }
 
     static final class ECInfo {
@@ -150,15 +205,20 @@ final class EcUtils {
               }
           }
         };
+
         final String name;
         final ECParameterSpec spec;
         final int nid;
+        final String oid;
+        final byte[] encoded;
 
-        private ECInfo(final String name, final ECParameterSpec spec, final int nid) {
+        private ECInfo(final String name, final ECParameterSpec spec, final int nid, final String oid, final byte[] encoded) {
             super();
             this.name = name;
             this.spec = spec;
             this.nid = nid;
+            this.oid = oid;
+            this.encoded = encoded;
         }
 
         @Override
@@ -195,7 +255,6 @@ final class EcUtils {
         public String toString() {
             return "ECInfo [name=" + name + ", spec=" + spec + ", nid=" + nid + "]";
         }
-
     }
 
     static final class NativeGroup extends NativeResource {

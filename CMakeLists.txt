@@ -589,6 +589,7 @@ if (TEST_JAVA_MAJOR_VERSION VERSION_GREATER_EQUAL 17)
     --add-opens java.base/javax.crypto=ALL-UNNAMED
     --add-opens java.base/java.lang.invoke=ALL-UNNAMED
     --add-opens java.base/java.security=ALL-UNNAMED
+    --add-opens=java.base/sun.security.util=ALL-UNNAMED
     --add-exports jdk.crypto.ec/sun.security.ec=java.base
     )
 endif()
@@ -693,6 +694,7 @@ add_custom_target(check-install-via-properties
     COMMAND ${TEST_JAVA_EXECUTABLE}
         ${COVERAGE_ARGUMENTS}
         ${TEST_FIPS_PROPERTY}
+        ${TEST_ADD_OPENS}
         -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
         ${EXTERNAL_LIB_PROPERTY}
         -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
@@ -709,6 +711,7 @@ add_custom_target(check-external-lib
     COMMAND ${TEST_JAVA_EXECUTABLE}
         ${COVERAGE_ARGUMENTS}
         ${TEST_FIPS_PROPERTY}
+        ${TEST_ADD_OPENS}
         -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
         # Since this tests external loading we always provide this property
         -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
@@ -725,6 +728,7 @@ add_custom_target(check-install-via-properties-recursive
     COMMAND ${TEST_JAVA_EXECUTABLE}
         ${COVERAGE_ARGUMENTS}
         ${TEST_FIPS_PROPERTY}
+        ${TEST_ADD_OPENS}
         -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
         ${EXTERNAL_LIB_PROPERTY}
         -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
@@ -739,6 +743,7 @@ add_custom_target(check-install-via-properties-with-debug
     COMMAND ${TEST_JAVA_EXECUTABLE}
         ${COVERAGE_ARGUMENTS}
         ${TEST_FIPS_PROPERTY}
+        ${TEST_ADD_OPENS}
         -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
         ${EXTERNAL_LIB_PROPERTY}
         -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2

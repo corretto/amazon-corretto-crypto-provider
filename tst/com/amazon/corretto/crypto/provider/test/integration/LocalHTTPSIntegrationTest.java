@@ -150,7 +150,7 @@ public class LocalHTTPSIntegrationTest {
             fail("Server died");
         }
 
-        Security.insertProviderAt(AmazonCorrettoCryptoProvider.INSTANCE, 1);
+        AmazonCorrettoCryptoProvider.install();
 
         Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
         assertEquals(AmazonCorrettoCryptoProvider.INSTANCE, c.getProvider());

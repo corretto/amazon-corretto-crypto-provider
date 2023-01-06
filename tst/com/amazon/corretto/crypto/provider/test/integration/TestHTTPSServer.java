@@ -261,6 +261,12 @@ public class TestHTTPSServer {
         javaInvocation.add("-cp");
         javaInvocation.add(classpathString.toString());
         javaInvocation.add("-Djava.library.path=" + System.getProperty("java.library.path"));
+        // NOTE: the below debug parameter is useful when debugging server-side
+        //       issues that occur before the TLS handshake has completed (e.g.
+        //       certificate signature mismatches) and test log utilitiess at
+        //       the HTTPS level are available.
+        //
+        //       javaInvocation.add("-Djavax.net.debug=all");
         javaInvocation.addAll(Arrays.asList(args));
 
         return Runtime.getRuntime().exec(javaInvocation.toArray(new String[0]));
