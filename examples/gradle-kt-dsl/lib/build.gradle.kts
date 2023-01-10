@@ -1,11 +1,9 @@
 val accpVersion = "1.6.1"
-val archEnv = System.getenv("ARCH")?: "x86_64"
-//val fips = if (System.getenv("FIPS") == null) "" else "-FIPS"
-println("ARCH to be used: $archEnv")
 
 plugins {
     // Apply the org.jetbrains.kotlin.jvm Plugin to add support for Kotlin.
     id("org.jetbrains.kotlin.jvm") version "1.6.21"
+    id("com.google.osdetector") version "1.7.0"
 
     // Apply the java-library plugin for API and implementation separation.
     `java-library`
@@ -29,5 +27,5 @@ dependencies {
     // Use the Kotlin JUnit integration.
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit")
 
-    testImplementation("software.amazon.cryptools:AmazonCorrettoCryptoProvider:$accpVersion:linux-$archEnv")
+    testImplementation("software.amazon.cryptools:AmazonCorrettoCryptoProvider:$accpVersion:${osdetector.classifier}")
 }
