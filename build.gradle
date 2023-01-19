@@ -217,7 +217,7 @@ task executeCmake(type: Exec) {
 
     if (prebuiltJar != null) {
        args '-DSIGNED_JAR=' + prebuiltJar
-       print "Using SIGNED_JAR=${prebuiltJar}"
+       println "Using SIGNED_JAR=${prebuiltJar}"
     }
 
     if (System.properties['JAVA_HOME'] != null) {
@@ -643,6 +643,7 @@ if (project.hasProperty('mavenUser') && project.hasProperty('jcecertAlias')) {
             println "StagingId: ${idAsString}"
         }
     }
+
     releaseSonatypeStagingRepository {
         if (System.properties['stagingProperties']) {
             def stagingProperties = new Properties()
@@ -655,10 +656,8 @@ if (project.hasProperty('mavenUser') && project.hasProperty('jcecertAlias')) {
             }
             println "Loaded staging id is " + stagingProperties['staging.id']
             stagingRepositoryId = stagingProperties['staging.id']
-        }
-        doFirst {
-            // TODO: Remove this once we want to automate releases
-            ant.fail("Release from gradle is currently disabled")
+        } else {
+            ant.fail('Insufficient configuration for releasing')
         }
     }
 } else {
@@ -674,6 +673,7 @@ if (project.hasProperty('mavenUser') && project.hasProperty('jcecertAlias')) {
         }
     }
 }
+
 task clean(overwrite: true, type: Delete) {
    delete "${buildDir}/cmake"
    delete "${buildDir}/cmake-coverage"
