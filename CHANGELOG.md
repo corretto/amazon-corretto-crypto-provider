@@ -1,36 +1,57 @@
 # Changelog
 
 ## 2.0.0 (Unreleased)
-### Breaking Changes
-* Use [AWS-LC](https://github.com/awslabs/aws-lc/) as the backing native cryptography library for ACCP
+
+### Overview
+This is a new major release of ACCP. We provide build artifacts for Linux-x86
+and Linux-aarch64, which can be accessed either from the release section on
+Github, or via Maven Central.
+
+This version uses [AWS-LC](https://github.com/awslabs/aws-lc/) instead of
+OpenSSL (version 1.1.1j) as the underlying cryptographic library. The switch
+provides advantages over the previous version of ACCP, such as improved
+performance due to optimized assembly implementations of some cryptographic
+algorithms in AWS-LC. These optimizations are beneficial for AWS Graviton users
+as well as x86 based platforms; moreover, rigorous testing and formal
+verification in AWS-LC’s development lifecycle reduces the risk of security
+vulnerabilities.
+
+This version is not backward compatible and the differences may affect your
+application. Some major features, such as non-EC DSA and non-EC DH key exchange
+algorithms, are removed. Other minor changes include, the implementation of the
+SecureRandom relies on AWS-LC’s DRBG and the name is changed from
+`NIST800-90A/AES-CTR-256` to `LibCryptoRng`.
+
+
+This is a major release that includes some breaking changes. ACCP has switched to using [AWS-LC](https://github.com/awslabs/aws-lc/) instead of OpenSSL as the backing native crypto engine. This transition has improved the performance of ACCP. We have tried to keep the breaking changes minimal, but they have been deemed necessary. [Optimized assembly implementation of algorithms and the usage of formal verification in AWS-LC](https://github.com/awslabs/aws-lc/blob/main/README.md) are among the reasons for ACCP to switch from OpenSSL to AWS-LC. Some of these examples include dropping the support for non-EC DSA and DH key exchange algorithms; moreover, AWS-LC and OpenSSL are not 100% compatible. We have tried to keep the incompatibilities hidden from ACCP users, and we will deal with such scenarios case by case in the future.
+
+
+### Major changes
+* Support build and releases for Linux x86 and Linux aarch64
+* Use [AWS-LC](https://github.com/awslabs/aws-lc/) as the as the underlying cryptographic library
 * Drop support for (non-EC) DSA signatures
 * Drop support for (non-EC) Diffie-Hellman key exchange
 * Drop support for `secp192r1`, as well as most other non-NIST "legacy" curves
+* Drop RDRAND-seeded, AES-CTR SecureRandom implementation
+* Add SecureRandom implementation backed by AWS-LC DRBG
+* Add AES key wrapping (a.k.a. KWP mode of AES)
+* Add RSA OAEP cipher padding over SHA2 hashes
+* Add RSA PSS signature padding over SHA1 and SHA2 hashes
 
-### Improvements
+### Minor changes
 * Add support for AES Ciphers with specific key sizes (GCM, no padding)
-* Use AWS-LC's DRBG for `SecureRandom`, drop custom java implementation
 * Track the AWS-LC dependency as a git submodule instead of downloaded tarball
-* Add "help" value to two of our properties which outputs (to STDERR) valid values.
-   * `com.amazon.corretto.crypto.provider.extrachecks`
-   * `com.amazon.corretto.crypto.provider.debug`
-* Add new `com.amazon.corretto.crypto.provider.debug` property to gate possibly expensive debug logic.
-Current values are:
-   * `FreeTrace` - Enables tracking of allocation and freeing of native objects from java for more detailed exceptions.
-   * `VerboseLogging` - Enables more detailed logging.
-   * `ALL` - Enables all of the above
-(May still require changes to your logging configuration to see the new logs.)
-* Enables skipping the bundled lib by setting the system property `com.amazon.corretto.crypto.provider.useExternalLib` [PR #168](https://github.com/corretto/amazon-corretto-crypto-provider/pull/168)
-* External integration tests now skip certificate validation for expired certificates.
-   This is to work around external sites which may have allowed their certificates to expire.
-   [PR #190](https://github.com/corretto/amazon-corretto-crypto-provider/pull/189)
-* Allows developers to run `clang-tidy` against the source by passing `-DUSE_CLANG_TIDY=true` to gradlew.
-   Example: `./gradlew -DUSE_CLANG_TIDY=true build`
-   This may require deleting `build/cmake` prior to running.
-   [PR #191](https://github.com/corretto/amazon-corretto-crypto-provider/pull/191)
-* Add `KeyFactory` implementations for RSA and EC keys. This also includes our own implementations of keys for the same algorithms. [PR #132](https://github.com/corretto/amazon-corretto-crypto-provider/pull/132)
-* Added `amazon-corretto-crypto-provider-jdk15.security` to support JDK15+.
-* Add support for MacOS
+* Improving the [configuration](https://github.com/corretto/amazon-corretto-crypto-provider#configuration) and system properties that control ACCP’s behavior
+* External integration tests now skip certificate validation for expired certificates; this is to work around external sites which may have allowed their certificates to expire [PR #190](https://github.com/corretto/amazon-corretto-crypto-provider/pull/189)
+* Allows developers to run `clang-tidy` against the source by passing `-DUSE_CLANG_TIDY=true` to gradlew
+   * Example: `./gradlew -DUSE_CLANG_TIDY=true build`
+   * This may require deleting `build/cmake` prior to running [PR #191](https://github.com/corretto/amazon-corretto-crypto-provider/pull/191)
+* Add `KeyFactory` implementations for RSA and EC keys. This also includes our own implementations of keys for the same algorithms [PR #132](https://github.com/corretto/amazon-corretto-crypto-provider/pull/132)
+* Added `amazon-corretto-crypto-provider-jdk15.security` to support JDK15+
+* Add support for MacOS builds for development
+* Add TLS 1.3 to local integ tests
+* Fix libaccp builds for GCC 4.1.2
+* Load AWS-LC using RPATH, restrict its symbols into a local object group
 
 ### Patches
 * Improve zeroization of DRBG output. [PR #162](https://github.com/corretto/amazon-corretto-crypto-provider/pull/162)
