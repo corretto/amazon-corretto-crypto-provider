@@ -1,4 +1,4 @@
-val accpVersion = "1.6.1"
+val accpVersion = "2.0.0"
 
 plugins {
     // Apply the org.jetbrains.kotlin.jvm Plugin to add support for Kotlin.

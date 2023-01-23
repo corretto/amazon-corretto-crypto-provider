@@ -1,8 +1,34 @@
 # Changelog
 
 ## 2.0.0 (Unreleased)
+
+### Overview
+This is a new major release of ACCP. We provide build artifacts for Linux-x86
+and Linux-aarch64, which can be accessed either from the release section on
+Github, or via Maven Central.
+
+This version uses [AWS-LC](https://github.com/awslabs/aws-lc/) instead of
+OpenSSL (version 1.1.1j) as the underlying cryptographic library. The switch
+provides advantages over the previous version of ACCP, such as improved
+performance due to optimized assembly implementations of some cryptographic
+algorithms in AWS-LC. These optimizations are beneficial for AWS Graviton users
+as well as x86 based platforms; moreover, rigorous testing and formal
+verification in AWS-LC’s development lifecycle reduces the risk of security
+vulnerabilities.
+
+This version is not backward compatible and the differences may affect your
+application. Some major features, such as non-EC DSA and non-EC DH key exchange
+algorithms, are removed. Other minor changes include, the implementation of the
+SecureRandom relies on AWS-LC’s DRBG and the name is changed from
+`NIST800-90A/AES-CTR-256` to `LibCryptoRng`.
+
+
+This is a major release that includes some breaking changes. ACCP has switched to using [AWS-LC](https://github.com/awslabs/aws-lc/) instead of OpenSSL as the backing native crypto engine. This transition has improved the performance of ACCP. We have tried to keep the breaking changes minimal, but they have been deemed necessary. [Optimized assembly implementation of algorithms and the usage of formal verification in AWS-LC](https://github.com/awslabs/aws-lc/blob/main/README.md) are among the reasons for ACCP to switch from OpenSSL to AWS-LC. Some of these examples include dropping the support for non-EC DSA and DH key exchange algorithms; moreover, AWS-LC and OpenSSL are not 100% compatible. We have tried to keep the incompatibilities hidden from ACCP users, and we will deal with such scenarios case by case in the future.
+
+
 ### Major changes
-* Use [AWS-LC](https://github.com/awslabs/aws-lc/) as the backing native cryptography library for ACCP
+* Support build and releases for Linux x86 and Linux aarch64
+* Use [AWS-LC](https://github.com/awslabs/aws-lc/) as the as the underlying cryptographic library
 * Drop support for (non-EC) DSA signatures
 * Drop support for (non-EC) Diffie-Hellman key exchange
 * Drop support for `secp192r1`, as well as most other non-NIST "legacy" curves
@@ -15,16 +41,7 @@
 ### Minor changes
 * Add support for AES Ciphers with specific key sizes (GCM, no padding)
 * Track the AWS-LC dependency as a git submodule instead of downloaded tarball
-* Add "help" value to two of our properties which outputs (to STDERR) valid values
-   * `com.amazon.corretto.crypto.provider.extrachecks`
-   * `com.amazon.corretto.crypto.provider.debug`
-* Add new `com.amazon.corretto.crypto.provider.debug` property to gate possibly expensive debug logic; current values are:
-   * `FreeTrace` - Enables tracking of allocation and freeing of native objects from java for more detailed exceptions
-   * `VerboseLogging` - Enables more detailed logging
-   * `ALL` - Enables all of the above
-* Add new property `com.amazon.corretto.crypto.provider.cacheselftestresults` to control if the result of self tests should be cached or not
-(May still require changes to your logging configuration to see the new logs.)
-* Enables skipping the bundled lib by setting the system property `com.amazon.corretto.crypto.provider.useExternalLib` [PR #168](https://github.com/corretto/amazon-corretto-crypto-provider/pull/168)
+* Improving the [configuration](https://github.com/corretto/amazon-corretto-crypto-provider#configuration) and system properties that control ACCP’s behavior
 * External integration tests now skip certificate validation for expired certificates; this is to work around external sites which may have allowed their certificates to expire [PR #190](https://github.com/corretto/amazon-corretto-crypto-provider/pull/189)
 * Allows developers to run `clang-tidy` against the source by passing `-DUSE_CLANG_TIDY=true` to gradlew
    * Example: `./gradlew -DUSE_CLANG_TIDY=true build`
