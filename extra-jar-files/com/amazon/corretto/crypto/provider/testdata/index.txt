@@ -1,3 +1,13 @@
+ctr-drbg.txt:
+  http://csrc.nist.gov/groups/STM/cavp/random-number-generation.html#drbg
+  http://csrc.nist.gov/groups/STM/cavp/documents/drbg/drbgtestvectors.zip
+  Data extracted for "AES-256 no df" from drbgvectors_pr_true.zip\CTR_DRBG.txt
+  See license information in THIRD_PARTY or https://www.nist.gov/open/license
+  CAVS 14.3
+  DRBG800-90A information for "drbg_pr"
+  Generated on Tue Apr 02 15:51:40 2013
+  032a2093f150701b859f5c673ee1657b5d51a248ab19b767f08ec0f9100f6871a28e49eee0cd5db655515752a0110d3bf72a6698415a05fcb437af5b6d62d916
+
 hmac.txt:
   sha2 lines come from RFC4231
   sha1 and md5 lines come from RFC2202

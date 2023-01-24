@@ -285,11 +285,6 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
         if (selfTestSuite == null) {
             selfTestSuite = new SelfTestSuite();
         }
-        selfTestSuite.addSelfTest(HmacSHA512Spi.SELF_TEST);
-        selfTestSuite.addSelfTest(HmacSHA384Spi.SELF_TEST);
-        selfTestSuite.addSelfTest(HmacSHA256Spi.SELF_TEST);
-        selfTestSuite.addSelfTest(HmacSHA1Spi.SELF_TEST);
-        selfTestSuite.addSelfTest(HmacMD5Spi.SELF_TEST);
 
         if (isRdRandSupported()) {
             // AES-CTR DRBG requires RDRAND. Run self-test only if RDRAND is supported.
