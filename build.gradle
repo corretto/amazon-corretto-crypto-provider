@@ -216,8 +216,8 @@ task executeCmake(type: Exec) {
         prebuiltJar = "${projectDir}/" + System.properties['prebuiltJar']
     }
 
-    executable 'cmake'
-    args 'cmake', "-DTEST_CLASSPATH=${configurations.testDep.asPath}", "-DJACOCO_AGENT_JAR=${configurations.jacocoAgent.singleFile}"
+    executable cmakeBin
+    args "-DTEST_CLASSPATH=${configurations.testDep.asPath}", "-DJACOCO_AGENT_JAR=${configurations.jacocoAgent.singleFile}"
     args "-DOPENSSL_ROOT_DIR=${buildDir}/openssl/bin", '-DCMAKE_BUILD_TYPE=Release', '-DPROVIDER_VERSION_STRING=' + version
     args "-DTEST_RUNNER_JAR=${configurations.testRunner.singleFile}"
     args "-DCHECKSTYLE_CP=${configurations.checkstyle.asPath}"
@@ -388,6 +388,11 @@ task coverage_clean(type: Delete) {
         include '**/*.gcda'
     }
     delete "${buildDir}/reports/cpp"
+}
+
+task cmake_clean(type: Delete) {
+    delete "${buildDir}/cmake"
+    delete "${buildDir}/cmake-coverage"
 }
 
 task coverage_cmake(type: Exec) {
