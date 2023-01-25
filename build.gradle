@@ -38,7 +38,10 @@ jmh {
 
     sourceSets {
         jmh.java.srcDirs += files(["${rootDir}/build/cmake"])
-        main.java.srcDirs += files(["${rootDir}/src/com/amazon/corretto/crypto/provider"])
+        main.java.srcDirs += files([
+            "${rootDir}/build/cmake",
+            "${rootDir}/src/com/amazon/corretto/crypto/provider"
+        ])
     }
 }
 
@@ -62,25 +65,6 @@ def detect_cmake3 = {
 }
 
 def cmakeBin = detect_cmake3()
-
-ext.isJceSigned = { pathToJar ->
-    def stdout = new ByteArrayOutputStream()
-    exec {
-        executable "jarsigner"
-        args "-verify", pathToJar
-        standardOutput = stdout;
-    }
-    return stdout.toString().contains("jar verified")
-}
-
-ext.assertJceSigned = { pathToJar ->
-    if (!isJceSigned(pathToJar)) {
-        ant.fail("${pathToJar} is not signed")
-    } else {
-        println "${pathToJar} is signed"
-    }
-    return pathToJar
-}
 
 configurations {
     openssl
@@ -221,6 +205,7 @@ task executeCmake(type: Exec) {
     args "-DOPENSSL_ROOT_DIR=${buildDir}/openssl/bin", '-DCMAKE_BUILD_TYPE=Release', '-DPROVIDER_VERSION_STRING=' + version
     args "-DTEST_RUNNER_JAR=${configurations.testRunner.singleFile}"
     args "-DCHECKSTYLE_CP=${configurations.checkstyle.asPath}"
+    args "-DCMAKE_VERBOSE_MAKEFILE:BOOL=ON"
 
     if (prebuiltJar != null) {
        args '-DSIGNED_JAR=' + prebuiltJar
@@ -276,6 +261,8 @@ task build(overwrite:true) {
         }
     }
 }
+compileJmhJava.dependsOn build_objects
+compileJava.dependsOn build_objects
 
 task emptyJar(type: Jar) {
     archiveFileName = 'empty.jar'
