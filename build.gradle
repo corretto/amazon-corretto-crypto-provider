@@ -19,7 +19,6 @@ def openssl_version = '1.1.1n'
 def opensslSrcPath = "${buildDir}/openssl/openssl-${openssl_version}"
 
 jmh {
-    includeTests = true
     fork = 1
     benchmarkMode = ['thrpt']
     threads = 1
@@ -32,7 +31,7 @@ jmh {
     resultFormat = 'JSON'
     duplicateClassesStrategy = DuplicatesStrategy.WARN
     jvmArgs = [
-        "-Djava.library.path=${rootDir}/build/cmake:" + System.getProperty("java.library.path") + ":/usr/lib/jvm/java/lib",
+        "-Djava.library.path=${rootDir}/build/cmake:" + System.getProperty("java.library.path"),
         "-DversionStr=${version}",
     ]
 
