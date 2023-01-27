@@ -9,7 +9,6 @@ import org.openjdk.jmh.infra.Blackhole;
 
 import java.security.Provider;
 import java.security.Security;
-import java.security.Key;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
@@ -18,32 +17,41 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
 @State(Scope.Benchmark)
 public class Hmac {
-    @Param({ "SHA256" })
+    @Param({ "SHA-256", "SHA-384", "SHA-512" })
     public String hash;
-
-    @Param({ "1024", "65536" })
-    public int size;
 
     @Param({ AmazonCorrettoCryptoProvider.PROVIDER_NAME, "BC", "SunJCE" })
     public String provider;
 
-    protected Key key;
-    private byte[] data;
+    private byte[] data_8B;
+    private byte[] data_1KiB;
+    private byte[] data_64KiB;
     private Mac mac;
 
     @Setup
     public void setup() throws Exception {
         BenchmarkUtils.setupProvider(provider);
         final String algorithm = "Hmac" + hash;
-        data = BenchmarkUtils.getRandBytes(size);
+        data_8B = BenchmarkUtils.getRandBytes(8);
+        data_1KiB = BenchmarkUtils.getRandBytes(1024);
+        data_64KiB = BenchmarkUtils.getRandBytes(64 * 1024);
         mac = Mac.getInstance(algorithm, provider);
-        key = new SecretKeySpec(BenchmarkUtils.getRandBytes(mac.getMacLength()), algorithm);
-        mac.init(key);
+        mac.init(new SecretKeySpec(BenchmarkUtils.getRandBytes(mac.getMacLength()), algorithm));
     }
 
     @Benchmark
-    public byte[] oneShot() {
-        return mac.doFinal(data);
+    public byte[] oneShotSmall_8B() {
+        return mac.doFinal(data_8B);
+    }
+
+    @Benchmark
+    public byte[] oneShotMedium_1KiB() {
+        return mac.doFinal(data_1KiB);
+    }
+
+    @Benchmark
+    public byte[] oneShotMedium_64KiB() {
+        return mac.doFinal(data_64KiB);
     }
 }
 

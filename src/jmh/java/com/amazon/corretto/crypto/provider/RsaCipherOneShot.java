@@ -17,7 +17,7 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
 @State(Scope.Benchmark)
 public class RsaCipherOneShot {
-    @Param({ "2048" })
+    @Param({ "2048", "4096" })
     public int keyBits;
 
     @Param({ AmazonCorrettoCryptoProvider.PROVIDER_NAME, "BC", "SunJCE" })
