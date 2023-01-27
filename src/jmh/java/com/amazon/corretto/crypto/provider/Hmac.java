@@ -17,7 +17,7 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
 @State(Scope.Benchmark)
 public class Hmac {
-    @Param({ "SHA-256", "SHA-384", "SHA-512" })
+    @Param({ "SHA256", "SHA384", "SHA512" })
     public String hash;
 
     @Param({ AmazonCorrettoCryptoProvider.PROVIDER_NAME, "BC", "SunJCE" })
