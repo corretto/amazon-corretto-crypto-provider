@@ -9,8 +9,7 @@
 # $ SINGLE_TEST=com.amazon.corretto.crypto.provider.test.EvpSignatureTest
 # $ ./gradlew minimal_clean && ./gradlew single_test -DSINGLE_TEST=${SINGLE_TEST}
 
-
-FROM ubuntu:20.04
+FROM public.ecr.aws/ubuntu/ubuntu:20.04_stable
 
 # install corretto JDK
 ARG DEBIAN_FRONTEND=noninteractive

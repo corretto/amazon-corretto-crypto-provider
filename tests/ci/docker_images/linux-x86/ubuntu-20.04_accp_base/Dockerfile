@@ -1,7 +1,7 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-FROM ubuntu:20.04
+FROM public.ecr.aws/ubuntu/ubuntu:20.04_stable
 
 SHELL ["/bin/bash", "-c"]
 
