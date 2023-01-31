@@ -656,8 +656,6 @@ if (project.hasProperty('mavenUser') && project.hasProperty('jcecertAlias')) {
             }
             println "Loaded staging id is " + stagingProperties['staging.id']
             stagingRepositoryId = stagingProperties['staging.id']
-        } else {
-            ant.fail('Insufficient configuration for releasing')
         }
     }
 } else {
