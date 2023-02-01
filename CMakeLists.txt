@@ -534,8 +534,14 @@ target_link_libraries(amazonCorrettoCryptoProvider ${PROBED_LINKED_FLAGS})
 # MacOS/Darwin because its gcc is actually an alias to clang, which does not
 # fully support them.
 if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-   target_link_libraries(amazonCorrettoCryptoProvider -static-libstdc++)
-   target_link_libraries(amazonCorrettoCryptoProvider -static-libgcc)
+    message(STATUS "System name matches linux. Checking if -static-libstdc++ and -static-libgcc are supported by the compiler.")
+    CHECK_ENABLE_CXX_FLAG(CXX_SUPPORT_STATIC_LIBSTDCPP -static-libstdc++)
+    CHECK_ENABLE_CXX_FLAG(CXX_SUPPORT_STATIC_LIBGCC -static-libgcc)
+    if(CXX_SUPPORT_STATIC_LIBSTDCPP AND CXX_SUPPORT_STATIC_LIBGCC)
+        message(STATUS "Using -static-libstdc++ and -static-libgcc flags")
+        target_link_libraries(amazonCorrettoCryptoProvider -static-libstdc++)
+        target_link_libraries(amazonCorrettoCryptoProvider -static-libgcc)
+    endif()
 endif()
 
 # Add pthread support
