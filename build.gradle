@@ -8,11 +8,42 @@ plugins {
     id "io.github.gradle-nexus.publish-plugin" version "1.1.0"
     id 'signing'
     id "com.google.osdetector" version "1.7.0"
+    id "me.champeau.jmh" version "0.6.7"
+    id "io.morethan.jmhreport" version "0.9.0"
+    id 'java'
 }
 
 group = 'software.amazon.cryptools'
 version = '2.0.0'
 ext.isFips = Boolean.getBoolean('FIPS')
+
+jmh {
+    fork = 1
+    benchmarkMode = ['thrpt']
+    threads = 1
+    timeUnit = 's'
+    iterations = 5
+    timeOnIteration = '3s'
+    warmup = '1s'
+    warmupForks = 1
+    warmupIterations = 3
+    resultFormat = 'JSON'
+    duplicateClassesStrategy = DuplicatesStrategy.WARN
+    jvmArgs = [
+        "-Djava.library.path=${rootDir}/build/cmake:" + System.getProperty("java.library.path"),
+        "-DversionStr=${version}",
+    ]
+
+    sourceSets {
+        jmh.java.srcDirs += files(["${rootDir}/build/cmake"])
+        main.java.srcDirs += files(["${rootDir}/src/com/amazon/corretto/crypto/provider"])
+    }
+}
+
+jmhReport {
+    jmhResultPath = project.file('build/results/jmh/results.json')
+    jmhReportOutput = project.file('build/results/jmh')
+}
 
 def awslcSrcPath = "${projectDir}/aws-lc/"
 
@@ -83,6 +114,8 @@ dependencies {
 
     // Separate so we can extract the jar for the checker specifically
     checkstyle group: 'com.puppycrawl.tools', name: 'checkstyle', version: '9.3'
+
+    jmh 'org.bouncycastle:bcprov-debug-jdk15on:1.69'
 
     testDep 'org.apiguardian:apiguardian-api:1.1.2'
     testDep 'org.junit.jupiter:junit-jupiter:5.8.2'
@@ -279,6 +312,7 @@ task build(overwrite:true) {
         }
     }
 }
+compileJmhJava.dependsOn build
 
 task emptyJar(type: Jar) {
     archiveFileName = 'empty.jar'
@@ -286,7 +320,7 @@ task emptyJar(type: Jar) {
     destinationDirectory = file("${buildDir}/lib")
 }
 
-task javadoc(type: Jar) {
+task accp_javadoc(type: Jar) {
     dependsOn executeCmake
     doFirst {
         mkdir "${buildDir}/lib"
@@ -300,6 +334,7 @@ task javadoc(type: Jar) {
     destinationDirectory = file("${buildDir}/lib")
     from "${buildDir}/cmake/javadoc/AmazonCorrettoCryptoProvider/"
 }
+javadoc.dependsOn accp_javadoc
 
 task src_jar {
     dependsOn executeCmake
@@ -341,7 +376,7 @@ task test_exec(type: Exec) {
     commandLine 'make', 'check'
 }
 
-task test(type: Copy) {
+task unit_tests(type: Copy) {
     doFirst {
         mkdir "${buildDir}/reports/unit-tests"
     }
@@ -349,6 +384,7 @@ task test(type: Copy) {
     from "${buildDir}/cmake/unit-tests/"
     into "${buildDir}/reports/unit-tests"
 }
+test.dependsOn unit_tests
 
 task checkstyle(type: Exec) {
     dependsOn executeCmake
