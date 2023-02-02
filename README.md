@@ -121,6 +121,14 @@ The below snippet will pull in all versions of ACCP prior to the 2.0.0 release. 
 </dependency>
 ```
 
+ACCP artifacts on Maven can be verified using the following PGP keys:
+
+| ACCP Version  | PGP Key ID       | Key Server |
+|---------------|------------------|------------|
+| 1.x | 6F189046CEE0B2C1 | keyserver.ubuntu.com |
+| 2.x | 5EFEEFE6BD0BD916 | keyserver.ubuntu.com |
+
+
 ### Gradle
 Add the following to your `build.gradle` file. If you already have a
 `dependencies` block in your `build.gradle`, you can add the ACCP line to your

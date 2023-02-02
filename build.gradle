@@ -16,6 +16,7 @@ plugins {
 group = 'software.amazon.cryptools'
 version = '2.0.0'
 ext.isFips = Boolean.getBoolean('FIPS')
+ext.isLegacyBuild = Boolean.getBoolean('LEGACY_BUILD')
 
 jmh {
     fork = 1
@@ -150,7 +151,7 @@ task buildAwsLc {
         // directory arguments is slightly different.
         // FIPS isn't tested for this dimension. The only thing we care about for the
         // legacy build is non C++11 and CMake 3.9 compatibility.
-        if (Boolean.getBoolean('LEGACY_BUILD')) {
+        if (isLegacyBuild) {
             exec {
                 workingDir cMakeBuildDir
                 executable cmakeBin
@@ -533,7 +534,11 @@ task coverage {
 }
 
 task release {
-    dependsOn build, test, coverage, javadoc, src_jar, checkstyle
+    if (isLegacyBuild) {
+        dependsOn build, test, javadoc, src_jar, checkstyle
+    } else {
+        dependsOn build, test, coverage, javadoc, src_jar, checkstyle
+    }
 }
 
 task overkill {
