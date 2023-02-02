@@ -334,6 +334,7 @@ task accp_javadoc(type: Jar) {
     destinationDirectory = file("${buildDir}/lib")
     from "${buildDir}/cmake/javadoc/AmazonCorrettoCryptoProvider/"
 }
+javadoc.dependsOn accp_javadoc
 
 task src_jar {
     dependsOn executeCmake
@@ -383,6 +384,7 @@ task unit_tests(type: Copy) {
     from "${buildDir}/cmake/unit-tests/"
     into "${buildDir}/reports/unit-tests"
 }
+test.dependsOn unit_tests
 
 task checkstyle(type: Exec) {
     dependsOn executeCmake
@@ -531,11 +533,11 @@ task coverage {
 }
 
 task release {
-    dependsOn build, unit_tests, coverage, accp_javadoc, src_jar, checkstyle
+    dependsOn build, test, coverage, javadoc, src_jar, checkstyle
 }
 
 task overkill {
-    dependsOn unit_tests, test_extra_checks, test_integration, test_integration_extra_checks, dieharder_all
+    dependsOn test, test_extra_checks, test_integration, test_integration_extra_checks, dieharder_all
 }
 
 task fakePublish {
