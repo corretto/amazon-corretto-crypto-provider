@@ -209,7 +209,7 @@ in our repository.
 ### Modify the JVM settings
 Modify the `java.security` file provided by your JVM so that the highest priority provider is the Amazon Corretto Crypto Provider.
 Look at [amazon-corretto-crypto-provider.security](./etc/amazon-corretto-crypto-provider.security) (JDKs 11 and older)
-or [amazon-corretto-crypto-provider-jdk15.security](./etc/amazon-corretto-crypto-provider-modules.security) (for JDKs newer than 11)
+or [amazon-corretto-crypto-provider-jdk15.security](./etc/amazon-corretto-crypto-provider-jdk15.security) (for JDKs newer than 11)
 for an example of what this change will look like.
 
 ### Verification (Optional)
