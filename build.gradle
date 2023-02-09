@@ -9,9 +9,9 @@ plugins {
 }
 
 group = 'software.amazon.cryptools'
-version = '1.6.1'
+version = '1.6.2'
 
-def openssl_version = '1.1.1j'
+def openssl_version = '1.1.1t'
 def opensslSrcPath = "${buildDir}/openssl/openssl-${openssl_version}"
 
 configurations {
@@ -55,8 +55,8 @@ dependencies {
 
     testDep 'org.junit.jupiter:junit-jupiter:5.6.2'
     testDep 'org.junit.vintage:junit-vintage-engine:5.6.2'
-    testDep 'org.bouncycastle:bcprov-debug-jdk15on:1.65'
-    testDep 'org.bouncycastle:bcpkix-jdk15on:1.65'
+    testDep 'org.bouncycastle:bcprov-debug-jdk15on:1.69'
+    testDep 'org.bouncycastle:bcpkix-jdk15on:1.69'
     testDep 'commons-codec:commons-codec:1.12'
     testDep 'org.hamcrest:hamcrest:2.1'
     testDep 'org.jacoco:org.jacoco.core:0.8.3'
@@ -138,18 +138,19 @@ task executeCmake(type: Exec) {
     workingDir "${buildDir}/cmake"
     def prebuiltJar = null
     if (project.hasProperty('stagingUrl')) {
+        println "Using stagingUrl: ${stagingUrl}"
         mkdir "${buildDir}/tmp"
         exec {
             workingDir "${buildDir}/tmp"
-            commandLine 'wget', "${stagingUrl}/software/amazon/cryptools/${project.name}/${stagingVersion}/${project.name}-${stagingVersion}-linux-x86_64.jar"
+            commandLine 'wget', "${stagingUrl}/software/amazon/cryptools/${project.name}/${version}/${project.name}-${version}-linux-x86_64.jar"
         }
-        prebuiltJar = "${buildDir}/tmp/${project.name}-${stagingVersion}-linux-x86_64.jar"
+        prebuiltJar = "${buildDir}/tmp/${project.name}-${version}-linux-x86_64.jar"
     } else if (System.properties['prebuiltJar'] != null) {
         prebuiltJar = "${projectDir}/" + System.properties['prebuiltJar']
     }
 
-    executable 'cmake'
-    args 'cmake', "-DTEST_CLASSPATH=${configurations.testDep.asPath}", "-DJACOCO_AGENT_JAR=${configurations.jacocoAgent.singleFile}"
+    executable 'cmake3'
+    args "-DTEST_CLASSPATH=${configurations.testDep.asPath}", "-DJACOCO_AGENT_JAR=${configurations.jacocoAgent.singleFile}"
     args "-DOPENSSL_ROOT_DIR=${buildDir}/openssl/bin", '-DCMAKE_BUILD_TYPE=Release', '-DPROVIDER_VERSION_STRING=' + version
     args "-DTEST_RUNNER_JAR=${configurations.testRunner.singleFile}"
 
@@ -303,7 +304,7 @@ task coverage_cmake(type: Exec) {
         mkdir "${buildDir}/cmake-coverage"
     }
     workingDir "${buildDir}/cmake-coverage"
-    executable 'cmake'
+    executable 'cmake3'
     args "-DTEST_CLASSPATH=${configurations.testDep.asPath}"
     args "-DJACOCO_AGENT_JAR=${configurations.jacocoAgent.singleFile}"
     args "-DOPENSSL_ROOT_DIR=${buildDir}/openssl/bin"
@@ -381,7 +382,8 @@ task overkill {
 }
 
 
-if (project.hasProperty('mavenUser') && project.hasProperty('jcecertAlias')) {
+// Avoid configuring publish related tasks when the Jar is provided
+if (!project.hasProperty('stagingUrl') && project.hasProperty('mavenUser') && project.hasProperty('jcecertAlias')) {
     publishing {
         publications {
             mavenJava(MavenPublication) {
@@ -430,19 +432,6 @@ if (project.hasProperty('mavenUser') && project.hasProperty('jcecertAlias')) {
     signing {
         sign publishing.publications.mavenJava
     }
-} else {
-    task publish(overwrite: true) {
-        doFirst {
-            ant.fail('Insufficient configuration for publishing')
-        }
-    }
-
-    task sign(overwrite: true) {
-        doFirst {
-            ant.fail('Insufficient configuration for signing')
-        }
-    }
-
 }
 
 task clean(overwrite: true, type: Delete) {

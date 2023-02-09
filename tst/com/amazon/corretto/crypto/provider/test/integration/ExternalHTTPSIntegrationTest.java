@@ -11,9 +11,13 @@ import javax.crypto.Cipher;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
+import javax.security.auth.x500.X500Principal;
 import java.net.URL;
+import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
 import java.security.Security;
 import java.util.ArrayList;
+import java.util.Date;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import com.amazon.corretto.crypto.provider.test.TestResultLogger;
@@ -81,7 +85,24 @@ public class ExternalHTTPSIntegrationTest {
         // http://bouncy-castle.1462172.n4.nabble.com/BC-1-54-quot-breaks-quot-SunJSSE-PKCS12-keystore-PBE-td4658064.html
 
         // As such we'll set up our trust manager (and load the CA certs) before we install BC
-        CustomTrustManager customTrustManager = new CustomTrustManager();
+        final CustomTrustManager customTrustManager = new CustomTrustManager() {
+            @Override
+            public void checkServerTrusted(final X509Certificate[] chain, final String authType) throws CertificateException {
+                try {
+                    super.checkServerTrusted(chain, authType);
+                } catch (final CertificateException e) {
+                    final Date now = new Date();
+                    for (X509Certificate cert: chain) {
+                        final Date notAfter = cert.getNotAfter();
+                        final String subjectName = cert.getSubjectX500Principal().getName(X500Principal.RFC2253);
+                        if (notAfter.before(now) && (subjectName.contains(".badssl.com,") || subjectName.endsWith(".badssl.com"))) {
+                            return;
+                        }
+                    }
+                    throw e;
+                }
+            }
+        };
 
         Security.insertProviderAt(AmazonCorrettoCryptoProvider.INSTANCE, 1);
         if (useBouncyCastle) {

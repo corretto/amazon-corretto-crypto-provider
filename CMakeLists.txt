@@ -590,7 +590,24 @@ add_custom_command(
 add_custom_target(tests-jar DEPENDS ${TESTS_JAR})
 set_property(TARGET tests-jar PROPERTY JAR_FILE ${TESTS_JAR})
 
+# These flags are necessary in Java17+ in order for certain unit tests to
+# perform deep reflection on nonpublic members
+
+if (Java_VERSION_MAJOR VERSION_GREATER_EQUAL 17)
+    message(STATUS "Adding needed flags for deep reflection")
+    set(TEST_ADD_OPENS
+        --add-opens java.base/javax.crypto=ALL-UNNAMED
+        --add-opens java.base/java.lang.invoke=ALL-UNNAMED
+        --add-opens java.base/java.security=ALL-UNNAMED
+        --add-opens java.base/sun.security.util=ALL-UNNAMED
+        --add-exports jdk.crypto.ec/sun.security.ec=java.base
+        )
+else()
+    message(STATUS "Not adding needed flags for deep reflection")
+endif()
+
 set(TEST_RUNNER_ARGUMENTS
+    ${TEST_ADD_OPENS}
     -javaagent:${JACOCO_AGENT_JAR}=destfile=coverage/jacoco.exec,classdumpdir=coverage/classes
     -Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
     -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
