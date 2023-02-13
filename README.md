@@ -83,14 +83,9 @@ KeyFactory algorithms:
 # Compatibility & Requirements
 ACCP has the following requirements:
 * JDK8 or newer (This includes both OracleJDK and [Amazon Corretto](https://aws.amazon.com/corretto/))
-* 64-bit Linux or MacOs running on x86_64 (also known as x64 or AMD64)
+* Linux (x86-64 or arm64) or MacOs running on x86_64 (also known as x64 or AMD64)
 
 If ACCP is used/installed on a system it does not support, it will disable itself and the JVM will behave as if ACCP weren't installed at all.
-
-**Experimental** support for aarch64 (64-bit ARM) Linux systems was added in version 1.4.0.
-(This is as an alternative to fully supported 64-bit Linux on x86_64.)
-aarch64 support is still **experimental** and is not yet distributed via Maven.
-If you want to experiment with ACCP on aarch64 platforms you will need to build it yourself as described later in this document.
 
 # Using the provider
 ## Installation
@@ -99,27 +94,27 @@ will always have the most recent version. We strongly recommend you always pull
 in the latest version for best performance and bug-fixes.
 
 Whether you're using Maven, Gradle, or some other build system that also pulls
-packages from Maven Central, it's important to specify `linux-x86_64` as the
-classifier. You'll get an empty package otherwise. Note that ACCP will not be
-available for MacOS on Maven Central until 2.0 is released.
+packages from Maven Central, it's important to specify `linux-x86_64` or `linux-aarch64` as the
+classifier. You'll get an empty package otherwise. Note that ACCP is not
+available for MacOS on Maven Central yet.
 
 Regardless of how you acquire ACCP (Maven, manual build, etc.) you will still need to follow the guidance in the [Configuration section](#configuration) to enable ACCP in your application.
 
 ### Maven
 Add the following to your `pom.xml` or wherever you configure your Maven dependencies.
-This will instruct it to use the most recent 1.x version of ACCP.
+This will instruct it to use the latest `2.x` version of ACCP for Linux x86-64 platform.
 For more information, please see [VERSIONING.rst](https://github.com/corretto/amazon-corretto-crypto-provider/blob/develop/VERSIONING.rst).
-
-The below snippet will pull in all versions of ACCP prior to the 2.0.0 release. Once 2.0.0 is released, we recommend that everyone switch to a specifier of `[2.0,3.0)`.
 
 ```xml
 <dependency>
   <groupId>software.amazon.cryptools</groupId>
   <artifactId>AmazonCorrettoCryptoProvider</artifactId>
-  <version>[1.0,2.0)</version>
+  <version>[2.0, 3.0)</version>
   <classifier>linux-x86_64</classifier>
 </dependency>
 ```
+
+The classifier attribute could be set to `linux-aarch64` to use ACCP on Linux ARM64 platforms.
 
 ACCP artifacts on Maven can be verified using the following PGP keys:
 
@@ -133,14 +128,18 @@ ACCP artifacts on Maven can be verified using the following PGP keys:
 Add the following to your `build.gradle` file. If you already have a
 `dependencies` block in your `build.gradle`, you can add the ACCP line to your
 existing block.
-This will instruct it to use the most recent 1.x version of ACCP.
 For more information, please see [VERSIONING.rst](https://github.com/corretto/amazon-corretto-crypto-provider/blob/develop/VERSIONING.rst).
 
 ```groovy
 dependencies {
-    implementation 'software.amazon.cryptools:AmazonCorrettoCryptoProvider:1.+:linux-x86_64'
+    implementation 'software.amazon.cryptools:AmazonCorrettoCryptoProvider:2.+:linux-x86_64'
 }
 ```
+
+For Gradle builds, the [os-detector plugin](https://github.com/google/osdetector-gradle-plugin)
+could be used so that one does not have to explicitly specify the platform.
+[Here](https://github.com/corretto/amazon-corretto-crypto-provider/blob/f1d54b34cf4765789314941dbeefdafd35a4da58/examples/gradle-kt-dsl/lib/build.gradle.kts#L30)
+is an example.
 
 ### Manual
 Manual installation requires acquiring the provider and adding it to your classpath.

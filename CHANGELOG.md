@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.0.0 (Unreleased)
+## 2.0.0
 
 ### Overview
 This is a new major release of ACCP. We provide build artifacts for Linux-x86
@@ -20,15 +20,13 @@ This version is not backward compatible and the differences may affect your
 application. Some major features, such as non-EC DSA and non-EC DH key exchange
 algorithms, are removed. Other minor changes include, the implementation of the
 SecureRandom relies on AWS-LC’s DRBG and the name is changed from
-`NIST800-90A/AES-CTR-256` to `LibCryptoRng`.
-
-
-This is a major release that includes some breaking changes. ACCP has switched to using [AWS-LC](https://github.com/awslabs/aws-lc/) instead of OpenSSL as the backing native crypto engine. This transition has improved the performance of ACCP. We have tried to keep the breaking changes minimal, but they have been deemed necessary. [Optimized assembly implementation of algorithms and the usage of formal verification in AWS-LC](https://github.com/awslabs/aws-lc/blob/main/README.md) are among the reasons for ACCP to switch from OpenSSL to AWS-LC. Some of these examples include dropping the support for non-EC DSA and DH key exchange algorithms; moreover, AWS-LC and OpenSSL are not 100% compatible. We have tried to keep the incompatibilities hidden from ACCP users, and we will deal with such scenarios case by case in the future.
-
+`NIST800-90A/AES-CTR-256` to `LibCryptoRng`. AWS-LC and OpenSSL are not 100% compatible.
+We have tried to keep the incompatibilities hidden from ACCP users, and we will deal
+with such scenarios case by case in the future.
 
 ### Major changes
 * Support build and releases for Linux x86 and Linux aarch64
-* Use [AWS-LC](https://github.com/awslabs/aws-lc/) as the as the underlying cryptographic library
+* Use [AWS-LC](https://github.com/awslabs/aws-lc/), [v1.4.0](https://github.com/awslabs/aws-lc/tree/v1.4.0), as the underlying cryptographic library
 * Drop support for (non-EC) DSA signatures
 * Drop support for (non-EC) Diffie-Hellman key exchange
 * Drop support for `secp192r1`, as well as most other non-NIST "legacy" curves
