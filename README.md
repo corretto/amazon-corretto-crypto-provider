@@ -85,6 +85,8 @@ ACCP has the following requirements:
 * JDK8 or newer (This includes both OracleJDK and [Amazon Corretto](https://aws.amazon.com/corretto/))
 * Linux (x86-64 or arm64) or MacOs running on x86_64 (also known as x64 or AMD64)
 
+ACCP comes bundled with AWS-lC's `libcrypto.so`, so it is not neccessery to install AWS-LC on the host or container where you run your application.
+
 If ACCP is used/installed on a system it does not support, it will disable itself and the JVM will behave as if ACCP weren't installed at all.
 
 # Using the provider
