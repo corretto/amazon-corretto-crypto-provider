@@ -10,6 +10,9 @@ final class ConstantTime {
     private ConstantTime() {
         // Prevent instantiation
     }
+    static final int isZero(int val) {
+         return 1 - isNonZero(val);
+    }
 
     /**
      * Equivalent to {@code val != 0 ? 1 : 0}
@@ -21,10 +24,6 @@ final class ConstantTime {
     /**
      * Equivalent to {@code val == 0 ? 1 : 0}
      */
-    static final int isZero(int val) {
-         return 1 - isNonZero(val);
-    }
-
     /**
      * Equivalent to {@code val < 0 ? 1 : 0}
      */
