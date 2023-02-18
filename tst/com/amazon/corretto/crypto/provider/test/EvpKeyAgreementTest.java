@@ -161,6 +161,8 @@ public class EvpKeyAgreementTest {
     }
 
     static ECPublicKey buildKeyOffCurve(final ECPublicKey goodKey) throws GeneralSecurityException {
+        // // NOTE: we can't use NATIVE_PROVIDER to create an invalid key because it will error if
+        //          the point is off the curve.
         final KeyFactory factory = KeyFactory.getInstance("EC");
         final ECPoint w = new ECPoint(goodKey.getW().getAffineX().add(BigInteger.ONE), goodKey.getW().getAffineY());
         final ECPublicKey badKey = (ECPublicKey) factory.generatePublic(new ECPublicKeySpec(w, goodKey.getParams()));
