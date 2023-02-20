@@ -76,7 +76,7 @@ public class EcGenTest {
         final ECPoint g = new ECPoint(gx, gy);
         EXPLICIT_CURVE = new ECParameterSpec(curve, g, order, 1);
         try {
-            KEY_FACTORY = KeyFactory.getInstance("EC");
+            KEY_FACTORY = KeyFactory.getInstance("EC", NATIVE_PROVIDER);
         } catch (final NoSuchAlgorithmException ex) {
             throw new AssertionError(ex);
         }

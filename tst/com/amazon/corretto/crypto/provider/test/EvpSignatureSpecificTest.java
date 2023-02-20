@@ -359,7 +359,7 @@ public final class EvpSignatureSpecificTest {
     @Test
     public void testRsaWithoutCrtParams() throws Exception {
         final RSAPrivateKey prvKey = (RSAPrivateKey) RSA_PAIR.getPrivate();
-        final KeyFactory kf = KeyFactory.getInstance("RSA");
+        final KeyFactory kf = KeyFactory.getInstance("RSA", NATIVE_PROVIDER);
         final PrivateKey strippedKey = kf.generatePrivate(new RSAPrivateKeySpec(prvKey.getModulus(), prvKey.getPrivateExponent()));
         final Signature signature = Signature.getInstance("SHA1withRSA", NATIVE_PROVIDER);
         signature.initSign(strippedKey);
@@ -368,6 +368,26 @@ public final class EvpSignatureSpecificTest {
         signature.initVerify(RSA_PAIR.getPublic());
         signature.update(MESSAGE);
         assertTrue(signature.verify(validSignature));
+    }
+
+    @Test
+    public void testDigestTooLargeForSmallKey() throws Exception {
+        // NOTE: AWS-LC enforces a minimum modulus size of 512 bits for key
+        //       generation, so we need to specify the smaller key manually.
+        final BigInteger n = new BigInteger("010800185049102889923150759252557522305032794699952150943573164381936603255999071981574575044810461362008102247767482738822150129277490998033971789476107463");
+        final BigInteger d = new BigInteger("0161169735844219697954459962296126719476357984292128166117072108359155865913405986839960884870654387514883422519600695753920562880636800379454345804879553");
+        assertTrue(n.bitCount() < 256);
+        assertTrue(d.bitCount() < 256);
+        final KeyFactory kf = KeyFactory.getInstance("RSA", NATIVE_PROVIDER);
+        final PrivateKey privateKey = kf.generatePrivate(new RSAPrivateKeySpec(n, d));
+        final Signature signer = Signature.getInstance("SHA512withRSA", NATIVE_PROVIDER);
+        signer.initSign((RSAPrivateKey) privateKey);
+        try {
+            signer.sign();
+            assertFalse(true);
+        } catch (SignatureException e) {
+            assertTrue(e.getMessage().contains("DIGEST_TOO_BIG_FOR_RSA_KEY"));
+        }
     }
 
     @Test

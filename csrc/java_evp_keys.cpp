@@ -577,7 +577,7 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_r
         BigNumObj modulus = BigNumObj::fromJavaArray(env, modulusArray);
         // Java allows for weird degenerate keys with the public exponent being NULL.
         // We simulate this with zero.
-        BigNumObj pubExp; // Defaults to zero
+        BigNumObj pubExp = bn_zero();
         if (publicExponentArr) {
             jarr2bn(env, publicExponentArr, pubExp);
         }
@@ -585,7 +585,16 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_r
         if (privateExponentArr) {
             BigNumObj privExp = BigNumObj::fromJavaArray(env, privateExponentArr);
 
-            if (RSA_set0_key(rsa, modulus, pubExp, privExp) != 1)
+            int res;
+            if (BN_is_zero(pubExp)) {
+                // RSA blinding can't be performed without |e|; 0 indicates |e|'s absence.
+                rsa->flags |= RSA_FLAG_NO_BLINDING;
+                res = RSA_set0_key(rsa, modulus, NULL,  privExp);
+            } else {
+                res = RSA_set0_key(rsa, modulus, pubExp,  privExp);
+            }
+
+            if (res != 1)
             {
                 throw_openssl(EX_RUNTIME_CRYPTO, "Unable to set RSA values");
             }
