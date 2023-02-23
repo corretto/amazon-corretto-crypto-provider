@@ -17,6 +17,7 @@ WINDOWS_X86_ECR_REPO = EnvUtil.get("ECR_WINDOWS_X86_REPO_NAME", "accp-docker-ima
 GITHUB_REPO_OWNER = EnvUtil.get("GITHUB_REPO_OWNER", "corretto")
 GITHUB_REPO_NAME = EnvUtil.get("GITHUB_REPO_NAME", "amazon-corretto-crypto-provider")
 GITHUB_SOURCE_VERSION = EnvUtil.get("GITHUB_SOURCE_VERSION", "develop")
+GITHUB_BRANCH_EXCLUDE_CI = EnvUtil.get("GITHUB_BRANCH_EXCLUDE_CI", "v1")
 
 # Used when AWS CDK defines resources for Windows docker image build.
 S3_BUCKET_NAME = EnvUtil.get("S3_FOR_WIN_DOCKER_IMG_BUILD", "accp-windows-docker-image-build")
