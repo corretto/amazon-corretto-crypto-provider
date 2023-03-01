@@ -45,6 +45,7 @@ import java.security.spec.ECPublicKeySpec;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.KeySpec;
+import java.security.spec.RSAKeyGenParameterSpec;
 import java.security.spec.RSAPrivateCrtKeySpec;
 import java.security.spec.RSAPrivateKeySpec;
 import java.security.spec.RSAPublicKeySpec;
@@ -98,12 +99,25 @@ public class EvpKeyFactoryTest {
                 // Just use the default parameters
                 keys.add(Arguments.of(kpg.generateKeyPair(), algorithm));
                 if (algorithm.equals("RSA")) {
-                    // Special case RSA with no CRT parameters
-                    KeyPair pair = kpg.generateKeyPair();
-                    RSAPrivateKey privKey = (RSAPrivateKey) pair.getPrivate();
                     final KeyFactory jceFactory = KeyFactory.getInstance(algorithm);
-                    privKey = (RSAPrivateKey) jceFactory.generatePrivate(new RSAPrivateKeySpec(privKey.getModulus(), privKey.getPrivateExponent()));
-                    keys.add(Arguments.of(new KeyPair(pair.getPublic(), privKey), "RSA-NoCRT"));
+                    KeyPair pair = kpg.generateKeyPair();
+                    RSAPublicKey pubKey = (RSAPublicKey) pair.getPublic();
+                    RSAPrivateKey privKey = (RSAPrivateKey) pair.getPrivate();
+
+                    // Special case RSA with no CRT parameters
+                    privKey = (RSAPrivateKey) jceFactory.generatePrivate(
+                        new RSAPrivateKeySpec(privKey.getModulus(), privKey.getPrivateExponent())
+                    );
+                    keys.add(Arguments.of(new KeyPair(pubKey, privKey), "RSA-NoCRT"));
+
+                    // Special case RSA with d > n
+                    final BigInteger e = RSAKeyGenParameterSpec.F4;
+                    final BigInteger n = new BigInteger("00e77bbf3889d4ef36a9a25d4d69f3f632eb4362214c74517da6d6aeaa9bd09ac42b26621cd88f3a6eb013772fc3bf9f83914b6467231c630202c35b3e5808c659", 16);
+                    final BigInteger d = new BigInteger("f2c885128cf04101c283553617c210d8ffd14cde98dc420c3c9892b55606cbedcda242987655b3f7b9433c2c316293a1cf1a2b034f197aeec1de8d81a67d94cc902b9fce1712d5a49c257ff705725cd77338d23535d3b87c8f4cecc15a6b72641ffd81aea106839d216b5fcd7d415751d27255e540dd1638a8389721e9d0807d65d24d7b8c2f60e4b2c0bf250544ce68b5ddbc1463d5a4638b2816b0f033dacdc0162f329af9e4d142352521fbd2fe14af824ef31601fe843c79cc3efbcb8eafd79262bdd25e2bdf21440f774e26d88ed7df938c5cf6982de9fa635b8ca36ce5c5fbd579a53cbb0348ceae752d4bc5621c5acc922ca208249463333742e770c1", 16);
+                    assertTrue(d.compareTo(n) > 0);
+                    pubKey = (RSAPublicKey) jceFactory.generatePublic(new RSAPublicKeySpec(n, e));
+                    privKey = (RSAPrivateKey) jceFactory.generatePrivate(new RSAPrivateKeySpec(n, d));
+                    keys.add(Arguments.of(new KeyPair(pubKey, privKey), "RSA-DgtN"));
                 }
             }
             KEYPAIRS.put(algorithm, keys);
