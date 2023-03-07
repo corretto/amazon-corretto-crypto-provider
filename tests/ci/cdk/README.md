@@ -43,7 +43,7 @@ To setup or update the CI in your account you will need the following IAM permis
 Notes:
 * `AWS_ACCOUNT` specifies the AWS account the CI wishes to propogate resources to. Default is the ACCP team account if not defined.
 * `GITHUB_REPO_OWNER` specifies the GitHub repo targeted by this CI setup. Default is `corretto` if not defined.
-* `GITHUB_BRANCH` specifies the branch on the GitHub repo that has the CI scripts you wish to deploy. Default is `develop` if not defined.
+* `GITHUB_BRANCH` specifies the branch on the GitHub repo that has the CI scripts you wish to deploy. Default is `main` if not defined.
 * https://github.com/${GITHUB_REPO_OWNER}/amazon-corretto-crypto-provider.git
 
 **NOTE**: Ensure that your local default AWS region matches CDK's. `run-cdk.sh` will look at `CDK_DEPLOY_REGION`, and AWS SDK/CLI will look at `AWS_DEFAULT_REGION`. These two variables should match.

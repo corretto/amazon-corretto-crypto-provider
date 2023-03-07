@@ -23,7 +23,7 @@ reported the issue. Please try to include as much information as you can. Detail
 ## Contributing via Pull Requests
 Contributions via pull requests are much appreciated. Before sending us a pull request, please ensure that:
 
-1. You are working against the latest source on the *develop* branch.
+1. You are working against the latest source on the *main* branch.
 2. You check existing open, and recently merged, pull requests to make sure someone else hasn't addressed the problem already.
 3. You open an issue to discuss any significant work - we would hate for your time to be wasted.
 
@@ -52,6 +52,16 @@ opensource-codeofconduct@amazon.com with any additional questions or comments.
 
 ## Security issue notifications
 If you discover a potential security issue in this project we ask that you notify AWS/Amazon Security via our [vulnerability reporting page](http://aws.amazon.com/security/vulnerability-reporting/). Please do **not** create a public github issue.
+
+## Overview of the branches
+
+| Branch | Description |
+| ------ | ----------- |
+| `main` | Main development branch where changes are merged into. |
+| `v1` | This branch is updated whenever we need to update ACCP 1.X.Y release to ACCP 1.XX.YY. |
+| `archive-main` | This branch use to be named `master`. We do not expect any new merges into this branch. |
+
+Branches created for PRs are expected to be deleted once a PR is closed.
 
 
 ## Licensing

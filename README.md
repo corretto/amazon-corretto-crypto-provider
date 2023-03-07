@@ -6,7 +6,6 @@ As of 2.0.0, algorithms exposed by ACCP are primarily backed by [AWS-LC](https:/
 
 [Security issue notifications](./CONTRIBUTING.md#security-issue-notifications)
 
-
 ## Build Status
 Please be aware that both "Overkill" and "Dieharder" tests are known to be flakey.
 Both of these tests are flakey because they include entropy generation tests
@@ -15,11 +14,11 @@ Entropy tests are unavoidably flakey because there is always a possibility that 
 random number generator will output data which looks non-random.
 (For example, even a fair coin will come up heads ten times in a row about one in a thousand trials.)
 
-| Build Name | master branch | develop branch |
-| ---------- | ------------- | -------------- |
-| x86        | ![Build Badge](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiRW4zZUhmeHlJbHRVQnNBZGZEbVJUa0pOK0J0MmtnNVB2dVZZSWhLbUtaNWYxNG96WWg4emN1SjJKL3VSUk9obFl0MnBtajBxejlVWDFiR3ppZGd3U1lrPSIsIml2UGFyYW1ldGVyU3BlYyI6IkFsUkpiMDRkRjZQb1U3Ly8iLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=master) | ![Build Badge](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiRW4zZUhmeHlJbHRVQnNBZGZEbVJUa0pOK0J0MmtnNVB2dVZZSWhLbUtaNWYxNG96WWg4emN1SjJKL3VSUk9obFl0MnBtajBxejlVWDFiR3ppZGd3U1lrPSIsIml2UGFyYW1ldGVyU3BlYyI6IkFsUkpiMDRkRjZQb1U3Ly8iLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=develop) |
-| aarch64    | ![Build Badge](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiMEVNSXhZYmdEOWFrcE1HdE9nQmdwVlZFZXRYVnloc05TMXhoZ0tTVUQ1ZlMzeWRrZTArSUxUdzY2RVJRbUtXak5zU2ZCamJBS3JxUEFxZFJ2ZVNkcGVNPSIsIml2UGFyYW1ldGVyU3BlYyI6Ii80UEZpYWc2RjJZLzZDQ0wiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=master) | ![Build Badge](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiMEVNSXhZYmdEOWFrcE1HdE9nQmdwVlZFZXRYVnloc05TMXhoZ0tTVUQ1ZlMzeWRrZTArSUxUdzY2RVJRbUtXak5zU2ZCamJBS3JxUEFxZFJ2ZVNkcGVNPSIsIml2UGFyYW1ldGVyU3BlYyI6Ii80UEZpYWc2RjJZLzZDQ0wiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=develop) |
-| Dieharder/Overkill Tests | ![Build Badge](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiRU14ZXM3ZkE4TGduVGV6dkxxWitxbkk3Ump2TnF3elkvYVRzcnkwQ3l4czl1OGRkc3NWblQ2Q0hxQkM2OWJ4VGdmL0x0Y01WYVVkWTdKYXNvbUpvS01VPSIsIml2UGFyYW1ldGVyU3BlYyI6Ilk3Y1NzbGNEZXZXY05CN2IiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=master) | ![Build Badge](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiRU14ZXM3ZkE4TGduVGV6dkxxWitxbkk3Ump2TnF3elkvYVRzcnkwQ3l4czl1OGRkc3NWblQ2Q0hxQkM2OWJ4VGdmL0x0Y01WYVVkWTdKYXNvbUpvS01VPSIsIml2UGFyYW1ldGVyU3BlYyI6Ilk3Y1NzbGNEZXZXY05CN2IiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=develop) |
+| Build Name | `main` branch |
+| ---------- |---------------|
+| Linux x86_64 | ![](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiRW4zZUhmeHlJbHRVQnNBZGZEbVJUa0pOK0J0MmtnNVB2dVZZSWhLbUtaNWYxNG96WWg4emN1SjJKL3VSUk9obFl0MnBtajBxejlVWDFiR3ppZGd3U1lrPSIsIml2UGFyYW1ldGVyU3BlYyI6IkFsUkpiMDRkRjZQb1U3Ly8iLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=main) |
+| Linux aarch64 | ![](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiMEVNSXhZYmdEOWFrcE1HdE9nQmdwVlZFZXRYVnloc05TMXhoZ0tTVUQ1ZlMzeWRrZTArSUxUdzY2RVJRbUtXak5zU2ZCamJBS3JxUEFxZFJ2ZVNkcGVNPSIsIml2UGFyYW1ldGVyU3BlYyI6Ii80UEZpYWc2RjJZLzZDQ0wiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=main) |
+| Overkill/Dieharder | ![](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiRU14ZXM3ZkE4TGduVGV6dkxxWitxbkk3Ump2TnF3elkvYVRzcnkwQ3l4czl1OGRkc3NWblQ2Q0hxQkM2OWJ4VGdmL0x0Y01WYVVkWTdKYXNvbUpvS01VPSIsIml2UGFyYW1ldGVyU3BlYyI6Ilk3Y1NzbGNEZXZXY05CN2IiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=main) |
 
 ## Supported Algorithms
 MessageDigest algorithms:
@@ -105,7 +104,7 @@ Regardless of how you acquire ACCP (Maven, manual build, etc.) you will still ne
 ### Maven
 Add the following to your `pom.xml` or wherever you configure your Maven dependencies.
 This will instruct it to use the latest `2.x` version of ACCP for Linux x86-64 platform.
-For more information, please see [VERSIONING.rst](https://github.com/corretto/amazon-corretto-crypto-provider/blob/develop/VERSIONING.rst).
+For more information, please see [VERSIONING.rst](https://github.com/corretto/amazon-corretto-crypto-provider/blob/main/VERSIONING.rst).
 
 ```xml
 <dependency>
@@ -130,7 +129,7 @@ ACCP artifacts on Maven can be verified using the following PGP keys:
 Add the following to your `build.gradle` file. If you already have a
 `dependencies` block in your `build.gradle`, you can add the ACCP line to your
 existing block.
-For more information, please see [VERSIONING.rst](https://github.com/corretto/amazon-corretto-crypto-provider/blob/develop/VERSIONING.rst).
+For more information, please see [VERSIONING.rst](https://github.com/corretto/amazon-corretto-crypto-provider/blob/main/VERSIONING.rst).
 
 ```groovy
 dependencies {
