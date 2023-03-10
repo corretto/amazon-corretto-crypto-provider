@@ -420,6 +420,8 @@ final class Loader {
         final int RETRY_LIMIT = 10;
         int attempt = 0;
 
+        AssertionError error = new AssertionError("Unable to create temporary directory. Retries exceeded.");
+
         while(attempt < RETRY_LIMIT) {
             attempt++;
             try {
@@ -445,13 +447,14 @@ final class Loader {
                 result.toFile().deleteOnExit();
                 return result;
             } catch (final IOException ex) {
-                // We ignore and retry this IOException
+                // We use the last IOException as the cause of AssertionError
+                error = new AssertionError("Unable to create temporary directory due to IOException: " + ex.getMessage(), ex);
             } catch (final Exception ex) {
-                // Any other exception is bad and we may need to quash.
-                throw new AssertionError("Unable to create temporary directory");
+                // Any other exception is bad, and we may need to quash.
+                throw new AssertionError("Unable to create temporary directory due to Exception: " + ex.getMessage(), ex);
             }
         }
 
-        throw new AssertionError("Unable to create temporary directory. Retries exceeded.");
+        throw error;
     }
 }

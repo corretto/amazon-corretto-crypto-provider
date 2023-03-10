@@ -3,12 +3,9 @@
 
 package com.amazon.corretto.crypto.provider;
 
-import static com.amazon.corretto.crypto.provider.Loader.PROVIDER_VERSION;
-import static com.amazon.corretto.crypto.provider.Loader.PROVIDER_VERSION_STR;
-import static java.lang.String.format;
-import static java.util.Arrays.asList;
-import static java.util.Collections.singletonMap;
-import static java.util.logging.Logger.getLogger;
+import com.amazon.corretto.crypto.provider.keygeneratorspi.AesSecretKeyProperties;
+import com.amazon.corretto.crypto.provider.keygeneratorspi.DefaultSecureRandomSupplier;
+import com.amazon.corretto.crypto.provider.keygeneratorspi.SecretKeyGenerator;
 
 import java.io.IOException;
 import java.lang.invoke.MethodHandle;
@@ -27,6 +24,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
 import java.util.function.Supplier;
+
+import static com.amazon.corretto.crypto.provider.Loader.PROVIDER_VERSION;
+import static com.amazon.corretto.crypto.provider.Loader.PROVIDER_VERSION_STR;
+import static java.lang.String.format;
+import static java.util.Arrays.asList;
+import static java.util.Collections.singletonMap;
+import static java.util.logging.Logger.getLogger;
 
 
 public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
@@ -70,17 +74,19 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
         addService("KeyPairGenerator", "RSA", "RsaGen");
         addService("KeyPairGenerator", "EC", "EcGen");
 
+        addService("KeyGenerator", "AES", "keygeneratorspi.SecretKeyGenerator", false);
+
         addService("Cipher", "RSA/ECB/NoPadding", "RsaCipher$NoPadding");
         addService("Cipher", "RSA/ECB/Pkcs1Padding", "RsaCipher$Pkcs1");
         addService("Cipher", "RSA/ECB/OAEPPadding", "RsaCipher$OAEP");
         addService("Cipher", "RSA/ECB/OAEPWithSHA-1AndMGF1Padding", "RsaCipher$OAEPSha1");
 
-        for (String hash : new String[] { "MD5", "SHA1", "SHA256", "SHA384", "SHA512" }) {
+        for (String hash : new String[]{"MD5", "SHA1", "SHA256", "SHA384", "SHA512"}) {
             addService("Mac", "Hmac" + hash, "EvpHmac$" + hash);
         }
 
         addService("KeyAgreement", "ECDH", "EvpKeyAgreement$ECDH",
-                   singletonMap("SupportedKeyClasses", "java.security.interfaces.ECPublicKey|java.security.interfaces.ECPrivateKey")
+                singletonMap("SupportedKeyClasses", "java.security.interfaces.ECPublicKey|java.security.interfaces.ECPrivateKey")
         );
 
         addService("SecureRandom", "LibCryptoRng", "LibCryptoRng$SPI",
@@ -111,13 +117,22 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     }
 
     private ACCPService addService(final String type, final String algorithm, final String className) {
-        return addService(type, algorithm, className, null);
+        return addService(type, algorithm, className, true, null);
+    }
+
+    private ACCPService addService(final String type, final String algorithm, final String className, final boolean useReflection) {
+        return addService(type, algorithm, className, useReflection, null);
     }
 
     private ACCPService addService(final String type, final String algorithm, final String className,
+                                   Map<String, String> attributes, String... algorithmAliases) {
+        return addService(type, algorithm, className, true, attributes, algorithmAliases);
+    }
+
+    private ACCPService addService(final String type, final String algorithm, final String className, final boolean useReflection,
                                    Map<String, String> attributes, String... algorithmAliases
     ) {
-        ACCPService service = new ACCPService(type, algorithm, className, asList(algorithmAliases), attributes);
+        ACCPService service = new ACCPService(type, algorithm, className, useReflection, asList(algorithmAliases), attributes);
 
         putService(service);
 
@@ -125,6 +140,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     }
 
     private class ACCPService extends Service {
+        private final boolean useReflection;
         private final MethodHandle ctor;
         private final MethodHandle algorithmSetter;
 
@@ -137,21 +153,30 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
         public ACCPService(
                 final String type, final String algorithm, final String className,
+                final boolean useReflection, // this flag determines if the instantiation of the service class is supposed to be done via reflection or explicitly
                 final List<String> aliases,
                 final Map<String, String> attributes
         ) {
             super(AmazonCorrettoCryptoProvider.this, type, algorithm, PACKAGE_PREFIX + className, aliases, attributes);
+
+            this.useReflection = useReflection;
+
+            if (!useReflection) {
+                ctor = null;
+                algorithmSetter = null;
+                return;
+            }
 
             try {
                 Class<?> klass = AmazonCorrettoCryptoProvider.class.getClassLoader().loadClass(PACKAGE_PREFIX + className);
                 MethodHandle tmpCtor;
                 try {
                     tmpCtor = LOOKUP.findConstructor(klass, MethodType.methodType(void.class))
-                        .asType(MethodType.methodType(Object.class));
+                            .asType(MethodType.methodType(Object.class));
                 } catch (final NoSuchMethodException nsm) {
                     tmpCtor = LOOKUP.findConstructor(klass, MethodType.methodType(void.class, AmazonCorrettoCryptoProvider.class))
-                        .asType(MethodType.methodType(Object.class, AmazonCorrettoCryptoProvider.class))
-                        .bindTo(AmazonCorrettoCryptoProvider.this);
+                            .asType(MethodType.methodType(Object.class, AmazonCorrettoCryptoProvider.class))
+                            .bindTo(AmazonCorrettoCryptoProvider.this);
                 }
                 ctor = tmpCtor;
 
@@ -172,15 +197,27 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
         }
 
-        @Override public Object newInstance(final Object constructorParameter) throws NoSuchAlgorithmException {
+        @Override
+        public Object newInstance(final Object constructorParameter) throws NoSuchAlgorithmException {
             if (constructorParameter != null) {
                 // We do not currently support any algorithms that take ctor parameters.
                 throw new NoSuchAlgorithmException("Constructor parameters not used with "
-                                                           + getType() + "/" + getAlgorithm());
+                        + getType() + "/" + getAlgorithm());
             }
 
             if (!testsPassed) {
                 checkTests();
+            }
+
+            if (!useReflection) {
+                final String type = getType();
+                final String algo = getAlgorithm();
+
+                if ("KeyGenerator".equals(type) && "AES".equals(algo)) {
+                    return new SecretKeyGenerator(DefaultSecureRandomSupplier.INSTANCE, AesSecretKeyProperties.INSTANCE);
+                }
+
+                throw new NoSuchAlgorithmException(String.format("No service class for %s/%s", type, algo));
             }
 
             try {
@@ -226,8 +263,8 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
                     synchronized (this) {
                         if (!failMessagePrinted) {
                             getLogger("AmazonCorrettoCryptoProvider").severe("Self tests failed - disabling. " +
-                                                           "Detailed results: " + selfTestSuite.getAllTestResults()
-                                                                                               .toString());
+                                    "Detailed results: " + selfTestSuite.getAllTestResults()
+                                    .toString());
                             failMessagePrinted = true;
                         }
                     }
@@ -391,28 +428,31 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
         return Loader.FIPS_BUILD;
     }
 
-    @Override public synchronized boolean equals(final Object o) {
+    @Override
+    public synchronized boolean equals(final Object o) {
         return this == o;
     }
 
-    @Override public synchronized int hashCode() {
+    @Override
+    public synchronized int hashCode() {
         return System.identityHashCode(this);
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return super.toString() + (isFips() ? " (FIPS)" : "");
     }
 
     public Set<ExtraCheck> getExtraChecks() {
-      return Collections.unmodifiableSet(extraChecks);
+        return Collections.unmodifiableSet(extraChecks);
     }
 
     public boolean hasExtraCheck(ExtraCheck mode) {
-      return extraChecks.contains(mode);
+        return extraChecks.contains(mode);
     }
 
-    public void addExtraChecks(ExtraCheck...checks) {
-      extraChecks.addAll(Arrays.asList(checks));
+    public void addExtraChecks(ExtraCheck... checks) {
+        extraChecks.addAll(Arrays.asList(checks));
     }
 
     private void readObject(java.io.ObjectInputStream in) throws IOException, ClassNotFoundException {

@@ -135,9 +135,9 @@ add_custom_command(
 #       to `touch CMakeLists.txt` after adding/removing files for them to be
 #       detected by CMake.
 if (${CMAKE_VERSION} VERSION_LESS "3.12.0")
-    file(GLOB ACCP_SRC "src/com/amazon/corretto/crypto/provider/*.java")
+    file(GLOB_RECURSE ACCP_SRC "src/com/amazon/corretto/crypto/provider/*.java")
 else()
-    file(GLOB ACCP_SRC CONFIGURE_DEPENDS "src/com/amazon/corretto/crypto/provider/*.java")
+    file(GLOB_RECURSE ACCP_SRC CONFIGURE_DEPENDS "src/com/amazon/corretto/crypto/provider/*.java")
 endif()
 set(ACCP_SRC ${ACCP_SRC} ${GENERATED_JAVA_SRC})
 
