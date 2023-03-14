@@ -3,22 +3,7 @@
 
 package com.amazon.corretto.crypto.provider.test;
 
-import static com.amazon.corretto.crypto.provider.test.TestUtil.assumeMinimumVersion;
-import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyGetInternalClass;
-import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyInvoke;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
-
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-
-import com.amazon.corretto.crypto.provider.LibCryptoRng;
+import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import com.amazon.corretto.crypto.provider.SelfTestResult;
 import com.amazon.corretto.crypto.provider.SelfTestStatus;
 import org.apache.commons.codec.binary.Hex;
@@ -31,15 +16,38 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.junit.jupiter.api.parallel.ResourceAccessMode;
 import org.junit.jupiter.api.parallel.ResourceLock;
 
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+
+import static com.amazon.corretto.crypto.provider.test.TestUtil.assumeMinimumVersion;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyGetInternalClass;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyInvoke;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
+
 @ExtendWith(TestResultLogger.class)
 @Execution(ExecutionMode.CONCURRENT)
 @ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
 public class LibCryptoRngTest {
-    private LibCryptoRng rnd;
+    private SecureRandom rnd;
+
+    private static SecureRandom getLibCryptoRng() {
+        try {
+            return SecureRandom.getInstance("LibCryptoRng", AmazonCorrettoCryptoProvider.INSTANCE);
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     @BeforeEach
-    public void setup() {
-        rnd = new LibCryptoRng();
+    public void setup() throws NoSuchAlgorithmException {
+        rnd = getLibCryptoRng();
     }
 
     @AfterEach
@@ -63,6 +71,7 @@ public class LibCryptoRngTest {
         ensureRngGeneratesUniqueValues(SecureRandom.getInstance("DEFAULT", TestUtil.NATIVE_PROVIDER));
         ensureRngGeneratesUniqueValues(SecureRandom.getInstance("LibCryptoRng", TestUtil.NATIVE_PROVIDER));
     }
+
     // A common mistake is when filling arrays to not do it properly and leave
     // zero gaps. To detect this, we'll generate arrays of different lengths
     // and check to see if certain bytes are always zero
@@ -173,15 +182,16 @@ public class LibCryptoRngTest {
     @Test
     public void selfTest() throws Throwable {
         assumeMinimumVersion("2.0.0", TestUtil.NATIVE_PROVIDER);
-        Class<?> spi = sneakyGetInternalClass(LibCryptoRng.class, "SPI");
-        SelfTestResult result = (SelfTestResult) sneakyInvoke(spi, "runSelfTest");
+        final Class<?> libCryptoRngClass = Class.forName("com.amazon.corretto.crypto.provider.LibCryptoRng");
+        Class<?> spi = sneakyGetInternalClass(libCryptoRngClass, "SPI");
+        SelfTestResult result = sneakyInvoke(spi, "runSelfTest");
         assertEquals(SelfTestStatus.PASSED, result.getStatus());
     }
 
     @Test
     public void manyRequestsTest() throws Throwable {
         assumeMinimumVersion("2.0.0", TestUtil.NATIVE_PROVIDER);
-        final LibCryptoRng rng = new LibCryptoRng();
+        final SecureRandom rng = getLibCryptoRng();
         int MAX_REQUESTS_BEFORE_RESEED = 1 << 12;
         int MAX_BYTES_BEFORE_RESEED = 1 << 16;
         int BYTES_PER_REQUEST = Math.max(1, (MAX_BYTES_BEFORE_RESEED / MAX_REQUESTS_BEFORE_RESEED));
@@ -189,7 +199,7 @@ public class LibCryptoRngTest {
 
         // Ensure that we can successfully reseed the RNG a few times
         int RESEED_COUNT = 3;
-        for(long i = 0; i < (RESEED_COUNT * MAX_REQUESTS_BEFORE_RESEED) + 1; i++) {
+        for (long i = 0; i < (RESEED_COUNT * MAX_REQUESTS_BEFORE_RESEED) + 1; i++) {
             rng.nextBytes(rngOutputBuffer);
         }
     }
@@ -197,7 +207,7 @@ public class LibCryptoRngTest {
     @Test
     public void multithreadedTest() throws Throwable {
         assumeMinimumVersion("2.0.0", TestUtil.NATIVE_PROVIDER);
-        final LibCryptoRng sharedRng = new LibCryptoRng();
+        final SecureRandom sharedRng = getLibCryptoRng();
         int NUM_THREADS = 100;
         final Set<Long> rngOutputs = Collections.newSetFromMap(new ConcurrentHashMap<Long, Boolean>());
         List<Thread> threadList = new ArrayList<Thread>(NUM_THREADS);
@@ -206,28 +216,28 @@ public class LibCryptoRngTest {
         rngOutputs.add(sharedRng.nextLong());
 
         // Create our threads, but don't start them yet.
-        for(int i = 0; i < NUM_THREADS; i++) {
+        for (int i = 0; i < NUM_THREADS; i++) {
             Thread thread = new Thread() {
-                public void run(){
+                public void run() {
                     // For each thread, add a random long generated from the shared RNG, and one from a thread-local RNG
                     rngOutputs.add(sharedRng.nextLong());
-                    rngOutputs.add((new LibCryptoRng()).nextLong());
+                    rngOutputs.add(getLibCryptoRng().nextLong());
                 }
             };
             threadList.add(thread);
         }
 
         // Start all the threads at once, as close together as possible
-        for(Thread t: threadList){
+        for (Thread t : threadList) {
             t.start();
         }
 
         // Wait for all the threads to complete
-        for (Thread t: threadList) {
+        for (Thread t : threadList) {
             t.join();
         }
 
         // Ensure that every long generated by each RNG is unique.
-        assertTrue(rngOutputs.size() == (1 + (NUM_THREADS * 2)));
+        assertEquals(rngOutputs.size(), (1 + (NUM_THREADS * 2)));
     }
 }

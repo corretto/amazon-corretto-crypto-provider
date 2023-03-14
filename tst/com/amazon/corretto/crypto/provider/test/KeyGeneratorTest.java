@@ -3,7 +3,6 @@
 
 package com.amazon.corretto.crypto.provider.test;
 
-import com.amazon.corretto.crypto.provider.keygeneratorspi.AesSecretKeyProperties;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.parallel.Execution;
@@ -11,6 +10,7 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.junit.jupiter.api.parallel.ResourceAccessMode;
 import org.junit.jupiter.api.parallel.ResourceLock;
 
+import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
@@ -89,12 +89,12 @@ public class KeyGeneratorTest {
     }
 
     @Test
-    public void givenNoParam_whenGenerate_expectDefaultKeySize() {
+    public void givenNoParam_whenGenerate_expectDefaultKeySize() throws NoSuchAlgorithmException {
         final KeyGenerator keyGenerator = getAesKeyGenerator();
         final SecretKey secretKey = keyGenerator.generateKey();
         assertTrue(secretKey instanceof SecretKeySpec);
         assertEquals("AES", secretKey.getAlgorithm());
-        assertEquals(AesSecretKeyProperties.INSTANCE.defaultKeySize() / 8, secretKey.getEncoded().length);
+        assertEquals(Math.min(256, Cipher.getMaxAllowedKeyLength("AES")) / 8, secretKey.getEncoded().length);
     }
 
     @SuppressWarnings("serial")

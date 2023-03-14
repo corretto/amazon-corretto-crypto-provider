@@ -3,10 +3,6 @@
 
 package com.amazon.corretto.crypto.provider;
 
-import com.amazon.corretto.crypto.provider.keygeneratorspi.AesSecretKeyProperties;
-import com.amazon.corretto.crypto.provider.keygeneratorspi.DefaultSecureRandomSupplier;
-import com.amazon.corretto.crypto.provider.keygeneratorspi.SecretKeyGenerator;
-
 import java.io.IOException;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
@@ -214,7 +210,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
                 final String algo = getAlgorithm();
 
                 if ("KeyGenerator".equals(type) && "AES".equals(algo)) {
-                    return new SecretKeyGenerator(DefaultSecureRandomSupplier.INSTANCE, AesSecretKeyProperties.INSTANCE);
+                    return SecretKeyGenerator.createAesKeyGeneratorSpi();
                 }
 
                 throw new NoSuchAlgorithmException(String.format("No service class for %s/%s", type, algo));

@@ -3,13 +3,17 @@
 
 package com.amazon.corretto.crypto.provider.test;
 
-import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER_PACKAGE;
-import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyConstruct;
-import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyGetInternalClass;
-import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyInvoke;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
+import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
+import com.amazon.corretto.crypto.provider.SelfTestResult;
+import com.amazon.corretto.crypto.provider.SelfTestStatus;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.junit.jupiter.api.parallel.ResourceAccessMode;
+import org.junit.jupiter.api.parallel.ResourceLock;
 
 import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
@@ -19,20 +23,15 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
-import com.amazon.corretto.crypto.provider.LibCryptoRng;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Assumptions;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-
-import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
-import com.amazon.corretto.crypto.provider.SelfTestResult;
-import com.amazon.corretto.crypto.provider.SelfTestStatus;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.parallel.Execution;
-import org.junit.jupiter.api.parallel.ExecutionMode;
-import org.junit.jupiter.api.parallel.ResourceAccessMode;
-import org.junit.jupiter.api.parallel.ResourceLock;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER_PACKAGE;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyConstruct;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyGetInternalClass;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyInvoke;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 @ExtendWith(TestResultLogger.class)
 @Execution(ExecutionMode.SAME_THREAD)
@@ -83,7 +82,7 @@ public class ServiceSelfTestMetaTest {
 
     @Test
     public void whenDRBGSelfTestsFail_nothingIsVended() throws Throwable {
-        Class<?> spi = sneakyGetInternalClass(LibCryptoRng.class, "SPI");
+        Class<?> spi = sneakyGetInternalClass(Class.forName("com.amazon.corretto.crypto.provider.LibCryptoRng"), "SPI");
         Object test = TestUtil.sneakyGetField(spi, "SELF_TEST");
         sneakyInvoke(test, "forceFailure");
 
@@ -105,7 +104,7 @@ public class ServiceSelfTestMetaTest {
 
         Supplier<SelfTestResult> recursiveSupplier = () -> {
             try {
-                SelfTestResult result = (SelfTestResult)sneakyInvoke(selfTestRef.get(), "runTest");
+                SelfTestResult result = sneakyInvoke(selfTestRef.get(), "runTest");
 
                 assertEquals(SelfTestStatus.RECURSIVELY_INVOKED, result.getStatus());
 
@@ -123,7 +122,7 @@ public class ServiceSelfTestMetaTest {
 
         selfTestRef.set(selfTest);
 
-        assertEquals(SelfTestStatus.PASSED, ((SelfTestResult)sneakyInvoke(selfTest, "runTest")).getStatus());
+        assertEquals(SelfTestStatus.PASSED, ((SelfTestResult) sneakyInvoke(selfTest, "runTest")).getStatus());
     }
 
 
@@ -152,25 +151,26 @@ public class ServiceSelfTestMetaTest {
         new Thread(() -> {
             try {
                 sneakyInvoke(selfTest, "runTest");
-            } catch (Throwable t) {}
+            } catch (Throwable t) {
+            }
         }).start();
 
-        assertEquals(SelfTestStatus.PASSED, ((SelfTestResult)sneakyInvoke(selfTest, "runTest")).getStatus());
+        assertEquals(SelfTestStatus.PASSED, ((SelfTestResult) sneakyInvoke(selfTest, "runTest")).getStatus());
     }
 
     @Test
-    public void givenACCPCacheSelfTestResultsPropertySetToFalse_whenRunTests_ExpectReset() throws Throwable  {
+    public void givenACCPCacheSelfTestResultsPropertySetToFalse_whenRunTests_ExpectReset() throws Throwable {
         reset();
         System.setProperty("com.amazon.corretto.crypto.provider.cacheselftestresults", "false");
         accp = new AmazonCorrettoCryptoProvider();
-        assertTrue(SelfTestStatus.FAILED != accp.runSelfTests());
+        assertNotSame(SelfTestStatus.FAILED, accp.runSelfTests());
         // Let's force a failure and re run the tests
         Class<?> spiClass = Class.forName(NATIVE_PROVIDER_PACKAGE + ".EvpHmac$SHA256");
         Object selfTest = TestUtil.sneakyGetField(spiClass, "SELF_TEST");
         sneakyInvoke(selfTest, "forceFailure");
-        assertTrue(SelfTestStatus.FAILED == accp.getSelfTestStatus());
+        assertSame(SelfTestStatus.FAILED, accp.getSelfTestStatus());
         // re-run the tests and confirm that they don't fail anymore
-        assertTrue(SelfTestStatus.FAILED != accp.runSelfTests());
-        assertTrue(SelfTestStatus.FAILED != accp.getSelfTestStatus());
+        assertNotSame(SelfTestStatus.FAILED, accp.runSelfTests());
+        assertNotSame(SelfTestStatus.FAILED, accp.getSelfTestStatus());
     }
 }
