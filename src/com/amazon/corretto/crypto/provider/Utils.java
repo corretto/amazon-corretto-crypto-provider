@@ -32,7 +32,6 @@ import javax.crypto.spec.SecretKeySpec;
  * Miscellaneous utility methods.
  */
 final class Utils {
-    private static final String CACHE_SELF_TEST_RESULTS = "cacheselftestresults";
     private Utils() {
         // Prevent instantiation
     }
@@ -526,13 +525,14 @@ final class Utils {
         return JAVA_VERSION;
     }
 
-    static boolean getCacheSelfTestResultsProperty() {
-        final String relyOnCacheSelfTestResultsStr = Loader.getProperty(CACHE_SELF_TEST_RESULTS, "true").toLowerCase();
-        if (!relyOnCacheSelfTestResultsStr.equals("true") && !relyOnCacheSelfTestResultsStr.equals("false")) {
-            LOG.warning(String.format("Valid values for %s are false and true, with true as default", CACHE_SELF_TEST_RESULTS));
-            return true;
+    static boolean getBooleanProperty(String propertyName, boolean defaultValue) {
+        final String defaultStr = defaultValue ? "true" : "false";
+        final String propertyStr = Loader.getProperty(propertyName, defaultStr).toLowerCase();
+        if (!propertyStr.equals("true") && !propertyStr.equals("false")) {
+            LOG.warning(String.format("Valid values for %s are false and true, with %s as default", propertyName, defaultStr));
+            return defaultValue;
         }
-        return Boolean.parseBoolean(relyOnCacheSelfTestResultsStr);
+        return Boolean.parseBoolean(propertyStr);
     }
 }
 

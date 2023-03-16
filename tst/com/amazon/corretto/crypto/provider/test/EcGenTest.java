@@ -75,7 +75,6 @@ public class EcGenTest {
     public void setup() throws GeneralSecurityException {
         nativeGen = KeyPairGenerator.getInstance("EC", NATIVE_PROVIDER);
         jceGen = KeyPairGenerator.getInstance("EC", "SunEC");
-
     }
 
     @AfterEach

@@ -3,16 +3,19 @@
 
 package com.amazon.corretto.crypto.provider.test;
 
-import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 import static com.amazon.corretto.crypto.provider.test.EcGenTest.assertECEquals;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+
+import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 
 import java.io.IOException;
 import java.math.BigInteger;
 import java.security.*;
 import java.security.interfaces.ECPublicKey;
+import java.security.Provider;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.ECParameterSpec;
@@ -35,6 +38,17 @@ import org.junit.jupiter.params.provider.MethodSource;
 @Execution(ExecutionMode.CONCURRENT)
 @ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
 public class EcParametersTest {
+
+    // by default, ACCP does not provide EC parameters. to avoid polluting
+    // global test state by registering EC params, we use a class-local
+    // provider here where we can enable EC parameter provision and test it in
+    // isolation. additional coverage is provided by enabling EC parameter
+    // provision in integration tests. see the `registerEcParams` ACCP java
+    // property.
+    private static final AmazonCorrettoCryptoProvider LOCAL_NATIVE_PROVIDER = new AmazonCorrettoCryptoProvider();
+    static {
+        LOCAL_NATIVE_PROVIDER.registerEcParams();
+    }
 
     private static String[][] legacyCurveParams() {
         return TestUtil.LEGACY_CURVES;
@@ -64,7 +78,7 @@ public class EcParametersTest {
     private void testCurveParamsByName(String name) throws Exception {
         ECGenParameterSpec genSpec = new ECGenParameterSpec(name);
         final KeyPairGenerator jceGen = KeyPairGenerator.getInstance("EC", "SunEC");;
-        final KeyPairGenerator nativeGen = KeyPairGenerator.getInstance("EC", NATIVE_PROVIDER);;
+        final KeyPairGenerator nativeGen = KeyPairGenerator.getInstance("EC", LOCAL_NATIVE_PROVIDER);;
         jceGen.initialize(genSpec);
         nativeGen.initialize(genSpec);
         KeyPair jcePair = jceGen.generateKeyPair();
@@ -75,7 +89,7 @@ public class EcParametersTest {
 
         // Ensure mutual compatibility between JCE and ACCP for conversion to/from ECParameterSpec
         final AlgorithmParameters jceAlgParams = AlgorithmParameters.getInstance("EC", "SunEC");
-        final AlgorithmParameters nativeAlgParams = AlgorithmParameters.getInstance("EC", NATIVE_PROVIDER);
+        final AlgorithmParameters nativeAlgParams = AlgorithmParameters.getInstance("EC", LOCAL_NATIVE_PROVIDER);
         jceAlgParams.init(jceParams);
         nativeAlgParams.init(nativeParams);
         final ECParameterSpec jceAlgSpec = jceAlgParams.getParameterSpec(ECParameterSpec.class);
@@ -88,7 +102,7 @@ public class EcParametersTest {
 
         // Ensure mutual compatibility between JCE and ACCP for conversion to/from AlgorithmParameterSpec
         final AlgorithmParameters jceGenParams = AlgorithmParameters.getInstance("EC", "SunEC");
-        final AlgorithmParameters nativeGenParams = AlgorithmParameters.getInstance("EC", NATIVE_PROVIDER);
+        final AlgorithmParameters nativeGenParams = AlgorithmParameters.getInstance("EC", LOCAL_NATIVE_PROVIDER);
         jceGenParams.init(genSpec);
         nativeGenParams.init(genSpec);
         final String jceCurveName = jceAlgParams.getParameterSpec(ECGenParameterSpec.class).getName();
@@ -113,7 +127,7 @@ public class EcParametersTest {
         byte[] nativeEncodedParams = nativeAlgParams.getEncoded();
         assertArrayEquals(jceEncodedParams, nativeEncodedParams);
         AlgorithmParameters jceDecodedParams = AlgorithmParameters.getInstance("EC", "SunEC");
-        AlgorithmParameters nativeDecodedParams = AlgorithmParameters.getInstance("EC", NATIVE_PROVIDER);
+        AlgorithmParameters nativeDecodedParams = AlgorithmParameters.getInstance("EC", LOCAL_NATIVE_PROVIDER);
         jceDecodedParams.init(jceEncodedParams);
         nativeDecodedParams.init(nativeEncodedParams);
         ECParameterSpec jceDecodedSpec = jceDecodedParams.getParameterSpec(ECParameterSpec.class);
@@ -125,7 +139,7 @@ public class EcParametersTest {
         // Included for coverage of ancillary method overloads
         nativeEncodedParams = nativeAlgParams.getEncoded("ignored encoding method");
         assertArrayEquals(nativeAlgParams.getEncoded(), nativeEncodedParams);
-        nativeDecodedParams = AlgorithmParameters.getInstance("EC", NATIVE_PROVIDER);
+        nativeDecodedParams = AlgorithmParameters.getInstance("EC", LOCAL_NATIVE_PROVIDER);
         nativeDecodedParams.init(nativeEncodedParams, "ignored encoding method");
         nativeDecodedSpec = nativeDecodedParams.getParameterSpec(ECParameterSpec.class);
         assertECEquals(name, nativeAlgSpec, nativeDecodedSpec);
@@ -133,7 +147,7 @@ public class EcParametersTest {
 
     @Test
     public void testInitBadParams() throws Exception {
-        AlgorithmParameters params = AlgorithmParameters.getInstance("EC", NATIVE_PROVIDER);
+        AlgorithmParameters params = AlgorithmParameters.getInstance("EC", LOCAL_NATIVE_PROVIDER);
 
         // AlgorithmParameters.init(AlgorithmParameterSpec)
         TestUtil.assertThrows(InvalidParameterSpecException.class, () -> params.init((ECParameterSpec) null));
@@ -156,5 +170,30 @@ public class EcParametersTest {
 
         // AlgorithmParameters.init(byte[], String)
         TestUtil.assertThrows(IOException.class, () -> params.init((byte[]) null, "unused"));
+    }
+
+    /**
+     * This test mostly asserts properties about our global java/JCA test
+     * environment. If we ever choose to modify our unit test environment such
+     * that ACCP is the registered EC parameters provider by default, we'll
+     * need to update this test accordingly or delete it altogether.
+     */
+    @Test
+    public void testDefaultEcParamsNotNativeProvider() throws Exception {
+        // Ensure that our class-local provider provides EC parameters when requested
+        assertEquals(
+            LOCAL_NATIVE_PROVIDER.getName(),
+            AlgorithmParameters.getInstance("EC", LOCAL_NATIVE_PROVIDER).getProvider().getName()
+        );
+        // Ensure that our class-local provider is not the default JCA EC parameter provider
+        assertNotEquals(
+            LOCAL_NATIVE_PROVIDER.getName(),
+            AlgorithmParameters.getInstance("EC").getProvider().getName()
+        );
+        // Ensure that our global test provider is not the default JCA EC parameter provider
+        assertNotEquals(
+            TestUtil.NATIVE_PROVIDER.getName(),
+            AlgorithmParameters.getInstance("EC").getProvider().getName()
+        );
     }
 }
