@@ -33,6 +33,8 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     private static final MethodHandles.Lookup LOOKUP = MethodHandles.lookup();
 
     private static final String PACKAGE_PREFIX = "com.amazon.corretto.crypto.provider.";
+    private static final String PROPERTY_CACHE_SELF_TEST_RESULTS = "cacheselftestresults";
+    private static final String PROPERTY_REGISTER_EC_PARAMS = "registerEcParams";
     private static final long serialVersionUID = 1L;
 
     public static final AmazonCorrettoCryptoProvider INSTANCE;
@@ -41,6 +43,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     private final EnumSet<ExtraCheck> extraChecks = EnumSet.noneOf(ExtraCheck.class);
 
     private final boolean relyOnCachedSelfTestResults;
+    private final boolean shouldRegisterEcParams;
 
     private transient SelfTestSuite selfTestSuite = new SelfTestSuite();
 
@@ -72,8 +75,6 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
         addService("KeyGenerator", "AES", "keygeneratorspi.SecretKeyGenerator", false);
 
-        addService("AlgorithmParameters", "EC", "EcParameters");
-
         addService("Cipher", "RSA/ECB/NoPadding", "RsaCipher$NoPadding");
         addService("Cipher", "RSA/ECB/Pkcs1Padding", "RsaCipher$Pkcs1");
         addService("Cipher", "RSA/ECB/OAEPPadding", "RsaCipher$OAEP");
@@ -90,6 +91,10 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
         addService("SecureRandom", "LibCryptoRng", "LibCryptoRng$SPI",
                 singletonMap("ThreadSafe", "true"), "DEFAULT")
                 .setSelfTest(LibCryptoRng.SPI.SELF_TEST);
+
+        if (shouldRegisterEcParams) {
+            registerEcParams();
+        }
 
         addSignatures();
     }
@@ -303,7 +308,8 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     @SuppressWarnings({"deprecation"})
     public AmazonCorrettoCryptoProvider() {
         super("AmazonCorrettoCryptoProvider", PROVIDER_VERSION, "");
-        this.relyOnCachedSelfTestResults = Utils.getCacheSelfTestResultsProperty();
+        this.relyOnCachedSelfTestResults = Utils.getBooleanProperty(PROPERTY_CACHE_SELF_TEST_RESULTS, true);
+        this.shouldRegisterEcParams = Utils.getBooleanProperty(PROPERTY_REGISTER_EC_PARAMS, false);
 
         Utils.optionsFromProperty(ExtraCheck.class, extraChecks, "extrachecks");
 
@@ -424,6 +430,20 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
      */
     public boolean isFips() {
         return Loader.FIPS_BUILD;
+    }
+
+    /**
+     * Register ACCP's EC-flavored AlgorithmParameters implementation
+     *
+     * Most use-cases can and should rely on JCE-provided EC AlgorithmParameters
+     * implementation as it supports more curves, is more broadly compatible,
+     * and does not affect FIPS compliance posture as the EC parameters wrapper
+     * class doesn't actually do any cryptography. Only use ACCP's EC
+     * parameters class if you will only ever encounter NIST curves or are
+     * trying to use ACCP as a stand-alone JCA provider.
+     */
+    public void registerEcParams() {
+        addService("AlgorithmParameters", "EC", "EcParameters");
     }
 
     @Override

@@ -3,6 +3,7 @@
 
 package com.amazon.corretto.crypto.provider.test;
 
+import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyGetField;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyInvoke;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -178,13 +179,18 @@ public class UtilsTest {
 
     @Test
     public void givenInvalidValueForCacheSelfTestResultsProperty_whenGetCacheSelfTestResultsProperty_expectTrue() throws Throwable {
-        System.setProperty("com.amazon.corretto.crypto.provider.cacheselftestresults", "dummy");
-        assertTrue((Boolean) sneakyInvoke(UTILS_CLASS, "getCacheSelfTestResultsProperty"));
+        final String propertyName = (String) sneakyGetField(AmazonCorrettoCryptoProvider.class, "PROPERTY_CACHE_SELF_TEST_RESULTS");
+        assertNotNull(propertyName);
+        System.setProperty("com.amazon.corretto.crypto.provider." + propertyName, "dummy");
+        assertTrue((Boolean) sneakyInvoke(UTILS_CLASS, "getBooleanProperty", propertyName, true));
     }
 
     @Test
     public void givenFalseForCacheSelfTestResultsProperty_whenGetCacheSelfTestResultsProperty_expectFalse() throws Throwable {
-        System.setProperty("com.amazon.corretto.crypto.provider.cacheselftestresults", "False");
-        assertFalse((Boolean) sneakyInvoke(UTILS_CLASS, "getCacheSelfTestResultsProperty"));
+        final String propertyName = (String) sneakyGetField(AmazonCorrettoCryptoProvider.class, "PROPERTY_CACHE_SELF_TEST_RESULTS");
+        assertNotNull(propertyName);
+        System.setProperty("com.amazon.corretto.crypto.provider." + propertyName, "False");
+        assertFalse((Boolean) sneakyInvoke(UTILS_CLASS, "getBooleanProperty",
+                    sneakyGetField(AmazonCorrettoCryptoProvider.class, "PROPERTY_CACHE_SELF_TEST_RESULTS"), true));
     }
 }

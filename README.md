@@ -262,6 +262,12 @@ Thus, these should all be set on the JVM command line using `-D`.
   and the subsequent calls to `AmazonCorrettoCryptoProvider::runSelfTests`
   would avoid re-running tests; otherwise, each call to `AmazonCorrettoCryptoProvider::runSelfTests`
   re-run the tests.
+* `com.amazon.corretto.crypto.provider.registerEcParams`
+  Takes in `true` or `false` (defaults to `false`).
+  If `true`, then ACCP will register its EC-flavoered AlgorithmParameters implementation on startup.
+  Else, the JCA will get the implementation from another registered provider (usually stock JCE).
+  Using JCE's impelmentation is generally recommended unless using ACCP as a standalone provider
+  Callers can choose to register ACCP's implementation at runtime with a call to `AmazonCorrettoCryptoProvider.registerEcParams()`
 
 
 # License

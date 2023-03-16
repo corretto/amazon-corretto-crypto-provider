@@ -5,7 +5,9 @@ package com.amazon.corretto.crypto.provider.test;
 
 import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
+import java.security.AlgorithmParameters;
 import java.security.KeyPairGenerator;
 import java.security.Provider;
 import java.security.SecureRandom;
@@ -31,6 +33,9 @@ public final class SecurityPropertyTester {
 
     // Ensure that TLS works as expected
     SSLContext.getInstance("TLS"); // Throws exception on problem
+
+    // Ensure that ACCP isn't configured to provide EC parameters by defualt
+    assertNotEquals(NATIVE_PROVIDER.getName(), AlgorithmParameters.getInstance("EC").getProvider().getName());
 
     // We know that Java has the SunEC provider which can generate EC keys.
     // We try to grab it to show that the nothing interfered with proper provider loading.
