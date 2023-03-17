@@ -30,6 +30,16 @@ For this reason, regardless of whether you use ACCP or not, we recommend the fol
     }
 ```
 
+## Default asymmetric key sizes
+The result of calling `KeyPairGenerator.getInstance()` is defined as being configured to generate reasonable asymmetric keys.
+The exact value of this default configuration is not defined and is permitted to change.
+(For example, in March of 2022, the OpenJDK [changed the default key sizes](https://github.com/openjdk/jdk/commit/313bc7f64f69d8f352d495d2c35bea62aca910e4) for several algorithms including RSA and EC for JDK19+.
+Neither the old nor new sizes match the default that BouncyCastle uses for EC.)
+ACCP cannot make any promises that its default key sizes match the defaults of *any* JDK version or other provider.
+
+Because no providers have guarantees around the uninitialized behavior of `KeyPairGenerators` it is generally fragile for your application to use a `KeyPairGenerator` without initialization.
+For this reason, even if you don't use ACCP, we recommend that you always call the [KeyPairGenerator.initialize(AlgorithmParameterSpec params)](https://docs.oracle.com/javase/8/docs/api/java/security/KeyPairGenerator.html#initialize-java.security.spec.AlgorithmParameterSpec-) prior to generating a key pair.
+
 ## Elliptic Curve KeyPairGeneration by curve size
 Neither the JCE nor the default OpenJDK provider for Elliptic Curve Cryptography (SunEC) specify the effect of calling `KeyPairGenerator.initialize(int keysize)` with an arbitrary value.
 This behavior is fully specified only for values of 192, 224, 256, 384, and 521.
