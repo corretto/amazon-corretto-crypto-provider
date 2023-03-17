@@ -120,13 +120,19 @@ final class EcUtils {
         }
     };
 
+    // To avoid expensive and needless JNI calls, we cache curve info on JVM static initiazlization. We don't
+    // have to worry about invalidation, as this information is invariant after the library has been loaded.
+    // First, we query the native library to enumerate all available curves. Next, we warm our ECInfo cache
+    // (keyed by name). After that, we also key the cache by OID in case callers specify by OID (this is common
+    // in older JDKs). A cache miss (i.e. the caller specifying a name or OID that wasn't in the initially
+    // enumerated list of curves) will result in a JNI call to our native library.
     private static final ConcurrentHashMap<ByteBuffer, String> EC_NAME_BY_ENCODED = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<EllipticCurve, String> EC_NAME_BY_CURVE = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<Integer, String> EC_NAME_BY_KEY_SIZE = new ConcurrentHashMap<>();
     static {
         for (String name : getCurveNames()) {
-            getSpecByName(name);                    // warm cache keyed by name, must come before warming by OID
-            getSpecByName(getOidFromName(name));    // warm cache keyed by OID
+            getSpecByName(name);                    // warm spec cache keyed by name, must come before warming by OID
+            getSpecByName(getOidFromName(name));    // warm spec cache keyed by OID
             EC_NAME_BY_CURVE.put(getSpecByName(name).spec.getCurve(), name);
             EC_NAME_BY_KEY_SIZE.put(getSpecByName(name).spec.getCurve().getField().getFieldSize(), name);
             EC_NAME_BY_ENCODED.put(ByteBuffer.wrap(getSpecByName(name).encoded), name);
@@ -160,7 +166,8 @@ final class EcUtils {
         if (name == null) {
             return null;
         }
-        return getSpecByName(name) == null ? null : getSpecByName(name).oid;
+        final ECInfo info = getSpecByName(name);
+        return  info == null ? null : info.oid;
     }
 
     private EcUtils() {
