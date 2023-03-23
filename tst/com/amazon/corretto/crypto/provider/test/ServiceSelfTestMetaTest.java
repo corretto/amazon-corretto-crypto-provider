@@ -4,6 +4,7 @@
 package com.amazon.corretto.crypto.provider.test;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
+import com.amazon.corretto.crypto.provider.SelfTestFailureException;
 import com.amazon.corretto.crypto.provider.SelfTestResult;
 import com.amazon.corretto.crypto.provider.SelfTestStatus;
 import org.junit.jupiter.api.AfterEach;
@@ -15,6 +16,8 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.junit.jupiter.api.parallel.ResourceAccessMode;
 import org.junit.jupiter.api.parallel.ResourceLock;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
 import java.security.SecureRandom;
@@ -30,6 +33,7 @@ import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyInvoke;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -95,6 +99,24 @@ public class ServiceSelfTestMetaTest {
                 // ok - expected
             }
         }
+    }
+
+    @Test
+    public void whenAwsLcSelfTestsFail_assertHealthyThrowsException() throws Throwable {
+        forceFailAwsLcSelfTests();
+        assertSame(SelfTestStatus.FAILED, AmazonCorrettoCryptoProvider.INSTANCE.getSelfTestStatus());
+        assertThrows(SelfTestFailureException.class, () -> AmazonCorrettoCryptoProvider.INSTANCE.assertHealthy());
+    }
+
+    private static void forceFailAwsLcSelfTests() throws Exception {
+        final Class<?> selfTestSuiteClz = Class.forName("com.amazon.corretto.crypto.provider.SelfTestSuite");
+        final Field test = selfTestSuiteClz.getDeclaredField("AWS_LC_SELF_TESTS");
+        test.setAccessible(true);
+        final Object obj = test.get(null);
+        final Class<?> selfTestClz = obj.getClass();
+        final Method m = selfTestClz.getDeclaredMethod("forceFailure");
+        m.setAccessible(true);
+        m.invoke(obj);
     }
 
     @Test

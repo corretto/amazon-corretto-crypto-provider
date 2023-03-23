@@ -17,7 +17,7 @@ class SelfTestSuite {
 
     static class SelfTest {
         private static final AtomicReferenceFieldUpdater<SelfTest, SelfTestResult>
-            update_result = AtomicReferenceFieldUpdater.newUpdater(SelfTest.class, SelfTestResult.class, "result");
+                update_result = AtomicReferenceFieldUpdater.newUpdater(SelfTest.class, SelfTestResult.class, "result");
 
         private final String algorithmName;
         private final Supplier<SelfTestResult> selfTestRunner;
@@ -33,7 +33,7 @@ class SelfTestSuite {
         //
         // Finally, this is a per-SelfTest map because we need to recursively invoke the DRBG self-tests during
         // JceSecurity static initialization (triggered by other self-tests) in some cases.
-        private ConcurrentHashMap<Thread, Object> activeThreads = new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<Thread, Object> activeThreads = new ConcurrentHashMap<>();
 
         public SelfTest(String algorithmName, Supplier<SelfTestResult> selfTestRunner) {
             this.algorithmName = algorithmName;
@@ -70,7 +70,7 @@ class SelfTestSuite {
             if (localResult.getStatus() == SelfTestStatus.PASSED) {
                 if (DebugFlag.VERBOSELOGS.isEnabled()) {
                     LOGGER.finer(() -> String.format("Self-test result for JCE algo %s: PASSED",
-                                                     getAlgorithmName()));
+                            getAlgorithmName()));
                 }
             } else {
                 LOGGER.severe(
@@ -78,7 +78,7 @@ class SelfTestSuite {
                             StringWriter sw = new StringWriter();
 
                             sw.append(String.format("Self-test result for JCE algo %s: %s",
-                                                    getAlgorithmName(), localResult.getStatus()));
+                                    getAlgorithmName(), localResult.getStatus()));
 
                             if (localResult.getThrowable() != null) {
                                 sw.append("\n");
@@ -114,7 +114,20 @@ class SelfTestSuite {
         }
     }
 
-    private ConcurrentHashMap<String, SelfTest> selfTests = new ConcurrentHashMap<>();
+    // This is a wrapper around BORINGSSL_self_test declared in openssl/crypto.h
+    static native boolean awsLcSelfTestsPassed();
+
+    static SelfTestResult runAwsLcSelfTests() {
+        if (awsLcSelfTestsPassed()) {
+            return SelfTestResult.PASS_RESULT;
+        }
+        return new SelfTestResult(new AssertionError("AWS_LC_SELF_TESTS did not pass."));
+    }
+
+
+    static final SelfTestSuite.SelfTest AWS_LC_SELF_TESTS = new SelfTestSuite.SelfTest("AWS_LC_SELF_TESTS", SelfTestSuite::runAwsLcSelfTests);
+
+    private final ConcurrentHashMap<String, SelfTest> selfTests = new ConcurrentHashMap<>();
 
     void addSelfTest(SelfTest test) {
         if (selfTests.putIfAbsent(test.getAlgorithmName(), test) != null) {

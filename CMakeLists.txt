@@ -263,6 +263,7 @@ add_library(
         csrc/testhooks.cpp
         csrc/util.cpp
         csrc/util_class.cpp
+        csrc/fips_kat_self_test.cpp
         ${JNI_HEADER_DIR}/generated-headers.h
 )
 
