@@ -9,6 +9,8 @@ public class SelfTestResult {
     private final SelfTestStatus status;
     private final Throwable throwable;
 
+    public static SelfTestResult PASS_RESULT = new SelfTestResult(SelfTestStatus.PASSED);
+
     public SelfTestStatus getStatus() {
         return status;
     }

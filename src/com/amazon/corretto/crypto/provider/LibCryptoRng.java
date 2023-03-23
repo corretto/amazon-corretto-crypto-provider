@@ -37,10 +37,10 @@ class LibCryptoRng extends SecureRandom {
             final long initialLong = rnd.nextLong();
             for (int trial = 0; trial < 3; trial++) {
                 if (initialLong != rnd.nextLong()) {
-                    return new SelfTestResult(SelfTestStatus.PASSED);
+                    return SelfTestResult.PASS_RESULT;
                 }
             }
-            return new SelfTestResult(SelfTestStatus.FAILED);
+            return new SelfTestResult(new AssertionError("LibCryptoRng's self tests failed."));
         }
 
         SPI() {

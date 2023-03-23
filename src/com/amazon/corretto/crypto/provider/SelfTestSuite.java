@@ -5,7 +5,9 @@ package com.amazon.corretto.crypto.provider;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
@@ -17,7 +19,7 @@ class SelfTestSuite {
 
     static class SelfTest {
         private static final AtomicReferenceFieldUpdater<SelfTest, SelfTestResult>
-            update_result = AtomicReferenceFieldUpdater.newUpdater(SelfTest.class, SelfTestResult.class, "result");
+                update_result = AtomicReferenceFieldUpdater.newUpdater(SelfTest.class, SelfTestResult.class, "result");
 
         private final String algorithmName;
         private final Supplier<SelfTestResult> selfTestRunner;
@@ -33,7 +35,7 @@ class SelfTestSuite {
         //
         // Finally, this is a per-SelfTest map because we need to recursively invoke the DRBG self-tests during
         // JceSecurity static initialization (triggered by other self-tests) in some cases.
-        private ConcurrentHashMap<Thread, Object> activeThreads = new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<Thread, Object> activeThreads = new ConcurrentHashMap<>();
 
         public SelfTest(String algorithmName, Supplier<SelfTestResult> selfTestRunner) {
             this.algorithmName = algorithmName;
@@ -70,7 +72,7 @@ class SelfTestSuite {
             if (localResult.getStatus() == SelfTestStatus.PASSED) {
                 if (DebugFlag.VERBOSELOGS.isEnabled()) {
                     LOGGER.finer(() -> String.format("Self-test result for JCE algo %s: PASSED",
-                                                     getAlgorithmName()));
+                            getAlgorithmName()));
                 }
             } else {
                 LOGGER.severe(
@@ -78,7 +80,7 @@ class SelfTestSuite {
                             StringWriter sw = new StringWriter();
 
                             sw.append(String.format("Self-test result for JCE algo %s: %s",
-                                                    getAlgorithmName(), localResult.getStatus()));
+                                    getAlgorithmName(), localResult.getStatus()));
 
                             if (localResult.getThrowable() != null) {
                                 sw.append("\n");
@@ -114,12 +116,28 @@ class SelfTestSuite {
         }
     }
 
-    private ConcurrentHashMap<String, SelfTest> selfTests = new ConcurrentHashMap<>();
+    // This is a wrapper around BORINGSSL_self_test declared in openssl/crypto.h
+    static native boolean awsLcSelfTestsPassed();
+
+    static SelfTestResult runAwsLcSelfTests() {
+        if (awsLcSelfTestsPassed()) {
+            return SelfTestResult.PASS_RESULT;
+        }
+        return new SelfTestResult(new AssertionError("AWS_LC_SELF_TESTS did not pass."));
+    }
+
+
+    static final SelfTestSuite.SelfTest AWS_LC_SELF_TESTS = new SelfTestSuite.SelfTest("AWS_LC_SELF_TESTS", SelfTestSuite::runAwsLcSelfTests);
+
+    private final ConcurrentHashMap<String, SelfTest> selfTests = new ConcurrentHashMap<>();
+
+    private final List<String> testOrder = new ArrayList<>();
 
     void addSelfTest(SelfTest test) {
         if (selfTests.putIfAbsent(test.getAlgorithmName(), test) != null) {
             throw new IllegalArgumentException("Duplicate test for algorithm " + test.getAlgorithmName());
         }
+        testOrder.add(test.getAlgorithmName());
     }
 
     public void resetAllSelfTests() {
@@ -155,12 +173,12 @@ class SelfTestSuite {
             final Map<String, SelfTestResult> results = getAllTestResults();
             final SelfTestFailureException ex = new SelfTestFailureException("Failed self-tests");
 
-            for (final Map.Entry<String, SelfTestResult> entry : results.entrySet()) {
-                final SelfTestResult result = entry.getValue();
+            for (final String alg : testOrder) {
+                final SelfTestResult result = results.get(alg);
 
                 if (!result.getStatus().equals(SelfTestStatus.PASSED)) {
                     ex.addSuppressed(new SelfTestFailureException(
-                            "Self-test for " + entry.getKey() + " failed: " + result,
+                            "Self-test for " + alg + " failed: " + result,
                             result.getThrowable()));
                 }
             }
@@ -169,9 +187,7 @@ class SelfTestSuite {
     }
 
     public SelfTestStatus runTests() {
-        selfTests.forEach(
-                (algoName, test) -> test.runTest()
-        );
+        testOrder.forEach((algoName) -> selfTests.get(algoName).runTest());
 
         return getOverallStatus();
     }

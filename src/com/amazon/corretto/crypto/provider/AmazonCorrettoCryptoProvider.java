@@ -336,12 +336,15 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
             return;
         }
 
+        // The order of adding determines the order of failure reporting and test execution. We do not short circuit
+        // the execution of tests when a test fails.
+        selfTestSuite.addSelfTest(SelfTestSuite.AWS_LC_SELF_TESTS);
+        selfTestSuite.addSelfTest(LibCryptoRng.SPI.SELF_TEST);
         selfTestSuite.addSelfTest(EvpHmac.SHA512.SELF_TEST);
         selfTestSuite.addSelfTest(EvpHmac.SHA384.SELF_TEST);
         selfTestSuite.addSelfTest(EvpHmac.SHA256.SELF_TEST);
         selfTestSuite.addSelfTest(EvpHmac.SHA1.SELF_TEST);
         selfTestSuite.addSelfTest(EvpHmac.MD5.SELF_TEST);
-        selfTestSuite.addSelfTest(LibCryptoRng.SPI.SELF_TEST);
 
         // Kick off self-tests in the background. It's vitally important that we don't actually _wait_ for these to
         // complete, as if we do we'll end up recursing through some JCE internals back to attempts to use
@@ -422,19 +425,24 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
         if (Loader.LOADING_ERROR != null) {
             throw new RuntimeCryptoException("Unable to load native library", Loader.LOADING_ERROR);
         }
+
+        if (!relyOnCachedSelfTestResults) {
+            resetAllSelfTests();
+        }
+
         selfTestSuite.assertAllTestsPassed();
     }
 
     /**
-     * Returns {@code true} if and only if the underlying libcrypto library is a FIPS build.
+     * Returns {@code true} if and only if the underlying libcrypto library is a FIPS build and passes FIPS KAT self tests
      */
     public boolean isFips() {
-        return Loader.FIPS_BUILD;
+        return Loader.FIPS_BUILD && SelfTestSuite.awsLcSelfTestsPassed();
     }
 
     /**
      * Register ACCP's EC-flavored AlgorithmParameters implementation
-     *
+     * <p>
      * Most use-cases can and should rely on JCE-provided EC AlgorithmParameters
      * implementation as it supports more curves, is more broadly compatible,
      * and does not affect FIPS compliance posture as the EC parameters wrapper
