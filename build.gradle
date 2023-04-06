@@ -19,10 +19,12 @@ ext.isFips = Boolean.getBoolean('FIPS')
 ext.isLegacyBuild = Boolean.getBoolean('LEGACY_BUILD')
 
 jmh {
+    includes = ['TlsHandshake']
     fork = 1
     benchmarkMode = ['thrpt']
     threads = 1
     timeUnit = 's'
+    //includeTests = true
     iterations = 5
     timeOnIteration = '3s'
     warmup = '1s'
@@ -37,7 +39,10 @@ jmh {
 
     sourceSets {
         jmh.java.srcDirs += files(["${rootDir}/build/cmake"])
-        main.java.srcDirs += files(["${rootDir}/src/com/amazon/corretto/crypto/provider"])
+        main.java.srcDirs += files([
+            "${rootDir}/src/com/amazon/corretto/crypto/provider",
+            "${rootDir}/tst/com/amazon/corretto/crypto/provider/test/integration",
+        ])
     }
 }
 
@@ -117,6 +122,9 @@ dependencies {
     checkstyle group: 'com.puppycrawl.tools', name: 'checkstyle', version: '9.3'
 
     jmh 'org.bouncycastle:bcprov-debug-jdk15on:1.69'
+    jmh 'org.bouncycastle:bcpkix-jdk15on:1.69'
+    jmh 'org.junit.jupiter:junit-jupiter:5.8.2'
+    jmh 'org.junit.vintage:junit-vintage-engine:5.8.2'
 
     testDep 'org.apiguardian:apiguardian-api:1.1.2'
     testDep 'org.junit.jupiter:junit-jupiter:5.8.2'
