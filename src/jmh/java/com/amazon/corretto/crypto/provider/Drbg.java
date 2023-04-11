@@ -32,6 +32,8 @@ public class Drbg {
         final String algorithm;
         switch (provider) {
             case AmazonCorrettoCryptoProvider.PROVIDER_NAME:
+                algorithm = "NIST800-90A/AES-CTR-256";
+                break;
             case "BC":
                 algorithm = "DEFAULT";
                 break;
