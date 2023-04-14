@@ -264,6 +264,7 @@ add_library(
         csrc/util.cpp
         csrc/util_class.cpp
         csrc/fips_kat_self_test.cpp
+        csrc/fips_status.cpp
         ${JNI_HEADER_DIR}/generated-headers.h
 )
 
@@ -462,7 +463,7 @@ if(NOT ENABLE_NATIVE_TEST_HOOKS)
     CHECK_LINKER_FLAG_SUPPORT(USE_VERSION_SCRIPT "-Wl,--version-script -Wl,${CMAKE_CURRENT_SOURCE_DIR}/final-link.version")
 
 # This does the same thing as the version script, but works on Darwin platforms
-    CHECK_LINKER_FLAG_SUPPORT(USE_EXPORTED_SYMBOL "-Wl,-exported_symbol '-Wl,_Java_*' -Wl,-exported_symbol '-Wl,_JNI_*'")
+    CHECK_LINKER_FLAG_SUPPORT(USE_EXPORTED_SYMBOL "-Wl,-exported_symbol '-Wl,_Java_*' '-Wl,_AWS_LC_fips_failure_callback' -Wl,-exported_symbol '-Wl,_JNI_*'")
 endif()
 
 # Attempt to drop unused sections; the idea here is to exclude unreferenced
@@ -640,6 +641,7 @@ add_custom_target(check-junit
         --select-package=com.amazon.corretto.crypto.provider.test
         --exclude-package=com.amazon.corretto.crypto.provider.test.integration
         --exclude-classname=com.amazon.corretto.crypto.provider.test.SecurityManagerTest
+        --exclude-classname=com.amazon.corretto.crypto.provider.test.FipsStatusTest
 
     DEPENDS accp-jar tests-jar)
 
@@ -661,6 +663,15 @@ add_custom_target(check-junit-SecurityManager
 
     DEPENDS accp-jar tests-jar)
 
+add_custom_target(check-junit-FipsStatus
+    COMMAND ${TEST_JAVA_EXECUTABLE}
+        ${TEST_RUNNER_ARGUMENTS}
+        --select-class=com.amazon.corretto.crypto.provider.test.AesTest # Force loading ciphers
+        --select-class=com.amazon.corretto.crypto.provider.test.SHA1Test # Force loading digests
+        --select-class=com.amazon.corretto.crypto.provider.test.FipsStatusTest
+
+    DEPENDS accp-jar tests-jar)
+
 add_custom_target(check-junit-extra-checks
     COMMAND ${TEST_JAVA_EXECUTABLE}
         -Dcom.amazon.corretto.crypto.provider.extrachecks=ALL
@@ -668,6 +679,7 @@ add_custom_target(check-junit-extra-checks
         ${TEST_RUNNER_ARGUMENTS}
         --select-package=com.amazon.corretto.crypto.provider.test
         --exclude-package=com.amazon.corretto.crypto.provider.test.integration
+        --exclude-classname=com.amazon.corretto.crypto.provider.test.FipsStatusTest
         --exclude-classname=com.amazon.corretto.crypto.provider.test.SecurityManagerTest
 
     DEPENDS accp-jar tests-jar)
@@ -753,7 +765,7 @@ add_custom_target(check-install-via-properties-with-debug
     DEPENDS accp-jar tests-jar)
 
 add_custom_target(check
-    DEPENDS check-recursive-init check-install-via-properties check-install-via-properties-with-debug check-junit check-junit-SecurityManager check-external-lib check-libaccp-rpath)
+    DEPENDS check-recursive-init check-install-via-properties check-install-via-properties-with-debug check-junit check-junit-SecurityManager check-external-lib check-libaccp-rpath check-junit-FipsStatus)
 
 add_custom_target(checkstyle
     WORKING_DIRECTORY ${ORIG_SRCROOT}

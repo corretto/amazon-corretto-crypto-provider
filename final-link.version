@@ -1,6 +1,7 @@
 {
     global:
         Java_*;
+        AWS_LC_fips_failure_callback;
         JNI_*;
         hook_*;
     local:

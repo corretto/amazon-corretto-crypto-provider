@@ -5,7 +5,6 @@
 #include "env.h"
 #include "buffer.h"
 
-
 using namespace AmazonCorrettoCryptoProvider;
 
 JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_test_NativeTestHooks_throwException

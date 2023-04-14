@@ -2,6 +2,7 @@ package com.amazon.accp.breaktests;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 
+import javax.crypto.KeyGenerator;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.security.KeyPairGenerator;
@@ -28,11 +29,12 @@ public class App {
             System.out.println("BORINGSSL_FIPS_BREAK_TEST is set to " + boringsslFipsBreakTestEnvVar);
         } else {
             System.out.println("BORINGSSL_FIPS_BREAK_TEST is not defined");
+            return;
         }
 
         System.out.println("Checking if ACCP is installed properly. If not, we'll get an exception ...");
         p.assertHealthy();
-        System.out.println("Checking if ACCP FIPS is good ... " + p.isFips());
+        System.out.println("Checking if ACCP FIPS is good ... " + p.isFipsStatusOk());
 
         final KeyPairGenerator ecKpg = KeyPairGenerator.getInstance("EC", p);
         ecKpg.initialize(new ECGenParameterSpec("secp256r1"));
@@ -47,7 +49,7 @@ public class App {
         System.out.println("Using GDB to break tests ...");
         System.out.println("Checking if ACCP is installed properly. If not, we'll get an exception ...");
         p.assertHealthy();
-        System.out.println("Checking if ACCP FIPS is good ... " + p.isFips());
+        System.out.println("Checking if ACCP FIPS is good ... " + p.isFipsStatusOk());
         System.out.println("Now, use GDB and attach to this process...");
         System.out.println("The process id is " + ProcessHandle.current().pid());
         System.out.println("Use \'gdb -p " + ProcessHandle.current().pid() + "\' to attach to the process");
@@ -64,6 +66,12 @@ public class App {
         System.out.println("Once your done, press any key to continue ...");
         final BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
         br.readLine();
-        System.out.println("Checking if ACCP FIPS is still good ... " + p.isFips());
+        System.out.println("Checking if ACCP FIPS is still good ... " + p.isFipsStatusOk());
+        System.out.println("If we ask for anything, we should get an exception now ...");
+        try {
+            KeyGenerator.getInstance("AES", p);
+        } catch (final Exception ex) {
+            System.out.println("Got exception: " + ex.getMessage());
+        }
     }
 }

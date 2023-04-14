@@ -202,6 +202,10 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
         @Override
         public Object newInstance(final Object constructorParameter) throws NoSuchAlgorithmException {
+            if (isFips() && !isFipsStatusOk()) {
+                throw new FipsStatusException("The provider is built in FIPS mode and its status is not Ok.");
+            }
+
             if (constructorParameter != null) {
                 // We do not currently support any algorithms that take ctor parameters.
                 throw new NoSuchAlgorithmException("Constructor parameters not used with "
@@ -434,11 +438,16 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     }
 
     /**
-     * Returns {@code true} if and only if the underlying libcrypto library is a FIPS build and passes FIPS KAT self tests
+     * Returns {@code true} if and only if the underlying libcrypto library is a FIPS build
      */
     public boolean isFips() {
-        return Loader.FIPS_BUILD && SelfTestSuite.awsLcSelfTestsPassed();
+        return Loader.FIPS_BUILD;
     }
+
+    /**
+     * @return true if and only if the underlying libcrypto library's FIPS related checks pass
+     */
+    public native boolean isFipsStatusOk();
 
     /**
      * Register ACCP's EC-flavored AlgorithmParameters implementation
