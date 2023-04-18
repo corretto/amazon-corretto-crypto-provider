@@ -759,15 +759,6 @@ add_custom_target(check-install-via-properties-with-debug
 add_custom_target(check
     DEPENDS check-recursive-init check-install-via-properties check-install-via-properties-with-debug check-junit check-junit-SecurityManager check-external-lib check-libaccp-rpath)
 
-add_custom_target(checkstyle
-    WORKING_DIRECTORY ${ORIG_SRCROOT}
-    COMMAND ${TEST_JAVA_EXECUTABLE}
-        -cp ${CHECKSTYLE_CP}
-        com.puppycrawl.tools.checkstyle.Main
-        -c ${ORIG_SRCROOT}/checkstyle.xml
-        ${ACCP_SRC}
-)
-
 if(ENABLE_NATIVE_TEST_HOOKS)
     add_custom_target(check-keyutils
         COMMAND ${CMAKE_COMMAND} -E copy ${OPENSSL_CRYPTO_LIBRARY} $<TARGET_FILE_DIR:test_keyutils>
