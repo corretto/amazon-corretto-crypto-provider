@@ -35,6 +35,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     private static final String PACKAGE_PREFIX = "com.amazon.corretto.crypto.provider.";
     private static final String PROPERTY_CACHE_SELF_TEST_RESULTS = "cacheselftestresults";
     private static final String PROPERTY_REGISTER_EC_PARAMS = "registerEcParams";
+    private static final String PROPERTY_REGISTER_SECURE_RANDOM = "registerSecureRandom";
     private static final long serialVersionUID = 1L;
 
     public static final AmazonCorrettoCryptoProvider INSTANCE;
@@ -44,6 +45,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
     private final boolean relyOnCachedSelfTestResults;
     private final boolean shouldRegisterEcParams;
+    private final boolean shouldRegisterSecureRandom;
 
     private transient SelfTestSuite selfTestSuite = new SelfTestSuite();
 
@@ -88,12 +90,14 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
                 singletonMap("SupportedKeyClasses", "java.security.interfaces.ECPublicKey|java.security.interfaces.ECPrivateKey")
         );
 
-        addService("SecureRandom", "LibCryptoRng", "LibCryptoRng$SPI",
-                singletonMap("ThreadSafe", "true"), "DEFAULT")
-                .setSelfTest(LibCryptoRng.SPI.SELF_TEST);
-
         if (shouldRegisterEcParams) {
             registerEcParams();
+        }
+
+        if (shouldRegisterSecureRandom) {
+            addService("SecureRandom", "LibCryptoRng", "LibCryptoRng$SPI",
+                    singletonMap("ThreadSafe", "true"), "DEFAULT")
+                    .setSelfTest(LibCryptoRng.SPI.SELF_TEST);
         }
 
         addSignatures();
@@ -310,6 +314,11 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
         super("AmazonCorrettoCryptoProvider", PROVIDER_VERSION, "");
         this.relyOnCachedSelfTestResults = Utils.getBooleanProperty(PROPERTY_CACHE_SELF_TEST_RESULTS, true);
         this.shouldRegisterEcParams = Utils.getBooleanProperty(PROPERTY_REGISTER_EC_PARAMS, false);
+
+        // AWS-LC-FIPS's DRBG has per-thread initialization latency that can degrade performance in highly threaded
+        // applications. Until this is resolved, we only register an AWS-LC-backed SecureRandom implementation
+        // when we're not operating in FIPS mode.
+        this.shouldRegisterSecureRandom = Utils.getBooleanProperty(PROPERTY_REGISTER_SECURE_RANDOM, !isFips());
 
         Utils.optionsFromProperty(ExtraCheck.class, extraChecks, "extrachecks");
 

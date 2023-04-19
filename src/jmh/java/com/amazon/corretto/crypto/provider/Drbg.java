@@ -57,5 +57,17 @@ public class Drbg {
         random.nextBytes(data);
         return data;
     }
-}
 
+    @Benchmark
+    @Threads(1)
+    public byte[] newThreadPerRequest() throws InterruptedException {
+        Thread t = new Thread() {
+            public void run() {
+                random.nextBytes(data);
+            }
+        };
+        t.start();
+        t.join();
+        return data;
+    }
+}
