@@ -50,11 +50,15 @@ Coding style is programmatically enforced at build time by the [Spotless Gradle 
 
 Style Guides:
 - Java source follows [Google Java Style](https://google.github.io/styleguide/javaguide.html).
+- C++ source follows [Webkit Style](https://www.webkit.org/code-style-guidelines/) with a few modifications defined in `.clang-format`.
 
 ## Applying Code Formatting
 Prior to committing and/or submitting a PR, developers should run the automated formatter to avoid CI failures by the check phase of the build.
 
 ```
+# Install the clang-format package from your package manager to run the C++ checks
+sudo yum/brew/apt install clang-format
+
 # Run this to automatically run the formatter
 ./gradlew spotlessApply
 
