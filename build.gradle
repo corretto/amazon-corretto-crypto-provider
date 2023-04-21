@@ -64,6 +64,40 @@ spotless {
 
     googleJavaFormat().reflowLongStrings()
   }
+
+  // clang-format is difficult to configure across all of our platforms so we
+  // avoid being really strict about enforcing it in our build for now.
+  def clangFormatVersion = getClangFormatVersion()
+  if (!clangFormatVersion.equals('')) {
+    cpp {
+        target 'csrc/*'
+        licenseHeaderFile 'build-tools/license-headers/LicenseHeader.h'
+        clangFormat(clangFormatVersion)
+    }
+  }
+}
+
+/**
+    Spotless depends on shelling out to the OS's clang-format binary which is
+    stubbornly non-uniform in both version and version string across all
+    native package managers. Work around this by shelling out and extracting
+    the version string.
+ */
+def getClangFormatVersion() {
+    def version_command = 'clang-format --version'
+    def shell_output = new ByteArrayOutputStream()
+    exec {
+        commandLine "bash", "-c", version_command
+        standardOutput = shell_output
+        ignoreExitValue true
+    }
+    def shell_output_string = shell_output.toString().trim()
+    def matcher = shell_output_string =~ /version ([\w\.-]+)/
+    if (matcher.find()) {
+        return matcher.group(1)
+    } else {
+        return ''
+    }
 }
 
 def awslcSrcPath = "${projectDir}/aws-lc/"

@@ -1,9 +1,6 @@
 // Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-// Contains utility methods and classes for dealing with keys or openssl structures.
-// Unlike util.h, this is intended to capture high-level logic with more internal dependencies.
-
 #ifndef KEYUTILS_H
 #define KEYUTILS_H 1
 
@@ -13,6 +10,9 @@
 #include "util.h"
 #include "env.h"
 #include "auto_free.h"
+
+// Contains utility methods and classes for dealing with keys or openssl structures.
+// Unlike util.h, this is intended to capture high-level logic with more internal dependencies.
 
 namespace AmazonCorrettoCryptoProvider {
 

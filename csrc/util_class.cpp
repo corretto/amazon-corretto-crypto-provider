@@ -1,13 +1,13 @@
 // Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-// JNI methods needed by the Java Utils class rather than generic utilities needed by our code.
 
 #include "generated-headers.h"
 
 #include "util.h"
 #include "env.h"
 #include "keyutils.h"
+// JNI methods needed by the Java Utils class rather than generic utilities needed by our code.
 
 using namespace AmazonCorrettoCryptoProvider;
 

@@ -1,3 +1,8 @@
+#include "generated-headers.h"
+#include "env.h"
+#include "util.h"
+#include "buffer.h"
+
 /** -*- mode: c++; -*-
  * vim: set expandtab sw=4 ts=4 ft=cpp :
  *
@@ -18,11 +23,6 @@
  *   DIGEST_NAME_CTX will be used
  * #include appropriate openssl headers
  */
-
-#include "generated-headers.h"
-#include "env.h"
-#include "util.h"
-#include "buffer.h"
 
 #define JNI_NAME(name) \
     CONCAT2( \
