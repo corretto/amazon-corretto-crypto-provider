@@ -104,7 +104,7 @@ task buildOpenSsl {
             args 'no-autoload-config', 'no-capieng', 'no-cms', 'no-comp', 'no-ct', 'no-dgram', 'no-devcryptoeng'
             args 'no-gost', 'no-hw-padlock', 'no-nextprotoneg', 'no-ocsp', 'no-psk', 'no-rfc3779', 'no-shared'
             args 'no-sock', 'no-srp', 'no-srtp', 'threads', 'no-ts',  "no-bf", "no-cast", "no-md2", "no-rc2"
-            args "no-rc4", "no-rc5", "no-srp", 'no-comp', 'no-hw', 'no-mdc2'
+            args "no-rc4", "no-rc5", "no-srp", 'no-comp', 'no-hw', 'no-mdc2', 'enable-ec_nistp_64_gcc_128'
         }
         exec {
             workingDir opensslSrcPath
