@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.math.BigInteger;
@@ -546,8 +547,9 @@ public final class EvpSignatureSpecificTest {
 
   @Test
   void testRsaPSSInitSmallKeyAfterSetParameterLargeSaltThrows() throws Exception {
+    assumeFalse(TestUtil.isFips(), "In FIPS mode, smallKeySize cannot be less that 2048");
     final int minimallySecureKeyLen = 2048;
-    final int smallKeySize = 2048 / 4;
+    final int smallKeySize = minimallySecureKeyLen / 4;
     final Signature signer = Signature.getInstance("RSASSA-PSS", NATIVE_PROVIDER);
     final int largeSaltLen = 2 * (smallKeySize / 8);
     final PSSParameterSpec spec =

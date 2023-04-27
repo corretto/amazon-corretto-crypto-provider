@@ -5,6 +5,7 @@
 #include <cstring> // for memset
 #include <openssl/rsa.h>
 #include <openssl/bn.h>
+#include <openssl/crypto.h>
 #include "generated-headers.h"
 #include "keyutils.h"
 #include "util.h"
@@ -29,14 +30,22 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_RsaGen_generate
         BigNumObj bne;
         jarr2bn(env, pubExp, bne);
 
-        if (1 != RSA_generate_key_ex(r, bits, bne, NULL))
-        {
+        if (1 != RSA_generate_key_ex(r, bits, bne, NULL)) {
             throw_openssl("Unable to generate key");
         }
 
-        if (checkConsistency && RSA_check_key(r) != 1)
-        {
-            throw_openssl("Key failed consistency check");
+        if (FIPS_mode() == 1) {
+            // We should be using RSA_generate_key_fips, but since RSA_generate_key_fips doesn't allow
+            // bit lengths greater than 4096 and public exponents other than F4, we use RSA_generate_key_ex
+            // and explicitly check FIPS related conditions. This is done to ensure that ACCP built in FIPS mode
+            // is compatible with BC-FIPS.
+            if (RSA_check_fips(r) != 1) {
+                throw_openssl("RSA_check_fips failed");
+            }
+        } else {
+            if (checkConsistency && RSA_check_key(r) != 1) {
+                throw_openssl("Key failed consistency check");
+            }
         }
 
         EVP_PKEY_auto result = EVP_PKEY_auto::from(EVP_PKEY_new());

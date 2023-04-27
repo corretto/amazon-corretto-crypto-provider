@@ -175,7 +175,8 @@ public final class AesKeyWrapPaddingTest {
 
   public static List<Arguments> getParamsAsymmetric() throws GeneralSecurityException {
     final String[] ecCurveNames = {"secp224r1", "secp256r1", "secp384r1", "secp521r1"};
-    final int[] rsaKeySizes = {512, 1024, 2048, 4096};
+    final List<Integer> rsaKeySizes =
+        TestUtil.isFips() ? Arrays.asList(2048, 4096) : Arrays.asList(512, 1024, 2048, 4096);
     List<Arguments> args = new ArrayList<>();
     KeyPairGenerator kpg;
     for (int wrappingKeySize : AES_KEY_SIZES) {
