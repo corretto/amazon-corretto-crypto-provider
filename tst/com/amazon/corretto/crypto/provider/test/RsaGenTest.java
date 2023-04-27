@@ -12,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import java.math.BigInteger;
 import java.security.GeneralSecurityException;
+import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidParameterException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -60,37 +61,51 @@ public class RsaGenTest {
   @Test
   public void test512() throws GeneralSecurityException {
     final KeyPairGenerator generator = getGenerator();
-    generator.initialize(512);
-    final KeyPair keyPair = generator.generateKeyPair();
-    final RSAPublicKey pubKey = (RSAPublicKey) keyPair.getPublic();
-    final RSAPrivateCrtKey privKey = (RSAPrivateCrtKey) keyPair.getPrivate();
-    assertEquals(512, pubKey.getModulus().bitLength());
-    assertEquals(RSAKeyGenParameterSpec.F4, pubKey.getPublicExponent());
-    assertConsistency(pubKey, privKey);
+    if (TestUtil.isFips()) {
+      assertThrows(InvalidParameterException.class, () -> generator.initialize(512));
+    } else {
+      generator.initialize(512);
+      final KeyPair keyPair = generator.generateKeyPair();
+      final RSAPublicKey pubKey = (RSAPublicKey) keyPair.getPublic();
+      final RSAPrivateCrtKey privKey = (RSAPrivateCrtKey) keyPair.getPrivate();
+      assertEquals(512, pubKey.getModulus().bitLength());
+      assertEquals(RSAKeyGenParameterSpec.F4, pubKey.getPublicExponent());
+      assertConsistency(pubKey, privKey);
+    }
   }
 
   @Test
   public void test512_3() throws GeneralSecurityException {
     final KeyPairGenerator generator = getGenerator();
-    generator.initialize(new RSAKeyGenParameterSpec(512, RSAKeyGenParameterSpec.F0));
-    final KeyPair keyPair = generator.generateKeyPair();
-    final RSAPublicKey pubKey = (RSAPublicKey) keyPair.getPublic();
-    final RSAPrivateCrtKey privKey = (RSAPrivateCrtKey) keyPair.getPrivate();
-    assertEquals(512, pubKey.getModulus().bitLength());
-    assertEquals(RSAKeyGenParameterSpec.F0, pubKey.getPublicExponent());
-    assertConsistency(pubKey, privKey);
+    if (TestUtil.isFips()) {
+      assertThrows(
+          InvalidAlgorithmParameterException.class,
+          () -> generator.initialize(new RSAKeyGenParameterSpec(512, RSAKeyGenParameterSpec.F0)));
+    } else {
+      generator.initialize(new RSAKeyGenParameterSpec(512, RSAKeyGenParameterSpec.F0));
+      final KeyPair keyPair = generator.generateKeyPair();
+      final RSAPublicKey pubKey = (RSAPublicKey) keyPair.getPublic();
+      final RSAPrivateCrtKey privKey = (RSAPrivateCrtKey) keyPair.getPrivate();
+      assertEquals(512, pubKey.getModulus().bitLength());
+      assertEquals(RSAKeyGenParameterSpec.F0, pubKey.getPublicExponent());
+      assertConsistency(pubKey, privKey);
+    }
   }
 
   @Test
   public void test1024() throws GeneralSecurityException {
     final KeyPairGenerator generator = getGenerator();
-    generator.initialize(1024);
-    final KeyPair keyPair = generator.generateKeyPair();
-    final RSAPublicKey pubKey = (RSAPublicKey) keyPair.getPublic();
-    final RSAPrivateCrtKey privKey = (RSAPrivateCrtKey) keyPair.getPrivate();
-    assertEquals(1024, pubKey.getModulus().bitLength());
-    assertEquals(RSAKeyGenParameterSpec.F4, pubKey.getPublicExponent());
-    assertConsistency(pubKey, privKey);
+    if (TestUtil.isFips()) {
+      assertThrows(InvalidParameterException.class, () -> generator.initialize(1024));
+    } else {
+      generator.initialize(1024);
+      final KeyPair keyPair = generator.generateKeyPair();
+      final RSAPublicKey pubKey = (RSAPublicKey) keyPair.getPublic();
+      final RSAPrivateCrtKey privKey = (RSAPrivateCrtKey) keyPair.getPrivate();
+      assertEquals(1024, pubKey.getModulus().bitLength());
+      assertEquals(RSAKeyGenParameterSpec.F4, pubKey.getPublicExponent());
+      assertConsistency(pubKey, privKey);
+    }
   }
 
   @Test
@@ -130,6 +145,19 @@ public class RsaGenTest {
   }
 
   @Test
+  public void test5120_with_customE() throws GeneralSecurityException {
+    final BigInteger customE = RSAKeyGenParameterSpec.F4.add(BigInteger.valueOf(2));
+    final KeyPairGenerator generator = getGenerator();
+    generator.initialize(new RSAKeyGenParameterSpec(5120, customE));
+    final KeyPair keyPair = generator.generateKeyPair();
+    final RSAPublicKey pubKey = (RSAPublicKey) keyPair.getPublic();
+    final RSAPrivateCrtKey privKey = (RSAPrivateCrtKey) keyPair.getPrivate();
+    assertEquals(5120, pubKey.getModulus().bitLength());
+    assertEquals(customE, pubKey.getPublicExponent());
+    assertConsistency(pubKey, privKey);
+  }
+
+  @Test
   public void threadStorm() throws Throwable {
     final byte[] rngSeed = TestUtil.getRandomBytes(20);
     System.out.println("RNG Seed: " + Hex.toHexString(rngSeed));
@@ -142,7 +170,9 @@ public class RsaGenTest {
     final KeyPairGenerator[] generators = new KeyPairGenerator[generatorCount];
     for (int x = 0; x < generatorCount; x++) {
       generators[x] = KeyPairGenerator.getInstance("RSA", TestUtil.NATIVE_PROVIDER);
-      generators[x].initialize(1024);
+      if (!TestUtil.isFips()) {
+        generators[x].initialize(1024);
+      }
     }
 
     final List<TestThread> threads = new ArrayList<>();

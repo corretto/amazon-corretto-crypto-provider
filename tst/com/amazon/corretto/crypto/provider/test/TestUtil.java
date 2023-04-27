@@ -60,6 +60,10 @@ public class TestUtil {
         new String[] {"secp256k1", "1.3.132.0.10"},
       };
 
+  public static final boolean isFips() {
+    return NATIVE_PROVIDER.isFips();
+  }
+
   public static String getCurveOid(String nameOrOid) {
     if (nameOrOid == null) {
       return null;

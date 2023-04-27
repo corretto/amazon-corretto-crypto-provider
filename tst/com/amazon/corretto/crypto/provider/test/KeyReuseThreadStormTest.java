@@ -37,7 +37,7 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 public class KeyReuseThreadStormTest {
   private static final KeyPairGenerator RSA_KEY_GEN;
   private static final KeyPairGenerator EC_KEY_GEN;
-  private static final KeyPair PAIR_RSA_1024;
+  private static final KeyPair PAIR_RSA_1024_OR_DEFAULT;
   private static final KeyPair PAIR_RSA_2048;
   private static final KeyPair PAIR_RSA_4096;
   private static final KeyPair PAIR_EC_P256;
@@ -47,8 +47,10 @@ public class KeyReuseThreadStormTest {
   static {
     try {
       RSA_KEY_GEN = KeyPairGenerator.getInstance("RSA", NATIVE_PROVIDER);
-      RSA_KEY_GEN.initialize(1024);
-      PAIR_RSA_1024 = RSA_KEY_GEN.generateKeyPair();
+      if (!TestUtil.isFips()) {
+        RSA_KEY_GEN.initialize(1024);
+      }
+      PAIR_RSA_1024_OR_DEFAULT = RSA_KEY_GEN.generateKeyPair();
       RSA_KEY_GEN.initialize(2048);
       PAIR_RSA_2048 = RSA_KEY_GEN.generateKeyPair();
       RSA_KEY_GEN.initialize(4096);
@@ -140,7 +142,7 @@ public class KeyReuseThreadStormTest {
       final List<KeyPair> keys = new ArrayList<KeyPair>();
       while (keys.isEmpty()) {
         if (rng.nextBoolean()) {
-          keys.add(PAIR_RSA_1024);
+          keys.add(PAIR_RSA_1024_OR_DEFAULT);
         }
         if (rng.nextBoolean()) {
           keys.add(PAIR_RSA_2048);

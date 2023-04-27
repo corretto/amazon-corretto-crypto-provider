@@ -12,6 +12,7 @@ import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.RSAKeyGenParameterSpec;
 
 class RsaGen extends KeyPairGeneratorSpi {
+  private static final int MIN_KEY_SIZE = Loader.FIPS_BUILD ? 2048 : 512;
   private static final RSAKeyGenParameterSpec DEFAULT_KEYGEN_SPEC =
       new RSAKeyGenParameterSpec(2048, RSAKeyGenParameterSpec.F4);
   private final KeyFactory keyFactory;
@@ -66,11 +67,19 @@ class RsaGen extends KeyPairGeneratorSpi {
     }
   }
 
-  private static RSAKeyGenParameterSpec validateParameter(RSAKeyGenParameterSpec spec)
+  private static RSAKeyGenParameterSpec validateParameter(final RSAKeyGenParameterSpec spec)
       throws InvalidAlgorithmParameterException {
-    if (spec.getKeysize() < 512) {
+
+    // Similar to BC-FIPS, ACCP only disallows public exponents less than F4.
+    if (Loader.FIPS_BUILD && spec.getPublicExponent().compareTo(RSAKeyGenParameterSpec.F4) <= -1) {
+      throw new InvalidAlgorithmParameterException(
+          "For FIPS builds, public exponent cannot be less that F4");
+    }
+
+    if (spec.getKeysize() < MIN_KEY_SIZE) {
       throw new InvalidAlgorithmParameterException("Unsupported key size: " + spec.getKeysize());
     }
+
     return spec;
   }
 }

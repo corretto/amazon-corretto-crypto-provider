@@ -109,10 +109,11 @@ public class AESGenerativeTest {
       KeyPairGenerator kg;
       try {
         kg = KeyPairGenerator.getInstance("RSA", NATIVE_PROVIDER);
+        kg.initialize(keySize);
       } catch (final Exception ex) {
         kg = KeyPairGenerator.getInstance("RSA");
+        kg.initialize(keySize);
       }
-      kg.initialize(keySize);
       KeyPair keyPair = kg.generateKeyPair();
       if (r.nextBoolean()) {
         innerKey = keyPair.getPublic();

@@ -491,12 +491,9 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     selfTestSuite.assertAllTestsPassed();
   }
 
-  /**
-   * Returns {@code true} if and only if the underlying libcrypto library is a FIPS build and passes
-   * FIPS KAT self tests
-   */
+  /** Returns {@code true} if and only if the underlying libcrypto library is a FIPS build */
   public boolean isFips() {
-    return Loader.FIPS_BUILD && SelfTestSuite.awsLcSelfTestsPassed();
+    return Loader.FIPS_BUILD;
   }
 
   /**
