@@ -1,15 +1,14 @@
 // Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
-
 #include "env.h"
 #include "buffer.h"
-#include <cassert>
 #include <openssl/err.h>
+#include <cassert>
 
 #ifdef BACKTRACE_ON_EXCEPTION
-#include <execinfo.h>
-#include <dlfcn.h>
 #include <cxxabi.h>
+#include <dlfcn.h>
+#include <execinfo.h>
 #include <inttypes.h>
 #endif
 
@@ -24,7 +23,8 @@ namespace AmazonCorrettoCryptoProvider {
 // we normally only enable this in debug builds.
 
 // Capture the trace - this runs at the point where the exception is constructed.
-void capture_trace(std::vector<void *> &trace) {
+void capture_trace(std::vector<void*>& trace)
+{
     trace.resize(1024);
 
     // The backtrace function walks the stack and fills a void** buffer with up
@@ -36,11 +36,12 @@ void capture_trace(std::vector<void *> &trace) {
 
 // Format the trace into a string.
 // TODO: Defer actually doing this until java asks for the exception string.
-void format_trace(std::ostringstream &accum, const std::vector<void *> &trace) {
+void format_trace(std::ostringstream& accum, const std::vector<void*>& trace)
+{
     accum << " Backtrace:\n";
     char buf[128];
     size_t bufsz = 128;
-    char *demangle_buf = (char *)malloc(bufsz);
+    char* demangle_buf = (char*)malloc(bufsz);
 
     for (int i = 0; i < trace.size(); i++) {
         // Print the index of the backtrace frame
@@ -56,10 +57,10 @@ void format_trace(std::ostringstream &accum, const std::vector<void *> &trace) {
             continue;
         }
 
-        const char *image_name = info.dli_fname ? info.dli_fname : "???";
+        const char* image_name = info.dli_fname ? info.dli_fname : "???";
 
         // Strip off the full path and only print the last component of the library name.
-        char *last_slash = strrchr(image_name, '/');
+        char* last_slash = strrchr(image_name, '/');
         if (last_slash) {
             image_name = last_slash + 1;
         }
@@ -79,7 +80,7 @@ void format_trace(std::ostringstream &accum, const std::vector<void *> &trace) {
         // realloc() the buffer passed in so we have to be prepared to update
         // our demangle_buf pointer each time we call it.
 
-        char *result = abi::__cxa_demangle(info.dli_sname, demangle_buf, &bufsz, &status);
+        char* result = abi::__cxa_demangle(info.dli_sname, demangle_buf, &bufsz, &status);
         if (result) {
             demangle_buf = result;
         }
@@ -103,7 +104,8 @@ void format_trace(std::ostringstream &accum, const std::vector<void *> &trace) {
 }
 #endif
 
-void java_ex::throw_to_java(JNIEnv *env) {
+void java_ex::throw_to_java(JNIEnv* env)
+{
     // Do not try to throw an exception when one is already being thrown.
     if (unlikely(env->ExceptionCheck())) {
         return;
@@ -143,11 +145,13 @@ void java_ex::throw_to_java(JNIEnv *env) {
     assert(env->ExceptionCheck());
 }
 
-java_ex java_ex::from_openssl(const char *ex_class, const char *default_string) {
+java_ex java_ex::from_openssl(const char* ex_class, const char* default_string)
+{
     return java_ex(ex_class, opensslErrorWithDefault(default_string));
 }
 
-void java_ex::rethrow_java_exception(JNIEnv *pEnv) {
+void java_ex::rethrow_java_exception(JNIEnv* pEnv)
+{
     jthrowable throwable = pEnv->ExceptionOccurred();
     if (!throwable) {
         throw_java_ex(EX_ERROR, "rethrow_java_exception called when no exception was pending");
@@ -156,46 +160,39 @@ void java_ex::rethrow_java_exception(JNIEnv *pEnv) {
     throw java_ex(throwable);
 }
 
-void throw_java_ex(const char *ex_class, const char *message) {
-    throw java_ex(ex_class, message);
-}
+void throw_java_ex(const char* ex_class, const char* message) { throw java_ex(ex_class, message); }
 
-void throw_java_ex(const char *ex_class, const std::string &message) {
-    throw java_ex(ex_class, message);
-}
+void throw_java_ex(const char* ex_class, const std::string& message) { throw java_ex(ex_class, message); }
 
-void throw_openssl(const char *ex_class, const char *message) {
-    throw java_ex::from_openssl(ex_class, message);
-}
+void throw_openssl(const char* ex_class, const char* message) { throw java_ex::from_openssl(ex_class, message); }
 
-void throw_openssl(const char *message) {
-    throw_openssl(EX_RUNTIME_CRYPTO, message);
-}
+void throw_openssl(const char* message) { throw_openssl(EX_RUNTIME_CRYPTO, message); }
 
-void throw_openssl() {
-    throw_openssl("Unexpected openssl error");
-}
+void throw_openssl() { throw_openssl("Unexpected openssl error"); }
 
-void raii_env::get_env_err() {
+void raii_env::get_env_err()
+{
     std::cerr << "Attempted to use JNI environment while buffer locks were outstanding:" << std::endl;
     buffer_lock_trace();
 }
 
-void raii_env::dtor_err() {
+void raii_env::dtor_err()
+{
     std::cerr << "Attempted to destroy jni context while buffer locks were outstanding:" << std::endl;
     buffer_lock_trace();
     abort();
 }
 
-void raii_env::buffer_lock_trace() {
+void raii_env::buffer_lock_trace()
+{
     int n = 0;
-    for (jni_borrow *p = m_last_buffer_lock; p; p = p->m_prior_borrow) {
+    for (jni_borrow* p = m_last_buffer_lock; p; p = p->m_prior_borrow) {
         n++;
         std::cerr << "\t" << p << ": \"" << (p->m_trace ? p->m_trace : "NO TRACE") << "\"" << std::endl;
     }
     std::cerr << "End trace (" << n << " locks)" << std::endl;
 
-    std::vector<void *> trace;
+    std::vector<void*> trace;
     AmazonCorrettoCryptoProvider::capture_trace(trace);
 
     std::ostringstream oss;

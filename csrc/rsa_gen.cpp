@@ -1,30 +1,24 @@
 // Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
-
-#include <stdio.h>
-#include <cstring> // for memset
-#include <openssl/rsa.h>
-#include <openssl/bn.h>
-#include <openssl/crypto.h>
+#include "auto_free.h"
+#include "bn.h"
 #include "generated-headers.h"
 #include "keyutils.h"
 #include "util.h"
-#include "bn.h"
-#include "auto_free.h"
+#include <openssl/bn.h>
+#include <openssl/crypto.h>
+#include <openssl/rsa.h>
+#include <cstring> // for memset
+#include <stdio.h>
 
 using namespace AmazonCorrettoCryptoProvider;
 
 JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_RsaGen_generateEvpKey(
-    JNIEnv *pEnv,
-    jclass,
-    jint bits,
-    jboolean checkConsistency,
-    jbyteArray pubExp)
+    JNIEnv* pEnv, jclass, jint bits, jboolean checkConsistency, jbyteArray pubExp)
 {
     RSA_auto r = RSA_auto::from(RSA_new());
 
-    try
-    {
+    try {
         raii_env env(pEnv);
 
         BigNumObj bne;
@@ -53,9 +47,7 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_RsaGen_generate
         CHECK_OPENSSL(EVP_PKEY_set1_RSA(result, r));
 
         return reinterpret_cast<jlong>(result.take());
-    }
-    catch (java_ex &ex)
-    {
+    } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);
         return 0;
     }

@@ -1,31 +1,28 @@
 // Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
-
-#include <cstdio>
-#include <cassert>
-#include <algorithm> // for std::min
-#include <openssl/aes.h>
-#include <openssl/evp.h>
-#include <openssl/err.h>
-#include "generated-headers.h"
-#include "util.h"
-#include "env.h"
 #include "buffer.h"
+#include "env.h"
+#include "generated-headers.h"
 #include "keyutils.h"
+#include "util.h"
+#include <openssl/aes.h>
+#include <openssl/err.h>
+#include <openssl/evp.h>
+#include <algorithm> // for std::min
+#include <cassert>
+#include <cstdio>
 
 #define AES_MAX_KEY_SIZE 32
 
 using namespace AmazonCorrettoCryptoProvider;
 
-JNIEXPORT int JNICALL Java_com_amazon_corretto_crypto_provider_AesKeyWrapPaddingSpi_wrapKey(
-  JNIEnv *pEnv,
-  jclass,
-  jbyteArray keyArray,
-  jbyteArray inputArray,
-  jint inputLength,
-  jbyteArray outputArray,
-  jint outputOffset
-)
+JNIEXPORT int JNICALL Java_com_amazon_corretto_crypto_provider_AesKeyWrapPaddingSpi_wrapKey(JNIEnv* pEnv,
+    jclass,
+    jbyteArray keyArray,
+    jbyteArray inputArray,
+    jint inputLength,
+    jbyteArray outputArray,
+    jint outputOffset)
 {
     try {
         raii_env env(pEnv);
@@ -40,7 +37,7 @@ JNIEXPORT int JNICALL Java_com_amazon_corretto_crypto_provider_AesKeyWrapPadding
             throw_openssl(EX_RUNTIME_CRYPTO, "AES key too large");
         }
         key.get_bytes(env, keybuf.buf, 0, key.len());
-        if (AES_set_encrypt_key(keybuf.buf, key.len()*8, &aes_key) != 0) {
+        if (AES_set_encrypt_key(keybuf.buf, key.len() * 8, &aes_key) != 0) {
             throw_openssl(EX_RUNTIME_CRYPTO, "AES key init failed");
         }
 
@@ -52,21 +49,19 @@ JNIEXPORT int JNICALL Java_com_amazon_corretto_crypto_provider_AesKeyWrapPadding
         }
 
         return outlen;
-    } catch (java_ex &ex) {
+    } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);
         return 0;
     }
 }
 
-JNIEXPORT int JNICALL Java_com_amazon_corretto_crypto_provider_AesKeyWrapPaddingSpi_unwrapKey(
-  JNIEnv *pEnv,
-  jclass,
-  jbyteArray keyArray,
-  jbyteArray inputArray,
-  jint inputLength,
-  jbyteArray outputArray,
-  jint outputOffset
-)
+JNIEXPORT int JNICALL Java_com_amazon_corretto_crypto_provider_AesKeyWrapPaddingSpi_unwrapKey(JNIEnv* pEnv,
+    jclass,
+    jbyteArray keyArray,
+    jbyteArray inputArray,
+    jint inputLength,
+    jbyteArray outputArray,
+    jint outputOffset)
 {
     try {
         raii_env env(pEnv);
@@ -81,7 +76,7 @@ JNIEXPORT int JNICALL Java_com_amazon_corretto_crypto_provider_AesKeyWrapPadding
             throw_openssl(EX_RUNTIME_CRYPTO, "AES key too large");
         }
         key.get_bytes(env, keybuf.buf, 0, key.len());
-        if (AES_set_decrypt_key(keybuf.buf, key.len()*8, &aes_key) != 0) {
+        if (AES_set_decrypt_key(keybuf.buf, key.len() * 8, &aes_key) != 0) {
             throw_openssl(EX_RUNTIME_CRYPTO, "AES key init failed");
         }
 
@@ -93,7 +88,7 @@ JNIEXPORT int JNICALL Java_com_amazon_corretto_crypto_provider_AesKeyWrapPadding
         }
 
         return outlen;
-    } catch (java_ex &ex) {
+    } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);
         return 0;
     }
