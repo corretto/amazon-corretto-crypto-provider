@@ -16,7 +16,7 @@ env:
 jobs:
   # Job to run regular ACCP tests on MacOS.
   macOS:
-    runs-on: macos-11 # latest
+    runs-on: macos-latest
     steps:
     - uses: actions/checkout@v3
       with:
