@@ -1,17 +1,16 @@
 // Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
-
+#include "auto_free.h"
+#include "bn.h"
+#include "buffer.h"
+#include "env.h"
+#include "generated-headers.h"
+#include "keyutils.h"
+#include "util.h"
 #include <openssl/asn1t.h>
 #include <openssl/ec.h>
-#include <openssl/evp.h>
 #include <openssl/err.h>
-#include "generated-headers.h"
-#include "env.h"
-#include "buffer.h"
-#include "bn.h"
-#include "util.h"
-#include "keyutils.h"
-#include "auto_free.h"
+#include <openssl/evp.h>
 
 using namespace AmazonCorrettoCryptoProvider;
 
@@ -19,12 +18,9 @@ using namespace AmazonCorrettoCryptoProvider;
  * Class:     com_amazon_corretto_crypto_provider_EvpKey
  * Method:    releaseKey
  */
-JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_EvpKey_releaseKey(
-    JNIEnv *,
-    jclass,
-    jlong keyHandle)
+JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_EvpKey_releaseKey(JNIEnv*, jclass, jlong keyHandle)
 {
-    EVP_PKEY_free(reinterpret_cast<EVP_PKEY *>(keyHandle));
+    EVP_PKEY_free(reinterpret_cast<EVP_PKEY*>(keyHandle));
 }
 
 /*
@@ -32,14 +28,11 @@ JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_EvpKey_releaseKe
  * Method:    encodePublicKey
  */
 JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpKey_encodePublicKey(
-    JNIEnv *pEnv,
-    jclass,
-    jlong keyHandle)
+    JNIEnv* pEnv, jclass, jlong keyHandle)
 {
     jbyteArray result = NULL;
 
-    try
-    {
+    try {
         raii_env env(pEnv);
 
         EVP_PKEY* key = reinterpret_cast<EVP_PKEY*>(keyHandle);
@@ -48,15 +41,12 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpKey_enc
         // This next line allocates memory
         int derLen = i2d_PUBKEY(key, &der);
         CHECK_OPENSSL(derLen > 0);
-        if (!(result = env->NewByteArray(derLen)))
-        {
+        if (!(result = env->NewByteArray(derLen))) {
             throw_java_ex(EX_OOM, "Unable to allocate DER array");
         }
         // This may throw, if it does we'll just keep the exception state as we return.
         env->SetByteArrayRegion(result, 0, derLen, der);
-    }
-    catch (java_ex &ex)
-    {
+    } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);
     }
 
@@ -68,14 +58,11 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpKey_enc
  * Method:    encodePrivateKey
  */
 JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpKey_encodePrivateKey(
-    JNIEnv *pEnv,
-    jclass,
-    jlong keyHandle)
+    JNIEnv* pEnv, jclass, jlong keyHandle)
 {
     jbyteArray result = NULL;
 
-    try
-    {
+    try {
         raii_env env(pEnv);
 
         EVP_PKEY* key = reinterpret_cast<EVP_PKEY*>(keyHandle);
@@ -88,15 +75,12 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpKey_enc
         int derLen = i2d_PKCS8_PRIV_KEY_INFO(pkcs8, &der);
 
         CHECK_OPENSSL(derLen > 0);
-        if (!(result = env->NewByteArray(derLen)))
-        {
+        if (!(result = env->NewByteArray(derLen))) {
             throw_java_ex(EX_OOM, "Unable to allocate DER array");
         }
         // This may throw, if it does we'll just keep the exception state as we return.
         env->SetByteArrayRegion(result, 0, derLen, der);
-    }
-    catch (java_ex &ex)
-    {
+    } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);
     }
 
@@ -109,14 +93,9 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpKey_enc
  * Signature: ([BI)J
  */
 JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_pkcs82Evp(
-    JNIEnv *pEnv,
-    jclass,
-    jbyteArray pkcs8der,
-    jint nativeValue,
-    jboolean shouldCheckPrivate)
+    JNIEnv* pEnv, jclass, jbyteArray pkcs8der, jint nativeValue, jboolean shouldCheckPrivate)
 {
-    try
-    {
+    try {
         raii_env env(pEnv);
         EVP_PKEY_auto result;
 
@@ -126,15 +105,12 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_p
         {
             jni_borrow borrow = jni_borrow(env, pkcs8Buff, "pkcs8Buff");
             result.set(der2EvpPrivateKey(borrow, derLen, shouldCheckPrivate, EX_INVALID_KEY_SPEC));
-            if (EVP_PKEY_base_id(result) != nativeValue)
-            {
+            if (EVP_PKEY_base_id(result) != nativeValue) {
                 throw_java_ex(EX_INVALID_KEY_SPEC, "Incorrect key type");
             }
         }
         return reinterpret_cast<jlong>(result.take());
-    }
-    catch (java_ex &ex)
-    {
+    } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);
         return 0;
     }
@@ -146,13 +122,9 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_p
  * Signature: ([BI)J
  */
 JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_x5092Evp(
-    JNIEnv *pEnv,
-    jclass,
-    jbyteArray x509der,
-    jint nativeValue)
+    JNIEnv* pEnv, jclass, jbyteArray x509der, jint nativeValue)
 {
-    try
-    {
+    try {
         raii_env env(pEnv);
         EVP_PKEY_auto result;
 
@@ -162,15 +134,12 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_x
         {
             jni_borrow borrow = jni_borrow(env, x509Buff, "x509Buff");
             result.set(der2EvpPublicKey(borrow, derLen, EX_INVALID_KEY_SPEC));
-            if (EVP_PKEY_base_id(result) != nativeValue)
-            {
+            if (EVP_PKEY_base_id(result) != nativeValue) {
                 throw_java_ex(EX_INVALID_KEY_SPEC, "Incorrect key type");
             }
         }
         return reinterpret_cast<jlong>(result.take());
-    }
-    catch (java_ex &ex)
-    {
+    } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);
         return 0;
     }
@@ -181,8 +150,7 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_x
  * Method:    ec2Evp
  * Signature: ([B[B[B[B)J
  */
-JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_ec2Evp(
-    JNIEnv *pEnv,
+JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_ec2Evp(JNIEnv* pEnv,
     jclass,
     jbyteArray sArr,
     jbyteArray wxArr,
@@ -190,8 +158,7 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_e
     jbyteArray paramsArr,
     jboolean shouldCheckPrivate)
 {
-    try
-    {
+    try {
         raii_env env(pEnv);
         EVP_PKEY_auto key;
         EC_KEY_auto ec;
@@ -204,41 +171,35 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_e
             size_t paramsLength = paramsBuff.len();
             jni_borrow borrow(env, paramsBuff, "params");
 
-            const unsigned char *derPtr = borrow.data();
-            const unsigned char *derMutablePtr = derPtr;
+            const unsigned char* derPtr = borrow.data();
+            const unsigned char* derMutablePtr = derPtr;
 
             ec.set(d2i_ECParameters(NULL, &derMutablePtr, paramsLength));
-            if (!ec.isInitialized())
-            {
+            if (!ec.isInitialized()) {
                 throw_openssl(EX_INVALID_KEY_SPEC, "Invalid parameters");
             }
-            if (derPtr + paramsLength != derMutablePtr)
-            {
+            if (derPtr + paramsLength != derMutablePtr) {
                 throw_openssl(EX_INVALID_KEY_SPEC, "Extra key information");
             }
 
             key.set(EVP_PKEY_new());
-            if (!EVP_PKEY_set1_EC_KEY(key, ec))
-            {
+            if (!EVP_PKEY_set1_EC_KEY(key, ec)) {
                 throw_openssl(EX_INVALID_KEY_SPEC, "Could not convert to EVP_PKEY");
             }
         }
 
         // Set the key pieces
         {
-            if (sArr)
-            {
+            if (sArr) {
                 BigNumObj s = BigNumObj::fromJavaArray(env, sArr);
-                if (EC_KEY_set_private_key(ec, s) != 1)
-                {
+                if (EC_KEY_set_private_key(ec, s) != 1) {
                     throw_openssl(EX_RUNTIME_CRYPTO, "Unable to set private key");
                 }
 
-                if (!wxArr || !wyArr)
-                {
+                if (!wxArr || !wyArr) {
                     // We have to calculate this ourselves.
                     // Otherwise, it will be taken care of later
-                    const EC_GROUP *group = EC_KEY_get0_group(ec);
+                    const EC_GROUP* group = EC_KEY_get0_group(ec);
                     CHECK_OPENSSL(group);
                     CHECK_OPENSSL(point.set(EC_POINT_new(group)));
                     CHECK_OPENSSL(bn_ctx.set(BN_CTX_new()));
@@ -255,22 +216,18 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_e
                 }
             }
 
-            if (wxArr && wyArr)
-            {
+            if (wxArr && wyArr) {
                 BigNumObj wx = BigNumObj::fromJavaArray(env, wxArr);
                 BigNumObj wy = BigNumObj::fromJavaArray(env, wyArr);
 
-                if (EC_KEY_set_public_key_affine_coordinates(ec, wx, wy) != 1)
-                {
+                if (EC_KEY_set_public_key_affine_coordinates(ec, wx, wy) != 1) {
                     throw_openssl("Unable to set affine coordinates");
                 }
             }
         }
 
         return reinterpret_cast<jlong>(key.take());
-    }
-    catch (java_ex &ex)
-    {
+    } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);
         return 0;
     }
@@ -281,13 +238,10 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_e
  * Method:    getDerEncodedParams
  */
 JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpKey_getDerEncodedParams(
-    JNIEnv *pEnv,
-    jclass,
-    jlong keyHandle)
+    JNIEnv* pEnv, jclass, jlong keyHandle)
 {
     jbyteArray result = NULL;
-    try
-    {
+    try {
         raii_env env(pEnv);
 
         EVP_PKEY* key = reinterpret_cast<EVP_PKEY*>(keyHandle);
@@ -298,8 +252,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpKey_get
 
         int derLen = 0;
 
-        switch (keyNid)
-        {
+        switch (keyNid) {
         case EVP_PKEY_EC:
             derLen = i2d_ECParameters(EVP_PKEY_get0_EC_KEY(key), &der);
             break;
@@ -308,15 +261,12 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpKey_get
         }
 
         CHECK_OPENSSL(derLen > 0);
-        if (!(result = env->NewByteArray(derLen)))
-        {
+        if (!(result = env->NewByteArray(derLen))) {
             throw_java_ex(EX_OOM, "Unable to allocate DER array");
         }
         // This may throw, if it does we'll just keep the exception state as we return.
         env->SetByteArrayRegion(result, 0, derLen, der);
-    }
-    catch (java_ex &ex)
-    {
+    } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);
     }
     return result;
@@ -327,20 +277,15 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpKey_get
  * Method:    getPublicPointCoords
  */
 JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_EvpEcPublicKey_getPublicPointCoords(
-    JNIEnv *pEnv,
-    jclass,
-    jlong keyHandle,
-    jbyteArray xArr,
-    jbyteArray yArr)
+    JNIEnv* pEnv, jclass, jlong keyHandle, jbyteArray xArr, jbyteArray yArr)
 {
-    const EC_KEY *ecKey = NULL;
-    const EC_GROUP *group = NULL;
-    const EC_POINT *pubKey = NULL;
+    const EC_KEY* ecKey = NULL;
+    const EC_GROUP* group = NULL;
+    const EC_POINT* pubKey = NULL;
     BigNumObj xBN = bn_zero();
     BigNumObj yBN = bn_zero();
 
-    try
-    {
+    try {
         raii_env env(pEnv);
 
         EVP_PKEY* key = reinterpret_cast<EVP_PKEY*>(keyHandle);
@@ -353,9 +298,7 @@ JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_EvpEcPublicKey_g
 
         bn2jarr(env, xArr, xBN);
         bn2jarr(env, yArr, yBN);
-    }
-    catch (java_ex &ex)
-    {
+    } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);
     }
 }
@@ -365,15 +308,12 @@ JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_EvpEcPublicKey_g
  * Method:    getPrivateValue
  */
 JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpEcPrivateKey_getPrivateValue(
-    JNIEnv *pEnv,
-    jclass,
-    jlong keyHandle)
+    JNIEnv* pEnv, jclass, jlong keyHandle)
 {
-    const EC_KEY *ecKey = NULL;
-    const BIGNUM *sBN = NULL;
+    const EC_KEY* ecKey = NULL;
+    const BIGNUM* sBN = NULL;
 
-    try
-    {
+    try {
         raii_env env(pEnv);
 
         EVP_PKEY* key = reinterpret_cast<EVP_PKEY*>(keyHandle);
@@ -382,23 +322,18 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpEcPriva
         CHECK_OPENSSL(sBN = EC_KEY_get0_private_key(ecKey));
 
         return bn2jarr(env, sBN);
-    }
-    catch (java_ex &ex)
-    {
+    } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);
         return NULL;
     }
 }
 
 JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpRsaKey_getModulus(
-    JNIEnv *pEnv,
-    jclass,
-    jlong keyHandle)
+    JNIEnv* pEnv, jclass, jlong keyHandle)
 {
-    const RSA *rsaKey;
-    const BIGNUM *n;
-    try
-    {
+    const RSA* rsaKey;
+    const BIGNUM* n;
+    try {
         raii_env env(pEnv);
 
         EVP_PKEY* key = reinterpret_cast<EVP_PKEY*>(keyHandle);
@@ -406,23 +341,18 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpRsaKey_
         CHECK_OPENSSL(n = RSA_get0_n(rsaKey));
 
         return bn2jarr(env, n);
-    }
-    catch (java_ex &ex)
-    {
+    } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);
         return NULL;
     }
 }
 
 JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpRsaKey_getPublicExponent(
-    JNIEnv *pEnv,
-    jclass,
-    jlong keyHandle)
+    JNIEnv* pEnv, jclass, jlong keyHandle)
 {
-    const RSA *rsaKey;
-    const BIGNUM *e;
-    try
-    {
+    const RSA* rsaKey;
+    const BIGNUM* e;
+    try {
         raii_env env(pEnv);
 
         EVP_PKEY* key = reinterpret_cast<EVP_PKEY*>(keyHandle);
@@ -430,23 +360,18 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpRsaKey_
         CHECK_OPENSSL(e = RSA_get0_e(rsaKey));
 
         return bn2jarr(env, e);
-    }
-    catch (java_ex &ex)
-    {
+    } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);
         return NULL;
     }
 }
 
 JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpRsaPrivateKey_getPrivateExponent(
-    JNIEnv *pEnv,
-    jclass,
-    jlong keyHandle)
+    JNIEnv* pEnv, jclass, jlong keyHandle)
 {
-    const RSA *rsaKey;
-    const BIGNUM *d;
-    try
-    {
+    const RSA* rsaKey;
+    const BIGNUM* d;
+    try {
         raii_env env(pEnv);
 
         EVP_PKEY* key = reinterpret_cast<EVP_PKEY*>(keyHandle);
@@ -454,52 +379,43 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpRsaPriv
         CHECK_OPENSSL(d = RSA_get0_d(rsaKey));
 
         return bn2jarr(env, d);
-    }
-    catch (java_ex &ex)
-    {
+    } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);
         return NULL;
     }
 }
 
 JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpRsaPrivateCrtKey_hasCrtParams(
-    JNIEnv *pEnv,
-    jclass,
-    jlong keyHandle)
+    JNIEnv* pEnv, jclass, jlong keyHandle)
 {
-    const RSA *r;
-    try
-    {
+    const RSA* r;
+    try {
         raii_env env(pEnv);
 
         EVP_PKEY* key = reinterpret_cast<EVP_PKEY*>(keyHandle);
         CHECK_OPENSSL(r = EVP_PKEY_get0_RSA(key));
 
-        const BIGNUM *dmp1;
-        const BIGNUM *dmq1;
-        const BIGNUM *iqmp;
+        const BIGNUM* dmp1;
+        const BIGNUM* dmq1;
+        const BIGNUM* iqmp;
 
         RSA_get0_crt_params(r, &dmp1, &dmq1, &iqmp);
-        if (!dmp1 || !dmq1 || !iqmp)
-        {
+        if (!dmp1 || !dmq1 || !iqmp) {
             return false;
         }
-        if (BN_is_zero(dmp1) || BN_is_zero(dmq1) || BN_is_zero(iqmp))
-        {
+        if (BN_is_zero(dmp1) || BN_is_zero(dmq1) || BN_is_zero(iqmp)) {
             return false;
         }
         return true;
-    }
-    catch (java_ex &ex)
-    {
+    } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);
         return false;
     }
 }
 
-// protected static native void getCrtParams(long ptr, byte[] crtCoefArr, byte[] expPArr, byte[] expQArr, byte[] primePArr, byte[] primeQArr, byte[] publicExponentArr, byte[] privateExponentArr);
-JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_EvpRsaPrivateCrtKey_getCrtParams(
-    JNIEnv *pEnv,
+// protected static native void getCrtParams(long ptr, byte[] crtCoefArr, byte[] expPArr, byte[] expQArr, byte[]
+// primePArr, byte[] primeQArr, byte[] publicExponentArr, byte[] privateExponentArr);
+JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_EvpRsaPrivateCrtKey_getCrtParams(JNIEnv* pEnv,
     jclass,
     jlong keyHandle,
     jbyteArray coefOut,
@@ -510,22 +426,21 @@ JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_EvpRsaPrivateCrt
     jbyteArray pubExpOut,
     jbyteArray privExpOut)
 {
-    const RSA *r;
-    try
-    {
+    const RSA* r;
+    try {
         raii_env env(pEnv);
 
         EVP_PKEY* key = reinterpret_cast<EVP_PKEY*>(keyHandle);
         CHECK_OPENSSL(r = EVP_PKEY_get0_RSA(key));
 
-        const BIGNUM *n;
-        const BIGNUM *e;
-        const BIGNUM *d;
-        const BIGNUM *p;
-        const BIGNUM *q;
-        const BIGNUM *dmp1;
-        const BIGNUM *dmq1;
-        const BIGNUM *iqmp;
+        const BIGNUM* n;
+        const BIGNUM* e;
+        const BIGNUM* d;
+        const BIGNUM* p;
+        const BIGNUM* q;
+        const BIGNUM* dmp1;
+        const BIGNUM* dmq1;
+        const BIGNUM* iqmp;
 
         RSA_get0_key(r, &n, &e, &d);
         RSA_get0_factors(r, &p, &q);
@@ -538,9 +453,7 @@ JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_EvpRsaPrivateCrt
         bn2jarr(env, dmPOut, dmp1);
         bn2jarr(env, dmQOut, dmq1);
         bn2jarr(env, coefOut, iqmp);
-    }
-    catch (java_ex &ex)
-    {
+    } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);
     }
 }
@@ -551,8 +464,7 @@ JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_EvpRsaPrivateCrt
  * Signature: ([B[B[B[B[B[B[B[B)J
  * modulus, publicExponentArr, privateExponentArr, crtCoefArr, expPArr, expQArr, primePArr, primeQArr
  */
-JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_rsa2Evp(
-    JNIEnv *pEnv,
+JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_rsa2Evp(JNIEnv* pEnv,
     jclass,
     jbyteArray modulusArray,
     jbyteArray publicExponentArr,
@@ -564,8 +476,7 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_r
     jbyteArray primeQArr,
     jboolean shouldCheckPrivate)
 {
-    try
-    {
+    try {
         raii_env env(pEnv);
         EVP_PKEY_auto key;
         RSA_auto rsa;
@@ -589,13 +500,12 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_r
             if (BN_is_zero(pubExp)) {
                 // RSA blinding can't be performed without |e|; 0 indicates |e|'s absence.
                 rsa->flags |= RSA_FLAG_NO_BLINDING;
-                res = RSA_set0_key(rsa, modulus, NULL,  privExp);
+                res = RSA_set0_key(rsa, modulus, NULL, privExp);
             } else {
-                res = RSA_set0_key(rsa, modulus, pubExp,  privExp);
+                res = RSA_set0_key(rsa, modulus, pubExp, privExp);
             }
 
-            if (res != 1)
-            {
+            if (res != 1) {
                 throw_openssl(EX_RUNTIME_CRYPTO, "Unable to set RSA values");
             }
             // RSA_set0_key takes ownership
@@ -603,8 +513,7 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_r
             pubExp.releaseOwnership();
             privExp.releaseOwnership();
         } else {
-            if (RSA_set0_key(rsa, modulus, pubExp, NULL) != 1)
-            {
+            if (RSA_set0_key(rsa, modulus, pubExp, NULL) != 1) {
                 throw_openssl(EX_RUNTIME_CRYPTO, "Unable to set RSA values");
             }
             // RSA_set0_key takes ownership
@@ -616,8 +525,7 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_r
             BigNumObj p = BigNumObj::fromJavaArray(env, primePArr);
             BigNumObj q = BigNumObj::fromJavaArray(env, primeQArr);
 
-            if (RSA_set0_factors(rsa, p, q) != 1)
-            {
+            if (RSA_set0_factors(rsa, p, q) != 1) {
                 throw_openssl(EX_RUNTIME_CRYPTO, "Unable to set RSA factors");
             }
 
@@ -626,14 +534,12 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_r
             q.releaseOwnership();
         }
 
-        if (crtCoefArr && expPArr && expQArr)
-        {
+        if (crtCoefArr && expPArr && expQArr) {
             BigNumObj iqmp = BigNumObj::fromJavaArray(env, crtCoefArr);
             BigNumObj dmp1 = BigNumObj::fromJavaArray(env, expPArr);
             BigNumObj dmq1 = BigNumObj::fromJavaArray(env, expQArr);
 
-            if (RSA_set0_crt_params(rsa, dmp1, dmq1, iqmp) != 1)
-            {
+            if (RSA_set0_crt_params(rsa, dmp1, dmq1, iqmp) != 1) {
                 throw_openssl(EX_RUNTIME_CRYPTO, "Unable to set RSA CRT values");
             }
 
@@ -644,13 +550,11 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_r
         }
 
         key.set(EVP_PKEY_new());
-        if (!key.isInitialized())
-        {
+        if (!key.isInitialized()) {
             throw_openssl(EX_OOM, "Unable to create EVP key");
         }
 
-        if (unlikely(EVP_PKEY_set1_RSA(key, rsa) != 1))
-        {
+        if (unlikely(EVP_PKEY_set1_RSA(key, rsa) != 1)) {
             throw_openssl(EX_OOM, "Unable to assign RSA key");
         }
         // We can only check consistency if the CRT parameters are present
@@ -658,9 +562,7 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_r
             throw_openssl(EX_INVALID_KEY_SPEC, "Key fails check");
         }
         return reinterpret_cast<jlong>(key.take());
-    }
-    catch (java_ex &ex)
-    {
+    } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);
         return 0;
     }
@@ -671,22 +573,22 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_r
  * Method:    encodeRsaPrivateKey
  * Signature: (J)[B
  */
-JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpRsaPrivateKey_encodeRsaPrivateKey(JNIEnv * pEnv, jclass, jlong keyHandle)
+JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpRsaPrivateKey_encodeRsaPrivateKey(
+    JNIEnv* pEnv, jclass, jlong keyHandle)
 {
     jbyteArray result = NULL;
 
-    try
-    {
+    try {
         raii_env env(pEnv);
 
         EVP_PKEY* key = reinterpret_cast<EVP_PKEY*>(keyHandle);
         OPENSSL_buffer_auto der;
         PKCS8_PRIV_KEY_INFO_auto pkcs8;
 
-        const RSA *rsaKey = NULL;
-        const BIGNUM *e = NULL;
-        const BIGNUM *d = NULL;
-        const BIGNUM *n = NULL;
+        const RSA* rsaKey = NULL;
+        const BIGNUM* e = NULL;
+        const BIGNUM* d = NULL;
+        const BIGNUM* n = NULL;
         CHECK_OPENSSL(rsaKey = EVP_PKEY_get0_RSA(key));
         RSA_get0_key(rsaKey, &n, &e, &d);
         if (BN_null_or_zero(e)) {
@@ -696,14 +598,14 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpRsaPriv
 
             // Key is lacking the public exponent so we must encode manually
             // Fortunately, this must be the most boring type of key (no params)
-            BIGNUM *zeroedE = BN_dup(e);
+            BIGNUM* zeroedE = BN_dup(e);
             if (nullptr == zeroedE) {
                 CHECK_OPENSSL(zeroedE = BN_new());
             }
 
             CHECK_OPENSSL(zeroed_rsa.set(RSA_new()));
             if (!RSA_set0_key(zeroed_rsa, BN_dup(n), zeroedE, BN_dup(d))) {
-              throw_openssl(EX_RUNTIME_CRYPTO, "Unable to set RSA components");
+                throw_openssl(EX_RUNTIME_CRYPTO, "Unable to set RSA components");
             }
             if (!RSA_set0_factors(zeroed_rsa, BN_new(), BN_new())) {
                 throw_openssl(EX_RUNTIME_CRYPTO, "Unable to set RSA factors");
@@ -725,18 +627,14 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpRsaPriv
         // This next line allocates memory
         int derLen = i2d_PKCS8_PRIV_KEY_INFO(pkcs8, &der);
         CHECK_OPENSSL(derLen > 0);
-        if (!(result = env->NewByteArray(derLen)))
-        {
+        if (!(result = env->NewByteArray(derLen))) {
             throw_java_ex(EX_OOM, "Unable to allocate DER array");
         }
         // This may throw, if it does we'll just keep the exception state as we return.
         env->SetByteArrayRegion(result, 0, derLen, der);
-    }
-    catch (java_ex &ex)
-    {
+    } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);
     }
 
     return result;
 }
-
