@@ -16,15 +16,17 @@ env:
 jobs:
   # Job to run regular ACCP tests on MacOS.
   macOS:
-    runs-on: macos-11 # latest
+    runs-on: macos-latest
     steps:
     - uses: actions/checkout@v3
       with:
         submodules: true
-
     - name: Install lcov
       run: |
         env HOMEBREW_NO_AUTO_UPDATE=1 brew install lcov
+    - name: Install clang-format
+      run: |
+        env HOMEBREW_NO_AUTO_UPDATE=1 brew install clang-format
     - name: Setup pip
       uses: actions/setup-python@v4
       with:

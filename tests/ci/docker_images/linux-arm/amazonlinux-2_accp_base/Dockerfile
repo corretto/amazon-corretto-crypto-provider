@@ -18,6 +18,7 @@ RUN set -ex && \
     git \
     ca-certificates \
     wget \
+    clang-format && \
     yum clean packages && \
     yum clean metadata && \
     yum clean all && \

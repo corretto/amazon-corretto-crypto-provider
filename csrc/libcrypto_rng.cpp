@@ -1,29 +1,28 @@
 // Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
-
 #define _DEFAULT_SOURCE // for getentropy
 
 #include "config.h"
 
-#include <algorithm> // for std::min
 #include <openssl/evp.h>
 #include <openssl/rand.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <pthread.h>
+#include <algorithm> // for std::min
 #include <errno.h>
+#include <fcntl.h>
+#include <pthread.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
+#include "buffer.h"
+#include "env.h"
 #include "generated-headers.h"
 #include "util.h"
-#include "env.h"
-#include "buffer.h"
 
 using namespace AmazonCorrettoCryptoProvider;
 
-
-bool libCryptoRngGenerateRandomBytes(uint8_t *buf, int len) noexcept {
+bool libCryptoRngGenerateRandomBytes(uint8_t* buf, int len) noexcept
+{
     /**
      * AWS LibCrypto provides a thread local, lazily initialized, FIPS Validated DRBG.
      *
@@ -37,7 +36,7 @@ bool libCryptoRngGenerateRandomBytes(uint8_t *buf, int len) noexcept {
      */
     int success = RAND_bytes(buf, len);
 
-    return (success ==  1);
+    return (success == 1);
 }
 
 /*
@@ -46,8 +45,8 @@ bool libCryptoRngGenerateRandomBytes(uint8_t *buf, int len) noexcept {
  * Signature: ([BII)V
  */
 JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_LibCryptoRng_generate(
-        JNIEnv *pEnv, jclass, jbyteArray byteArray, jint offset,
-        jint length) {
+    JNIEnv* pEnv, jclass, jbyteArray byteArray, jint offset, jint length)
+{
     try {
         raii_env env(pEnv);
 
@@ -58,7 +57,7 @@ JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_LibCryptoRng_gen
             bytes.zeroize();
             throw java_ex::from_openssl(EX_RUNTIME_CRYPTO, "Failed to generate random bytes");
         }
-    } catch (java_ex &ex) {
+    } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);
     }
 }
