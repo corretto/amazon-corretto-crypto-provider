@@ -73,13 +73,7 @@ class SecretKeyGenerator extends KeyGeneratorSpi {
 
     @Override
     public SecureRandom get() {
-      try {
-        return SecureRandom.getInstance(
-            LibCryptoRng.ALGORITHM_NAME, AmazonCorrettoCryptoProvider.INSTANCE);
-      } catch (final NoSuchAlgorithmException e) {
-        throw new AssertionError(
-            LibCryptoRng.ALGORITHM_NAME + " is not a provided by AmazonCorrettoCryptoProvider", e);
-      }
+      return new LibCryptoRng();
     }
   }
 

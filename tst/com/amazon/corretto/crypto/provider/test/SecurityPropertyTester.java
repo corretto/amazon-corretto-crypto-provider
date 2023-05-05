@@ -13,6 +13,7 @@ import java.security.SecureRandom;
 import java.security.Security;
 import java.util.HashSet;
 import java.util.Set;
+import javax.crypto.KeyGenerator;
 import javax.net.ssl.SSLContext;
 
 /**
@@ -53,6 +54,12 @@ public final class SecurityPropertyTester {
       assertEquals(NATIVE_PROVIDER.getName(), new SecureRandom().getProvider().getName());
       assertEquals(NATIVE_PROVIDER.getName(), strongRng.getProvider().getName());
     }
+
+    // Ensure that we can successfully generate an AES key, regardless of FIPS
+    // mode or whether ACCP registers a SecureRandom implementation.
+    KeyGenerator aesKeyGen = KeyGenerator.getInstance("AES");
+    assertEquals(NATIVE_PROVIDER.getName(), aesKeyGen.getProvider().getName());
+    aesKeyGen.generateKey();
 
     // Also ensure that nothing shows up twice
     Set<String> names = new HashSet<>();
