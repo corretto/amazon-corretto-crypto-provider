@@ -1,6 +1,5 @@
 // Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
-
 #ifndef ATOMIC_BOOL_H
 #define ATOMIC_BOOL_H
 
@@ -10,11 +9,10 @@
 #include <atomic>
 #else
 // For pre-C++11, we use pthread_mutex to sync access to the AtomicBool
-#include <cstdlib>
 #include <cstdio>
+#include <cstdlib>
 #include <pthread.h>
 #endif
-
 
 namespace AmazonCorrettoCryptoProvider {
 
@@ -28,15 +26,17 @@ using AtomicBool = std::atomic<bool>;
 // Since we are using the default value when initializing the mutex, these failures should not happen.
 class UniquePthreadMutexLock {
 public:
-
-    UniquePthreadMutexLock(pthread_mutex_t* mutex): mutex_(mutex) {
+    UniquePthreadMutexLock(pthread_mutex_t* mutex)
+        : mutex_(mutex)
+    {
         int status = pthread_mutex_lock(mutex_);
         if (status != 0) {
             fprintf(stderr, "pthread_mutex_lock failed with error %d", status);
         }
     }
 
-    ~UniquePthreadMutexLock() {
+    ~UniquePthreadMutexLock()
+    {
         int status = pthread_mutex_unlock(mutex_);
         if (status != 0) {
             fprintf(stderr, "pthread_mutex_unlock failed with error %d", status);
@@ -49,8 +49,9 @@ private:
 
 class AtomicBool {
 public:
-
-    AtomicBool(bool initial_value): value_(initial_value) {
+    AtomicBool(bool initial_value)
+        : value_(initial_value)
+    {
         int status = pthread_mutex_init(&value_mutex_, nullptr);
         if (status != 0) {
             // let's exit if we can't even initalize a mutex :(
@@ -59,22 +60,22 @@ public:
         }
     }
 
-    ~AtomicBool() {
-        pthread_mutex_destroy(&value_mutex_);
-    }
+    ~AtomicBool() { pthread_mutex_destroy(&value_mutex_); }
 
-    bool load() {
+    bool load()
+    {
         UniquePthreadMutexLock lock(&value_mutex_);
         return value_;
     }
 
-    void store(bool value) {
+    void store(bool value)
+    {
         UniquePthreadMutexLock lock(&value_mutex_);
         value_ = value;
     }
 
 private:
-    bool            value_;
+    bool value_;
     pthread_mutex_t value_mutex_; // used to sync access to value_
 
     // Disabling default constructors

@@ -602,6 +602,9 @@ set(COVERAGE_ARGUMENTS
 
 if(FIPS)
     set(TEST_FIPS_PROPERTY "-DFIPS=true")
+    # ACCP's default behavior in FIPS mode is to not register a SecureRandom implementation.
+    # However, we explicitly register it here to ensure its coverage under test.
+    set(REGISTER_RNG_PROPERTY "-Dcom.amazon.corretto.crypto.provider.registerSecureRandom=true")
 else()
     set(TEST_FIPS_PROPERTY "-DFIPS=false")
 endif()
@@ -615,6 +618,7 @@ set(TEST_RUNNER_ARGUMENTS
     ${TEST_ADD_OPENS}
     ${TEST_FIPS_PROPERTY}
     ${EXTERNAL_LIB_PROPERTY}
+    ${REGISTER_RNG_PROPERTY}
     -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
     -Dtest.data.dir=${TEST_DATA_DIR}
     -Djunit.jupiter.execution.parallel.enabled=true
@@ -767,15 +771,6 @@ add_custom_target(check-install-via-properties-with-debug
 add_custom_target(check
     DEPENDS check-recursive-init check-install-via-properties check-install-via-properties-with-debug check-junit check-junit-SecurityManager check-external-lib check-libaccp-rpath check-junit-FipsStatus)
 
-add_custom_target(checkstyle
-    WORKING_DIRECTORY ${ORIG_SRCROOT}
-    COMMAND ${TEST_JAVA_EXECUTABLE}
-        -cp ${CHECKSTYLE_CP}
-        com.puppycrawl.tools.checkstyle.Main
-        -c ${ORIG_SRCROOT}/checkstyle.xml
-        ${ACCP_SRC}
-)
-
 if(ENABLE_NATIVE_TEST_HOOKS)
     add_custom_target(check-keyutils
         COMMAND ${CMAKE_COMMAND} -E copy ${OPENSSL_CRYPTO_LIBRARY} $<TARGET_FILE_DIR:test_keyutils>
@@ -823,6 +818,7 @@ if (CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
 add_custom_target(run-dieharder-libcrypto-rng
     COMMAND ${TEST_JAVA_EXECUTABLE} -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
         ${EXTERNAL_LIB_PROPERTY}
+        ${REGISTER_RNG_PROPERTY}
         com.amazon.corretto.crypto.provider.test.SecureRandomGenerator 'LibCryptoRng' 8192 1 |
         ${DIEHARDER_EXECUTABLE} -a -g 200 -Y 1 -k 2 |
         tee dieharder-results-libcrypto-rng.txt
@@ -832,6 +828,7 @@ add_custom_target(run-dieharder-libcrypto-rng
 add_custom_target(run-dieharder-libcrypto-rng-tail
     COMMAND ${TEST_JAVA_EXECUTABLE} -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
         ${EXTERNAL_LIB_PROPERTY}
+        ${REGISTER_RNG_PROPERTY}
         com.amazon.corretto.crypto.provider.test.SecureRandomGenerator 'LibCryptoRng' 31 1 |
         ${DIEHARDER_EXECUTABLE} -d 15 -g 200 -Y 1 -k 2 |
         tee dieharder-results-libcrypto-rng-tail.txt
@@ -841,6 +838,7 @@ add_custom_target(run-dieharder-libcrypto-rng-tail
 add_custom_target(run-dieharder-libcrypto-rng-threads
     COMMAND ${TEST_JAVA_EXECUTABLE} -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
         ${EXTERNAL_LIB_PROPERTY}
+        ${REGISTER_RNG_PROPERTY}
         com.amazon.corretto.crypto.provider.test.SecureRandomGenerator 'LibCryptoRng' 128 4 |
         ${DIEHARDER_EXECUTABLE} -a -g 200 -Y 1 -k 2 |
         tee dieharder-results-libcrypto-rng-threads.txt
@@ -850,6 +848,7 @@ add_custom_target(run-dieharder-libcrypto-rng-threads
 add_custom_target(run-dieharder-libcrypto-rng-threads-tail
     COMMAND ${TEST_JAVA_EXECUTABLE} -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
         ${EXTERNAL_LIB_PROPERTY}
+        ${REGISTER_RNG_PROPERTY}
         com.amazon.corretto.crypto.provider.test.SecureRandomGenerator 'LibCryptoRng' 31 4 |
         ${DIEHARDER_EXECUTABLE} -d 15 -g 200 -Y 1 -k 2 |
         tee dieharder-results-libcrypto-rng-threads-tail.txt

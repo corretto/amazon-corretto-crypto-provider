@@ -45,6 +45,29 @@ In decreasing order of importance:
     Just because existing code was acceptable when it was written does not mean it is acceptable now.
     Doing this allows us to continually raise the bar on code quality across the project and combat [bit rot](https://en.wikipedia.org/wiki/Software_rot).
 
+# Coding Style
+Coding style is programmatically enforced at build time by the [Spotless Gradle Plugin](https://github.com/diffplug/spotless/tree/main/plugin-gradle).
+
+Style Guides:
+- Java source follows [Google Java Style](https://google.github.io/styleguide/javaguide.html).
+- C++ source follows [Webkit Style](https://www.webkit.org/code-style-guidelines/) with a few modifications defined in `.clang-format`.
+
+## Applying Code Formatting
+Prior to committing and/or submitting a PR, developers should run the automated formatter to avoid CI failures by the check phase of the build.
+
+```
+# Install the clang-format package from your package manager to run the C++ checks
+sudo yum/brew/apt install clang-format
+
+# Run this to automatically run the formatter
+./gradlew spotlessApply
+
+# Example of an embarassing build failure which could've been avoided
+> Task :spotlessJavaCheck FAILED
+...
+> The following files had format violations:
+  Run './gradlew :spotlessApply' to fix these violations.
+```
 
 # Important and Unique Components
 ## Java

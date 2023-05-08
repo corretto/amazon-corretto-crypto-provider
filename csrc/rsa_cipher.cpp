@@ -1,20 +1,19 @@
 // Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
-
-#include <stdio.h>
-#include <openssl/rsa.h>
+#include "auto_free.h"
+#include "bn.h"
+#include "generated-headers.h"
+#include "keyutils.h"
+#include "util.h"
 #include <openssl/bn.h>
 #include <openssl/err.h>
 #include <openssl/evp.h>
-#include "generated-headers.h"
-#include "util.h"
-#include "auto_free.h"
-#include "bn.h"
-#include "keyutils.h"
+#include <openssl/rsa.h>
+#include <stdio.h>
 
 using namespace AmazonCorrettoCryptoProvider;
 
-void setPaddingParams(EVP_PKEY_CTX *keyCtx, int padding, long oaepMdPtr, long mgfMdPtr)
+void setPaddingParams(EVP_PKEY_CTX* keyCtx, int padding, long oaepMdPtr, long mgfMdPtr)
 {
     CHECK_OPENSSL(EVP_PKEY_CTX_set_rsa_padding(keyCtx, padding));
     switch (padding) {
@@ -36,8 +35,7 @@ void setPaddingParams(EVP_PKEY_CTX *keyCtx, int padding, long oaepMdPtr, long mg
     return;
 }
 
-JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_RsaCipher_cipher(
-    JNIEnv *pEnv,
+JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_RsaCipher_cipher(JNIEnv* pEnv,
     jclass,
     jlong ctxHandle,
     jint mode,
@@ -48,8 +46,7 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_RsaCipher_cipher
     jint inOff,
     jint inLength,
     jbyteArray output,
-    jint outOff
-)
+    jint outOff)
 {
 
     try {
@@ -110,9 +107,8 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_RsaCipher_cipher
 
             if (ret <= 0) {
                 long err = drainOpensslErrors();
-                if ((err & RSA_R_DATA_TOO_LARGE_FOR_MODULUS)
-                        || (err & RSA_R_PADDING_CHECK_FAILED)
-                        || (err & RSA_R_OAEP_DECODING_ERROR)) {
+                if ((err & RSA_R_DATA_TOO_LARGE_FOR_MODULUS) || (err & RSA_R_PADDING_CHECK_FAILED)
+                    || (err & RSA_R_OAEP_DECODING_ERROR)) {
                     throw_java_ex(EX_BADPADDING, formatOpensslError(err, "Bad Padding"));
                 } else {
                     throw_openssl(formatOpensslError(err, "Unexpected exception").c_str());
@@ -120,7 +116,7 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_RsaCipher_cipher
             }
         }
 
-        if (len > outBuf.len()) {   // we've overwritten the buffer, potentially corrupting memory
+        if (len > outBuf.len()) { // we've overwritten the buffer, potentially corrupting memory
             abort();
         } else if (len < 0) {
             throw_java_ex(EX_RUNTIME_CRYPTO, "Unexpected error, negative output length");
@@ -128,8 +124,8 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_RsaCipher_cipher
             throw_java_ex(EX_RUNTIME_CRYPTO, "Output length doensn't fit in an int!");
         }
 
-        return (jint) len;
-    } catch (java_ex &ex) {
+        return (jint)len;
+    } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);
         return -1;
     }
