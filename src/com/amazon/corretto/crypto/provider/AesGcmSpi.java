@@ -890,65 +890,69 @@ final class AesGcmSpi extends CipherSpi {
   @Override
   protected int engineUpdate(ByteBuffer input, final ByteBuffer output)
       throws ShortBufferException {
-    ByteBuffer bufferForClear = null;
+    switch (opMode) {
+      case NATIVE_MODE_DECRYPT:
+        // Our implementation of engineUpdate for decrypt doesn't actually return any data, we
+        // simply buffer the ciphertext and leave the output buffer alone, so we don't bother
+        // passing it through.
+        ShimArray cipherText = new ShimArray(input, input.remaining());
+        engineUpdate(cipherText.array, cipherText.offset, cipherText.length, null, 0);
+        return 0;
+      case NATIVE_MODE_ENCRYPT:
+        ByteBuffer bufferForClear = null;
 
-    // The default JCE implementation of this bytebuffer-to-byte[] shim seems to break when
-    // engineGetOutputSize
-    // returns more bytes then is actually used in each round (it only calls engineGetOutputSize
-    // once, on the entire
-    // input size, and does not properly size the output buffer for each round). By coincidence this
-    // works as long
-    // as the cipher actually knows how much space it's going to use for its bounds checking and the
-    // actual buffer
-    // sizes for input and output match the cipher block size - but in our case we don't know what
-    // EVP's going to do
-    // and have to be conservative, requiring a larger output than input buffer. So we have to
-    // implement this loop
-    // ourselves.
+        // The default JCE implementation of this bytebuffer-to-byte[] shim seems to break when
+        // engineGetOutputSize returns more bytes then is actually used in each round (it only calls
+        // engineGetOutputSize once, on the entire input size, and does not properly size the output
+        // buffer for each round). By coincidence this works as long as the cipher actually knows
+        // how much space it's going to use for its bounds checking and the actual buffer sizes for
+        // input and output match the cipher block size - but in our case we don't know what EVP's
+        // going to do and have to be conservative, requiring a larger output than input buffer. So
+        // we have to implement this loop ourselves.
 
-    int initialPosition = output.position();
+        int initialPosition = output.position();
 
-    if (output.remaining() < engineGetOutputSize(input.remaining())) {
-      throw new ShortBufferException();
+        if (output.remaining() < engineGetOutputSize(input.remaining())) {
+          throw new ShortBufferException();
+        }
+
+        if (Utils.buffersMaybeOverlap(input, output)) {
+          // We'll just copy the whole input buffer if it might overlap with output. It's possible
+          // to do something more efficient for a couple of special cases here, but we'll do the
+          // simple and safe thing for now.
+          ByteBuffer newInput = ByteBuffer.allocate(input.remaining());
+          newInput.put(input);
+          newInput.flip();
+          input = newInput;
+          bufferForClear = input;
+        }
+
+        while (input.hasRemaining()) {
+          int inputChunkSize = Math.min(input.remaining(), 65536);
+          ShimArray inputArray = new ShimArray(input, inputChunkSize);
+          ShimArray outputArray = new ShimArray(output, engineGetOutputSize(inputChunkSize));
+
+          int outputBytes =
+              engineUpdate(
+                  inputArray.array,
+                  inputArray.offset,
+                  inputArray.length,
+                  outputArray.array,
+                  outputArray.offset);
+          outputArray.writeback();
+
+          input.position(input.position() + inputChunkSize);
+          output.position(output.position() + outputBytes);
+        }
+        // If we copied the input, make a best effort attempt to clear the buffer.
+        if (bufferForClear != null) {
+          Utils.zeroByteBuffer(bufferForClear);
+        }
+
+        return output.position() - initialPosition;
+      default:
+        throw new IllegalStateException("Cipher not initialized");
     }
-
-    if (Utils.buffersMaybeOverlap(input, output)) {
-      // We'll just copy the whole input buffer if it might overlap with output.
-      // It's possible to do something more efficient for a couple of special cases here, but we'll
-      // do the simple
-      // and safe thing for now.
-      ByteBuffer newInput = ByteBuffer.allocate(input.remaining());
-      newInput.put(input);
-      newInput.flip();
-      input = newInput;
-      bufferForClear = input;
-    }
-
-    while (input.hasRemaining()) {
-      int inputChunkSize = Math.min(input.remaining(), 65536);
-
-      ShimArray inputArray = new ShimArray(input, inputChunkSize);
-      ShimArray outputArray = new ShimArray(output, engineGetOutputSize(inputChunkSize));
-
-      int outputBytes =
-          engineUpdate(
-              inputArray.array,
-              inputArray.offset,
-              inputArray.length,
-              outputArray.array,
-              outputArray.offset);
-      outputArray.writeback();
-
-      input.position(input.position() + inputChunkSize);
-      output.position(output.position() + outputBytes);
-    }
-
-    // If we copied the input, make a best effort attempt to clear the buffer.
-    if (bufferForClear != null) {
-      Utils.zeroByteBuffer(bufferForClear);
-    }
-
-    return output.position() - initialPosition;
   }
 
   @Override
