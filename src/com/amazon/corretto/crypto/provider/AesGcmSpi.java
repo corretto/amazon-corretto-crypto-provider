@@ -448,7 +448,7 @@ final class AesGcmSpi extends CipherSpi {
         }
       case NATIVE_MODE_ENCRYPT:
         {
-          checkOutputBuffer(length, output, outputOffset);
+          checkOutputBuffer(length, output, outputOffset, false);
 
           lazyInit();
 
@@ -542,7 +542,7 @@ final class AesGcmSpi extends CipherSpi {
         input = EMPTY_ARRAY;
       }
 
-      checkOutputBuffer(length, output, outputOffset);
+      checkOutputBuffer(length, output, outputOffset, true);
       checkArrayLimits(input, offset, length);
 
       final boolean overlaps =
@@ -803,7 +803,7 @@ final class AesGcmSpi extends CipherSpi {
     if (input == null) {
       input = EMPTY_ARRAY;
     }
-    checkOutputBuffer(length, output, outputOffset);
+    checkOutputBuffer(length, output, outputOffset, true);
     checkArrayLimits(input, offset, length);
     if (opMode == NATIVE_MODE_DECRYPT) {
       final byte[] plaintext = engineDecryptFinal(input, offset, length);
@@ -971,17 +971,26 @@ final class AesGcmSpi extends CipherSpi {
     return output.position() - initialPosition;
   }
 
-  private void checkOutputBuffer(final int inputLength, final byte[] output, final int outputOffset)
+  private void checkOutputBuffer(
+      final int inputLength, final byte[] output, final int outputOffset, final boolean doFinal)
       throws ShortBufferException {
-    if (inputLength < 0 || outputOffset < 0 || outputOffset > output.length) {
+    final int freeBufferSpace = output.length - outputOffset;
+    final int requiredBufferSpace =
+        doFinal ? engineGetOutputSize(inputLength) : getUpdateOutputSize(inputLength);
+    if (inputLength < 0 || outputOffset < 0) {
       throw new ArrayIndexOutOfBoundsException();
     }
-    if (output.length - outputOffset < getUpdateOutputSize(inputLength)) {
+    // Allow outputOffset to index into a 0-length empty array. We must trust that the rest of the
+    // code doesn't actually do this.
+    if (outputOffset > output.length || (outputOffset == output.length && output.length != 0)) {
+      throw new ArrayIndexOutOfBoundsException();
+    }
+
+    if (freeBufferSpace < requiredBufferSpace) {
       throw new ShortBufferException(
-          "Expected a buffer of at least "
-              + engineGetOutputSize(inputLength)
-              + " bytes; got "
-              + (output.length - outputOffset));
+          String.format(
+              "Expected a buffer of at least %d bytes; got %d",
+              requiredBufferSpace, freeBufferSpace));
     }
   }
 
