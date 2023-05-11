@@ -706,7 +706,7 @@ public class AesTest {
         spi, "engineInit", Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, randomIV()), rnd);
     assertThrows(
         ShortBufferException.class,
-        () -> sneakyInvoke(spi, "engineDoFinal", new byte[1], 0, 1, new byte[0], 0));
+        () -> sneakyInvoke(spi, "engineDoFinal", new byte[2], 0, 2, new byte[1], 0));
 
     sneakyInvoke(
         spi, "engineInit", Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, randomIV()), rnd);
@@ -774,6 +774,12 @@ public class AesTest {
     sneakyInvoke(
         spi, "engineInit", Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, randomIV()), rnd);
     assertThrows(
+        ArrayIndexOutOfBoundsException.class,
+        () -> sneakyInvoke(spi, "engineUpdate", new byte[16], 0, 16, new byte[32], 32));
+
+    sneakyInvoke(
+        spi, "engineInit", Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, randomIV()), rnd);
+    assertThrows(
         ShortBufferException.class,
         () -> sneakyInvoke(spi, "engineUpdate", new byte[1024], 0, 1024, new byte[32], 0));
     sneakyInvoke(
@@ -820,6 +826,11 @@ public class AesTest {
     assertThrows(
         ArrayIndexOutOfBoundsException.class,
         () -> sneakyInvoke(spi, "engineUpdateAAD", new byte[16], 0xFFFFFFF0, 0x20));
+
+    // Output buffer without space for the tag succeeds on update
+    sneakyInvoke(
+        spi, "engineInit", Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, randomIV()), rnd);
+    sneakyInvoke(spi, "engineUpdate", new byte[16], 0, 16, new byte[16], 0);
   }
 
   @Test
