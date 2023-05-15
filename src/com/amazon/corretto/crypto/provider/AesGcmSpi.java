@@ -434,40 +434,39 @@ final class AesGcmSpi extends CipherSpi {
   }
 
   @Override
-  protected int engineUpdate(byte[] bytes, int offset, int length, byte[] output, int outputOffset)
+  protected int engineUpdate(
+      byte[] input, int inputOffset, int inputLen, byte[] output, int outputOffset)
       throws ShortBufferException {
-    checkArrayLimits(bytes, offset, length);
+    checkArrayLimits(input, inputOffset, inputLen);
 
     hasConsumedData = true;
 
     switch (opMode) {
       case NATIVE_MODE_DECRYPT:
         {
-          decryptInputBuf.write(bytes, offset, length);
+          decryptInputBuf.write(input, inputOffset, inputLen);
           return 0;
         }
       case NATIVE_MODE_ENCRYPT:
         {
-          checkOutputBuffer(length, output, outputOffset, false);
+          checkOutputBuffer(inputLen, output, outputOffset, false);
 
           lazyInit();
 
           // If we have an overlap, we'll need to clone the input buffer before we potentially start
-          // overwriting
-          // it.
+          // overwriting it.
           final byte[] finalBytes;
           final int finalOffset;
-          if (Utils.arraysOverlap(
-              bytes, offset, output, outputOffset, engineGetOutputSize(length))) {
-            finalBytes = Arrays.copyOfRange(bytes, offset, offset + length);
+          if (Utils.outputClobbersInput(input, inputOffset, inputLen, output, outputOffset)) {
+            finalBytes = Arrays.copyOfRange(input, inputOffset, inputOffset + inputLen);
             finalOffset = 0;
           } else {
-            finalBytes = bytes;
-            finalOffset = offset;
+            finalBytes = input;
+            finalOffset = inputOffset;
           }
 
           return context.use(
-              ptr -> encryptUpdate(ptr, finalBytes, finalOffset, length, output, outputOffset));
+              ptr -> encryptUpdate(ptr, finalBytes, finalOffset, inputLen, output, outputOffset));
         }
       default:
         throw new IllegalStateException("Cipher not initialized");
@@ -523,16 +522,12 @@ final class AesGcmSpi extends CipherSpi {
   }
 
   // We split our final handling of encryption and decryption into two separate methods because they
-  // have different
-  // requirements and we can optimize them differently.
-  // Encryption can be done in an online/streaming manner which allows us to write directly to the
-  // output array
-  // provided by external callers.
-  // Decryption is always done as a single call which requires us to allocate an array to receive
-  // the plaintext
-  // until we can validate its correctness.
+  // have different requirements and we can optimize them differently. Encryption can be done in an
+  // online/streaming manner which allows us to write directly to the output array provided by
+  // external callers. Decryption is always done as a single call which requires us to allocate an
+  // array to receive the plaintext until we can validate its correctness.
   private int engineEncryptFinal(
-      byte[] input, final int offset, int length, final byte[] output, int outputOffset)
+      byte[] input, final int inputOffset, int inputLen, final byte[] output, int outputOffset)
       throws ShortBufferException {
     try {
       if (opMode != NATIVE_MODE_ENCRYPT) {
@@ -542,41 +537,35 @@ final class AesGcmSpi extends CipherSpi {
         input = EMPTY_ARRAY;
       }
 
-      checkOutputBuffer(length, output, outputOffset, true);
-      checkArrayLimits(input, offset, length);
+      checkOutputBuffer(inputLen, output, outputOffset, true);
+      checkArrayLimits(input, inputOffset, inputLen);
 
-      final boolean overlaps =
-          Utils.arraysOverlap(
-              input, offset, output, outputOffset, Math.max(length, engineGetOutputSize(length)));
+      final boolean clobbers =
+          Utils.outputClobbersInput(input, inputOffset, inputLen, output, outputOffset);
 
       int resultLength = 0;
 
-      if (overlaps) {
+      if (clobbers) {
         // The input and output potentially overlap. We'll need to make sure we copy the input
-        // somewhere safe before
-        // proceeding too much further.
-        // TODO: Further optimize by handling the safe case when both input and output start
-        // at exactly the same place.
+        // somewhere safe before proceeding too much further.
 
         // Since we need to take care of this on engineUpdate as well, we can just delegate to
-        // engineUpdate, which
-        // will make sure to copy the buffer - on encrypt this is an explicit check, while on
-        // decrypt engineUpdate
-        // unconditionally copies to a temporary buffer.
+        // engineUpdate, which will make sure to copy the buffer - on encrypt this is an explicit
+        // check, while on decrypt engineUpdate unconditionally copies to a temporary buffer.
 
-        resultLength = engineUpdate(input, offset, length, output, outputOffset);
+        resultLength = engineUpdate(input, inputOffset, inputLen, output, outputOffset);
         outputOffset += resultLength;
 
         // We processed all of the input in engineUpdate. So there's no longer an overlap to deal
         // with.
-        length = 0;
+        inputLen = 0;
       }
 
       checkNeedReset();
 
       this.needReset = true;
       final byte[] finalInput = input;
-      final int finalInputLength = length;
+      final int finalInputLength = inputLen;
       final int finalOutputOffset = outputOffset;
 
       if (!contextInitialized) {
@@ -593,7 +582,7 @@ final class AesGcmSpi extends CipherSpi {
                     ptr,
                     null,
                     finalInput,
-                    offset,
+                    inputOffset,
                     finalInputLength,
                     output,
                     finalOutputOffset,
@@ -609,7 +598,7 @@ final class AesGcmSpi extends CipherSpi {
                   0,
                   ptrOut,
                   finalInput,
-                  offset,
+                  inputOffset,
                   finalInputLength,
                   output,
                   finalOutputOffset,
@@ -640,7 +629,7 @@ final class AesGcmSpi extends CipherSpi {
                           ptr,
                           false, // releaseContext
                           finalInput,
-                          offset,
+                          inputOffset,
                           finalInputLength,
                           output,
                           finalOutputOffset,
@@ -651,7 +640,7 @@ final class AesGcmSpi extends CipherSpi {
                   context.take(),
                   true, // releaseContext
                   input,
-                  offset,
+                  inputOffset,
                   finalInputLength,
                   output,
                   finalOutputOffset,
@@ -916,10 +905,8 @@ final class AesGcmSpi extends CipherSpi {
           throw new ShortBufferException();
         }
 
-        if (Utils.buffersMaybeOverlap(input, output)) {
-          // We'll just copy the whole input buffer if it might overlap with output. It's possible
-          // to do something more efficient for a couple of special cases here, but we'll do the
-          // simple and safe thing for now.
+        if (Utils.outputClobbersInput(input, output)) {
+          // We'll just copy the whole input buffer if it might overlap with output.
           ByteBuffer newInput = ByteBuffer.allocate(input.remaining());
           newInput.put(input);
           newInput.flip();
