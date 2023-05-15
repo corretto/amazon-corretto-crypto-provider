@@ -95,77 +95,76 @@ final class Utils {
   }
 
   /**
-   * Returns false if the two bytebuffers given definitely don't overlap; true if they do overlap,
-   * or if we're unable to determine whether they overlap. Unfortunately it's not possible to
-   * determine whether certain bytebuffers overlap (notably, if one buffer is a RO buffer and the
-   * other is an array-backed buffer, we cannot check for overlap without empirically modifying the
-   * array-backed buffer).
+   * Returns false if there is no chance of the output buffer overwriting unread input; true if we
+   * determine that unsafe overwriting input is possible.
    *
    * <p>Overlap is determined based on buffer position and limit.
    */
-  static boolean buffersMaybeOverlap(ByteBuffer a, ByteBuffer b) {
-    boolean directA = a.isDirect();
-    boolean directB = b.isDirect();
-    boolean arrayA = a.hasArray();
-    boolean arrayB = b.hasArray();
+  static boolean outputClobbersInput(ByteBuffer inputBuffer, ByteBuffer outputBuffer) {
+    boolean inputIsDirect = inputBuffer.isDirect();
+    boolean outputIsDirect = outputBuffer.isDirect();
+    boolean inputHasArray = inputBuffer.hasArray();
+    boolean outputHasArray = outputBuffer.hasArray();
 
-    if ((directA || directB) && (directA != directB)) {
+    if ((inputIsDirect || outputIsDirect) && (inputIsDirect != outputIsDirect)) {
       // One is direct and the other isn't; there can be no overlap
       return false;
     }
 
-    if (directA && directB) {
+    if (inputIsDirect && outputIsDirect) {
       // By slicing the buffers, we can avoid having to think about the native pointer and
-      // position(); the
-      // position will simply be added into the native pointer.
+      // position(); the position will simply be added into the native pointer.
 
       // This will also allow getNativeBufferOffset to fully determine whether the buffers overlap
-      // in native code,
-      // by factoring the limit() into the buffer capacity.
-      return getNativeBufferOffset(a.slice(), b.slice()) <= Integer.MAX_VALUE;
+      // in native code, by factoring the limit() into the buffer capacity.
+      return getNativeBufferOffset(inputBuffer.slice(), outputBuffer.slice()) <= Integer.MAX_VALUE;
     }
 
     // At this point we'll need to check array() and arrayOffset(), but to do this we need both to
     // hasArray().
-    if (!(arrayA && arrayB)) {
+    if (!(inputHasArray && outputHasArray)) {
       // One doesn't hasArray, so we're prevented from checking for overlap. Return true to assume
       // overlap.
       return true;
     }
 
-    if (a.array() != b.array()) {
-      // different arrays, so no overlap
-      return false;
-    }
-
-    // Same array, check for overlap within array
-    long a_offset = (long) a.arrayOffset() + (long) a.position();
-    long b_offset = (long) b.arrayOffset() + (long) b.position();
-
-    if (a_offset > b_offset) {
-      return b_offset + (long) b.limit() > a_offset;
-    } else {
-      return a_offset + (long) a.limit() > b_offset;
-    }
+    // We've got two arrays, check if there's a chance for clobbering.
+    int inputOffset = inputBuffer.arrayOffset() + inputBuffer.position();
+    int outputOffset = outputBuffer.arrayOffset() + outputBuffer.position();
+    return outputClobbersInput(
+        inputBuffer.array(),
+        inputOffset,
+        inputBuffer.remaining(),
+        outputBuffer.array(),
+        outputOffset);
   }
 
   /**
-   * Returns true if a length-bytes region after offset o1 in a1 overlaps with a length-bytes region
-   * after offset o2 in a2.
+   * @return True if the output will overwrite portions of the input before it gets processed.
    */
-  static boolean arraysOverlap(byte[] a1, int o1, byte[] a2, int o2, int length) {
-    // We can't delegate to byffersMaybeOverlap directly as the length may be too long for one of
-    // the two input
-    // arrays
-
-    if (a1 != a2) return false;
-
-    if (o1 > o2) {
-      // swap the two arrays to simplify logic
-      return arraysOverlap(a2, o2, a1, o1, length);
+  static boolean outputClobbersInput(
+      byte[] input, int inputOffset, int inputLength, byte[] output, int outputOffset) {
+    // If these are different arrays they don't overlap
+    if (input != output) {
+      return false;
     }
 
-    return (long) o1 + length > (long) o2;
+    // We can tolerate the output overlapping the input as long as the output starts at the same
+    // point or earlier. This is because the block cipher implementation operates block by block and
+    // is built to overwrite the input block in-place. If the output offset leads the input offset,
+    // the output of the current block will overwrite the input of the next block and it will break
+    // the operation.
+    if (outputOffset <= inputOffset) {
+      return false;
+    }
+
+    // If the output starts after the input ends, then we're not clobbering anything.
+    int inputEnd = inputOffset + inputLength;
+    if (outputOffset >= inputEnd) {
+      return false;
+    }
+
+    return true;
   }
 
   static byte[] encodeForWrapping(final AmazonCorrettoCryptoProvider provider, final Key key)
