@@ -248,8 +248,10 @@ final class AesGcmSpi extends CipherSpi {
     }
   }
 
-  /* Returns the maximum amount of data that could be returned from an update (not doFinal) operation.
-   * Not exposed via the Cipher API, but used internally to allocate buffers to return to the caller.
+  /**
+   * Returns the maximum amount of data that could be returned from an update (not doFinal)
+   * operation. Not exposed via the Cipher API, but used internally to allocate buffers to return to
+   * the caller.
    */
   private int getUpdateOutputSize(final int inputLen) {
     switch (opMode) {
@@ -612,10 +614,8 @@ final class AesGcmSpi extends CipherSpi {
         }
       } else {
         // We need to make sure to add resultLength here; engineUpdate in encrypt mode produces
-        // incremental
-        // output (unlike in decrypt mode) and so we need to carry forward whatever amount of data
-        // it produced
-        // in our return value.
+        // incremental output (unlike in decrypt mode) and so we need to carry forward whatever
+        // amount of data it produced in our return value.
 
         keyUsageCount++;
 
@@ -654,8 +654,13 @@ final class AesGcmSpi extends CipherSpi {
     }
   }
 
-  private byte[] engineDecryptFinal(byte[] input, final int offset, final int length)
-      throws AEADBadTagException {
+  private int engineDecryptFinal(
+      byte[] input,
+      final int inputOffset,
+      final int inputLen,
+      byte[] output,
+      final int outputOffset)
+      throws AEADBadTagException, ShortBufferException {
     try {
       if (opMode != NATIVE_MODE_DECRYPT) {
         throw new IllegalStateException("Cipher not initialized for decryption");
@@ -664,30 +669,20 @@ final class AesGcmSpi extends CipherSpi {
         input = EMPTY_ARRAY;
       }
 
-      // If we already have processed some amount of ciphertext then we must coallesce it prior to
-      // decryption.
-      // Otherwise, we can just use the provided input.
+      checkOutputBuffer(inputLen, output, outputOffset, true);
+      checkArrayLimits(input, inputOffset, inputLen);
+
       final byte[] workingInputArray;
       final int workingInputOffset;
       final int workingInputLength;
-      if (decryptInputBuf.size() > 0) {
-        // We've already processed data so need to merge this in
-        engineUpdate(input, offset, length); // Decrypt mode never generates output for updates
-        workingInputArray = decryptInputBuf.getDataBuffer();
-        workingInputLength = decryptInputBuf.size();
-        workingInputOffset = 0;
-      } else {
-        workingInputArray = input;
-        workingInputLength = length;
-        workingInputOffset = offset;
-      }
+      engineUpdate(input, inputOffset, inputLen);
+      workingInputArray = decryptInputBuf.getDataBuffer();
+      workingInputLength = decryptInputBuf.size();
+      workingInputOffset = 0;
 
       if (workingInputLength < tagLength) {
         throw new AEADBadTagException("Input too short - need tag");
       }
-
-      final int expectedOutputLength = workingInputLength - tagLength;
-      final byte[] result = new byte[expectedOutputLength];
 
       keyUsageCount++;
       final int outLen;
@@ -702,17 +697,16 @@ final class AesGcmSpi extends CipherSpi {
                       workingInputArray,
                       workingInputOffset,
                       workingInputLength,
-                      result,
-                      0,
+                      output,
+                      outputOffset,
                       tagLength,
                       key,
                       iv,
 
                       // The cost of calling decryptAADBuf.getDataBuffer() when its buffer is empty
-                      // is significant for 16-byte
-                      // decrypt operations (approximately a 7% performance hit). To avoid this, we
-                      // reuse the same empty array
-                      // instead in this common-case path.
+                      // is significant for 16-byte decrypt operations (approximately a 7%
+                      // performance hit). To avoid this, we reuse the same empty array instead in
+                      // this common-case path.
                       decryptAADBuf.size() != 0 ? decryptAADBuf.getDataBuffer() : EMPTY_ARRAY,
                       decryptAADBuf.size());
                 });
@@ -726,17 +720,15 @@ final class AesGcmSpi extends CipherSpi {
                 workingInputArray,
                 workingInputOffset,
                 workingInputLength,
-                result,
-                0,
+                output,
+                outputOffset,
                 tagLength,
                 key,
                 iv,
 
                 // The cost of calling decryptAADBuf.getDataBuffer() when its buffer is empty is
-                // significant for 16-byte
-                // decrypt operations (approximately a 7% performance hit). To avoid this, we reuse
-                // the same empty array
-                // instead in this common-case path.
+                // significant for 16-byte decrypt operations (approximately a 7% performance hit).
+                // To avoid this, we reuse the same empty array
                 decryptAADBuf.size() != 0 ? decryptAADBuf.getDataBuffer() : EMPTY_ARRAY,
                 decryptAADBuf.size());
 
@@ -745,15 +737,12 @@ final class AesGcmSpi extends CipherSpi {
         }
       }
       // Decryption completed successfully.
-      if (outLen == result.length) {
-        // This should always be the case.
-        return result;
-      } else if (outLen < result.length) {
-        // While technically allowed by the APIs, this should never happen.
-        return Arrays.copyOf(result, outLen);
-      } else {
-        throw new RuntimeCryptoException("Output longer than expected.");
-      }
+      return outLen;
+    } catch (AEADBadTagException e) {
+      final int maxFillSize = output.length - outputOffset;
+      Arrays.fill(
+          output, outputOffset, Math.min(maxFillSize, engineGetOutputSize(inputLen)), (byte) 0);
+      throw e;
     } finally {
       stateReset();
     }
@@ -762,26 +751,28 @@ final class AesGcmSpi extends CipherSpi {
   @Override
   protected byte[] engineDoFinal(byte[] bytes, int offset, int length)
       throws IllegalBlockSizeException, BadPaddingException {
-    if (opMode == NATIVE_MODE_ENCRYPT) {
-      final byte[] buf = new byte[engineGetOutputSize(length)];
-      int actualLength;
-      try {
-        actualLength = engineEncryptFinal(bytes, offset, length, buf, 0);
-      } catch (ShortBufferException e) {
-        throw new AssertionError(e);
+    final byte[] buf = new byte[engineGetOutputSize(length)];
+    int actualLength;
+    try {
+      switch (opMode) {
+        case NATIVE_MODE_ENCRYPT:
+          actualLength = engineEncryptFinal(bytes, offset, length, buf, 0);
+          break;
+        case NATIVE_MODE_DECRYPT:
+          actualLength = engineDecryptFinal(bytes, offset, length, buf, 0);
+          break;
+        default:
+          throw new IllegalStateException("Cipher not initialized");
       }
-
-      if (actualLength == buf.length) {
-        return buf;
-      } else {
-        // This branch should never happen but is technically allowed by the underlying APIs.
-        // So, we cover it just in case.
-        return Arrays.copyOf(buf, actualLength);
-      }
-    } else if (opMode == NATIVE_MODE_DECRYPT) {
-      return engineDecryptFinal(bytes, offset, length);
+    } catch (ShortBufferException e) {
+      throw new AssertionError(e);
+    }
+    if (actualLength == buf.length) {
+      return buf;
     } else {
-      throw new IllegalStateException("Cipher not initialized");
+      // This branch should never happen but is technically allowed by the underlying APIs.
+      // So, we cover it just in case.
+      return Arrays.copyOf(buf, actualLength);
     }
   }
 
@@ -789,15 +780,8 @@ final class AesGcmSpi extends CipherSpi {
   protected int engineDoFinal(
       byte[] input, final int offset, final int length, final byte[] output, final int outputOffset)
       throws ShortBufferException, IllegalBlockSizeException, BadPaddingException {
-    if (input == null) {
-      input = EMPTY_ARRAY;
-    }
-    checkOutputBuffer(length, output, outputOffset, true);
-    checkArrayLimits(input, offset, length);
     if (opMode == NATIVE_MODE_DECRYPT) {
-      final byte[] plaintext = engineDecryptFinal(input, offset, length);
-      System.arraycopy(plaintext, 0, output, outputOffset, plaintext.length);
-      return plaintext.length;
+      return engineDecryptFinal(input, offset, length, output, outputOffset);
     } else if (opMode == NATIVE_MODE_ENCRYPT) {
       return engineEncryptFinal(input, offset, length, output, outputOffset);
     } else {
