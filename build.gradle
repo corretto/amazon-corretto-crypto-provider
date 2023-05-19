@@ -39,7 +39,6 @@ jmh {
     jvmArgs = [
         "-Djava.library.path=${rootDir}/build/cmake:" + System.getProperty("java.library.path"),
         "-DversionStr=${version}",
-        "-Dcom.amazon.corretto.crypto.provider.registerSecureRandom=true",
     ]
 
     sourceSets {

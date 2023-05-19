@@ -174,10 +174,6 @@ Building this provider requires a 64 bit Linux or MacOS build system with the fo
 By providing `-DFIPS=true` to `gradlew` you will cause the entire build to be for a "FIPS mode" build.
 The only significant difference is that AWS-LC is built with `FIPS=1`.
 
-For performance reasons, ACCP does not register a SecureRandom implementation in FIPS mode.
-Relevant operations within the FIPS module boundary (e.g. key generation, non-deterministic signing, etc.) will still use AWS-LC's internal DRBG.
-Users who require ACCP to provide FIPS-validated pseudo-randomness _outside_ the module boundary via SecureRandom should set `registerSecureRandom=true`.
-
 When changing between FIPS and non-FIPS builds, be sure to do a full `clean` of your build environment.
 
 ##### All targets
@@ -272,14 +268,6 @@ Thus, these should all be set on the JVM command line using `-D`.
   Else, the JCA will get the implementation from another registered provider (usually stock JCE).
   Using JCE's impelmentation is generally recommended unless using ACCP as a standalone provider
   Callers can choose to register ACCP's implementation at runtime with a call to `AmazonCorrettoCryptoProvider.registerEcParams()`
-* `com.amazon.corretto.crypto.provider.registerSecureRandom`
-  Takes in `true` or `false` (defaults to `false` in FIPS mode, defaults to `true` in non-FIPS).
-  If `true`, then ACCP will register a SecureRandom implementation (`LibCryptoRng`) backed by AWS-LC
-  Else, ACCP will not register a SecureRandom implementation, meaning that the JCA will source SecureRandom instances from another registered provider. AWS-LC will still use its internal DRBG for key generation and other operations requiring secure pseudo-randomness.
-  LibCryptoRng is very fast during steady state operation in all cases. In FIPS mode, however, AWS-LC-FIPS's CPU jitter-based entropy source incurs a ~10ms initialization cost for every new thread.
-  This means that there is a slight "pause" before ACCP FIPS's SecureRandom can produce pseudo-random bytes in highly threaded environments.
-  Because, in extreme cases this could present an availability risk, we do not register LibCryptoRng by default in configurations where this initialization cost is incurred (i.e. FIPS mode).
-  Non-FIPS AWS-LC does not use CPU jitter for its DRBG seed's entropy, and therefore does not incur this initialization cost, therefore we register LibCryptoRng by default when not in FIPS mode.
 
 
 # License
