@@ -21,22 +21,22 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_RsaGen_generate
     try {
         raii_env env(pEnv);
 
-        BigNumObj bne;
-        jarr2bn(env, pubExp, bne);
-
-        if (1 != RSA_generate_key_ex(r, bits, bne, NULL)) {
-            throw_openssl("Unable to generate key");
-        }
-
         if (FIPS_mode() == 1) {
-            // We should be using RSA_generate_key_fips, but since RSA_generate_key_fips doesn't allow
-            // bit lengths greater than 4096 and public exponents other than F4, we use RSA_generate_key_ex
-            // and explicitly check FIPS related conditions. This is done to ensure that ACCP built in FIPS mode
-            // is compatible with BC-FIPS.
-            if (RSA_check_fips(r) != 1) {
-                throw_openssl("RSA_check_fips failed");
+            // RSA_generate_key_fips performs extra checks so there is no need
+            // to run post generation checks. This API generates keys with
+            // public exponent F4; we ignore the public exponent here, but in
+            // the Java layer, we check that the public exponent passed is F4.
+            if (RSA_generate_key_fips(r, bits, NULL) != 1) {
+                throw_openssl("Unable to generate key");
             }
         } else {
+            BigNumObj bne;
+            jarr2bn(env, pubExp, bne);
+
+            if (RSA_generate_key_ex(r, bits, bne, NULL) != 1) {
+                throw_openssl("Unable to generate key");
+            }
+
             if (checkConsistency && RSA_check_key(r) != 1) {
                 throw_openssl("Key failed consistency check");
             }
