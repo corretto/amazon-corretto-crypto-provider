@@ -70,10 +70,10 @@ class RsaGen extends KeyPairGeneratorSpi {
   private static RSAKeyGenParameterSpec validateParameter(final RSAKeyGenParameterSpec spec)
       throws InvalidAlgorithmParameterException {
 
-    // Similar to BC-FIPS, ACCP only disallows public exponents less than F4.
-    if (Loader.FIPS_BUILD && spec.getPublicExponent().compareTo(RSAKeyGenParameterSpec.F4) <= -1) {
+    // In FIPS mode, ACCP only allows public exponents F4.
+    if (Loader.FIPS_BUILD && !RSAKeyGenParameterSpec.F4.equals(spec.getPublicExponent())) {
       throw new InvalidAlgorithmParameterException(
-          "For FIPS builds, public exponent cannot be less that F4");
+          "For FIPS builds, public exponent must be equal to F4");
     }
 
     if (spec.getKeysize() < MIN_KEY_SIZE) {
