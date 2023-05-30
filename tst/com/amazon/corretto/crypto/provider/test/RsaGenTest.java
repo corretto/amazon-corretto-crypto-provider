@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
+import com.amazon.corretto.crypto.provider.RuntimeCryptoException;
 import java.math.BigInteger;
 import java.security.GeneralSecurityException;
 import java.security.InvalidAlgorithmParameterException;
@@ -145,16 +146,42 @@ public class RsaGenTest {
   }
 
   @Test
-  public void test5120_with_customE() throws GeneralSecurityException {
+  public void test5120() throws GeneralSecurityException {
+    final KeyPairGenerator generator = getGenerator();
+    generator.initialize(5120);
+    if (TestUtil.isFips()) {
+      assertThrows(RuntimeCryptoException.class, () -> generator.generateKeyPair());
+    } else {
+      final KeyPair keyPair = generator.generateKeyPair();
+      final RSAPublicKey pubKey = (RSAPublicKey) keyPair.getPublic();
+      final RSAPrivateCrtKey privKey = (RSAPrivateCrtKey) keyPair.getPrivate();
+      assertEquals(5120, pubKey.getModulus().bitLength());
+      assertEquals(RSAKeyGenParameterSpec.F4, pubKey.getPublicExponent());
+      assertConsistency(pubKey, privKey);
+    }
+  }
+
+  @Test
+  public void test_customE() throws GeneralSecurityException {
+    final int[] bitLens = {4096, 5120};
     final BigInteger customE = RSAKeyGenParameterSpec.F4.add(BigInteger.valueOf(2));
     final KeyPairGenerator generator = getGenerator();
-    generator.initialize(new RSAKeyGenParameterSpec(5120, customE));
-    final KeyPair keyPair = generator.generateKeyPair();
-    final RSAPublicKey pubKey = (RSAPublicKey) keyPair.getPublic();
-    final RSAPrivateCrtKey privKey = (RSAPrivateCrtKey) keyPair.getPrivate();
-    assertEquals(5120, pubKey.getModulus().bitLength());
-    assertEquals(customE, pubKey.getPublicExponent());
-    assertConsistency(pubKey, privKey);
+
+    for (int bitLen : bitLens) {
+      if (TestUtil.isFips()) {
+        assertThrows(
+            InvalidAlgorithmParameterException.class,
+            () -> generator.initialize(new RSAKeyGenParameterSpec(5120, customE)));
+      } else {
+        generator.initialize(new RSAKeyGenParameterSpec(bitLen, customE));
+        final KeyPair keyPair = generator.generateKeyPair();
+        final RSAPublicKey pubKey = (RSAPublicKey) keyPair.getPublic();
+        final RSAPrivateCrtKey privKey = (RSAPrivateCrtKey) keyPair.getPrivate();
+        assertEquals(bitLen, pubKey.getModulus().bitLength());
+        assertEquals(customE, pubKey.getPublicExponent());
+        assertConsistency(pubKey, privKey);
+      }
+    }
   }
 
   @Test

@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.1.0 (not released yet)
+
+### Minor changes
+* Support AlgorithmParameters for EC [PR 274]
+* Support KeyGenerator for AES [PR 279]
+* Register LibCryptoRng by default in non-FIPS mode [PR 286]
+* Use FIPS approved API of AWS-LC for RSA key generation in FIPS mode [PR 301]
+* Include AWS-LC's self tests as part of ACCP's self tests [PR 283]
+
+### Patches
+* Fixed bug in output buffer size check [PR 297]
+* Improved the performance of AES-GCM [PRs 296, 298, 300, 302]
+* Added code formatting and style checking to the build scripts [PRs 287, 292]
+* Renamed branches on GitHub
+
 ## 2.0.0
 
 ### Overview
