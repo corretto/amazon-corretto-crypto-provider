@@ -4,6 +4,7 @@ package com.amazon.corretto.crypto.provider.test;
 
 import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assumeMinimumVersion;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyGetField;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -14,8 +15,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.amazon.corretto.crypto.provider.ExtraCheck;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.NotSerializableException;
+import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.math.BigInteger;
 import java.security.GeneralSecurityException;
@@ -175,6 +177,46 @@ public class EvpKeyFactoryTest {
       result.add(Arguments.of(base.get()[0], base.get()[1], true));
     }
     return result;
+  }
+
+  private static long getRawPointer(Object evpKey) throws Exception {
+    final Object internalKey = sneakyGetField(evpKey, "internalKey");
+    final Object cell = sneakyGetField(internalKey, "cell");
+    return (long) sneakyGetField(cell, "ptr");
+  }
+
+  @ParameterizedTest(name = "{1}")
+  @MethodSource("allPairs")
+  public void keysSerialize(final KeyPair keyPair, final String testName) throws Exception {
+    final KeyFactory kf =
+        KeyFactory.getInstance(keyPair.getPrivate().getAlgorithm(), NATIVE_PROVIDER);
+    final Key privateKey = kf.translateKey(keyPair.getPrivate());
+    final Key publicKey = kf.translateKey(keyPair.getPublic());
+
+    final ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    try (ObjectOutputStream dos = new ObjectOutputStream(baos)) {
+      dos.writeObject(publicKey);
+      dos.writeObject(privateKey);
+    }
+    try (ObjectInputStream ois =
+        new ObjectInputStream(new ByteArrayInputStream(baos.toByteArray()))) {
+      Object newPublicKey = ois.readObject();
+      Object newPrivateKey = ois.readObject();
+      assertEquals(publicKey, newPublicKey);
+      assertEquals(publicKey.getClass(), newPublicKey.getClass());
+      assertEquals(privateKey, newPrivateKey);
+      assertEquals(privateKey.getClass(), newPrivateKey.getClass());
+
+      // We want to ensure the internal pointers are different so that the objects point to
+      // different native objects
+      long oldPubPtr = getRawPointer(publicKey);
+      long oldPrivPtr = getRawPointer(privateKey);
+      long newPubPtr = getRawPointer(newPublicKey);
+      long newPrivPtr = getRawPointer(newPrivateKey);
+
+      assertNotEquals(oldPubPtr, newPubPtr);
+      assertNotEquals(oldPrivPtr, newPrivPtr);
+    }
   }
 
   @ParameterizedTest(name = "{1}")
@@ -472,21 +514,6 @@ public class EvpKeyFactoryTest {
 
     assertThrows(InvalidKeySpecException.class, () -> nativeFactory.generatePrivate(badSpec));
     assertThrows(InvalidKeyException.class, () -> nativeFactory.translateKey(privateKey));
-  }
-
-  @ParameterizedTest(name = "{1}")
-  @MethodSource("allPairs")
-  public void cannotSerializeKeys(final KeyPair pair, final String testName) throws Exception {
-    final KeyFactory nativeFactory =
-        KeyFactory.getInstance(pair.getPublic().getAlgorithm(), NATIVE_PROVIDER);
-    final Key publicKey = nativeFactory.translateKey(pair.getPublic());
-    final Key privateKey = nativeFactory.translateKey(pair.getPrivate());
-    try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        ObjectOutputStream out = new ObjectOutputStream(baos)) {
-
-      assertThrows(NotSerializableException.class, () -> out.writeObject(publicKey));
-      assertThrows(NotSerializableException.class, () -> out.writeObject(privateKey));
-    }
   }
 
   @SuppressWarnings("unchecked")
