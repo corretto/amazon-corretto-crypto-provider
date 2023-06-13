@@ -95,7 +95,7 @@ will always have the most recent version. We strongly recommend you always pull
 in the latest version for best performance and bug-fixes.
 
 Whether you're using Maven, Gradle, or some other build system that also pulls
-packages from Maven Central, it's important to specify `linux-x86_64` or `linux-aarch64` as the
+packages from Maven Central, it's important to specify `linux-x86_64` or `linux-aarch_64` as the
 classifier. You'll get an empty package otherwise. Note that ACCP is not
 available for MacOS on Maven Central yet.
 
@@ -115,7 +115,7 @@ For more information, please see [VERSIONING.rst](https://github.com/corretto/am
 </dependency>
 ```
 
-The classifier attribute could be set to `linux-aarch64` to use ACCP on Linux ARM64 platforms.
+The classifier attribute could be set to `linux-aarch_64` to use ACCP on Linux ARM64 platforms.
 
 ACCP artifacts on Maven can be verified using the following PGP keys:
 
