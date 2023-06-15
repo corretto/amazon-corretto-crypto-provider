@@ -19,6 +19,11 @@ version = '2.1.0'
 ext.isFips = Boolean.getBoolean('FIPS')
 ext.isLegacyBuild = Boolean.getBoolean('LEGACY_BUILD')
 
+ext.lcovIgnore = System.properties['LCOV_IGNORE']
+if (ext.lcovIgnore == null) {
+    ext.lcovIgnore = 'source'
+}
+
 jmh {
     fork = 1
     benchmarkMode = ['thrpt']
@@ -546,7 +551,7 @@ task coverage_cpp_report {
     doLast {
         exec {
             workingDir "${buildDir}/cmake-coverage"
-            commandLine 'lcov', '--capture', '--directory', "${buildDir}/cmake-coverage/CMakeFiles/amazonCorrettoCryptoProvider.dir/csrc", '--output-file', "${buildDir}/cmake-coverage/coverage.info", '--rc', 'lcov_branch_coverage=1'
+            commandLine 'lcov', '--capture', '--directory', "${buildDir}/cmake-coverage/CMakeFiles/amazonCorrettoCryptoProvider.dir/csrc", '--output-file', "${buildDir}/cmake-coverage/coverage.info", '--rc', 'lcov_branch_coverage=1', '--ignore-errors', lcovIgnore
         }
         // Convert absolute to relative paths
         exec {
@@ -557,7 +562,7 @@ task coverage_cpp_report {
         // polluting our metrics with unused STL code.
         exec {
             workingDir "${buildDir}/cmake-coverage"
-            commandLine 'lcov', '-e', "${buildDir}/cmake-coverage/coverage.info", 'csrc/*', '--rc', 'lcov_branch_coverage=1'
+            commandLine 'lcov', '-e', "${buildDir}/cmake-coverage/coverage.info", 'csrc/*', '--rc', 'lcov_branch_coverage=1', '--ignore-errors', lcovIgnore
             standardOutput = new FileOutputStream("${buildDir}/reports/cpp/coverage.info")
         }
         exec {
@@ -567,7 +572,7 @@ task coverage_cpp_report {
         }
         exec {
              workingDir projectDir
-             commandLine 'genhtml', '-o', "${buildDir}/reports/cpp", '--rc', 'genhtml_branch_coverage=1', "${buildDir}/reports/cpp/coverage.info"
+             commandLine 'genhtml', '-o', "${buildDir}/reports/cpp", '--rc', 'genhtml_branch_coverage=1', "${buildDir}/reports/cpp/coverage.info", '--ignore-errors', lcovIgnore
         }
     }
 }

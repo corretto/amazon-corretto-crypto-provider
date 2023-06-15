@@ -77,6 +77,8 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
     addService("KeyGenerator", "AES", "keygeneratorspi.SecretKeyGenerator", false);
 
+    addService("Cipher", "AES/XTS/NoPadding", "AesXtsSpi", false);
+
     addService("Cipher", "RSA/ECB/NoPadding", "RsaCipher$NoPadding");
     addService("Cipher", "RSA/ECB/Pkcs1Padding", "RsaCipher$Pkcs1");
     addService("Cipher", "RSA/ECB/OAEPPadding", "RsaCipher$OAEP");
@@ -259,8 +261,12 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
         final String type = getType();
         final String algo = getAlgorithm();
 
-        if ("KeyGenerator".equals(type) && "AES".equals(algo)) {
+        if ("KeyGenerator".equalsIgnoreCase(type) && "AES".equalsIgnoreCase(algo)) {
           return SecretKeyGenerator.createAesKeyGeneratorSpi();
+        }
+
+        if ("Cipher".equalsIgnoreCase(type) && "AES/XTS/NoPadding".equalsIgnoreCase(algo)) {
+          return new AesXtsSpi();
         }
 
         throw new NoSuchAlgorithmException(String.format("No service class for %s/%s", type, algo));

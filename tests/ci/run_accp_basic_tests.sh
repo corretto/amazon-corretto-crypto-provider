@@ -5,18 +5,24 @@ set -exo pipefail
 
 # Testing non-FIPS is the default.
 testing_fips=false
+# Depending on lcov version, either inconsistent or source needs to be passed
+lcov_ignore=source
 while [[ $# -gt 0 ]]; do
-    case ${1} in
+    echo "processing $1"
+    case $1 in
     --fips)
-      testing_fips=true
-      ;;
+        testing_fips=true
+        shift
+        ;;
+    --lcov-ignore)
+        lcov_ignore="$2"
+        shift 2
+        ;;
     *)
-      echo "${1} is not supported."
-      exit 1
-      ;;
+        echo "$1 is not supported."
+        exit 1
+        ;;
     esac
-    # Check next option -- key/value.
-    shift
 done
 
 # Parse and check which JDK version we're testing upon.
@@ -25,7 +31,7 @@ version=$($TEST_JAVA_HOME/bin/java -version 2>&1 | head -1 | cut -d'"' -f2 | sed
 # The JDK version should be least 10 for a regular ACCP build. We can
 # still test on older versions with the TEST_JAVA_HOME property.
 if (( "$version" <= "10" )); then
-	./gradlew -DTEST_JAVA_HOME=$TEST_JAVA_HOME -DTEST_JAVA_MAJOR_VERSION=$version -DFIPS=$testing_fips coverage test
+	./gradlew -DTEST_JAVA_HOME=$TEST_JAVA_HOME -DTEST_JAVA_MAJOR_VERSION=$version -DFIPS=$testing_fips -DLCOV_IGNORE=$lcov_ignore coverage test
 	exit $?
 fi
 
@@ -35,4 +41,4 @@ fi
 export JAVA_HOME=$TEST_JAVA_HOME
 export PATH=$JAVA_HOME/bin:$PATH
 
-./gradlew -DFIPS=$testing_fips release
+./gradlew -DFIPS=$testing_fips -DLCOV_IGNORE=$lcov_ignore release

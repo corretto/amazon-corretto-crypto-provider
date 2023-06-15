@@ -545,4 +545,18 @@ final class Utils {
     }
     return Boolean.parseBoolean(propertyStr);
   }
+
+  static void checkArrayLimits(final byte[] bytes, final int offset, final int length) {
+    if (bytes == null) {
+      throw new IllegalArgumentException("Bad argument: bytes cannot be null.");
+    }
+
+    if (offset < 0 || length < 0) {
+      throw new ArrayIndexOutOfBoundsException("Negative offset or length");
+    }
+
+    if ((long) offset + (long) length > bytes.length) {
+      throw new ArrayIndexOutOfBoundsException("Requested range is outside of buffer limits");
+    }
+  }
 }

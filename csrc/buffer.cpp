@@ -35,4 +35,18 @@ jbyteArray vecToArray(raii_env& env, const std::vector<uint8_t, SecureAlloc<uint
     return array;
 }
 
+JByteArrayCritical::JByteArrayCritical(JNIEnv* env, jbyteArray jarray)
+    : env_(env)
+    , jarray_(jarray)
+{
+    ptr_ = env->GetPrimitiveArrayCritical(jarray, nullptr);
+    if (ptr_ == nullptr) {
+        throw java_ex(EX_ERROR, "GetPrimitiveArrayCritical failed.");
+    }
+}
+
+JByteArrayCritical::~JByteArrayCritical() { env_->ReleasePrimitiveArrayCritical(jarray_, ptr_, 0); }
+
+unsigned char* JByteArrayCritical::get() { return (unsigned char*)ptr_; }
+
 }

@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.amazon.corretto.crypto.provider.test;
 
+import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyInvoke;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -204,5 +206,34 @@ public class UtilsTest {
         expectedValue,
         ((Boolean) sneakyInvoke(UTILS_CLASS, "getBooleanProperty", propertyName, defaultValue))
             .booleanValue());
+  }
+
+  @Test
+  public void givenNull_whenCheckArrayLimits_expectException() {
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> sneakyInvoke(UTILS_CLASS, "checkArrayLimits", null, 0, 0));
+  }
+
+  @Test
+  public void givenNegativeLengthOrNegativeOffset_whenCheckArrayLimits_expectException() {
+    assertThrows(
+        ArrayIndexOutOfBoundsException.class,
+        () -> sneakyInvoke(UTILS_CLASS, "checkArrayLimits", new byte[10], -1, 0));
+    assertThrows(
+        ArrayIndexOutOfBoundsException.class,
+        () -> sneakyInvoke(UTILS_CLASS, "checkArrayLimits", new byte[10], 0, -1));
+  }
+
+  @Test
+  public void givenOutOfRangeLengthAndOffset_whenCheckArrayLimits_expectException() {
+    assertThrows(
+        ArrayIndexOutOfBoundsException.class,
+        () -> sneakyInvoke(UTILS_CLASS, "checkArrayLimits", new byte[10], 5, 6));
+  }
+
+  @Test
+  public void givenInRangeLengthAndOffset_whenCheckArrayLimits_expectNoException() {
+    assertDoesNotThrow(() -> sneakyInvoke(UTILS_CLASS, "checkArrayLimits", new byte[10], 5, 5));
   }
 }
