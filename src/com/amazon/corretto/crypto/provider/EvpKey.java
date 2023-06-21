@@ -278,7 +278,7 @@ abstract class EvpKey implements Key, Destroyable {
     private final boolean isPublicKey;
     private final byte[] encoded;
 
-    public SerializedKey(EvpKeyType type, boolean isPublicKey, byte[] encoded) {
+    public SerializedKey(final EvpKeyType type, final boolean isPublicKey, final byte[] encoded) {
       this.type = type;
       this.isPublicKey = isPublicKey;
       this.encoded = encoded;
@@ -287,13 +287,11 @@ abstract class EvpKey implements Key, Destroyable {
     private Object readResolve() throws ObjectStreamException {
       try {
         final KeyFactory kf = AmazonCorrettoCryptoProvider.INSTANCE.getKeyFactory(type);
-        final EvpKey result;
         if (isPublicKey) {
-          result = (EvpKey) kf.generatePublic(new X509EncodedKeySpec(encoded));
+          return kf.generatePublic(new X509EncodedKeySpec(encoded));
         } else {
-          result = (EvpKey) kf.generatePrivate(new PKCS8EncodedKeySpec(encoded));
+          return kf.generatePrivate(new PKCS8EncodedKeySpec(encoded));
         }
-        return result;
       } catch (final InvalidKeySpecException ex) {
         throw new InvalidObjectException(ex.getMessage());
       }
