@@ -589,5 +589,19 @@ public:
     void zeroize() { secureZero(&m_storage, sizeof(m_storage)); }
 };
 
+// Please follow the guidelines outlined in {Get,Release}PrimitiveArrayCritical when using this class:
+// https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/functions.html#GetPrimitiveArrayCritical_ReleasePrimitiveArrayCritical
+class JByteArrayCritical {
+public:
+    JByteArrayCritical(JNIEnv* env, jbyteArray jarray);
+    ~JByteArrayCritical();
+    unsigned char* get();
+
+private:
+    void* ptr_;
+    JNIEnv* env_;
+    jbyteArray jarray_;
+};
+
 }
 #endif

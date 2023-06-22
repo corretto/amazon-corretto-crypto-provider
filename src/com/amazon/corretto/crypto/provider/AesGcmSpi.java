@@ -3,6 +3,7 @@
 package com.amazon.corretto.crypto.provider;
 
 import static com.amazon.corretto.crypto.provider.Utils.EMPTY_ARRAY;
+import static com.amazon.corretto.crypto.provider.Utils.checkArrayLimits;
 
 import java.nio.ByteBuffer;
 import java.security.AlgorithmParameters;
@@ -946,16 +947,6 @@ final class AesGcmSpi extends CipherSpi {
           String.format(
               "Expected a buffer of at least %d bytes; got %d",
               requiredBufferSpace, freeBufferSpace));
-    }
-  }
-
-  private void checkArrayLimits(final byte[] bytes, final int offset, final int length) {
-    if (offset < 0 || length < 0) {
-      throw new ArrayIndexOutOfBoundsException("Negative offset or length");
-    }
-
-    if ((long) offset + (long) length > bytes.length) {
-      throw new ArrayIndexOutOfBoundsException("Requested range is outside of buffer limits");
     }
   }
 
