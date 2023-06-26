@@ -1,6 +1,13 @@
 # Changelog
 
-## 2.1.0 (not released yet)
+## 2.2.0
+
+### Minor changes
+* Support AES-XTS [PR 306]
+  * AesXts.kt shows how AES-XTS can be used.
+* Serialization for EvpKeys [PR 304]
+
+## 2.1.0
 
 ### Minor changes
 * Support AlgorithmParameters for EC [PR 274]
