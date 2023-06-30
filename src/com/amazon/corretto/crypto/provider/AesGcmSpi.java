@@ -993,4 +993,20 @@ final class AesGcmSpi extends CipherSpi {
     hasConsumedData = false;
     contextInitialized = false;
   }
+
+  @Override
+  protected int engineDoFinal(final ByteBuffer input, final ByteBuffer output)
+      throws ShortBufferException, IllegalBlockSizeException, BadPaddingException {
+    int initialPosition = output.position();
+
+    engineUpdate(input, output);
+
+    ShimArray shim = new ShimArray(output, engineGetOutputSize(0));
+    int finalBytes = engineDoFinal(EMPTY_ARRAY, 0, 0, shim.array, shim.offset);
+
+    shim.writeback();
+    output.position(output.position() + finalBytes);
+
+    return output.position() - initialPosition;
+  }
 }
