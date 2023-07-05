@@ -17,6 +17,7 @@ import java.security.SignatureSpi;
 import java.security.interfaces.ECKey;
 import java.security.interfaces.RSAKey;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.spec.ECParameterSpec;
 import java.security.spec.MGF1ParameterSpec;
 import java.security.spec.PSSParameterSpec;
 import java.util.Arrays;
@@ -216,6 +217,17 @@ abstract class EvpSignatureBase extends SignatureSpi {
         throw new IllegalArgumentException("PSS salt length invalid");
       }
       internalSetParams(pssParams);
+    } else if (params instanceof ECParameterSpec) {
+      // Some applications set the EC Parameters for ECDSA algorithms.
+      // This doesn't change behavior, but we need to ensure it is correct.
+      if (keyType_ != EvpKeyType.EC) {
+        throw new InvalidAlgorithmParameterException("ECParameterSpec only supported with EC keys");
+      }
+      final ECParameterSpec expectedParams = ((ECKey) key_).getParams();
+      if (!EcUtils.ecParameterSpecsAreEqual(expectedParams, (ECParameterSpec) params)) {
+        throw new InvalidAlgorithmParameterException("Algorithm parameters do not match key");
+      }
+      // Check passes, no actual changes needed
     } else if (params != null) {
       throw new InvalidAlgorithmParameterException(
           "Specified parameters supported by this algorithm");
