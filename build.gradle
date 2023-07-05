@@ -25,6 +25,7 @@ if (ext.lcovIgnore == null) {
 }
 
 jmh {
+    //includes = ['AesXts'] // uncomment if you need to run specific benchmarks only
     fork = 1
     benchmarkMode = ['thrpt']
     threads = 1
