@@ -30,10 +30,12 @@ import java.security.Provider;
 import java.security.PublicKey;
 import java.security.Signature;
 import java.security.SignatureException;
+import java.security.interfaces.ECPrivateKey;
 import java.security.interfaces.ECPublicKey;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.ECGenParameterSpec;
+import java.security.spec.ECParameterSpec;
 import java.security.spec.MGF1ParameterSpec;
 import java.security.spec.PSSParameterSpec;
 import java.security.spec.RSAKeyGenParameterSpec;
@@ -766,6 +768,47 @@ public final class EvpSignatureSpecificTest {
     } catch (SignatureException ex) {
       throw new AssertionError(algorithm, ex);
     }
+  }
+
+  @Test
+  public void ecdsaAcceptsNullParams() throws Exception {
+    final Signature signer = Signature.getInstance("SHA384withECDSA", NATIVE_PROVIDER);
+    signer.initSign(ECDSA_PAIR.getPrivate());
+    signer.setParameter(null);
+    signer.update(MESSAGE);
+    final byte[] signature = signer.sign();
+    signer.initVerify(ECDSA_PAIR.getPublic());
+    signer.setParameter(null);
+    signer.update(MESSAGE);
+    assertTrue(signer.verify(signature));
+  }
+
+  @Test
+  public void ecdsaAcceptsKeyParams() throws Exception {
+    // Some java programs try to set parameters equal to those encoded in the key.
+    final ECParameterSpec params = ((ECPrivateKey) ECDSA_PAIR.getPrivate()).getParams();
+    final Signature signer = Signature.getInstance("SHA384withECDSA", NATIVE_PROVIDER);
+    signer.initSign(ECDSA_PAIR.getPrivate());
+    signer.setParameter(params);
+    signer.update(MESSAGE);
+    final byte[] signature = signer.sign();
+    signer.initVerify(ECDSA_PAIR.getPublic());
+    signer.setParameter(params);
+    signer.update(MESSAGE);
+    assertTrue(signer.verify(signature));
+  }
+
+  @Test
+  public void ecdsaRejectsKeyParams() throws Exception {
+    // Some java programs try to set parameters equal to those encoded in the key.
+    // If these don't match then they must be rejected.
+    // NOTE: If the curve of ECDSA_PAIR changes to P-256 it will invalidate this test.
+    final AlgorithmParameters algParams = AlgorithmParameters.getInstance("EC");
+    algParams.init(new ECGenParameterSpec("secp256r1"));
+    final ECParameterSpec params = algParams.getParameterSpec(ECParameterSpec.class);
+    final Signature signer = Signature.getInstance("SHA384withECDSA", NATIVE_PROVIDER);
+    signer.initSign(ECDSA_PAIR.getPrivate());
+    assertThrows(InvalidAlgorithmParameterException.class, () -> signer.setParameter(params));
   }
 
   @SuppressWarnings("serial")
