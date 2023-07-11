@@ -59,6 +59,10 @@ final class Utils {
   /** Returns the output length for a digest in bytes specified by {@code evpMd}. */
   static native int getDigestLength(long evpMd);
 
+  static int getDigestLength(final String digestName) {
+    return getDigestLength(getEvpMdFromName(digestName));
+  }
+
   static String jceDigestNameToAwsLcName(final String jceName) {
     if (jceName == null) {
       return null;
@@ -558,5 +562,14 @@ final class Utils {
     if ((long) offset + (long) length > bytes.length) {
       throw new ArrayIndexOutOfBoundsException("Requested range is outside of buffer limits");
     }
+  }
+
+  static <T> T requireNonNull(final T obj, final String message) {
+    if (obj == null) throw new IllegalArgumentException(message);
+    return obj;
+  }
+
+  static String requireNonNullString(final String s, final String message) {
+    return requireNonNull(s, message);
   }
 }

@@ -248,6 +248,7 @@ add_library(
         csrc/ec_gen.cpp
         csrc/ec_utils.cpp
         csrc/env.cpp
+        csrc/hkdf.cpp
         csrc/hmac.cpp
         csrc/keyutils.cpp
         csrc/java_evp_keys.cpp

@@ -2,6 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.amazon.corretto.crypto.provider;
 
+import static com.amazon.corretto.crypto.provider.HkdfSecretKeyFactorySpi.HKDF_WITH_SHA1;
+import static com.amazon.corretto.crypto.provider.HkdfSecretKeyFactorySpi.HKDF_WITH_SHA256;
+import static com.amazon.corretto.crypto.provider.HkdfSecretKeyFactorySpi.HKDF_WITH_SHA384;
+import static com.amazon.corretto.crypto.provider.HkdfSecretKeyFactorySpi.HKDF_WITH_SHA512;
 import static com.amazon.corretto.crypto.provider.Loader.PROVIDER_VERSION;
 import static com.amazon.corretto.crypto.provider.Loader.PROVIDER_VERSION_STR;
 import static java.lang.String.format;
@@ -71,6 +75,12 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
     addService("KeyFactory", "RSA", "EvpKeyFactory$RSA");
     addService("KeyFactory", "EC", "EvpKeyFactory$EC");
+
+    final String hkdfSpi = "HkdfSecretKeyFactorySpi";
+    addService("SecretKeyFactory", HKDF_WITH_SHA1, hkdfSpi, false);
+    addService("SecretKeyFactory", HKDF_WITH_SHA256, hkdfSpi, false);
+    addService("SecretKeyFactory", HKDF_WITH_SHA384, hkdfSpi, false);
+    addService("SecretKeyFactory", HKDF_WITH_SHA512, hkdfSpi, false);
 
     addService("KeyPairGenerator", "RSA", "RsaGen");
     addService("KeyPairGenerator", "EC", "EcGen");
@@ -260,6 +270,15 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
       if (!useReflection) {
         final String type = getType();
         final String algo = getAlgorithm();
+
+        if ("SecretKeyFactory".equalsIgnoreCase(type)) {
+          final HkdfSecretKeyFactorySpi spi =
+              HkdfSecretKeyFactorySpi.INSTANCES.get(
+                  HkdfSecretKeyFactorySpi.getSpiFactoryForAlgName(algo));
+          if (spi != null) {
+            return spi;
+          }
+        }
 
         if ("KeyGenerator".equalsIgnoreCase(type) && "AES".equalsIgnoreCase(algo)) {
           return SecretKeyGenerator.createAesKeyGeneratorSpi();
