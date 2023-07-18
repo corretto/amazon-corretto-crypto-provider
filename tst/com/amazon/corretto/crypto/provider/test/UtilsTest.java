@@ -236,4 +236,17 @@ public class UtilsTest {
   public void givenInRangeLengthAndOffset_whenCheckArrayLimits_expectNoException() {
     assertDoesNotThrow(() -> sneakyInvoke(UTILS_CLASS, "checkArrayLimits", new byte[10], 5, 5));
   }
+
+  @Test
+  public void givenNull_whenRequireNonNull_expectIllegalArgumentException() {
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> sneakyInvoke(UTILS_CLASS, "requireNonNullString", (String) null, ""));
+  }
+
+  @Test
+  public void givenNonNull_whenRequireNonNull_expectValue() throws Throwable {
+    final String s = "TEST";
+    assertEquals(s, sneakyInvoke(UTILS_CLASS, "requireNonNullString", s, ""));
+  }
 }

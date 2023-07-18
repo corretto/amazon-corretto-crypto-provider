@@ -19,6 +19,7 @@ import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.util.Arrays;
+import javax.crypto.SecretKeyFactory;
 import org.apache.commons.codec.binary.Hex;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assumptions;
@@ -33,6 +34,16 @@ public class TestUtil {
    * "READ_WRITE" lock.
    */
   public static final String RESOURCE_GLOBAL = "GLOBAL_TEST_LOCK";
+
+  static final byte[] EMPTY_ARRAY = new byte[0];
+
+  static SecretKeyFactory getHkdfSecretKeyFactory(final String digest) {
+    try {
+      return SecretKeyFactory.getInstance("HkdfWith" + digest, TestUtil.NATIVE_PROVIDER);
+    } catch (NoSuchAlgorithmException e) {
+      throw new RuntimeException(e);
+    }
+  }
 
   public static final BouncyCastleProvider BC_PROVIDER = new BouncyCastleProvider();
   public static final AmazonCorrettoCryptoProvider NATIVE_PROVIDER =
@@ -60,8 +71,32 @@ public class TestUtil {
         new String[] {"secp256k1", "1.3.132.0.10"},
       };
 
-  public static final boolean isFips() {
+  public static boolean isFips() {
     return NATIVE_PROVIDER.isFips();
+  }
+
+  public static byte[] intArrayToByteArray(final int[] array) {
+    final byte[] result = new byte[array.length];
+    for (int i = 0; i != array.length; i++) {
+      if (array[i] < 0 || array[i] > 255) {
+        throw new IllegalArgumentException("The byte value must be in rage of [0, 256).");
+      }
+      result[i] = (byte) array[i];
+    }
+    return result;
+  }
+
+  public static boolean intArrayIsEqualToByteArray(final int[] expected, final byte[] actual) {
+    if (expected.length != actual.length) {
+      return false;
+    }
+    for (int i = 0; i != expected.length; i++) {
+      final int v = actual[i] & 0xFF;
+      if (expected[i] != v) {
+        return false;
+      }
+    }
+    return true;
   }
 
   public static String getCurveOid(String nameOrOid) {
