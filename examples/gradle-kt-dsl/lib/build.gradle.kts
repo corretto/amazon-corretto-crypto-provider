@@ -33,6 +33,8 @@ dependencies {
     } else {
         testImplementation("software.amazon.cryptools:AmazonCorrettoCryptoProvider:$accpVersion:${osdetector.classifier}")
     }
+
+    testImplementation("com.amazonaws:aws-encryption-sdk-java:2.4.0")
 }
 
 tasks.withType<Test> {

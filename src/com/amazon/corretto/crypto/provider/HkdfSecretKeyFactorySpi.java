@@ -135,10 +135,10 @@ class HkdfSecretKeyFactorySpi extends SecretKeyFactorySpi {
 
   private static final String HKDF = "Hkdf";
   private static final String WITH = "With";
-  static final String HKDF_WITH_SHA1 = HKDF + WITH + "SHA-1";
-  static final String HKDF_WITH_SHA256 = HKDF + WITH + "SHA-256";
-  static final String HKDF_WITH_SHA384 = HKDF + WITH + "SHA-384";
-  static final String HKDF_WITH_SHA512 = HKDF + WITH + "SHA-512";
+  static final String HKDF_WITH_SHA1 = HKDF + WITH + "HmacSHA1";
+  static final String HKDF_WITH_SHA256 = HKDF + WITH + "HmacSHA256";
+  static final String HKDF_WITH_SHA384 = HKDF + WITH + "HmacSHA384";
+  static final String HKDF_WITH_SHA512 = HKDF + WITH + "HmacSHA512";
 
   private static final int SHA1_CODE = 1;
   private static final int SHA256_CODE = 2;
