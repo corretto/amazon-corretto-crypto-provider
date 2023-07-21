@@ -32,7 +32,7 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 public class HkdfTest {
   @Test
   public void sampleUsage1() throws InvalidKeySpecException {
-    final SecretKeyFactory skf = getHkdfSecretKeyFactory("SHA-256");
+    final SecretKeyFactory skf = getHkdfSecretKeyFactory("HmacSHA256");
     final byte[] secret = {
       0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
       0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b
@@ -84,7 +84,7 @@ public class HkdfTest {
 
   @Test
   public void sampleUsage2() throws InvalidKeySpecException {
-    final SecretKeyFactory skf = getHkdfSecretKeyFactory("SHA-256");
+    final SecretKeyFactory skf = getHkdfSecretKeyFactory("HmacSHA256");
     final byte[] secret = TestUtil.decodeHex("60ab7f45b0ad534683b3a6c020d4f775");
     final byte[] salt = EMPTY_ARRAY;
     final byte[] info = EMPTY_ARRAY;
@@ -109,7 +109,7 @@ public class HkdfTest {
 
   @Test
   public void testHkdfWithShortInputs() throws InvalidKeySpecException {
-    final SecretKeyFactory skf = getHkdfSecretKeyFactory("SHA-256");
+    final SecretKeyFactory skf = getHkdfSecretKeyFactory("HmacSHA256");
     for (int i = 0; i < 100; i++) {
       final byte[] input = new byte[i];
       for (byte j = 0; j != (byte) i; j++) {
@@ -125,7 +125,7 @@ public class HkdfTest {
 
   @Test
   public void testHkdfExtractWithShortInputs() throws InvalidKeySpecException {
-    final SecretKeyFactory skf = getHkdfSecretKeyFactory("SHA-256");
+    final SecretKeyFactory skf = getHkdfSecretKeyFactory("HmacSHA256");
     for (int i = 0; i < 100; i++) {
       final byte[] input = new byte[i];
       for (byte j = 0; j != (byte) i; j++) {
@@ -139,7 +139,7 @@ public class HkdfTest {
 
   @Test
   public void testHkdfExpandWithShortInputs() throws InvalidKeySpecException {
-    final SecretKeyFactory skf = getHkdfSecretKeyFactory("SHA-256");
+    final SecretKeyFactory skf = getHkdfSecretKeyFactory("HmacSHA256");
     for (int i = 0; i < 100; i++) {
       final byte[] input = new byte[i];
       for (byte j = 0; j != (byte) i; j++) {
@@ -162,7 +162,7 @@ public class HkdfTest {
     assertThrows(IllegalArgumentException.class, () -> HkdfSpec.builder().withMode(0).build());
     assertThrows(IllegalArgumentException.class, () -> HkdfSpec.builder().withMode(4).build());
 
-    final SecretKeyFactory skf = getHkdfSecretKeyFactory("SHA-1");
+    final SecretKeyFactory skf = getHkdfSecretKeyFactory("HmacSHA1");
     final SecretKeySpec sks = new SecretKeySpec(new byte[16], "AES");
     assertThrows(InvalidKeySpecException.class, () -> skf.generateSecret(sks));
 
@@ -176,7 +176,7 @@ public class HkdfTest {
 
   @Test
   public void unsupportedOperationsTests() {
-    final SecretKeyFactory skf = getHkdfSecretKeyFactory("SHA-1");
+    final SecretKeyFactory skf = getHkdfSecretKeyFactory("HmacSHA1");
     final SecretKeySpec sks = new SecretKeySpec(new byte[16], "AES");
     assertThrows(
         UnsupportedOperationException.class, () -> skf.getKeySpec(sks, SecretKeySpec.class));
