@@ -1,5 +1,6 @@
-val accpVersion = "2.2.0"
+val accpVersion = "2.3.0"
 val accpLocalJar: String by project
+val fips: Boolean by project
 
 plugins {
     // Apply the org.jetbrains.kotlin.jvm Plugin to add support for Kotlin.
@@ -28,10 +29,16 @@ dependencies {
     // Use the Kotlin JUnit integration.
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit")
 
+    val accpArtifactId =
+        if (project.hasProperty("fips"))
+            "AmazonCorrettoCryptoProvider-FIPS"
+        else
+            "AmazonCorrettoCryptoProvider"
+
     if (project.hasProperty("accpLocalJar")) {
         testImplementation(files(accpLocalJar))
     } else {
-        testImplementation("software.amazon.cryptools:AmazonCorrettoCryptoProvider:$accpVersion:${osdetector.classifier}")
+        testImplementation("software.amazon.cryptools:${accpArtifactId}:$accpVersion:${osdetector.classifier}")
     }
 
     testImplementation("com.amazonaws:aws-encryption-sdk-java:2.4.0")
