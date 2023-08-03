@@ -40,6 +40,7 @@ Cipher algorithms:
 * AES_128/GCM/NoPadding
 * AES_256/GCM/NoPadding
 * AES/KWP/NoPadding
+* AES/XTS/NoPadding
 * RSA/ECB/NoPadding
 * RSA/ECB/PKCS1Padding
 * RSA/ECB/OAEPPadding
@@ -64,20 +65,52 @@ Signature algorithms:
 * SHA512withECDSAinP1363Format
 * RSASSA-PSS
 
-KeyPairGenerator algorithms:
+KeyPairGenerator:
 * EC
 * RSA
+
+KeyGenerator:
+* AES
 
 KeyAgreement:
 * ECDH
 
-SecureRandom algorithms:
-* ACCP's SecureRandom uses AWS-LC's DRBG implementation, which is described [here](https://github.com/awslabs/aws-lc/blob/main/third_party/jitterentropy/README.md) and [here](https://github.com/awslabs/aws-lc/blob/725625435158150ef21e0a4dab6fa3aca1ef2d2c/crypto/fipsmodule/rand/rand.c#L36-L60).
+SecretKeyFactory:
+* HkdfWithHmacSHA1
+* HkdfWithHmacSHA256
+* HkdfWithHmacSHA384
+* HkdfWithHmacSHA512
 
-KeyFactory algorithms:
+SecureRandom:
+* ACCP's SecureRandom uses AWS-LC's DRBG implementation, which is described [here](https://github.com/awslabs/aws-lc/blob/main/third_party/jitterentropy/README.md) and [here](https://github.com/awslabs/aws-lc/blob/725625435158150ef21e0a4dab6fa3aca1ef2d2c/crypto/fipsmodule/rand/rand.c#L36-L60). Please refer to [system properties](https://github.com/corretto/amazon-corretto-crypto-provider#other-system-properties) for more information.
+
+KeyFactory:
 * EC
 * RSA
-* ACCP's SecureRandom uses AWS-LC's DRBG implementation.
+
+AlgorithmParameters:
+* EC. Please refer to [system properties](https://github.com/corretto/amazon-corretto-crypto-provider#other-system-properties) for more information.
+
+
+# Notes on ACCP-FIPS
+ACCP-FIPS is a variation of ACCP which uses AWS-LC built in FIPS-mode.
+AWS-LC is undergoing FIPS validation testing by an accredited lab and,
+upon completion, will be submitted to NIST for certification.
+The status of FIPS certification will be reflected in our release notes
+and documentations. We provide ACCP-FIPS for experimentation
+and performance testing in the interim.
+
+
+Version 2.3.0 is the first release of ACCP-FIPS. The Maven coordinates for
+ACCP-FIPS are the same as ACCP with one difference that ACCP-FIPS's
+artifact ID is `AmazonCorrettoCryptoProvider-FIPS`.
+
+Notable differences between ACCP and ACCP-FIPS:
+* ACCP uses [the latest release of AWS-LC](https://github.com/aws/aws-lc/releases), whereas, ACCP-FIPS uses [the fips-2022-11-02 branch of AWS-LC](https://github.com/aws/aws-lc/tree/fips-2022-11-02).
+* ACCP-FIPS builds AWS-LC in FIPS mode by passing `-DFIPS=1` when configuring AWS-LC's build.
+* In FIPS-mode, RSA keys are limited to 2048, 3072, or 4096 bits in size with public exponent F4.
+* ACCP-FIPS does not register SecureRandom by default due to the performance of AWS-LC’s entropy source in FIPS-mode. [A system property](https://github.com/corretto/amazon-corretto-crypto-provider#other-system-properties) is available to register SecureRandom from AWS-LC if needed, and the performance differences are described in further detail under the description of that property.
+* Due to the fact that an older branch of AWS-LC is used in FIPS-mode, there will be performance differences between ACCP and ACCP-FIPS. We highly recommend performing detailed performance testing of your application if you choose to experiment with ACCP-FIPS.
 
 # Compatibility & Requirements
 ACCP has the following requirements:
@@ -114,6 +147,8 @@ For more information, please see [VERSIONING.rst](https://github.com/corretto/am
   <classifier>linux-x86_64</classifier>
 </dependency>
 ```
+
+The artifactId for FIPS builds is `AmazonCorrettoCryptoProvider-FIPS`.
 
 The classifier attribute could be set to `linux-aarch_64` to use ACCP on Linux ARM64 platforms.
 
