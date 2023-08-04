@@ -21,6 +21,14 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_RsaGen_generate
     try {
         raii_env env(pEnv);
 
+        // AWS-LC requires that the bitlength be a multiple of 128 and will round down.
+        // We want to guarantee that we return a key of at least the requested strength and so must
+        // round up.
+        jint rounded_bits = bits & ~127;
+        if (rounded_bits < bits) {
+            bits += 128;
+        }
+
         if (FIPS_mode() == 1) {
             // RSA_generate_key_fips performs extra checks so there is no need
             // to run post generation checks. This API generates keys with
