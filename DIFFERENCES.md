@@ -12,7 +12,7 @@ These differences are those most likely to be noticed by a consuming application
 The official documentation does not fully specify when the [Signature](https://docs.oracle.com/javase/8/docs/api/java/security/Signature.html) object is expected to throw a [SignatureException](https://docs.oracle.com/javase/8/docs/api/java/security/SignatureException.html).
 Having multiple different ways to reject a signature (such as `signature.verify() == false` and throwing a `SignatureException`) is an anti-pattern and we should try to avoid it.
 ACCP throws a `SignatureException` from `Signature.verify()` only when not throwing would introduce compatibility issues (such as with the [JCK](https://en.wikipedia.org/wiki/Technology_Compatibility_Kit#TCK_for_the_Java_platform).)
-Currently, ACCP will throw a `SignatureException` only when verifying an EDSA signature that is not properly encoded.
+Currently, ACCP will throw a `SignatureException` only when verifying an EDSA signature that is not properly encoded or an RSA signature which is an invalid length.
 In all other cases, ACCP will return `false` from `Signature.verify()` when given an invalid signature.
 This is different from the default OpenJDK implementation, which also inspects the inner structure of RSA signatures and rejects them with a `SignatureException` if they are improperly encoded.
 ACCP follows the guidance provided in [PKCS #1 section 8.2.2](https://tools.ietf.org/html/rfc8017#section-8.2.2) in that it does not parse the inner structure but, instead, does a binary comparison against the expected value.

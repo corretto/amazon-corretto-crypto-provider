@@ -639,6 +639,36 @@ public final class EvpSignatureSpecificTest {
   }
 
   /**
+   * For better compatibility with the JDK, we want to throw SignatureException if the length of the
+   * signature is wrong.
+   */
+  @Test
+  public void rsaSignatureWrongLength() throws Exception {
+    final Signature signer = Signature.getInstance("SHA256withRSA", NATIVE_PROVIDER);
+    signer.initSign(RSA_PAIR.getPrivate());
+    signer.update(MESSAGE);
+    final byte[] validSignature = signer.sign();
+
+    // Sanity check
+    signer.initVerify(RSA_PAIR.getPublic());
+    signer.update(MESSAGE);
+    assertTrue(signer.verify(validSignature));
+
+    // Too long throws an exception
+    final byte[] longSig = Arrays.copyOf(validSignature, validSignature.length + 1);
+    longSig[longSig.length - 1] = 1;
+    signer.initVerify(RSA_PAIR.getPublic());
+    signer.update(MESSAGE);
+    assertThrows(SignatureException.class, () -> signer.verify(longSig));
+
+    // Too short throws an exception
+    final byte[] shortSig = Arrays.copyOf(validSignature, validSignature.length - 1);
+    signer.initVerify(RSA_PAIR.getPublic());
+    signer.update(MESSAGE);
+    assertThrows(SignatureException.class, () -> signer.verify(shortSig));
+  }
+
+  /**
    * This test iterates over every implemented algorithm and ensures that it is compatible with the
    * equivalent BouncyCastle implementation. It doesn't check negative cases as the more detailed
    * tests cover that for algorithm families.

@@ -413,4 +413,19 @@ abstract class EvpSignatureBase extends SignatureSpi {
     System.arraycopy(signature, sStart, result, numLen + numLen - sLen, sLen);
     return result;
   }
+
+  /**
+   * Does an initial check of the signature seeing if it is of the proper format and size. This lets
+   * us quickly reject invalid signatures in a way that the JDK expects.
+   */
+  protected void sniffTest(final byte[] signature, final int offset, final int length)
+      throws SignatureException {
+    // Right now we only check RSA signatures to ensure they are the proper length
+    if (key_ instanceof RSAKey) {
+      final RSAKey rsaKey = (RSAKey) key_;
+      if (length != (rsaKey.getModulus().bitLength() + 7) / 8) {
+        throw new SignatureException("RSA Signature of invalid length.");
+      }
+    }
+  }
 }

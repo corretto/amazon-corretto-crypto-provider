@@ -304,6 +304,28 @@ public class EvpSignatureTest {
 
   @ParameterizedTest
   @MethodSource("params")
+  public void exceptionCausesReset(TestParams params) throws GeneralSecurityException {
+    final byte[] shortArray = new byte[2];
+    params.signer.update(params.message);
+    assertThrows(SignatureException.class, () -> params.signer.sign(new byte[1], 0, 1));
+
+    // The above should reset the signature.
+    params.signer.update(params.message);
+    final byte[] goodSignature = params.signer.sign();
+    params.verifier.update(params.message);
+    assertTrue(params.verifier.verify(goodSignature));
+
+    // Now, have verification fail
+    params.verifier.update(params.message);
+    assertThrows(SignatureException.class, () -> params.verifier.verify(shortArray));
+
+    // The above should reset state
+    params.verifier.update(params.message);
+    assertTrue(params.verifier.verify(goodSignature));
+  }
+
+  @ParameterizedTest
+  @MethodSource("params")
   public void signSinglePass(TestParams params) throws GeneralSecurityException {
     params.signer.update(params.message);
     params.jceVerifier.update(params.message);
@@ -418,10 +440,7 @@ public class EvpSignatureTest {
     try {
       assertFalse(params.verifier.verify(badSignature));
     } catch (final SignatureException ex) {
-      if (params.algorithm.contains("RSA")) {
-        // RSA is not allowed to fail with an exception
-        throw ex;
-      }
+      // We allow truncated signatures to throw
     }
   }
 
