@@ -13,28 +13,35 @@ FROM public.ecr.aws/ubuntu/ubuntu:20.04_stable
 
 # install corretto JDK
 ARG DEBIAN_FRONTEND=noninteractive
-RUN apt-get update
-RUN apt-get install -y curl
-RUN apt-get install -y gnupg
-RUN curl -s https://apt.corretto.aws/corretto.key | apt-key add -
-RUN echo 'deb https://apt.corretto.aws stable main' | tee /etc/apt/sources.list.d/corretto.list
-RUN apt-get update
-RUN apt-get install -y java-11-amazon-corretto-jdk
+RUN apt-get update \
+    && apt-get install -y curl \
+        gnupg
+RUN curl -s https://apt.corretto.aws/corretto.key | apt-key add - \
+    && echo 'deb https://apt.corretto.aws stable main' | tee /etc/apt/sources.list.d/corretto.list
+RUN apt-get update \
+    && apt-get install -y java-11-amazon-corretto-jdk
 ENV JAVA_HOME=/usr/lib/jvm/java-11-amazon-corretto/
 RUN echo 'export JAVA_HOME=/usr/lib/jvm/java-11-amazon-corretto/' >> /home/.bashrc
 
 # required dependencies for building/testing
-RUN apt-get update
-RUN apt-get install -y build-essential
-RUN apt-get install -y cmake
-RUN apt-get install -y dieharder
-RUN apt-get install -y lcov
-RUN apt-get install -y python3-pip
+RUN apt-get install -y build-essential \
+    cmake \
+    dieharder \
+    lcov \
+    python3-pip
+
 RUN pip3 install gcovr
 
 # developement niceties
-RUN apt-get install -y ninja-build
-RUN apt-get install -y git
+RUN apt-get install -y ninja-build \
+    git
+
+# required for FIPS
+RUN apt-get install -y golang-1.18 \
+    perl
+
+RUN ln -s /usr/lib/go-1.18/bin/go /usr/bin/go \
+    && ln -s /usr/lib/go-1.18/bin/gofmt /usr/bin/gofmt
 
 RUN mkdir /accp
 COPY . /accp
