@@ -45,6 +45,7 @@ dependencies {
 }
 
 tasks.withType<Test> {
+    systemProperties(System.getProperties().toMap() as Map<String, Object>)
     this.testLogging {
         this.showStandardStreams = true
     }
