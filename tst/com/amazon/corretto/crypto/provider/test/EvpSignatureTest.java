@@ -434,7 +434,8 @@ public class EvpSignatureTest {
   @MethodSource("params")
   public void verifyTruncatedSignature(TestParams params) throws GeneralSecurityException {
     params.verifier.update(params.message);
-    final byte[] badSignature = Arrays.copyOf(params.goodSignature, params.goodSignature.length - 1);
+    final byte[] badSignature =
+        Arrays.copyOf(params.goodSignature, params.goodSignature.length - 1);
     // Truncated signatures always throw now.
     assertThrows(SignatureException.class, () -> params.verifier.verify(badSignature));
   }
@@ -443,7 +444,8 @@ public class EvpSignatureTest {
   @MethodSource("params")
   public void verifyExtendedSignature(TestParams params) throws GeneralSecurityException {
     params.verifier.update(params.message);
-    final byte[] badSignature = Arrays.copyOf(params.goodSignature, params.goodSignature.length + 1);
+    final byte[] badSignature =
+        Arrays.copyOf(params.goodSignature, params.goodSignature.length + 1);
     // Extended signatures always throw now.
     assertThrows(SignatureException.class, () -> params.verifier.verify(badSignature));
   }
