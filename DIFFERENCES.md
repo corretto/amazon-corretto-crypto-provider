@@ -40,6 +40,14 @@ ACCP cannot make any promises that its default key sizes match the defaults of *
 Because no providers have guarantees around the uninitialized behavior of `KeyPairGenerators` it is generally fragile for your application to use a `KeyPairGenerator` without initialization.
 For this reason, even if you don't use ACCP, we recommend that you always call the [KeyPairGenerator.initialize(AlgorithmParameterSpec params)](https://docs.oracle.com/javase/8/docs/api/java/security/KeyPairGenerator.html#initialize-java.security.spec.AlgorithmParameterSpec-) prior to generating a key pair.
 
+## Supported RSA key sizes for generation.
+Aws-lc (our underlying cryptographic implementation) does not support generating arbitrary RSA key sizes.
+Specifically, it requires that [bit-lengths are a multiple of 128](https://github.com/aws/aws-lc/blob/25260d785f6e2eaf3c5f5dce83cf92c272f0a8b1/crypto/fipsmodule/rsa/rsa_impl.c#L1168-L1171).
+For better compatibility with applications, when in *non-FIPS mode*, ACCP will round bit-lengths up to the nearest multiple of 128.
+This way we will not throw exceptions at runtime and will give our callers at least as much security as requested.
+This is different from the default JDK provider which will attempt to generate a key of the exact requested bit-length.
+In FIPS mode will will only return keys of the exact requested length.
+
 ## Elliptic Curve KeyPairGeneration by curve size
 Neither the JCE nor the default OpenJDK provider for Elliptic Curve Cryptography (SunEC) specify the effect of calling `KeyPairGenerator.initialize(int keysize)` with an arbitrary value.
 This behavior is fully specified only for values of 192, 224, 256, 384, and 521.
