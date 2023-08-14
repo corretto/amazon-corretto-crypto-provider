@@ -434,14 +434,18 @@ public class EvpSignatureTest {
   @MethodSource("params")
   public void verifyTruncatedSignature(TestParams params) throws GeneralSecurityException {
     params.verifier.update(params.message);
-    byte[] badSignature = Arrays.copyOf(params.goodSignature, params.goodSignature.length - 1);
-    // Truncated signatures will sometime return false and sometimes throw an exception. Both are
-    // acceptable
-    try {
-      assertFalse(params.verifier.verify(badSignature));
-    } catch (final SignatureException ex) {
-      // We allow truncated signatures to throw
-    }
+    final byte[] badSignature = Arrays.copyOf(params.goodSignature, params.goodSignature.length - 1);
+    // Truncated signatures always throw now.
+    assertThrows(SignatureException.class, () -> params.verifier.verify(badSignature));
+  }
+
+  @ParameterizedTest
+  @MethodSource("params")
+  public void verifyExtendedSignature(TestParams params) throws GeneralSecurityException {
+    params.verifier.update(params.message);
+    final byte[] badSignature = Arrays.copyOf(params.goodSignature, params.goodSignature.length + 1);
+    // Extended signatures always throw now.
+    assertThrows(SignatureException.class, () -> params.verifier.verify(badSignature));
   }
 
   // Modification of body of the message only works
