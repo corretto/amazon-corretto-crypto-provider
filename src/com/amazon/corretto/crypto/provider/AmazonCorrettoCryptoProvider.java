@@ -38,6 +38,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
   private static final String PROPERTY_CACHE_SELF_TEST_RESULTS = "cacheselftestresults";
   private static final String PROPERTY_REGISTER_EC_PARAMS = "registerEcParams";
   private static final String PROPERTY_REGISTER_SECURE_RANDOM = "registerSecureRandom";
+
   private static final long serialVersionUID = 1L;
 
   public static final AmazonCorrettoCryptoProvider INSTANCE;
@@ -48,6 +49,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
   private final boolean relyOnCachedSelfTestResults;
   private final boolean shouldRegisterEcParams;
   private final boolean shouldRegisterSecureRandom;
+  private final Utils.NativeContextReleaseStrategy nativeContextReleaseStrategy;
 
   private transient SelfTestSuite selfTestSuite = new SelfTestSuite();
 
@@ -391,6 +393,8 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     this.shouldRegisterSecureRandom =
         Utils.getBooleanProperty(PROPERTY_REGISTER_SECURE_RANDOM, !isFips());
 
+    this.nativeContextReleaseStrategy = Utils.getNativeContextReleaseStrategyProperty();
+
     Utils.optionsFromProperty(ExtraCheck.class, extraChecks, "extrachecks");
 
     if (!Loader.IS_AVAILABLE) {
@@ -405,6 +409,10 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
     buildServiceMap();
     initializeSelfTests();
+  }
+
+  Utils.NativeContextReleaseStrategy getNativeContextReleaseStrategy() {
+    return nativeContextReleaseStrategy;
   }
 
   private synchronized void initializeSelfTests() {

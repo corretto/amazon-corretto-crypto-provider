@@ -32,12 +32,6 @@ final class AesGcmSpi extends CipherSpi {
     Loader.load();
   }
 
-  /**
-   * The number a times a key must be reused prior to keeping it in native memory rather than
-   * freeing it each time.
-   */
-  private static final int KEY_REUSE_THRESHOLD = 1;
-
   private static final int DEFAULT_TAG_LENGTH = 16 * 8;
 
   /* Some random notes:
@@ -69,6 +63,7 @@ final class AesGcmSpi extends CipherSpi {
    */
   private static native int oneShotEncrypt(
       long ctxPtr,
+      boolean sameKey,
       long[] ctxPtrOut,
       byte[] input,
       int inputOffset,
@@ -100,6 +95,7 @@ final class AesGcmSpi extends CipherSpi {
    */
   private static native int oneShotDecrypt(
       long ctxPtr,
+      boolean sameKey,
       long[] ctxPtrOut,
       byte[] input,
       int inoffset,
@@ -116,20 +112,14 @@ final class AesGcmSpi extends CipherSpi {
   /**
    * Initializes state for a non-one-shot encryption operation.
    *
+   * @param ptr Context pointer to be used if not zero
+   * @param sameKey true iff the key for initialization has been used before
    * @param key Encryption key
    * @param iv Initialization vector
    * @return Native pointer to context data structure, which must be freed using releaseContext() or
    *     encryptDoFinal()
    */
-  private static native long encryptInit(byte[] key, byte[] iv);
-
-  /**
-   * Reuses an existing EVP context and initializes it for encryption given the new IV.
-   *
-   * @param ptr Context pointer
-   * @param iv Initialization vector
-   */
-  private static native void encryptInit(long ptr, byte[] iv);
+  private static native long encryptInit(long ptr, boolean sameKey, byte[] key, byte[] iv);
 
   /**
    * Processes some plaintext during a non-one-shot encryption operation. This is essentially a
@@ -191,7 +181,13 @@ final class AesGcmSpi extends CipherSpi {
 
   private final AmazonCorrettoCryptoProvider provider;
   private NativeResource context = null;
-  private SecretKey jceKey;
+  // If an EVP context exists (context != null), then sameKey determines if the EVP context needs to
+  // be initialized with both key and iv or if initialization with iv is sufficient:
+  // (sameKey == true) implies only iv, and (sameKey == false) implies both key and iv.
+  private boolean sameKey = false;
+  // A reference to the last Key that was used. This reference is used to optimize initialization
+  // when the same Java key object is used to initialize a Cipher that was previously used.
+  private Key lastKey = null;
   private byte[] iv, key;
   /** GCM tag length in bytes. */
   private int tagLength;
@@ -199,7 +195,6 @@ final class AesGcmSpi extends CipherSpi {
   private int opMode = -1;
   private boolean hasConsumedData = false;
   private boolean needReset = false;
-  private int keyUsageCount = 0;
   private boolean contextInitialized = false;
 
   private final AccessibleByteArrayOutputStream decryptInputBuf =
@@ -210,6 +205,21 @@ final class AesGcmSpi extends CipherSpi {
   AesGcmSpi(final AmazonCorrettoCryptoProvider provider) {
     Loader.checkNativeLibraryAvailability();
     this.provider = provider;
+  }
+
+  private boolean saveNativeContext() {
+    switch (provider.getNativeContextReleaseStrategy()) {
+      case HYBRID:
+        // In HYBRID strategy, the preservation of context depends on if the same key is used or
+        // not.
+        return sameKey;
+      case LAZY:
+        return true;
+      case EAGER:
+        return false;
+      default:
+        throw new AssertionError("This should not be reachable.");
+    }
   }
 
   @Override
@@ -306,103 +316,119 @@ final class AesGcmSpi extends CipherSpi {
       final AlgorithmParameterSpec algorithmParameterSpec,
       final SecureRandom secureRandom)
       throws InvalidKeyException, InvalidAlgorithmParameterException {
-    if (key == null) {
-      throw new InvalidKeyException("Key can't be null");
-    }
 
-    final GCMParameterSpec spec;
-    if (algorithmParameterSpec instanceof GCMParameterSpec) {
-      spec = (GCMParameterSpec) algorithmParameterSpec;
-    } else if (algorithmParameterSpec instanceof IvParameterSpec) {
-      spec =
-          new GCMParameterSpec(
-              DEFAULT_TAG_LENGTH, ((IvParameterSpec) algorithmParameterSpec).getIV());
-    } else {
-      throw new InvalidAlgorithmParameterException(
-          "I don't know how to handle a " + algorithmParameterSpec.getClass());
-    }
+    final int opMode = checkOperation(jceOpMode);
 
-    byte[] encodedKey = null;
-    if (jceKey != key) {
-      if (!(key instanceof SecretKey)) {
-        throw new InvalidKeyException("Need a SecretKey");
-      }
-      String keyAlgorithm = key.getAlgorithm();
-      if (!"RAW".equalsIgnoreCase(key.getFormat())) {
-        throw new InvalidKeyException("Need a raw format key");
-      }
-      if (!keyAlgorithm.equalsIgnoreCase("AES")) {
-        throw new InvalidKeyException("Expected an AES key");
-      }
-      encodedKey = key.getEncoded();
-      if (encodedKey == null) {
-        throw new InvalidKeyException("Key doesn't support encoding");
-      }
+    final GCMParameterSpec spec = checkSpecAndTag(algorithmParameterSpec);
 
-      if (!ConstantTime.equals(this.key, encodedKey)) {
-        if (encodedKey.length != 128 / 8
-            && encodedKey.length != 192 / 8
-            && encodedKey.length != 256 / 8) {
-          throw new InvalidKeyException(
-              "Bad key length of "
-                  + (encodedKey.length * 8)
-                  + " bits; expected 128, 192, or 256 bits");
-        }
+    final byte[] newIv = checkIv(spec);
 
-        keyUsageCount = 0;
-        if (context != null) {
-          context.release();
-        }
+    final byte[] newKey = checkKey(key, lastKey, this.key);
 
-        context = null;
-      } else {
-        encodedKey = null;
-      }
-    }
+    final boolean sameKey = checkKeyIvPair(opMode, this.key, newKey, this.iv, newIv);
 
-    final byte[] iv = spec.getIV();
-
-    if ((spec.getTLen() % 8 != 0) || spec.getTLen() > 128 || spec.getTLen() < 96) {
-      throw new InvalidAlgorithmParameterException(
-          "Unsupported TLen value; must be one of {128, 120, 112, 104, 96}");
-    }
-
-    if (this.iv != null
-        && this.key != null
-        && (jceOpMode == Cipher.ENCRYPT_MODE || jceOpMode == Cipher.WRAP_MODE)) {
-      if (Arrays.equals(this.iv, iv)
-          && (encodedKey == null || ConstantTime.equals(this.key, encodedKey))) {
-        throw new InvalidAlgorithmParameterException(
-            "Cannot reuse same iv and key for GCM encryption");
-      }
-    }
-
-    if (iv == null || iv.length == 0) {
-      throw new InvalidAlgorithmParameterException("IV must be at least one byte long");
-    }
-
-    switch (jceOpMode) {
-      case Cipher.ENCRYPT_MODE:
-      case Cipher.WRAP_MODE:
-        this.opMode = NATIVE_MODE_ENCRYPT;
-        break;
-      case Cipher.DECRYPT_MODE:
-      case Cipher.UNWRAP_MODE:
-        this.opMode = NATIVE_MODE_DECRYPT;
-        break;
-      default:
-        throw new InvalidAlgorithmParameterException("Unsupported cipher mode " + jceOpMode);
-    }
-
-    this.iv = iv;
+    this.opMode = opMode;
+    this.sameKey = sameKey;
+    this.iv = newIv;
     this.tagLength = spec.getTLen() / 8;
-    if (encodedKey != null) {
-      this.key = encodedKey;
-      this.jceKey = (SecretKey) key;
-    }
+    this.key = newKey;
+    this.lastKey = key;
     this.needReset = false;
 
     stateReset();
+  }
+
+  private static int checkOperation(final int opMode) throws InvalidAlgorithmParameterException {
+    switch (opMode) {
+      case Cipher.ENCRYPT_MODE:
+      case Cipher.WRAP_MODE:
+        return NATIVE_MODE_ENCRYPT;
+      case Cipher.DECRYPT_MODE:
+      case Cipher.UNWRAP_MODE:
+        return NATIVE_MODE_DECRYPT;
+      default:
+        throw new InvalidAlgorithmParameterException("Unsupported cipher mode " + opMode);
+    }
+  }
+
+  private static GCMParameterSpec checkSpecAndTag(
+      final AlgorithmParameterSpec algorithmParameterSpec)
+      throws InvalidAlgorithmParameterException {
+    if (algorithmParameterSpec instanceof GCMParameterSpec) {
+      final GCMParameterSpec spec = (GCMParameterSpec) algorithmParameterSpec;
+      if ((spec.getTLen() % 8 != 0) || spec.getTLen() > 128 || spec.getTLen() < 96) {
+        throw new InvalidAlgorithmParameterException(
+            "Unsupported TLen value; must be one of {128, 120, 112, 104, 96}");
+      }
+      return spec;
+    }
+    if (algorithmParameterSpec instanceof IvParameterSpec) {
+      return new GCMParameterSpec(
+          DEFAULT_TAG_LENGTH, ((IvParameterSpec) algorithmParameterSpec).getIV());
+    }
+    throw new InvalidAlgorithmParameterException(
+        "I don't know how to handle a " + algorithmParameterSpec.getClass());
+  }
+
+  private static byte[] checkIv(final GCMParameterSpec spec)
+      throws InvalidAlgorithmParameterException {
+    final byte[] iv = spec.getIV();
+    if (iv == null || iv.length == 0) {
+      throw new InvalidAlgorithmParameterException("IV must be at least one byte long");
+    }
+    return iv;
+  }
+
+  private static byte[] checkKey(final Key key, final Key lastKey, final byte[] lastKeyBytes)
+      throws InvalidKeyException {
+    if (key == null) {
+      throw new InvalidKeyException("Key can't be null");
+    }
+    if (key == lastKey) {
+      return lastKeyBytes;
+    }
+    if (!(key instanceof SecretKey)) {
+      throw new InvalidKeyException("Need a SecretKey");
+    }
+    if (!"RAW".equalsIgnoreCase(key.getFormat())) {
+      throw new InvalidKeyException("Need a raw format key");
+    }
+    if (!"AES".equalsIgnoreCase(key.getAlgorithm())) {
+      throw new InvalidKeyException("Expected an AES key");
+    }
+
+    final byte[] encodedKey = key.getEncoded();
+    if (encodedKey == null) {
+      throw new InvalidKeyException("Key doesn't support encoding");
+    }
+
+    if (encodedKey.length != 128 / 8
+        && encodedKey.length != 192 / 8
+        && encodedKey.length != 256 / 8) {
+      throw new InvalidKeyException(
+          "Bad key length of " + (encodedKey.length * 8) + " bits; expected 128, 192, or 256 bits");
+    }
+    return encodedKey;
+  }
+
+  private static boolean checkKeyIvPair(
+      final int jceOpMode,
+      final byte[] lastKey,
+      final byte[] newKey,
+      final byte[] lastIv,
+      final byte[] newIv)
+      throws InvalidAlgorithmParameterException {
+
+    final boolean sameKey = ConstantTime.equals(lastKey, newKey);
+
+    if (sameKey
+        && (jceOpMode == Cipher.ENCRYPT_MODE || jceOpMode == Cipher.WRAP_MODE)
+        && Arrays.equals(newIv, lastIv)) {
+      throw new InvalidAlgorithmParameterException(
+          "Cannot reuse same iv and key for GCM encryption");
+    }
+
+    return sameKey;
   }
 
   @Override
@@ -575,29 +601,29 @@ final class AesGcmSpi extends CipherSpi {
         // init(). In this case
         // we make a single native call to perform the encryption operation in one go.
 
-        keyUsageCount++;
         if (context != null) {
-          // Our key, but not our IV has been initialized
           return context.use(
-              ptr -> {
-                return oneShotEncrypt(
-                    ptr,
-                    null,
-                    finalInput,
-                    inputOffset,
-                    finalInputLength,
-                    output,
-                    finalOutputOffset,
-                    tagLength,
-                    key,
-                    iv);
-              });
-        } else {
-          // We don't have an existing context, however we might want to save one
-          final long[] ptrOut = keyUsageCount > KEY_REUSE_THRESHOLD ? new long[1] : null;
+              ptr ->
+                  oneShotEncrypt(
+                      ptr,
+                      sameKey,
+                      null,
+                      finalInput,
+                      inputOffset,
+                      finalInputLength,
+                      output,
+                      finalOutputOffset,
+                      tagLength,
+                      key,
+                      iv));
+        }
+        // We don't have an existing context, however we might want to save one
+        if (saveNativeContext()) {
+          final long[] ptrOut = new long[1];
           final int outLen =
               oneShotEncrypt(
                   0,
+                  false,
                   ptrOut,
                   finalInput,
                   inputOffset,
@@ -607,48 +633,59 @@ final class AesGcmSpi extends CipherSpi {
                   tagLength,
                   key,
                   iv);
-          if (ptrOut != null) {
-            context = new NativeContext(ptrOut[0]);
-          }
+          context = new NativeContext(ptrOut[0]);
           return outLen;
         }
-      } else {
-        // We need to make sure to add resultLength here; engineUpdate in encrypt mode produces
-        // incremental output (unlike in decrypt mode) and so we need to carry forward whatever
-        // amount of data it produced in our return value.
-
-        keyUsageCount++;
-
-        final int finalOutputLen;
-
-        if (keyUsageCount > KEY_REUSE_THRESHOLD) {
-          finalOutputLen =
-              context.use(
-                  ptr ->
-                      encryptDoFinal(
-                          ptr,
-                          false, // releaseContext
-                          finalInput,
-                          inputOffset,
-                          finalInputLength,
-                          output,
-                          finalOutputOffset,
-                          tagLength));
-        } else {
-          finalOutputLen =
-              encryptDoFinal(
-                  context.take(),
-                  true, // releaseContext
-                  input,
-                  inputOffset,
-                  finalInputLength,
-                  output,
-                  finalOutputOffset,
-                  tagLength);
-          context = null;
-        }
-        return resultLength + finalOutputLen;
+        // We don't need to save the context.
+        return oneShotEncrypt(
+            0,
+            false,
+            null,
+            finalInput,
+            inputOffset,
+            finalInputLength,
+            output,
+            finalOutputOffset,
+            tagLength,
+            key,
+            iv);
       }
+      // Context is initialized, which means either updateAAD or update has been invoked after init
+
+      // We need to make sure to add resultLength here; engineUpdate in encrypt mode produces
+      // incremental output (unlike in decrypt mode) and so we need to carry forward whatever
+      // amount of data it produced in our return value.
+      final int finalOutputLen;
+
+      // Should we preserve the context for the next operation?
+      if (saveNativeContext()) {
+        finalOutputLen =
+            context.use(
+                ptr ->
+                    encryptDoFinal(
+                        ptr,
+                        false, // releaseContext
+                        finalInput,
+                        inputOffset,
+                        finalInputLength,
+                        output,
+                        finalOutputOffset,
+                        tagLength));
+      } else {
+        finalOutputLen =
+            encryptDoFinal(
+                context.take(),
+                true, // releaseContext
+                input,
+                inputOffset,
+                finalInputLength,
+                output,
+                finalOutputOffset,
+                tagLength);
+        context = null;
+      }
+
+      return resultLength + finalOutputLen;
     } finally {
       stateReset();
     }
@@ -694,38 +731,37 @@ final class AesGcmSpi extends CipherSpi {
         throw new AEADBadTagException("Input too short - need tag");
       }
 
-      keyUsageCount++;
-      final int outLen;
       if (context != null) {
         // We already have a context, so let's reuse it.
-        outLen =
-            context.use(
-                ptr -> {
-                  return oneShotDecrypt(
-                      ptr,
-                      null,
-                      workingInputArray,
-                      workingInputOffset,
-                      workingInputLength,
-                      output,
-                      outputOffset,
-                      tagLength,
-                      key,
-                      iv,
+        return context.use(
+            ptr ->
+                oneShotDecrypt(
+                    ptr,
+                    sameKey,
+                    null,
+                    workingInputArray,
+                    workingInputOffset,
+                    workingInputLength,
+                    output,
+                    outputOffset,
+                    tagLength,
+                    key,
+                    iv,
+                    // The cost of calling decryptAADBuf.getDataBuffer() when its buffer is empty
+                    // is significant for 16-byte decrypt operations (approximately a 7%
+                    // performance hit). To avoid this, we reuse the same empty array instead in
+                    // this common-case path.
+                    decryptAADBuf.isEmpty() ? EMPTY_ARRAY : decryptAADBuf.getDataBuffer(),
+                    decryptAADBuf.size()));
+      }
 
-                      // The cost of calling decryptAADBuf.getDataBuffer() when its buffer is empty
-                      // is significant for 16-byte decrypt operations (approximately a 7%
-                      // performance hit). To avoid this, we reuse the same empty array instead in
-                      // this common-case path.
-                      decryptAADBuf.isEmpty() ? EMPTY_ARRAY : decryptAADBuf.getDataBuffer(),
-                      decryptAADBuf.size());
-                });
-      } else {
-        // We don't have an existing context, however we might want to save one
-        final long[] ptrOut = keyUsageCount > KEY_REUSE_THRESHOLD ? new long[1] : null;
-        outLen =
+      // We don't have an existing context, however we might want to save one
+      if (saveNativeContext()) {
+        final long[] ptrOut = new long[1];
+        final int outlen =
             oneShotDecrypt(
                 0,
+                false,
                 ptrOut,
                 workingInputArray,
                 workingInputOffset,
@@ -739,16 +775,31 @@ final class AesGcmSpi extends CipherSpi {
                 // The cost of calling decryptAADBuf.getDataBuffer() when its buffer is empty is
                 // significant for 16-byte decrypt operations (approximately a 7% performance hit).
                 // To avoid this, we reuse the same empty array
-                decryptAADBuf.size() != 0 ? decryptAADBuf.getDataBuffer() : EMPTY_ARRAY,
+                decryptAADBuf.isEmpty() ? EMPTY_ARRAY : decryptAADBuf.getDataBuffer(),
                 decryptAADBuf.size());
-
-        if (ptrOut != null) {
-          context = new NativeContext(ptrOut[0]);
-        }
+        context = new NativeContext(ptrOut[0]);
+        return outlen;
       }
-      // Decryption completed successfully.
-      return outLen;
-    } catch (AEADBadTagException e) {
+      // We don't have a context, and we don't need to save it
+      return oneShotDecrypt(
+          0,
+          false,
+          null,
+          workingInputArray,
+          workingInputOffset,
+          workingInputLength,
+          output,
+          outputOffset,
+          tagLength,
+          key,
+          iv,
+
+          // The cost of calling decryptAADBuf.getDataBuffer() when its buffer is empty is
+          // significant for 16-byte decrypt operations (approximately a 7% performance hit).
+          // To avoid this, we reuse the same empty array
+          decryptAADBuf.isEmpty() ? EMPTY_ARRAY : decryptAADBuf.getDataBuffer(),
+          decryptAADBuf.size());
+    } catch (final AEADBadTagException e) {
       final int maxFillSize = output.length - outputOffset;
       Arrays.fill(
           output, outputOffset, Math.min(maxFillSize, engineGetOutputSize(inputLen)), (byte) 0);
@@ -971,11 +1022,9 @@ final class AesGcmSpi extends CipherSpi {
     checkNeedReset();
 
     if (context != null) {
-      context.useVoid(ptr -> encryptInit(ptr, iv));
+      context.useVoid(ptr -> encryptInit(ptr, sameKey, key, iv));
     } else {
-      long ptr = encryptInit(key, iv);
-
-      context = new NativeContext(ptr);
+      context = new NativeContext(encryptInit(0, false, key, iv));
     }
   }
 

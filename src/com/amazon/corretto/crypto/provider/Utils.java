@@ -28,6 +28,9 @@ import javax.crypto.spec.SecretKeySpec;
 
 /** Miscellaneous utility methods. */
 final class Utils {
+  private static final String PROPERTY_NATIVE_CONTEXT_RELEASE_STRATEGY =
+      "nativeContextReleaseStrategy";
+
   private Utils() {
     // Prevent instantiation
   }
@@ -571,5 +574,32 @@ final class Utils {
 
   static String requireNonNullString(final String s, final String message) {
     return requireNonNull(s, message);
+  }
+
+  enum NativeContextReleaseStrategy {
+    HYBRID,
+    LAZY,
+    EAGER
+  }
+
+  private static NativeContextReleaseStrategy getNativeContextReleaseStrategyProperty(
+      final String propertyName) {
+    final String propertyStr = Loader.getProperty(propertyName, "HYBRID").toUpperCase();
+    if (propertyStr.equals("LAZY")) {
+      return NativeContextReleaseStrategy.LAZY;
+    }
+    if (propertyStr.equals("EAGER")) {
+      return NativeContextReleaseStrategy.EAGER;
+    }
+    if (!propertyStr.equals("HYBRID")) {
+      LOG.warning(
+          String.format(
+              "Valid values for %s are HYBRID, LAZY, EAGER, with HYBRID as default", propertyName));
+    }
+    return NativeContextReleaseStrategy.HYBRID;
+  }
+
+  static NativeContextReleaseStrategy getNativeContextReleaseStrategyProperty() {
+    return getNativeContextReleaseStrategyProperty(PROPERTY_NATIVE_CONTEXT_RELEASE_STRATEGY);
   }
 }

@@ -209,6 +209,24 @@ public class UtilsTest {
   }
 
   @Test
+  public void getNativeContextReleaseStrategyPropertyTests() throws Throwable {
+    getNativeContextReleaseStrategyPropertyTest("accp.native.property1", "HYBRID", "HYBRID");
+    getNativeContextReleaseStrategyPropertyTest("accp.native.property2", "dummy", "HYBRID");
+    getNativeContextReleaseStrategyPropertyTest("accp.native.property3", "LAZY", "LAZY");
+    getNativeContextReleaseStrategyPropertyTest("accp.native.property4", "EAGER", "EAGER");
+  }
+
+  private static void getNativeContextReleaseStrategyPropertyTest(
+      final String propertyName, final String value, final String expectedValue) throws Throwable {
+    final String fullPropertyName = TestUtil.NATIVE_PROVIDER_PACKAGE + "." + propertyName;
+    System.setProperty(fullPropertyName, value);
+    assertEquals(
+        expectedValue,
+        (sneakyInvoke(UTILS_CLASS, "getNativeContextReleaseStrategyProperty", propertyName)
+            .toString()));
+  }
+
+  @Test
   public void givenNull_whenCheckArrayLimits_expectException() {
     assertThrows(
         IllegalArgumentException.class,

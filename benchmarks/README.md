@@ -6,6 +6,9 @@ The benchmarks can use locally built ACCP or published ACCP.
 The `lib:jmh` Gradle task runs the benchmarks and generates reports in JSON and HTML.
 The reports are saved under `lib/build/results/jmh`.
 
+* `-PincludeBenchmark="INCLUDE_BENCHMARK"` would only run the specified matching benchmarks.
+  * `INCLUDE_BENCHMARK` is a regular expression. For example, `CipherReuse|AesKwp` runs these two sets of benchmarks only.
+
 ### Benchmarking published ACCP to Maven
 
 ```bash

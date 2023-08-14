@@ -666,6 +666,24 @@ add_custom_target(check-junit-SecurityManager
 
     DEPENDS accp-jar tests-jar)
 
+add_custom_target(check-junit-AesGcmLazy
+    COMMAND ${TEST_JAVA_EXECUTABLE}
+        -Dcom.amazon.corretto.crypto.provider.nativeContextReleaseStrategy=LAZY
+        ${TEST_RUNNER_ARGUMENTS}
+        --select-class=com.amazon.corretto.crypto.provider.test.AesTest
+        --select-class=com.amazon.corretto.crypto.provider.test.AesGcmKatTest
+
+    DEPENDS accp-jar tests-jar)
+
+add_custom_target(check-junit-AesGcmEager
+    COMMAND ${TEST_JAVA_EXECUTABLE}
+        -Dcom.amazon.corretto.crypto.provider.nativeContextReleaseStrategy=EAGER
+        ${TEST_RUNNER_ARGUMENTS}
+        --select-class=com.amazon.corretto.crypto.provider.test.AesTest
+        --select-class=com.amazon.corretto.crypto.provider.test.AesGcmKatTest
+
+    DEPENDS accp-jar tests-jar)
+
 add_custom_target(check-junit-extra-checks
     COMMAND ${TEST_JAVA_EXECUTABLE}
         -Dcom.amazon.corretto.crypto.provider.extrachecks=ALL
@@ -758,7 +776,15 @@ add_custom_target(check-install-via-properties-with-debug
     DEPENDS accp-jar tests-jar)
 
 add_custom_target(check
-    DEPENDS check-recursive-init check-install-via-properties check-install-via-properties-with-debug check-junit check-junit-SecurityManager check-external-lib check-libaccp-rpath)
+    DEPENDS check-recursive-init
+    check-install-via-properties
+    check-install-via-properties-with-debug
+    check-junit
+    check-junit-SecurityManager
+    check-external-lib
+    check-libaccp-rpath
+    check-junit-AesGcmLazy
+    check-junit-AesGcmEager)
 
 if(ENABLE_NATIVE_TEST_HOOKS)
     add_custom_target(check-keyutils

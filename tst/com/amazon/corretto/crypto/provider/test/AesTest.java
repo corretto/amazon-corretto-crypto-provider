@@ -1121,11 +1121,65 @@ public class AesTest {
   }
 
   @Test
+  public void safeCipherReuse() throws Exception {
+    Cipher c1 = Cipher.getInstance(ALGO_NAME, NATIVE_PROVIDER);
+    Cipher c2 = Cipher.getInstance(ALGO_NAME, NATIVE_PROVIDER);
+    GCMParameterSpec spec1 = new GCMParameterSpec(128, randomIV());
+    GCMParameterSpec spec2 = new GCMParameterSpec(128, randomIV());
+    SecretKey key1 = new SecretKeySpec(TestUtil.getRandomBytes(16), "AES");
+    SecretKey key2 = new SecretKeySpec(TestUtil.getRandomBytes(16), "AES");
+    byte[] aad = TestUtil.getRandomBytes(100);
+    String message = "hello world!";
+
+    c1.init(Cipher.ENCRYPT_MODE, key1, spec1);
+    c1.updateAAD(aad);
+    byte[] cipherText1 = c1.doFinal(message.getBytes());
+    c1.init(Cipher.DECRYPT_MODE, key1, spec1);
+    c1.updateAAD(aad);
+    assertEquals(message, new String(c1.doFinal(cipherText1)));
+
+    c1.init(Cipher.ENCRYPT_MODE, key2, spec2);
+    c1.updateAAD(aad);
+    byte[] cipherText2 = c1.doFinal(message.getBytes());
+    // Let's use a different context for decrypt
+    c2.init(Cipher.DECRYPT_MODE, key2, spec2);
+    c2.updateAAD(aad);
+    assertEquals(message, new String(c2.doFinal(cipherText2)));
+
+    // Let's set AAD for encrypt but ignore it by another init
+    c1.init(Cipher.ENCRYPT_MODE, key2, spec1);
+    c1.updateAAD(aad);
+    // Initializing again and doFinal immediately after.
+    c1.init(Cipher.ENCRYPT_MODE, key2, spec2);
+    byte[] cipherText3 = c1.doFinal(message.getBytes());
+    c2.init(Cipher.DECRYPT_MODE, key2, spec2);
+    assertEquals(message, new String(c2.doFinal(cipherText3)));
+
+    // Let's set AAD for decrypt but ignore it by another init
+    c1.init(Cipher.ENCRYPT_MODE, key2, spec1);
+    byte[] cipherText4 = c1.doFinal(message.getBytes());
+    c2.init(Cipher.DECRYPT_MODE, key2, spec1);
+    c2.updateAAD(aad);
+    c2.init(Cipher.DECRYPT_MODE, key2, spec1);
+    assertEquals(message, new String(c2.doFinal(cipherText4)));
+  }
+
+  private static boolean saveNativeContext(final Object obj) throws Throwable {
+    return ((Boolean) sneakyInvoke(obj, "saveNativeContext")).booleanValue();
+  }
+
+  private static void assertNativeContextOk(final Object spi) throws Throwable {
+    if (saveNativeContext(spi)) {
+      assertNotNull(sneakyGetField(spi, "context"));
+    } else {
+      assertNull(sneakyGetField(spi, "context"));
+    }
+  }
+
+  @Test
   public void safeReuse() throws Throwable {
     Cipher c = Cipher.getInstance(ALGO_NAME, NATIVE_PROVIDER);
     final Object spi = sneakyGetField(c, "spi");
-    final int keyReuseThreshold = (int) sneakyGetField(spi.getClass(), "KEY_REUSE_THRESHOLD");
-    assertEquals(1, keyReuseThreshold, "Test must be re-written for KEY_REUSE_THRESHOLD != 1");
 
     GCMParameterSpec spec1 = new GCMParameterSpec(128, randomIV());
     GCMParameterSpec spec2 = new GCMParameterSpec(128, randomIV());
@@ -1142,61 +1196,62 @@ public class AesTest {
     assertFalse((boolean) sneakyGetField(spi, "contextInitialized"));
     assertNull(sneakyGetField(spi, "context"));
     byte[] ciphertext1 = c.doFinal(plaintext1);
+    assertNativeContextOk(spi);
     c.init(Cipher.ENCRYPT_MODE, key, spec2);
     assertFalse((boolean) sneakyGetField(spi, "contextInitialized"));
-    assertNull(sneakyGetField(spi, "context"));
     byte[] ciphertext2 = c.doFinal(plaintext2);
+    assertNativeContextOk(spi);
     c.init(Cipher.ENCRYPT_MODE, key, spec3);
     assertFalse((boolean) sneakyGetField(spi, "contextInitialized"));
-    assertNotNull(sneakyGetField(spi, "context"));
     byte[] ciphertext3 = c.doFinal(plaintext3);
-
     c.init(Cipher.DECRYPT_MODE, key, spec1);
     assertFalse((boolean) sneakyGetField(spi, "contextInitialized"));
-    assertNotNull(sneakyGetField(spi, "context"));
     assertArrayEquals(plaintext1, c.doFinal(ciphertext1));
+    assertNativeContextOk(spi);
+
     c.init(Cipher.DECRYPT_MODE, key, spec2);
     assertFalse((boolean) sneakyGetField(spi, "contextInitialized"));
-    assertNotNull(sneakyGetField(spi, "context"));
     assertArrayEquals(plaintext2, c.doFinal(ciphertext2));
+    assertNativeContextOk(spi);
+
     assertFalse((boolean) sneakyGetField(spi, "contextInitialized"));
-    assertNotNull(sneakyGetField(spi, "context"));
     c.init(Cipher.DECRYPT_MODE, key, spec3);
     assertArrayEquals(plaintext3, c.doFinal(ciphertext3));
+    assertNativeContextOk(spi);
 
     // Interleaved
     c.init(Cipher.ENCRYPT_MODE, key, spec1);
     assertFalse((boolean) sneakyGetField(spi, "contextInitialized"));
-    assertNotNull(sneakyGetField(spi, "context"));
     ciphertext1 = c.doFinal(plaintext1);
+    assertNativeContextOk(spi);
     c.init(Cipher.DECRYPT_MODE, key, spec1);
     assertFalse((boolean) sneakyGetField(spi, "contextInitialized"));
-    assertNotNull(sneakyGetField(spi, "context"));
     assertArrayEquals(plaintext1, c.doFinal(ciphertext1));
+    assertNativeContextOk(spi);
 
     c.init(Cipher.ENCRYPT_MODE, key, spec2);
     assertFalse((boolean) sneakyGetField(spi, "contextInitialized"));
-    assertNotNull(sneakyGetField(spi, "context"));
     ciphertext2 = c.doFinal(plaintext2);
+    assertNativeContextOk(spi);
     c.init(Cipher.DECRYPT_MODE, key, spec2);
     assertFalse((boolean) sneakyGetField(spi, "contextInitialized"));
-    assertNotNull(sneakyGetField(spi, "context"));
     assertArrayEquals(plaintext2, c.doFinal(ciphertext2));
+    assertNativeContextOk(spi);
 
     c.init(Cipher.ENCRYPT_MODE, key, spec3);
     assertFalse((boolean) sneakyGetField(spi, "contextInitialized"));
-    assertNotNull(sneakyGetField(spi, "context"));
     ciphertext3 = c.doFinal(plaintext3);
+    assertNativeContextOk(spi);
     c.init(Cipher.DECRYPT_MODE, key, spec3);
     assertFalse((boolean) sneakyGetField(spi, "contextInitialized"));
-    assertNotNull(sneakyGetField(spi, "context"));
     assertArrayEquals(plaintext3, c.doFinal(ciphertext3));
+    assertNativeContextOk(spi);
 
     // Try a decrypt with the same key bytes but a different key object
     c.init(Cipher.DECRYPT_MODE, new SecretKeySpec(key.getEncoded(), key.getAlgorithm()), spec2);
     assertFalse((boolean) sneakyGetField(spi, "contextInitialized"));
-    assertNotNull(sneakyGetField(spi, "context"));
     assertArrayEquals(plaintext2, c.doFinal(ciphertext2));
+    assertNativeContextOk(spi);
   }
 
   private byte[] randomIV() {

@@ -274,7 +274,7 @@ AmazonCorrettoCryptoProvider.INSTANCE.assertHealthy();
 
 ### Other system properties
 ACCP can be configured via several system properties.
-None of these should be needed for standard deployments and we recommend not touching them.
+None of these should be needed for standard deployments, and we recommend not touching them.
 They are of most use to developers needing to test ACCP or experiment with benchmarking.
 These are all read early in the load process and may be cached so any changes to them made from within Java may not be respected.
 Thus, these should all be set on the JVM command line using `-D`.
@@ -316,7 +316,21 @@ Thus, these should all be set on the JVM command line using `-D`.
   This means that there is a slight "pause" before ACCP FIPS's SecureRandom can produce pseudo-random bytes in highly threaded environments.
   Because, in extreme cases this could present an availability risk, we do not register LibCryptoRng by default in configurations where this initialization cost is incurred (i.e. FIPS mode).
   Non-FIPS AWS-LC does not use CPU jitter for its DRBG seed's entropy, and therefore does not incur this initialization cost, therefore we register LibCryptoRng by default when not in FIPS mode.
-
+* `com.amazon.corretto.crypto.provider.nativeContextReleaseStrategy`
+  Takes in `HYBRID`, `LAZY`, or `EAGER` (defaults ot `HYBRID`). This property only affects
+  AES-GCM cipher for now. AES-GCM associates a native object of type `EVP_CIPHER_CTX`
+  to each `Cipher` object. This property allows users to control the strategy for releasing
+  the native object.
+  * `HYBRID` (default): the structure is released eagerly, unless the same AES key is used. This is the
+     default behavior, and it is consistent with prior releases of ACCP.
+  * `LAZY`: preserve the native object and do not release while the `Cipher` object is not garbage collected.
+  * `EAGER`: release the native object as soon as possible, regardless of using the same key or not.
+  Our recommendation is to set this property to `EAGER` if `Cipher` objects are discarded
+  after use and caching of `Cipher` objects is not needed. When reusing the same `Cipher`
+  object, it would be beneficial to set this system property to `LAZY` so that different
+  encryption/decryption operations would not require allocation and release of `EVP_CIPHER_CTX`
+  structure. A common use case would be having long-running threads that each would get its
+  own instance of `Cipher` class.
 
 # License
 This library is licensed under the Apache 2.0 license although portions of this

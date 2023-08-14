@@ -1,6 +1,8 @@
 val accpVersion: String? by project
 val accpLocalJar: String by project
 val fips: Boolean by project
+val includeBenchmark: String by project
+val nativeContextReleaseStrategy: String by project
 
 plugins {
     `java-library`
@@ -46,7 +48,9 @@ java {
 }
 
 jmh {
-    // includes.add("AesXts") // can be used to run a subset of benchmarks
+    if (project.hasProperty("includeBenchmark")) {
+        includes.add(includeBenchmark)
+    }
     fork.set(1)
     benchmarkMode.add("thrpt")
     threads.set(1)
@@ -59,6 +63,9 @@ jmh {
     duplicateClassesStrategy.set(DuplicatesStrategy.WARN)
     jvmArgs.add("-DversionStr=${accpVersion}")
     jvmArgs.add("-Dcom.amazon.corretto.crypto.provider.registerSecureRandom=true")
+    if (project.hasProperty("nativeContextReleaseStrategy")) {
+        jvmArgs.add("-Dcom.amazon.corretto.crypto.provider.nativeContextReleaseStrategy=${nativeContextReleaseStrategy}")
+    }
 }
 
 jmhReport {
