@@ -40,6 +40,7 @@ class EvpSignatureRaw extends EvpSignatureBase {
   @Override
   protected byte[] engineSign() throws SignatureException {
     try {
+      ensureInitialized(true);
       return key_.use(
           ptr -> signRaw(ptr, paddingType_, 0, 0, buffer.getDataBuffer(), 0, buffer.size()));
     } finally {
@@ -56,6 +57,8 @@ class EvpSignatureRaw extends EvpSignatureBase {
   protected boolean engineVerify(final byte[] sigBytes, final int offset, final int length)
       throws SignatureException {
     try {
+      ensureInitialized(false);
+      sniffTest(sigBytes, offset, length);
       return key_.use(
           ptr ->
               verifyRaw(
