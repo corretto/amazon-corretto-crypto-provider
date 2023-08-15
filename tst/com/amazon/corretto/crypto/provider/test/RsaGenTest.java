@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import com.amazon.corretto.crypto.provider.RuntimeCryptoException;
@@ -129,6 +130,23 @@ public class RsaGenTest {
     final RSAPublicKey pubKey = (RSAPublicKey) keyPair.getPublic();
     final RSAPrivateCrtKey privKey = (RSAPrivateCrtKey) keyPair.getPrivate();
     assertEquals(3072, pubKey.getModulus().bitLength());
+    assertEquals(RSAKeyGenParameterSpec.F4, pubKey.getPublicExponent());
+    assertConsistency(pubKey, privKey);
+  }
+
+  // We want to ensure that when we ask for a strange keylength we get something of at least that
+  // strength.
+  @Test
+  public void test3073() throws GeneralSecurityException {
+    assumeFalse(
+        AmazonCorrettoCryptoProvider.INSTANCE.isFips(),
+        "Keysize of 3073 is not supported with FIPS");
+    final KeyPairGenerator generator = getGenerator();
+    generator.initialize(3073);
+    final KeyPair keyPair = generator.generateKeyPair();
+    final RSAPublicKey pubKey = (RSAPublicKey) keyPair.getPublic();
+    final RSAPrivateCrtKey privKey = (RSAPrivateCrtKey) keyPair.getPrivate();
+    assertTrue(3073 <= pubKey.getModulus().bitLength());
     assertEquals(RSAKeyGenParameterSpec.F4, pubKey.getPublicExponent());
     assertConsistency(pubKey, privKey);
   }

@@ -30,6 +30,14 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_RsaGen_generate
                 throw_openssl("Unable to generate key");
             }
         } else {
+            // AWS-LC requires that the bitlength be a multiple of 128 and will round down.
+            // We want to guarantee that we return a key of at least the requested strength and so must
+            // round up. We only do this in the non-FIPS branch because in FIPS mode we want to do
+            // exactly what the application requests.
+            if (bits % 128 != 0) {
+                bits += 128 - (bits % 128);
+            }
+
             BigNumObj bne;
             jarr2bn(env, pubExp, bne);
 
