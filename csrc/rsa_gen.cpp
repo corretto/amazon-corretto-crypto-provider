@@ -35,7 +35,7 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_RsaGen_generate
             // round up. We only do this in the non-FIPS branch because in FIPS mode we want to do
             // exactly what the application requests.
             if (bits % 128 != 0) {
-                bits += 128;
+                bits += 128 - (bits % 128);
             }
 
             BigNumObj bne;
