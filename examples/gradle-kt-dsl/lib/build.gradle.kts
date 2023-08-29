@@ -1,4 +1,4 @@
-val accpVersion = "2.3.0"
+val accpVersion = "2.3.1"
 val accpLocalJar: String by project
 val fips: Boolean by project
 

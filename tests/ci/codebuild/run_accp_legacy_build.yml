@@ -4,6 +4,16 @@
 version: 0.2
 
 phases:
+  install:
+    commands:
+      - apt-get -y install curl
+      - mkdir go_tmp && cd go_tmp
+      - curl https://dl.google.com/go/go1.18.3.linux-amd64.tar.gz --output go.tar.gz
+      - tar -xf go.tar.gz
+      - mv go ../go_root && cd ..
   build:
     commands:
+      - export GOROOT=$(pwd)/go_root
+      - export GO111MODULE=on
+      - export PATH=$GOROOT/bin:$PATH
       - ./gradlew -DLEGACY_BUILD=true -DJAVA_HOME=$JAVA_HOME -DJAVA_MAJOR_VERSION=11 -DTEST_JAVA_HOME=$JAVA_HOME -DENABLE_NATIVE_TEST_HOOKS=ON release
