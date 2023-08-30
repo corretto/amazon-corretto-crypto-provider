@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.3.1
+
+### Patches
+* Use AWS-LC [v1.15.0](https://github.com/aws/aws-lc/releases/tag/v1.15.0) for ACCP
+  * RSA performance on Graviton 2 has improved in version v1.15.0 of AWS-LC.
+  * For more details, please refer to [the release notes for v1.15.0](https://github.com/aws/aws-lc/releases/tag/v1.15.0)
+* Use [fips-2022-11-02](https://github.com/aws/aws-lc/tree/fips-2022-11-02) branch of AWS-LC at commit ID `d780e5e025c47cd782fd3d5d70a033e59fe80166` for ACCP-FIPS
+* Round RSA key sizes up when generating keys for ACCP [PR 321](https://github.com/corretto/amazon-corretto-crypto-provider/pull/321)
+* Throwing exceptions for too-short signatures [PR 320](https://github.com/corretto/amazon-corretto-crypto-provider/pull/320)
+
 ## 2.3.0
 
 ### Overview

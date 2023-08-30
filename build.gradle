@@ -15,7 +15,7 @@ plugins {
 }
 
 group = 'software.amazon.cryptools'
-version = '2.3.0'
+version = '2.3.1'
 ext.isFips = Boolean.getBoolean('FIPS')
 ext.isLegacyBuild = Boolean.getBoolean('LEGACY_BUILD')
 
