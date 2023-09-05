@@ -10,8 +10,6 @@ plugins {
     id "com.diffplug.spotless" version "6.18.0"
     id "com.google.osdetector" version "1.7.0"
     id "io.github.gradle-nexus.publish-plugin" version "1.1.0"
-    id "io.morethan.jmhreport" version "0.9.0"
-    id "me.champeau.jmh" version "0.6.7"
 }
 
 group = 'software.amazon.cryptools'
@@ -42,35 +40,6 @@ def getDescriptionForPom(isFips) {
 
 }
 
-jmh {
-    //includes = ['AesXts'] // uncomment if you need to run specific benchmarks only
-    fork = 1
-    benchmarkMode = ['thrpt']
-    threads = 1
-    timeUnit = 's'
-    iterations = 5
-    timeOnIteration = '3s'
-    warmup = '1s'
-    warmupForks = 1
-    warmupIterations = 3
-    resultFormat = 'JSON'
-    duplicateClassesStrategy = DuplicatesStrategy.WARN
-    jvmArgs = [
-        "-Djava.library.path=${rootDir}/build/cmake:" + System.getProperty("java.library.path"),
-        "-DversionStr=${version}",
-        "-Dcom.amazon.corretto.crypto.provider.registerSecureRandom=true",
-    ]
-
-    sourceSets {
-        jmh.java.srcDirs += files(["${rootDir}/build/cmake"])
-        main.java.srcDirs += files(["${rootDir}/src/com/amazon/corretto/crypto/provider"])
-    }
-}
-
-jmhReport {
-    jmhResultPath = project.file('build/results/jmh/results.json')
-    jmhReportOutput = project.file('build/results/jmh')
-}
 
 spotless {
   java {
@@ -189,8 +158,6 @@ dependencies {
 
     // Separate so we can extract the jar for the runner specifically
     testRunner group: 'org.junit.platform', name: 'junit-platform-console-standalone', version: '1.8.2'
-
-    jmh 'org.bouncycastle:bcprov-debug-jdk15on:1.69'
 
     testDep 'org.apiguardian:apiguardian-api:1.1.2'
     testDep 'org.junit.jupiter:junit-jupiter:5.8.2'
@@ -386,7 +353,6 @@ task build(overwrite:true) {
         }
     }
 }
-compileJmhJava.dependsOn build
 
 task emptyJar(type: Jar) {
     archiveFileName = 'empty.jar'
