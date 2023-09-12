@@ -101,7 +101,7 @@ class Janitor {
 
         private final Stripe owningStripe;
 
-        //@GuardedBy("owningStripe") // Restore once replacement for JSR-305 available
+        // @GuardedBy("owningStripe") // Restore once replacement for JSR-305 available
         private HeldReference prev, next;
 
         @SuppressWarnings("unused") // accessed reflectively via F_CLEANER
