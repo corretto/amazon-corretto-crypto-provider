@@ -119,7 +119,8 @@ abstract class EvpKey implements Key, Destroyable {
       return params.getParameterSpec(paramSpec);
     } catch (final GeneralSecurityException | IOException ex) {
       throw new RuntimeCryptoException(
-          "Unable to deserialize parameters: " + Base64.getEncoder().encodeToString(encoded), ex);
+          "Unable to deserialize parameters: " + Base64.getEncoder().encodeToString(encodedParams),
+          ex);
     }
   }
 
