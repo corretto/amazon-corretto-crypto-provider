@@ -2,11 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.amazon.corretto.crypto.provider.test;
 
+import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyInvoke_boolean;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
@@ -18,7 +22,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 // correct answers.
 @ExtendWith(TestResultLogger.class)
 @Execution(ExecutionMode.CONCURRENT)
-public class ConstantTimeTests {
+public class ConstantTimeTest {
   // A few common values which when combined can trigger edge cases
   private static final int[] TEST_VALUES = {
     Integer.MIN_VALUE,
@@ -121,5 +125,32 @@ public class ConstantTimeTests {
     } catch (final Throwable t) {
       throw new AssertionError(t);
     }
+  }
+
+  @Test
+  public void testConstantTimeEquality() throws Throwable {
+    assertTrue(sneakyInvoke_boolean(CONSTANT_TIME_CLASS, "equals", new byte[0], new byte[0]));
+    final byte[] trusted = {0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 6, 7};
+    final byte[] other = {0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 6, 7};
+    assertTrue(sneakyInvoke_boolean(CONSTANT_TIME_CLASS, "equals", trusted, trusted));
+    assertTrue(sneakyInvoke_boolean(CONSTANT_TIME_CLASS, "equals", trusted, other));
+    assertTrue(sneakyInvoke_boolean(CONSTANT_TIME_CLASS, "equals", trusted, 0, 8, trusted, 8, 8));
+    assertTrue(sneakyInvoke_boolean(CONSTANT_TIME_CLASS, "equals", trusted, 8, 8, trusted, 0, 8));
+
+    assertFalse(sneakyInvoke_boolean(CONSTANT_TIME_CLASS, "equals", new byte[5], new byte[6]));
+    assertFalse(sneakyInvoke_boolean(CONSTANT_TIME_CLASS, "equals", trusted, new byte[0]));
+    assertFalse(sneakyInvoke_boolean(CONSTANT_TIME_CLASS, "equals", trusted, 0, 8, trusted, 8, 7));
+    assertFalse(sneakyInvoke_boolean(CONSTANT_TIME_CLASS, "equals", trusted, 8, 6, trusted, 0, 10));
+    assertFalse(sneakyInvoke_boolean(CONSTANT_TIME_CLASS, "equals", trusted, 0, 8, other, 8, 7));
+    trusted[0]++;
+    assertFalse(sneakyInvoke_boolean(CONSTANT_TIME_CLASS, "equals", trusted, 0, 8, trusted, 8, 8));
+    assertFalse(sneakyInvoke_boolean(CONSTANT_TIME_CLASS, "equals", trusted, 8, 8, trusted, 0, 8));
+    assertTrue(sneakyInvoke_boolean(CONSTANT_TIME_CLASS, "equals", trusted, 1, 7, trusted, 9, 7));
+    assertTrue(sneakyInvoke_boolean(CONSTANT_TIME_CLASS, "equals", trusted, 9, 7, trusted, 1, 7));
+    assertFalse(sneakyInvoke_boolean(CONSTANT_TIME_CLASS, "equals", trusted, other));
+
+    assertTrue(sneakyInvoke_boolean(CONSTANT_TIME_CLASS, "equals", null, null));
+    assertFalse(sneakyInvoke_boolean(CONSTANT_TIME_CLASS, "equals", null, other));
+    assertFalse(sneakyInvoke_boolean(CONSTANT_TIME_CLASS, "equals", trusted, null));
   }
 }

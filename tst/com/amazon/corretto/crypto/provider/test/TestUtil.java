@@ -219,6 +219,11 @@ public class TestUtil {
     return (Integer) sneakyInvoke(o, methodName, args);
   }
 
+  public static boolean sneakyInvoke_boolean(Object o, String methodName, Object... args)
+      throws Throwable {
+    return (Boolean) sneakyInvoke(o, methodName, args);
+  }
+
   public static <T> T sneakyInvoke(Object o, String methodName, Object... args) throws Throwable {
     Class<?> klass;
     Object receiver;

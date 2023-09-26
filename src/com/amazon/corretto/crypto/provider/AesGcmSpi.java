@@ -10,7 +10,6 @@ import java.security.AlgorithmParameters;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.Key;
-import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
@@ -340,7 +339,7 @@ final class AesGcmSpi extends CipherSpi {
         throw new InvalidKeyException("Key doesn't support encoding");
       }
 
-      if (!MessageDigest.isEqual(encodedKey, this.key)) {
+      if (!ConstantTime.equals(this.key, encodedKey)) {
         if (encodedKey.length != 128 / 8
             && encodedKey.length != 192 / 8
             && encodedKey.length != 256 / 8) {
@@ -372,7 +371,7 @@ final class AesGcmSpi extends CipherSpi {
         && this.key != null
         && (jceOpMode == Cipher.ENCRYPT_MODE || jceOpMode == Cipher.WRAP_MODE)) {
       if (Arrays.equals(this.iv, iv)
-          && (encodedKey == null || MessageDigest.isEqual(this.key, encodedKey))) {
+          && (encodedKey == null || ConstantTime.equals(this.key, encodedKey))) {
         throw new InvalidAlgorithmParameterException(
             "Cannot reuse same iv and key for GCM encryption");
       }
