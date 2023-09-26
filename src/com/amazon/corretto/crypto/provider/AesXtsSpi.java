@@ -148,11 +148,7 @@ class AesXtsSpi extends CipherSpi {
       if (packedTweakKey[i] != tweak[i]) return false;
     }
 
-    for (int i = 0; i != KEY_SIZE_IN_BYTES; i++) {
-      if (packedTweakKey[i + TWEAK_SIZE_IN_BYTES] != key[i]) return false;
-    }
-
-    return true;
+    return ConstantTime.equals(packedTweakKey, TWEAK_SIZE_IN_BYTES, KEY_SIZE_IN_BYTES, key);
   }
 
   @Override

@@ -14,7 +14,6 @@ import java.security.AlgorithmParameters;
 import java.security.GeneralSecurityException;
 import java.security.Key;
 import java.security.KeyFactory;
-import java.security.MessageDigest;
 import java.security.PublicKey;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.InvalidKeySpecException;
@@ -160,7 +159,7 @@ abstract class EvpKey implements Key, Destroyable {
     }
 
     // Constant time equality check
-    return MessageDigest.isEqual(internalGetEncoded(), otherEncoded);
+    return ConstantTime.equals(internalGetEncoded(), otherEncoded);
   }
 
   @Override
