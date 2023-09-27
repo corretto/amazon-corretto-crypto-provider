@@ -707,8 +707,8 @@ final class AesGcmSpi extends CipherSpi {
                       workingInputArray,
                       workingInputOffset,
                       workingInputLength,
-                      output,
-                      outputOffset,
+                      workingInputArray, // Output
+                      workingInputOffset, // Output Offset
                       tagLength,
                       key,
                       iv,
@@ -730,8 +730,8 @@ final class AesGcmSpi extends CipherSpi {
                 workingInputArray,
                 workingInputOffset,
                 workingInputLength,
-                output,
-                outputOffset,
+                workingInputArray, // Output
+                workingInputOffset, // Output Offset
                 tagLength,
                 key,
                 iv,
@@ -747,12 +747,9 @@ final class AesGcmSpi extends CipherSpi {
         }
       }
       // Decryption completed successfully.
+      // Copy from working buffer into actual output
+      System.arraycopy(workingInputArray, workingInputOffset, output, outputOffset, outLen);
       return outLen;
-    } catch (AEADBadTagException e) {
-      final int maxFillSize = output.length - outputOffset;
-      Arrays.fill(
-          output, outputOffset, Math.min(maxFillSize, engineGetOutputSize(inputLen)), (byte) 0);
-      throw e;
     } finally {
       stateReset();
     }

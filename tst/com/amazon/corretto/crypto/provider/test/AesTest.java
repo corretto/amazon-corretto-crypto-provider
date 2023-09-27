@@ -1199,6 +1199,26 @@ public class AesTest {
     assertArrayEquals(plaintext2, c.doFinal(ciphertext2));
   }
 
+  // When decrypting a ciphertext in-place (which is allowed), we should not modify the input buffer
+  // when the encryption fails.
+  @Test
+  public void inplaceShouldNotWipeInput() throws Exception {
+    final GCMParameterSpec spec = new GCMParameterSpec(128, randomIV());
+    final Cipher c = Cipher.getInstance(ALGO_NAME, NATIVE_PROVIDER);
+    c.init(Cipher.ENCRYPT_MODE, key, spec);
+
+    final byte[] properCiphertext = c.doFinal(PLAINTEXT);
+    final byte[] corruptCiphertext = properCiphertext.clone();
+    corruptCiphertext[0] ^= 0x01;
+    final byte[] inputCiphertext = corruptCiphertext.clone();
+    c.init(Cipher.DECRYPT_MODE, key, spec);
+    assertThrows(
+        AEADBadTagException.class,
+        "Tag mismatch!",
+        () -> c.doFinal(inputCiphertext, 0, inputCiphertext.length, inputCiphertext, 0));
+    assertArrayEquals(corruptCiphertext, inputCiphertext);
+  }
+
   private byte[] randomIV() {
     return TestUtil.getRandomBytes(16);
   }
