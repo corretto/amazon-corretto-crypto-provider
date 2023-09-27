@@ -45,10 +45,12 @@ class EvpRsaPrivateCrtKey extends EvpRsaPrivateKey
 
   @Override
   public EvpRsaPublicKey getPublicKey() {
-    ephemeral =
-        false; // Once our internal key could be elsewhere, we can no longer safely release it when
-    // done
-    return new EvpRsaPublicKey(internalKey);
+    // Once our internal key could be elsewhere, we can no longer safely release it when done
+    ephemeral = false;
+    sharedKey = true;
+    final EvpRsaPublicKey result = new EvpRsaPublicKey(internalKey);
+    result.sharedKey = true;
+    return result;
   }
 
   @Override

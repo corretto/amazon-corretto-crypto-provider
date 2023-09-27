@@ -179,7 +179,7 @@ public class EvpKeyFactoryTest {
     return result;
   }
 
-  private static long getRawPointer(Object evpKey) throws Exception {
+  static long getRawPointer(final Object evpKey) throws Exception {
     final Object internalKey = sneakyGetField(evpKey, "internalKey");
     final Object cell = sneakyGetField(internalKey, "cell");
     return (long) sneakyGetField(cell, "ptr");

@@ -29,8 +29,18 @@ abstract class EvpKey implements Key, Destroyable {
   protected final InternalKey internalKey;
   protected final EvpKeyType type;
   protected final boolean isPublicKey;
+  /**
+   * Indicates that the backing native key is used by another java object and thus must not be
+   * released by this one.
+   */
+  protected boolean sharedKey = false;
+  /**
+   * Indicates that this key is entirely managed within ACCP controlled code and thus we know when
+   * we're done with it and can release it.
+   */
   protected boolean ephemeral = false;
 
+  private volatile boolean isDestroyed = false;
   protected volatile byte[] encoded;
   protected volatile Integer cachedHashCode;
 
@@ -66,11 +76,13 @@ abstract class EvpKey implements Key, Destroyable {
   // @CheckReturnValue // Restore once replacement for JSR-305 available
   <T, X extends Throwable> T use(final MiscInterfaces.ThrowingLongFunction<T, X> function)
       throws X {
+    assertNotDestroyed();
     return internalKey.use(function);
   }
 
   <X extends Throwable> void useVoid(final MiscInterfaces.ThrowingLongConsumer<X> function)
       throws X {
+    assertNotDestroyed();
     internalKey.useVoid(function);
   }
 
@@ -91,6 +103,7 @@ abstract class EvpKey implements Key, Destroyable {
   }
 
   protected byte[] internalGetEncoded() {
+    assertNotDestroyed();
     byte[] result = encoded;
     if (result == null) {
       synchronized (this) {
@@ -124,10 +137,14 @@ abstract class EvpKey implements Key, Destroyable {
   }
 
   /**
-   * This method will be called by @{link #destroy()} after calling @{code internalKey.release()}.
+   * This method will be called by @{link #destroy()} after possibly calling @{code
+   * internalKey.release()}.
    */
   protected synchronized void destroyJavaState() {
-    // NOP
+    if (encoded != null) {
+      Arrays.fill(encoded, (byte) 0);
+    }
+    encoded = null;
   }
 
   @Override
@@ -198,17 +215,24 @@ abstract class EvpKey implements Key, Destroyable {
     return result;
   }
 
+  protected void assertNotDestroyed() {
+    if (isDestroyed) {
+      throw new IllegalStateException("Key has been destroyed");
+    }
+  }
+
   @Override
   public boolean isDestroyed() {
-    return internalKey.isReleased();
+    return isDestroyed;
   }
 
   @Override
   public synchronized void destroy() {
-    if (isDestroyed()) {
-      throw new IllegalStateException("Already destroyed");
+    assertNotDestroyed();
+    isDestroyed = true;
+    if (!sharedKey) {
+      internalKey.release();
     }
-    internalKey.release();
     destroyJavaState();
   }
 
