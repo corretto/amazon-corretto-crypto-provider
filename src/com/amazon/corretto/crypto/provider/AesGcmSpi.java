@@ -867,9 +867,8 @@ final class AesGcmSpi extends CipherSpi {
       case NATIVE_MODE_DECRYPT:
         // Our implementation of engineUpdate for decrypt doesn't actually return any data, we
         // simply buffer the ciphertext and leave the output buffer alone, so we don't bother
-        // passing it through.
-        ShimArray cipherText = new ShimArray(input, input.remaining());
-        engineUpdate(cipherText.array, cipherText.offset, cipherText.length, null, 0);
+        // passing it through. We just write it directly to the buffer.
+        decryptInputBuf.write(input);
         return 0;
       case NATIVE_MODE_ENCRYPT:
         ByteBuffer bufferForClear = null;

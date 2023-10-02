@@ -281,7 +281,9 @@ public class AESGenerativeTest {
       case 0:
         {
           jceCipherEncrypt.updateAAD(buf.duplicate());
-          amzCipherEncrypt.updateAAD(buf.duplicate());
+          final ByteBuffer amzBuf = buf.duplicate();
+          amzCipherEncrypt.updateAAD(amzBuf);
+          assertByteBufferEmpty(amzBuf);
 
           Channels.newChannel(aadData).write(buf);
 
@@ -365,7 +367,9 @@ public class AESGenerativeTest {
           Channels.newChannel(jceResult).write(outBuf);
 
           outBuf = ByteBuffer.allocate(amzCipherEncrypt.getOutputSize(buf.remaining()));
-          amzCipherEncrypt.update(buf.duplicate(), outBuf);
+          final ByteBuffer amzBuf = buf.duplicate();
+          amzCipherEncrypt.update(amzBuf, outBuf);
+          assertByteBufferEmpty(amzBuf);
           outBuf.flip();
           Channels.newChannel(amzResult).write(outBuf);
 
@@ -465,6 +469,7 @@ public class AESGenerativeTest {
           ByteBuffer output = mungeBuffer(r, false, new byte[resultSize], 0, resultSize);
 
           cipher.doFinal(input, output);
+          assertByteBufferEmpty(input);
 
           output.flip();
 
@@ -504,6 +509,7 @@ public class AESGenerativeTest {
           ByteBuffer output = mungeBuffer(r, false, new byte[resultSize], 0, resultSize);
 
           cipher.update(input, output);
+          assertByteBufferEmpty(input);
 
           output.flip();
 
@@ -521,7 +527,9 @@ public class AESGenerativeTest {
         break;
       case 1:
         // Apply wrapped byte buffer
-        cipher.updateAAD(mungeBuffer(r, true, aadData, start, end - start));
+        final ByteBuffer mungedBuffer = mungeBuffer(r, true, aadData, start, end - start);
+        cipher.updateAAD(mungedBuffer);
+        assertByteBufferEmpty(mungedBuffer);
         break;
       case 2:
         // Apply byte array copy
@@ -587,7 +595,9 @@ public class AESGenerativeTest {
         nativeOutput
             ? ByteBuffer.allocate(cipher.getOutputSize(finalData.remaining()))
             : ByteBuffer.allocateDirect(cipher.getOutputSize(finalData.remaining()));
-    cipher.doFinal(finalData.duplicate(), out);
+    final ByteBuffer workingBuf = finalData.duplicate();
+    cipher.doFinal(workingBuf, out);
+    assertByteBufferEmpty(workingBuf);
     out.flip();
     Channels.newChannel(ciphertextStream).write(out);
   }
@@ -610,5 +620,12 @@ public class AESGenerativeTest {
     buf.duplicate().put(randBuf);
 
     return isReadOnly ? buf.asReadOnlyBuffer() : buf;
+  }
+
+  private static void assertByteBufferEmpty(final ByteBuffer buff) {
+    assertEquals(
+        buff.limit(),
+        buff.position(),
+        "ByteBuffer has remaining data when it should all be processed.");
   }
 }
