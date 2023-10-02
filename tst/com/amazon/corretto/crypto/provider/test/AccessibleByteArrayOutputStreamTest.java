@@ -8,6 +8,7 @@ import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyInvoke;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyInvoke_int;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
@@ -109,6 +110,27 @@ public class AccessibleByteArrayOutputStreamTest {
     instance.write(expected2);
     assertArrayEquals(expected2, sneakyInvoke(instance, "getDataBuffer"));
     assertArrayEquals(expected, sneakyInvoke(cloned, "getDataBuffer"));
+  }
+
+  @Test
+  public void testFinalWrite() throws Throwable {
+    OutputStream instance = getInstance(0, Integer.MAX_VALUE);
+    final byte[] data = {1, 2, 3, 4, 5, 6, 7};
+    instance.write(data, 0, 3);
+    assertEquals(3, sneakyInvoke_int(instance, "size"));
+    byte[] buf1 = sneakyInvoke(instance, "getDataBuffer");
+    assertEquals(1, buf1[0]);
+    assertEquals(2, buf1[1]);
+    assertEquals(3, buf1[2]);
+    assertEquals(3, buf1.length);
+    instance.write(data, 3, 2);
+    assertEquals(5, sneakyInvoke_int(instance, "size"));
+    byte[] buf2 = sneakyInvoke(instance, "getDataBuffer");
+    assertNotEquals(buf1, buf2);
+    assertEquals(6, buf2.length);
+    sneakyInvoke(instance, "finalWrite", data, 5, 2);
+    byte[] buf3 = sneakyInvoke(instance, "getDataBuffer");
+    assertArrayEquals(data, buf3);
   }
 
   private static OutputStream getInstance(final Object... args) throws Throwable {
