@@ -203,9 +203,9 @@ final class AesGcmSpi extends CipherSpi {
   private boolean contextInitialized = false;
 
   private final AccessibleByteArrayOutputStream decryptInputBuf =
-      new AccessibleByteArrayOutputStream();
+      new AccessibleByteArrayOutputStream(0, Integer.MAX_VALUE);
   private final AccessibleByteArrayOutputStream decryptAADBuf =
-      new AccessibleByteArrayOutputStream();
+      new AccessibleByteArrayOutputStream(0, Integer.MAX_VALUE);
 
   AesGcmSpi(final AmazonCorrettoCryptoProvider provider) {
     Loader.checkNativeLibraryAvailability();
@@ -675,10 +675,20 @@ final class AesGcmSpi extends CipherSpi {
       final byte[] workingInputArray;
       final int workingInputOffset;
       final int workingInputLength;
-      engineUpdate(input, inputOffset, inputLen);
-      workingInputArray = decryptInputBuf.getDataBuffer();
-      workingInputLength = decryptInputBuf.size();
-      workingInputOffset = 0;
+      if (decryptInputBuf.isEmpty()
+          && !Utils.outputClobbersInput(input, inputOffset, inputLen, output, outputOffset)) {
+        // Nothing has been buffered before and the output buffer does not clobber input. We avoid
+        // copying the cipher text into the decryption buffer.
+        workingInputArray = input;
+        workingInputOffset = inputOffset;
+        workingInputLength = inputLen;
+      } else {
+        // Since it's the final operation, we don't need the buffer to grow beyond what's needed.
+        decryptInputBuf.finalWrite(input, inputOffset, inputLen);
+        workingInputArray = decryptInputBuf.getDataBuffer();
+        workingInputLength = decryptInputBuf.size();
+        workingInputOffset = 0;
+      }
 
       if (workingInputLength < tagLength) {
         throw new AEADBadTagException("Input too short - need tag");
@@ -707,7 +717,7 @@ final class AesGcmSpi extends CipherSpi {
                       // is significant for 16-byte decrypt operations (approximately a 7%
                       // performance hit). To avoid this, we reuse the same empty array instead in
                       // this common-case path.
-                      decryptAADBuf.size() != 0 ? decryptAADBuf.getDataBuffer() : EMPTY_ARRAY,
+                      decryptAADBuf.isEmpty() ? EMPTY_ARRAY : decryptAADBuf.getDataBuffer(),
                       decryptAADBuf.size());
                 });
       } else {

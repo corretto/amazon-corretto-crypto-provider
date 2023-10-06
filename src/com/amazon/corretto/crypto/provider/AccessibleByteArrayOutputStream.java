@@ -49,6 +49,16 @@ class AccessibleByteArrayOutputStream extends OutputStream implements Cloneable 
     count += len;
   }
 
+  /**
+   * Same as write, except it does not grow the buffer size beyond what's needed. Use this method if
+   * you know it would be the last time something needs to be written to the buffer.
+   */
+  void finalWrite(final byte[] b, final int off, final int len) {
+    growCapacity(count + len, true);
+    System.arraycopy(b, off, buf, count, len);
+    count += len;
+  }
+
   @Override
   public void write(final int b) {
     growCapacity(count + 1);
@@ -57,6 +67,10 @@ class AccessibleByteArrayOutputStream extends OutputStream implements Cloneable 
 
   int size() {
     return count;
+  }
+
+  boolean isEmpty() {
+    return count == 0;
   }
 
   /**
@@ -84,6 +98,10 @@ class AccessibleByteArrayOutputStream extends OutputStream implements Cloneable 
   }
 
   private void growCapacity(final int newCapacity) {
+    growCapacity(newCapacity, false);
+  }
+
+  private void growCapacity(final int newCapacity, final boolean doNotAllocateMoreThanNeeded) {
     if (newCapacity < 0) {
       throw new OutOfMemoryError();
     }
@@ -94,9 +112,13 @@ class AccessibleByteArrayOutputStream extends OutputStream implements Cloneable 
     if (newCapacity <= buf.length) {
       return;
     }
-    final int predictedSize = Math.min(limit, buf.length << 1);
 
-    final byte[] tmp = Arrays.copyOf(buf, Math.max(predictedSize, newCapacity));
+    final byte[] tmp =
+        Arrays.copyOf(
+            buf,
+            doNotAllocateMoreThanNeeded
+                ? newCapacity
+                : Math.max(Math.min(limit, buf.length << 1), newCapacity));
     final byte[] toZeroize = buf;
     buf = tmp;
     Arrays.fill(toZeroize, 0, count, (byte) 0);
