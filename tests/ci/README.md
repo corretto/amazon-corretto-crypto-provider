@@ -52,13 +52,12 @@ CodeBuild|gcc 7|corretto 17|aarch|Ubuntu 20.04|FIPS/non-FIPS
 (macOS CI dimension is currently disabled, go to the Actions tab in the main repo to enable it when its ready.)
 
 
-### Dieharder & Overkill tests
+### Overkill tests
 Runs tests for:
 * test_extra_checks
 * test_integration_extra_checks
-* dieharder_threads
 
 CI Tool|C Compiler|Java Compiler|CPU platform|OS|Dimensions
 ------------ | -------------| -------------| -------------|-------------|-------------
 CodeBuild|gcc 7|corretto 11|x86-64|Ubuntu 20.04|both FIPS/non-FIPS
-CodeBuild|gcc 7|corretto 11|aarch|Ubuntu 20.04|both FIPS/non-FIPS, no dieharder
+CodeBuild|gcc 7|corretto 11|aarch|Ubuntu 20.04|both FIPS/non-FIPS

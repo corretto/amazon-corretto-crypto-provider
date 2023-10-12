@@ -7,18 +7,11 @@ As of 2.0.0, algorithms exposed by ACCP are primarily backed by [AWS-LC](https:/
 [Security issue notifications](./CONTRIBUTING.md#security-issue-notifications)
 
 ## Build Status
-Please be aware that both "Overkill" and "Dieharder" tests are known to be flakey.
-Both of these tests are flakey because they include entropy generation tests
-(specificaly, the [Dieharder tests](http://webhome.phy.duke.edu/~rgb/General/dieharder.php)).
-Entropy tests are unavoidably flakey because there is always a possibility that a high-quality
-random number generator will output data which looks non-random.
-(For example, even a fair coin will come up heads ten times in a row about one in a thousand trials.)
 
 | Build Name | `main` branch |
 | ---------- |---------------|
 | Linux x86_64 | ![](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiRW4zZUhmeHlJbHRVQnNBZGZEbVJUa0pOK0J0MmtnNVB2dVZZSWhLbUtaNWYxNG96WWg4emN1SjJKL3VSUk9obFl0MnBtajBxejlVWDFiR3ppZGd3U1lrPSIsIml2UGFyYW1ldGVyU3BlYyI6IkFsUkpiMDRkRjZQb1U3Ly8iLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=main) |
 | Linux aarch64 | ![](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiMEVNSXhZYmdEOWFrcE1HdE9nQmdwVlZFZXRYVnloc05TMXhoZ0tTVUQ1ZlMzeWRrZTArSUxUdzY2RVJRbUtXak5zU2ZCamJBS3JxUEFxZFJ2ZVNkcGVNPSIsIml2UGFyYW1ldGVyU3BlYyI6Ii80UEZpYWc2RjJZLzZDQ0wiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=main) |
-| Overkill/Dieharder | ![](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiRU14ZXM3ZkE4TGduVGV6dkxxWitxbkk3Ump2TnF3elkvYVRzcnkwQ3l4czl1OGRkc3NWblQ2Q0hxQkM2OWJ4VGdmL0x0Y01WYVVkWTdKYXNvbUpvS01VPSIsIml2UGFyYW1ldGVyU3BlYyI6Ilk3Y1NzbGNEZXZXY05CN2IiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=main) |
 
 ## Supported Algorithms
 MessageDigest algorithms:
@@ -197,7 +190,6 @@ Building this provider requires a 64 bit Linux or MacOS build system with the fo
 * C++ build chain
 * [lcov](http://ltp.sourceforge.net/coverage/lcov.php) for coverage metrics
 * [gcovr](https://gcovr.com/en/stable/) for reporting coverage metrics in CodeBuild
-* [dieharder](http://webhome.phy.duke.edu/~rgb/General/dieharder.php) for entropy tests
 
 1. Download the repository via `git clone --recurse-submodules`
 2. Run `./gradlew release`
@@ -223,9 +215,6 @@ When changing between FIPS and non-FIPS builds, be sure to do a full `clean` of 
 * test_extra_checks: Run unit tests with extra (slow) cryptographic checks enabled
 * test_integration: Run integration tests
 * test_integration_extra_checks: Run integration tests with extra (slow) cryptographic checks enabled
-* dieharder: Run entropy tests
-* dieharder_threads: Run entropy threads specifically checking for leaking state across threads (very slow)
-* dieharder_all: Run all dieharder checks (both dieharder and dieharder_threads)
 * coverage: Run target `test` and collect both Java and C++ coverage metrics (saved in `build/reports`)
 * release: **Default target** depends on build, test, and coverage
 * overkill: Run **all** tests (no coverage)

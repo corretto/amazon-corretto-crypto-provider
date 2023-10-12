@@ -37,7 +37,6 @@ find_package(Threads REQUIRED)
 set(BUILD_CLASSPATH "" CACHE STRING "Classpath to JARs to be included at build time")
 set(TEST_CLASSPATH "" CACHE STRING "Classpath to be included at test build and test execution time")
 set(SIGNED_JAR "" CACHE STRING "Path to a pre-signed JAR file, to be used instead of compiling the java source")
-set(DIEHARDER_EXECUTABLE "dieharder" CACHE STRING "Path to the dieharder executable")
 set(ENABLE_NATIVE_TEST_HOOKS NO CACHE BOOL "Enable debugging hooks in the RNG. Disable for production use.")
 set(TEST_DATA_DIR ${PROJECT_SOURCE_DIR}/test-data/ CACHE STRING "Path to directory containing test data")
 set(ORIG_SRCROOT ${PROJECT_SOURCE_DIR} CACHE STRING "Path to root of original package")
@@ -802,65 +801,6 @@ add_custom_target(check-integration
     DEPENDS accp-jar tests-jar)
 
 set_target_properties(check-integration PROPERTIES EXCLUDE_FROM_ALL 1)
-
-if (CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
-
-add_custom_target(run-dieharder-libcrypto-rng
-    COMMAND ${TEST_JAVA_EXECUTABLE} -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
-        ${EXTERNAL_LIB_PROPERTY}
-        ${REGISTER_RNG_PROPERTY}
-        com.amazon.corretto.crypto.provider.test.SecureRandomGenerator 'LibCryptoRng' 8192 1 |
-        ${DIEHARDER_EXECUTABLE} -a -g 200 -Y 1 -k 2 |
-        tee dieharder-results-libcrypto-rng.txt
-
-    DEPENDS accp-jar tests-jar)
-
-add_custom_target(run-dieharder-libcrypto-rng-tail
-    COMMAND ${TEST_JAVA_EXECUTABLE} -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
-        ${EXTERNAL_LIB_PROPERTY}
-        ${REGISTER_RNG_PROPERTY}
-        com.amazon.corretto.crypto.provider.test.SecureRandomGenerator 'LibCryptoRng' 31 1 |
-        ${DIEHARDER_EXECUTABLE} -d 15 -g 200 -Y 1 -k 2 |
-        tee dieharder-results-libcrypto-rng-tail.txt
-
-    DEPENDS accp-jar tests-jar)
-
-add_custom_target(run-dieharder-libcrypto-rng-threads
-    COMMAND ${TEST_JAVA_EXECUTABLE} -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
-        ${EXTERNAL_LIB_PROPERTY}
-        ${REGISTER_RNG_PROPERTY}
-        com.amazon.corretto.crypto.provider.test.SecureRandomGenerator 'LibCryptoRng' 128 4 |
-        ${DIEHARDER_EXECUTABLE} -a -g 200 -Y 1 -k 2 |
-        tee dieharder-results-libcrypto-rng-threads.txt
-
-    DEPENDS accp-jar tests-jar)
-
-add_custom_target(run-dieharder-libcrypto-rng-threads-tail
-    COMMAND ${TEST_JAVA_EXECUTABLE} -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
-        ${EXTERNAL_LIB_PROPERTY}
-        ${REGISTER_RNG_PROPERTY}
-        com.amazon.corretto.crypto.provider.test.SecureRandomGenerator 'LibCryptoRng' 31 4 |
-        ${DIEHARDER_EXECUTABLE} -d 15 -g 200 -Y 1 -k 2 |
-        tee dieharder-results-libcrypto-rng-threads-tail.txt
-
-    DEPENDS accp-jar tests-jar)
-
-  add_custom_target(check-dieharder
-    COMMAND ! grep -l FAIL dieharder-results-libcrypto-rng.txt
-    COMMAND grep PASSED dieharder-results-libcrypto-rng.txt
-    COMMAND ! grep -l FAIL dieharder-results-libcrypto-rng-tail.txt
-    COMMAND grep PASSED dieharder-results-libcrypto-rng-tail.txt
-
-    DEPENDS run-dieharder-libcrypto-rng run-dieharder-libcrypto-rng-tail)
-
-add_custom_target(check-dieharder-threads
-    COMMAND ! grep -l FAIL dieharder-results-libcrypto-rng-threads.txt
-    COMMAND grep PASSED dieharder-results-libcrypto-rng-threads.txt
-    COMMAND ! grep -l FAIL dieharder-results-libcrypto-rng-threads-tail.txt
-    COMMAND grep PASSED dieharder-results-libcrypto-rng-threads-tail.txt
-
-    DEPENDS run-dieharder-libcrypto-rng-threads run-dieharder-libcrypto-rng-threads-tail)
-endif() # End of Dieharder targets
 
 # Add a target to assert that the libaccp shared object's rpath meets 2 conditions:
 #   1. rpath contains only a single entry

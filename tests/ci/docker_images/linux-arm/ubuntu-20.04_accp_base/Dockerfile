@@ -14,7 +14,6 @@ RUN apt-get install -y curl
 RUN apt-get install -y gnupg
 RUN apt-get install -y build-essential
 RUN apt-get install -y cmake
-RUN apt-get install -y dieharder
 RUN apt-get install -y lcov
 RUN apt-get install -y wget
 RUN apt-get install -y clang-format

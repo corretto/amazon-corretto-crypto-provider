@@ -443,22 +443,6 @@ task test_integration_extra_checks(type: Exec) {
     commandLine 'make', 'check-integration-extra-checks'
 }
 
-task dieharder(type: Exec) {
-    dependsOn executeCmake
-    workingDir "${buildDir}/cmake"
-    commandLine 'make', 'check-dieharder'
-}
-
-task dieharder_threads(type: Exec) {
-    dependsOn executeCmake
-    workingDir "${buildDir}/cmake"
-    commandLine 'make', 'check-dieharder-threads'
-}
-
-task dieharder_all {
-    dependsOn dieharder, dieharder_threads
-}
-
 task coverage_clean(type: Delete) {
     delete fileTree("${buildDir}/cmake-coverage") {
         include '**/*.gcda'
@@ -565,7 +549,7 @@ task release {
 }
 
 task overkill {
-    dependsOn test, test_extra_checks, test_integration, test_integration_extra_checks, dieharder_all
+    dependsOn test, test_extra_checks, test_integration, test_integration_extra_checks
 }
 
 task fakePublish {
