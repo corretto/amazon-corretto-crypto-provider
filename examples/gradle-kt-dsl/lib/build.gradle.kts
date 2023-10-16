@@ -1,4 +1,4 @@
-val accpVersion = "2.3.1"
+val accpVersion = "2.3.2"
 val accpLocalJar: String by project
 val fips: Boolean by project
 
@@ -29,8 +29,9 @@ dependencies {
     // Use the Kotlin JUnit integration.
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit")
 
+    // for OSX-x86_64, we do not have FIPS artifacts
     val accpArtifactId =
-        if (project.hasProperty("fips"))
+        if (project.hasProperty("fips") && osdetector.classifier != "osx-x86_64")
             "AmazonCorrettoCryptoProvider-FIPS"
         else
             "AmazonCorrettoCryptoProvider"

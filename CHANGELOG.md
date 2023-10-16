@@ -1,5 +1,22 @@
 # Changelog
 
+# 2.3.2
+
+### Overview
+Starting from this version, build artifacts for MacOS X86-64 are released.
+The corresponding Jar is identified by `osx-x86_64` classifier.
+Please note that ACCP-FIPS does not have `osx-x86_64` artifacts and `osx-x86_64`
+is only available for non-FIPS builds.
+
+### Patch
+* Use AWS-LC [v1.16.0](https://github.com/aws/aws-lc/releases/tag/v1.16.0) for ACCP
+* Use [fips-2022-11-02](https://github.com/aws/aws-lc/tree/fips-2022-11-02) branch of AWS-LC at commit ID `329d23ce93d42b9017502ac24ca073ebdaa7660f` for ACCP-FIPS
+* [PR 338: Avoid buffering cipher text for one-shot AES-GCM decrypt](https://github.com/corretto/amazon-corretto-crypto-provider/pull/338)
+* [PR 336: Fix ByteBuffer position handling](https://github.com/corretto/amazon-corretto-crypto-provider/pull/336)
+* [PR 333: Replace MessageDigest.isEqual with our own implementation](https://github.com/corretto/amazon-corretto-crypto-provider/pull/333)
+* [PR 334: Let ECDSA Signature objects accept parameters](https://github.com/corretto/amazon-corretto-crypto-provider/pull/334)
+* [PR 327: Github issue 326, NPE](https://github.com/corretto/amazon-corretto-crypto-provider/pull/327)
+
 ## 2.3.1
 
 ### Patches

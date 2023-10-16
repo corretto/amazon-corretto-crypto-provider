@@ -105,6 +105,13 @@ Notable differences between ACCP and ACCP-FIPS:
 * ACCP-FIPS does not register SecureRandom by default due to the performance of AWS-LC’s entropy source in FIPS-mode. [A system property](https://github.com/corretto/amazon-corretto-crypto-provider#other-system-properties) is available to register SecureRandom from AWS-LC if needed, and the performance differences are described in further detail under the description of that property.
 * Due to the fact that an older branch of AWS-LC is used in FIPS-mode, there will be performance differences between ACCP and ACCP-FIPS. We highly recommend performing detailed performance testing of your application if you choose to experiment with ACCP-FIPS.
 
+ACCP-FIPS is only supported on the following platforms:
+
+| Platfrom | FIPS support since version |
+|----------|----------------------------|
+| `linux-x86_64` | 2.3.0 |
+| `linux-aarch_64` | 2.3.0 |
+
 # Compatibility & Requirements
 ACCP has the following requirements:
 * JDK8 or newer (This includes both OracleJDK and [Amazon Corretto](https://aws.amazon.com/corretto/))
@@ -144,6 +151,9 @@ For more information, please see [VERSIONING.rst](https://github.com/corretto/am
 The artifactId for FIPS builds is `AmazonCorrettoCryptoProvider-FIPS`.
 
 The classifier attribute could be set to `linux-aarch_64` to use ACCP on Linux ARM64 platforms.
+
+Starting from verions 2.3.2, the classifier attribute could be set to `osx-x86_64` to use ACCP
+on MacOS X86 platforms. The FIPS artifacts do not support MacOS X86.
 
 ACCP artifacts on Maven can be verified using the following PGP keys:
 

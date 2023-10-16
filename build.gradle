@@ -13,7 +13,7 @@ plugins {
 }
 
 group = 'software.amazon.cryptools'
-version = '2.3.1'
+version = '2.3.2'
 ext.isFips = Boolean.getBoolean('FIPS')
 ext.isLegacyBuild = Boolean.getBoolean('LEGACY_BUILD')
 
@@ -222,6 +222,35 @@ task buildAwsLc {
     }
 }
 
+def getStagedArtifact(platformClassifier, destDir) {
+    def projectName = isFips ? project.name + "-FIPS" : project.name
+    def prebuiltJarFileName = "${projectName}-${version}-${platformClassifier}.jar"
+
+    println "Platform " + platformClassifier
+    def stagingProperties = new Properties()
+    if (isFips) {
+        stagingProperties.load(new java.io.FileInputStream("${System.env.CODEBUILD_SRC_DIR_Stage_FIPS}/fake_maven/staging.properties"));
+    } else {
+        stagingProperties.load(new java.io.FileInputStream("${System.env.CODEBUILD_SRC_DIR_Stage}/fake_maven/staging.properties"));
+    }
+
+    println "Loaded staging id is " + stagingProperties['staging.id']
+    def repoBase = "https://aws.oss.sonatype.org/content/repositories/" + stagingProperties['staging.id']
+    mkdir "${destDir}"
+    exec {
+        workingDir "${destDir}"
+        commandLine 'wget', "${repoBase}/software/amazon/cryptools/${projectName}/${version}/${prebuiltJarFileName}"
+    }
+
+    return assertJceSigned("${destDir}/${prebuiltJarFileName}")
+}
+
+task downloadStagedJar() {
+    doLast {
+        getStagedArtifact(project.property('platform'), project.property('destDir'))
+    }
+}
+
 task executeCmake(type: Exec) {
     outputs.dir("${buildDir}/cmake")
     inputs.dir("${buildDir}/awslc/bin/")
@@ -241,22 +270,7 @@ task executeCmake(type: Exec) {
     def projectName = isFips ? project.name + "-FIPS" : project.name
     def prebuiltJarFileName = "${projectName}-${version}-${osdetector.classifier}.jar"
     if (System.properties['stagingProperties'] != null) {
-        def stagingProperties = new Properties()
-        if (isFips) {
-            stagingProperties.load(
-                new java.io.FileInputStream("${System.env.CODEBUILD_SRC_DIR_Stage_FIPS}/fake_maven/staging.properties"));
-        } else {
-            stagingProperties.load(
-                new java.io.FileInputStream("${System.env.CODEBUILD_SRC_DIR_Stage}/fake_maven/staging.properties"));
-        }
-        println "Loaded staging id is " + stagingProperties['staging.id']
-        def repoBase = "https://aws.oss.sonatype.org/content/repositories/" + stagingProperties['staging.id']
-        mkdir "${buildDir}/tmp"
-        exec {
-            workingDir "${buildDir}/tmp"
-            commandLine 'wget', "${repoBase}/software/amazon/cryptools/${projectName}/${version}/${prebuiltJarFileName}"
-        }
-        prebuiltJar = assertJceSigned("${buildDir}/tmp/${prebuiltJarFileName}")
+        prebuiltJar = getStagedArtifact(osdetector.classifier, "${buildDir}/tmp")
     } else if (System.properties['prebuiltJar'] != null) {
         prebuiltJar = "${projectDir}/" + System.properties['prebuiltJar']
     } else if (System.properties['fakeMaven'] != null) {
@@ -268,6 +282,8 @@ task executeCmake(type: Exec) {
         }
         fakeMavenBase = "${fakeMavenBase}/fake_maven"
         prebuiltJar = "${fakeMavenBase}/${prebuiltJarFileName}"
+    } else if (System.properties['downloadedStagedJar'] != null) {
+        prebuiltJar = "${System.properties['downloadedStagedJar']}/${prebuiltJarFileName}"
     }
 
     executable cmakeBin
@@ -558,19 +574,26 @@ task fakePublish {
 
     def x64Base = "${System.env.CODEBUILD_SRC_DIR_Linux_x64_Artifacts}/lib"
     def aarch64Base = "${System.env.CODEBUILD_SRC_DIR_Linux_aarch64_Artifacts}/lib"
+    def osxX64Base = "${System.env.CODEBUILD_SRC_DIR_Osx_x64_Artifacts}/lib"
     def newPrefix = "AmazonCorrettoCryptoProvider-${version}"
     if (isFips) {
         x64Base = "${System.env.CODEBUILD_SRC_DIR_Linux_x64_Artifacts_FIPS}/lib"
         aarch64Base = "${System.env.CODEBUILD_SRC_DIR_Linux_aarch64_Artifacts_FIPS}/lib"
+        osxX64Base = null
         newPrefix = "AmazonCorrettoCryptoProvider-FIPS-${version}"
     }
     def x86Jar = "${x64Base}/AmazonCorrettoCryptoProvider.jar"
     def aarch64Jar = "${aarch64Base}/AmazonCorrettoCryptoProvider.jar"
+    def osxX64Jar = "${osxX64Base}/AmazonCorrettoCryptoProvider.jar"
     def sourceJar = "${x64Base}/AmazonCorrettoCryptoProvider-sources.jar"
     def javadocJar = "${x64Base}/AmazonCorrettoCryptoProvider-javadoc.jar"
 
     doLast {
         println "Running on " + osdetector.classifier
+        if (!isFips) {
+            println osxX64Jar
+            println file(osxX64Jar).file
+        }
         println aarch64Jar
         println file(aarch64Jar).file
         println x86Jar
@@ -581,6 +604,13 @@ task fakePublish {
         println file(javadocJar).file
 
         def destinationDir = "${buildDir}/fake_maven"
+        if (!isFips) {
+            copy {
+                from osxX64Jar
+                rename 'AmazonCorrettoCryptoProvider.jar', "${newPrefix}-osx-x86_64.jar"
+                into "${destinationDir}"
+            }
+        }
         copy {
             from aarch64Jar
             rename 'AmazonCorrettoCryptoProvider.jar', "${newPrefix}-linux-aarch_64.jar"
@@ -598,6 +628,15 @@ task fakePublish {
             into "${destinationDir}"
         }
         if (project.hasProperty('jcecertAlias')) {
+            if (!isFips) {
+                ant.signjar(
+                    alias: jcecertAlias,
+                    jar: "${destinationDir}/${newPrefix}-osx-x86_64.jar",
+                    storepass: jcecertPassword,
+                    keystore: "${project.gradle.gradleUserHomeDir}/${jcecertJks}",
+                    tsaurl: "http://timestamp.digicert.com"
+                )
+            }
             ant.signjar(
                 alias: jcecertAlias,
                 jar: "${destinationDir}/${newPrefix}-linux-aarch_64.jar",
@@ -632,10 +671,14 @@ if (project.hasProperty('mavenUser') && project.hasProperty('jcecertAlias')) {
                 def fakeMavenBase = "${buildDir}/fake_maven/${artifactId}-${version}-"
                 def x86Jar = "${fakeMavenBase}linux-x86_64.jar"
                 def aarch64Jar = "${fakeMavenBase}linux-aarch_64.jar"
+                def osxX64Jar = "${fakeMavenBase}osx-x86_64.jar"
                 def sourceJar = "${fakeMavenBase}sources.jar"
                 def javadocJar = "${fakeMavenBase}javadoc.jar"
                 artifact source: file(x86Jar),classifier:"linux-x86_64",extension:"jar"
                 artifact source: file(aarch64Jar),classifier:"linux-aarch_64",extension:"jar"
+                if (!isFips) {
+                    artifact source: file(osxX64Jar),classifier:"osx-x86_64",extension:"jar"
+                }
                 artifact emptyJar
                 artifact source: file(javadocJar),classifier:"javadoc",extension:"jar"
                 artifact source: file(sourceJar),classifier:"sources",extension:"jar"
