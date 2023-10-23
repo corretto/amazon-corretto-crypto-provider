@@ -1,19 +1,18 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0 OR ISC
 
-FROM amazonlinux-2023:base
-
+FROM amazonlinux-2:accp_base
 SHELL ["/bin/bash", "-c"]
 
-# clang 15.0.6 is the latest version versions `yum --showduplicates list clang`
+# clang 11.1.0 is the latest version versions `yum --showduplicates list clang`
 RUN set -ex && \
-    dnf -y upgrade --releasever=latest && dnf install -y \
+    yum -y update && yum install -y \
     clang && \
-    dnf clean packages && \
-    dnf clean metadata && \
-    dnf clean all && \
+    yum clean packages && \
+    yum clean metadata && \
+    yum clean all && \
     rm -rf /tmp/* && \
-    rm -rf /var/cache/dnf
+    rm -rf /var/cache/yum
 
 ENV CC=clang
 ENV CXX=clang++

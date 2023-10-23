@@ -23,20 +23,6 @@ SHARED_FAILURE_ROOT="${CORPUS_ROOT}/runs/${DATE_NOW}/${BUILD_ID}"
 LOCAL_RUN_ROOT="${BUILD_ROOT}/fuzz_run_root"
 rm -rf "$LOCAL_RUN_ROOT"
 
-function put_metric_count {
-  put_metric --unit Count "$@"
-}
-
-function put_metric {
-  # This call to publish the metric could fail but we don't want to fail the build +e turns off exit on error
-  set +e
-  aws cloudwatch put-metric-data \
-    --namespace AWS-LC-Fuzz \
-    "$@" || echo "Publishing metric failed, continuing with the rest of the build"
-  # Turn it back on for the rest of the build
-  set -e
-}
-
 function run_fuzz_test {
   SHARED_FUZZ_TEST_CORPUS="${CORPUS_ROOT}/shared_corpus/${FUZZ_NAME}/shared_corpus"
   LOCAL_FUZZ_TEST_ROOT="${LOCAL_RUN_ROOT}/${FUZZ_NAME}"
@@ -54,7 +40,6 @@ function run_fuzz_test {
   # as the SharedCorpusFileCount, which it basically everything in SHARED_FUZZ_TEST_CORPUS was just copied to
   # LOCAL_SHARED_CORPUS
   ORIGINAL_CORPUS_FILE_COUNT=$(find "$LOCAL_SHARED_CORPUS" -type f | wc -l)
-  put_metric_count --metric-name SharedCorpusFileCount --value "$ORIGINAL_CORPUS_FILE_COUNT" --dimensions "FuzzTest=$FUZZ_NAME"
 
   # Perform the actual fuzzing!
   # Step 1 run each fuzz test for the determined time. This will use the existing shared corpus copied from EFS to
@@ -81,6 +66,7 @@ function run_fuzz_test {
   time "${FUZZ_TEST_PATH}" -rss_limit_mb=${MEM_USAGE_LIMIT} -print_final_stats=1 -timeout="$FUZZ_TEST_TIMEOUT" -max_total_time="$TIME_FOR_EACH_FUZZ" \
     -jobs="$NUM_CPU_THREADS" -workers="$NUM_CPU_THREADS" \
     -artifact_prefix="$LOCAL_ARTIFACTS_FOLDER/" \
+    ${FUZZ_TEST_ADDITIONAL_ARGS} \
     "$LOCAL_RUN_CORPUS" "$LOCAL_SHARED_CORPUS" "$SRC_CORPUS" 2>&1 | tee "$SUMMARY_LOG"
   # This gets the status of the fuzz run which determines if we want to fail the build or not, otherwise we'd get the results of tee
   if [ "${PIPESTATUS[0]}" == 1 ]; then
@@ -123,22 +109,10 @@ function run_fuzz_test {
   # Calculate interesting metrics and post results to CloudWatch, this checks the shared (EFS) corpus after the new test
   # run corpus has been merged in
   FINAL_SHARED_CORPUS_FILE_COUNT=$(find "$SHARED_FUZZ_TEST_CORPUS" -type f | wc -l)
-  put_metric_count --metric-name SharedCorpusFileCount --value "$FINAL_SHARED_CORPUS_FILE_COUNT" --dimensions "FuzzTest=$FUZZ_NAME"
-
   RUN_CORPUS_FILE_COUNT=$(find "$LOCAL_RUN_CORPUS" -type f | wc -l)
-  put_metric_count --metric-name RunCorpusFileCount --value "$RUN_CORPUS_FILE_COUNT" --dimensions "FuzzTest=$FUZZ_NAME,Platform=$PLATFORM"
-
   TEST_COUNT=$(grep -o "stat::number_of_executed_units: [0-9]*" "$SUMMARY_LOG" | awk '{test_count += $2} END {print test_count}')
-  put_metric_count --metric-name TestCount --value "$TEST_COUNT" --dimensions "FuzzTest=$FUZZ_NAME,Platform=$PLATFORM"
-
   TESTS_PER_SECOND=$((TEST_COUNT/TIME_FOR_EACH_FUZZ))
-  put_metric --metric-name TestRate --value "$TESTS_PER_SECOND" --unit Count/Second --dimensions "FuzzTest=$FUZZ_NAME,Platform=$PLATFORM"
-
   FEATURE_COVERAGE=$(grep -o "ft: [0-9]*" "$SUMMARY_LOG" | awk '{print $2}' | sort -n | tail -1)
-  put_metric_count --metric-name FeatureCoverage --value "$FEATURE_COVERAGE" --dimensions "FuzzTest=$FUZZ_NAME,Platform=$PLATFORM"
-
   BLOCK_COVERAGE=$(grep -o "cov: [0-9]*" "$SUMMARY_LOG" | awk '{print $2}' | sort -n | tail -1)
-  put_metric_count --metric-name BlockCoverage --value "$BLOCK_COVERAGE" --dimensions "FuzzTest=$FUZZ_NAME,Platform=$PLATFORM"
-
   echo "${FUZZ_NAME} starting shared ${ORIGINAL_CORPUS_FILE_COUNT} final shared ${FINAL_SHARED_CORPUS_FILE_COUNT} new files ${RUN_CORPUS_FILE_COUNT} total test count ${TEST_COUNT} test rate ${TESTS_PER_SECOND} code coverage ${BLOCK_COVERAGE} feature coverage ${FEATURE_COVERAGE}"
 }
