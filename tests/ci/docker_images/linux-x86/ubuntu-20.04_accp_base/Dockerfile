@@ -16,7 +16,6 @@ RUN apt-get install -y build-essential
 RUN apt-get install -y cmake
 RUN apt-get install -y lcov
 RUN apt-get install -y wget
-RUN apt-get install -y clang-format
 RUN apt-get install -y python3-pip
 RUN pip3 install gcovr
 

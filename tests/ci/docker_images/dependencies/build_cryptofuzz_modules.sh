@@ -19,10 +19,17 @@ git rev-parse HEAD
 CRYPTOFUZZ_SRC=$(pwd)
 python3 gen_repository.py
 
+# Setup Boost library
+wget https://boostorg.jfrog.io/artifactory/main/release/1.83.0/source/boost_1_83_0.tar.gz
+tar -xzf boost_1_83_0.tar.gz
+BOOST_DIRECTORY=`realpath boost_1_83_0`
+export CXXFLAGS="${CXXFLAGS} -I ${BOOST_DIRECTORY}"
+
 mkdir "$MODULES_ROOT"
 cd "$MODULES_ROOT"
 
 # Setup the other crypto libraries for differential fuzzing
+
 # Crypto++ https://github.com/guidovranken/cryptofuzz/blob/master/docs/cryptopp.md
 cd "$MODULES_ROOT"
 git clone --depth 1 https://github.com/weidai11/cryptopp.git
@@ -43,13 +50,10 @@ env CRYPTOFUZZ_SEED_CORPUS `realpath cryptofuzz_seed_corpus`
 env CRYPTOFUZZ_DICT `realpath cryptofuzz-dict.txt`
 
 # Save final common flags
+env LINK_FLAGS ""
 env CFLAGS "$CFLAGS"
 env CXXFLAGS "$CXXFLAGS"
 env CRYPTOFUZZ_SRC "$CRYPTOFUZZ_SRC"
-
-# Cryptofuzz builds its modules into $CRYPTOFUZZ_SRC/modules that includes everything it needs, deleting the module source
-# code saves a substantial amount of space in the docker image
-rm -rf "$MODULES_ROOT"
 
 # Prebuild the required libcpu_features to save time
 cd "$CRYPTOFUZZ_SRC"

@@ -20,8 +20,7 @@ RUN sed -i -re 's/([a-z]{2}\.)?archive.ubuntu.com|security.ubuntu.com/old-releas
     perl \
     python-pip \
     java-common \
-    alien \
-    clang-format
+    alien
 
 RUN update-alternatives --install /usr/bin/cc gcc /usr/bin/gcc-4.1 70 --slave /usr/bin/c++ g++ /usr/bin/g++-4.1 --slave /usr/bin/gcov gcov /usr/bin/gcov-4.1
 

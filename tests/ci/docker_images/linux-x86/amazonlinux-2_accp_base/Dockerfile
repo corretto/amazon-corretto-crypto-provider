@@ -32,3 +32,4 @@ RUN wget http://downloads.sourceforge.net/ltp/lcov-1.14-1.noarch.rpm && \
     yum localinstall -y lcov-1.14-1.noarch.rpm
 
 ENV GO111MODULE=on
+ENV DEPENDENCIES_DIR=/home/dependencies

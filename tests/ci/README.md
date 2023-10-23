@@ -61,3 +61,12 @@ CI Tool|C Compiler|Java Compiler|CPU platform|OS|Dimensions
 ------------ | -------------| -------------| -------------|-------------|-------------
 CodeBuild|gcc 7|corretto 11|x86-64|Ubuntu 20.04|both FIPS/non-FIPS
 CodeBuild|gcc 7|corretto 11|aarch|Ubuntu 20.04|both FIPS/non-FIPS
+
+
+### Cryptofuzz
+
+Each change is built and tested with [Cryptofuzz](https://github.com/guidovranken/cryptofuzz) for an hour. A seed corpus
+is included in tests/docker_images/cryptofuzz_data.zip. As new inputs are found they are saved in a shared corpus across
+runs in AWS EFS. Cryptofuzz is built with 2 modules:
+* ACCP
+* CryptoPP
