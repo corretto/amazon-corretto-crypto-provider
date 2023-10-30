@@ -294,6 +294,12 @@ public class EcGenTest {
   }
 
   @Test
+  public void separateDestruction() throws Exception {
+    final KeyPair keyPair = nativeGen.generateKeyPair();
+    RsaGenTest.testSeparateDestruction(keyPair);
+  }
+
+  @Test
   public void threadStorm() throws Throwable {
     final byte[] rngSeed = TestUtil.getRandomBytes(20);
     System.out.println("RNG Seed: " + Arrays.toString(rngSeed));

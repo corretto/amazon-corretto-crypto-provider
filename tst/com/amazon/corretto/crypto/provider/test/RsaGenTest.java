@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
@@ -246,6 +247,38 @@ public class RsaGenTest {
       }
       throw ex;
     }
+  }
+
+  @Test
+  public void separateDestruction() throws Exception {
+    final KeyPairGenerator generator = getGenerator();
+    generator.initialize(2048);
+    final KeyPair keyPair = generator.generateKeyPair();
+    testSeparateDestruction(keyPair);
+  }
+
+  static void testSeparateDestruction(final KeyPair kp) throws Exception {
+    // Make sure that the keys are backed by the same native object.
+    // Otherwise the test is invalid.
+    assertEquals(
+        EvpKeyFactoryTest.getRawPointer(kp.getPublic()),
+        EvpKeyFactoryTest.getRawPointer(kp.getPrivate()),
+        "Keys must be backed by same native object for test to be valid");
+    // Destroy the private key
+    kp.getPrivate().destroy();
+    // Getting encoded private key must fail and mention destruction
+    try {
+      kp.getPrivate().getEncoded();
+      fail("Expected exception");
+    } catch (final IllegalStateException ex) {
+      assertTrue(ex.getMessage().contains("destroy"), ex.getMessage());
+    }
+    // We must still be able to retrieve the public key
+    final byte[] encoded = kp.getPublic().getEncoded();
+    assertNotNull(encoded);
+    assertTrue(encoded.length > 0);
+    // Leading byte of an encoded key will never be zero
+    assertTrue(encoded[0] != 0);
   }
 
   private static void assertConsistency(final RSAPublicKey pub, final RSAPrivateCrtKey priv)
