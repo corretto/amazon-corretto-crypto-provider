@@ -15,6 +15,11 @@ plugins {
 group = 'software.amazon.cryptools'
 version = '2.3.2'
 ext.isFips = Boolean.getBoolean('FIPS')
+if (ext.isFips) {
+    ext.awsLcGitVersionId = 'AWS-LC-FIPS-2.0.0'
+} else {
+    ext.awsLcGitVersionId = 'v1.17.0'
+}
 ext.isLegacyBuild = Boolean.getBoolean('LEGACY_BUILD')
 
 ext.lcovIgnore = System.properties['LCOV_IGNORE']
@@ -170,6 +175,17 @@ task buildAwsLc {
     doFirst {
         if (file(awslcSrcPath).list().size() == 0) {
             throw new GradleException("aws-lc dir empty! run 'git submodule update --init --recursive' to populate.")
+        }
+
+        if (!isLegacyBuild) {
+            exec {
+                workingDir awslcSrcPath
+                commandLine "git", "fetch", "--tags"
+            }
+            exec {
+                workingDir awslcSrcPath
+                commandLine "git", "checkout", awsLcGitVersionId
+            }
         }
         mkdir "${buildDir}/awslc"
         mkdir sharedObjectOutDir

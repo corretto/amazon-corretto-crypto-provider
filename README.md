@@ -209,7 +209,9 @@ Building this provider requires a 64 bit Linux or MacOS build system with the fo
 **FIPS builds are still experimental and are not yet ready for production use.**
 
 By providing `-DFIPS=true` to `gradlew` you will cause the entire build to be for a "FIPS mode" build.
-The only significant difference is that AWS-LC is built with `FIPS=1`.
+The FIPS builds use a different version of AWS-LC along with `FIPS=1` build flag. Not all releases of
+AWS-LC will have FIPS certification. As a result, ACCP in FIPS mode only uses a version of AWS-LC
+that has FIPS certification or it will have in future.
 
 For performance reasons, ACCP does not register a SecureRandom implementation in FIPS mode.
 Relevant operations within the FIPS module boundary (e.g. key generation, non-deterministic signing, etc.) will still use AWS-LC's internal DRBG.
