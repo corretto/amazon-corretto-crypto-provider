@@ -6,6 +6,7 @@ version: 0.2
 phases:
   install:
     commands:
+      - apt-get update
       - apt-get -y install curl
       - mkdir go_tmp && cd go_tmp
       - curl https://dl.google.com/go/go1.18.3.linux-amd64.tar.gz --output go.tar.gz

@@ -13,3 +13,4 @@
 tests/ci/cdk/.idea
 tests/ci/cdk/venv
 coverage/
+aws-lc

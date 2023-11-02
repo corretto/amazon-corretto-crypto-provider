@@ -1,6 +1,8 @@
 // Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import groovy.xml.*
 
 plugins {
@@ -15,6 +17,13 @@ plugins {
 group = 'software.amazon.cryptools'
 version = '2.3.2'
 ext.isFips = Boolean.getBoolean('FIPS')
+
+if (ext.isFips) {
+    ext.awsLcGitVersionId = 'AWS-LC-FIPS-2.0.0'
+} else {
+    ext.awsLcGitVersionId = 'v1.17.0'
+}
+
 ext.isLegacyBuild = Boolean.getBoolean('LEGACY_BUILD')
 
 ext.lcovIgnore = System.properties['LCOV_IGNORE']
@@ -168,8 +177,35 @@ task buildAwsLc {
     outputs.dir("${sharedObjectOutDir}")
 
     doFirst {
-        if (file(awslcSrcPath).list().size() == 0) {
-            throw new GradleException("aws-lc dir empty! run 'git submodule update --init --recursive' to populate.")
+        if (isLegacyBuild) {
+            // The legacy build uses an old Ubuntu version that does not have git. So we use curl for that.
+            def unzipDirName = "aws-lc-${awsLcGitVersionId.substring(1)}"
+            if (isFips) {
+                unzipDirName = "aws-lc-${awsLcGitVersionId}"
+            }
+            exec {
+                workingDir "${projectDir}"
+                commandLine "curl", "-L", "http://github.com/aws/aws-lc/archive/refs/tags/${awsLcGitVersionId}.zip", "--output", "libcrypto-src.zip"
+            }
+            exec {
+                workingDir "${projectDir}"
+                commandLine "unzip", "libcrypto-src.zip"
+            }
+            exec {
+                workingDir "${projectDir}"
+                commandLine "mv", unzipDirName, "aws-lc"
+            }
+        } else {
+            if (!Files.isDirectory(Paths.get(awslcSrcPath))) {
+                exec {
+                    workingDir "${projectDir}"
+                    commandLine "git", "clone", "https://github.com/aws/aws-lc.git"
+                }
+            }
+            exec {
+                workingDir "${awslcSrcPath}"
+                commandLine "git", "checkout", "${awsLcGitVersionId}"
+            }
         }
         mkdir "${buildDir}/awslc"
         mkdir sharedObjectOutDir

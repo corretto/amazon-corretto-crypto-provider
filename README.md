@@ -197,11 +197,13 @@ but yours will not be.*
 Building this provider requires a 64 bit Linux or MacOS build system with the following prerequisites installed:
 * OpenJDK 10 or newer
 * [cmake](https://cmake.org/) 3.8 or newer
+* Git
+* Golang (required by AWS-LC)
 * C++ build chain
 * [lcov](http://ltp.sourceforge.net/coverage/lcov.php) for coverage metrics
 * [gcovr](https://gcovr.com/en/stable/) for reporting coverage metrics in CodeBuild
 
-1. Download the repository via `git clone --recurse-submodules`
+1. Download the repository via `git clone`
 2. Run `./gradlew release`
 3. The resulting jar is in `build/lib`
 
@@ -209,7 +211,9 @@ Building this provider requires a 64 bit Linux or MacOS build system with the fo
 **FIPS builds are still experimental and are not yet ready for production use.**
 
 By providing `-DFIPS=true` to `gradlew` you will cause the entire build to be for a "FIPS mode" build.
-The only significant difference is that AWS-LC is built with `FIPS=1`.
+The FIPS builds use a different version of AWS-LC along with `FIPS=1` build flag. Not all releases of
+AWS-LC will have FIPS certification. As a result, ACCP in FIPS mode only uses a version of AWS-LC
+that has FIPS certification or it will have in future.
 
 For performance reasons, ACCP does not register a SecureRandom implementation in FIPS mode.
 Relevant operations within the FIPS module boundary (e.g. key generation, non-deterministic signing, etc.) will still use AWS-LC's internal DRBG.
