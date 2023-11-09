@@ -7,11 +7,8 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 class AccessibleByteArrayOutputStream extends OutputStream implements Cloneable {
-  private static final int MAX_OVERSIZED_THRESHOLD = 1024;
-  private int timesOversized;
-  private int timesOversizedThreshold;
-
   private final int limit;
+  private final BufferShrinkStrategy shrinkStrategy;
   private byte[] buf;
   private int count;
 
@@ -23,6 +20,10 @@ class AccessibleByteArrayOutputStream extends OutputStream implements Cloneable 
   }
 
   AccessibleByteArrayOutputStream(final int capacity, final int limit) {
+    this(capacity, limit, new BufferShrinkStrategy.BasicThreshold());
+  }
+
+  AccessibleByteArrayOutputStream(final int capacity, final int limit, BufferShrinkStrategy shrinkStrategy) {
     if (limit < 0) {
       throw new IllegalArgumentException("Limit must be non-negative");
     }
@@ -31,6 +32,7 @@ class AccessibleByteArrayOutputStream extends OutputStream implements Cloneable 
     }
     buf = capacity == 0 ? Utils.EMPTY_ARRAY : new byte[capacity];
     this.limit = limit;
+    this.shrinkStrategy = shrinkStrategy;
     count = 0;
   }
 
@@ -91,17 +93,9 @@ class AccessibleByteArrayOutputStream extends OutputStream implements Cloneable 
     Arrays.fill(buf, 0, sizeUsed, (byte) 0);
     count = 0;
 
-    // Consider shrinking the buffer.
-    if (sizeUsed * 2 < buf.length) {
-      // The buffer was over-sized for this usage.
-      if (timesOversized++ > timesOversizedThreshold) {
-        // Shrink the buffer.
-        buf = new byte[buf.length / 2];
-        timesOversized = 0;
-      }
-    } else {
-      // Buffer was not over-sized, reset counter.
-      timesOversized = 0;
+    if (shrinkStrategy.shouldShrink(sizeUsed, buf.length)) {
+      // Shrink the buffer.
+      buf = new byte[buf.length / 2];
     }
   }
 
@@ -137,8 +131,5 @@ class AccessibleByteArrayOutputStream extends OutputStream implements Cloneable 
     final byte[] toZeroize = buf;
     buf = tmp;
     Arrays.fill(toZeroize, 0, count, (byte) 0);
-
-    // Every time we need to grow, make it harder to shrink in the future (up to a limit).
-    timesOversizedThreshold = Math.min(MAX_OVERSIZED_THRESHOLD, timesOversized * 2);
   }
 }
