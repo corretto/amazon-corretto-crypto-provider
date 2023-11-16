@@ -86,7 +86,7 @@ AlgorithmParameters:
 
 
 # Notes on ACCP-FIPS
-ACCP-FIPS is a variation of ACCP which uses AWS-LC-FIPS 2.x as its cryptographic module. This version of AWS-LC-FIPS has completed FIPS validation testing by an accredited lab and is awaiting NIST certification. Refer to the [NIST Cryptographic Module Validation Program's Modules In Progress List](https://csrc.nist.gov/Projects/cryptographic-module-validation-program/modules-in-process/Modules-In-Process-List) for the latest status of the AWS-LC Cryptographic Module. We will also update our release notes and documentation to reflect any changes in FIPS certification status. We provide ACCP-FIPS for experimentation and performance testing in the interim.
+ACCP-FIPS is a variation of ACCP which uses AWS-LC-FIPS 2.x as its cryptographic module. This version of AWS-LC-FIPS has completed FIPS validation testing by an accredited lab and has been submitted to NIST for certification. Refer to the [NIST Cryptographic Module Validation Program's Modules In Progress List](https://csrc.nist.gov/Projects/cryptographic-module-validation-program/modules-in-process/Modules-In-Process-List) for the latest status of the AWS-LC Cryptographic Module. We will also update our release notes and documentation to reflect any changes in FIPS certification status. We provide ACCP-FIPS for experimentation and performance testing in the interim.
 
 Version 2.3.0 is the first release of ACCP-FIPS. The Maven coordinates for
 ACCP-FIPS are the same as ACCP with one difference that ACCP-FIPS's
