@@ -13,10 +13,10 @@ plugins {
 }
 
 group = 'software.amazon.cryptools'
-version = '2.3.2'
+version = '2.3.3'
 ext.isFips = Boolean.getBoolean('FIPS')
 if (ext.isFips) {
-    ext.awsLcGitVersionId = 'AWS-LC-FIPS-2.0.0'
+    ext.awsLcGitVersionId = 'AWS-LC-FIPS-2.0.2'
 } else {
     ext.awsLcGitVersionId = 'v1.17.0'
 }
@@ -44,7 +44,6 @@ def getDescriptionForPom(isFips) {
     ].join(" ")
 
 }
-
 
 spotless {
   java {
@@ -582,16 +581,19 @@ task fakePublish {
     def x64Base = "${System.env.CODEBUILD_SRC_DIR_Linux_x64_Artifacts}/lib"
     def aarch64Base = "${System.env.CODEBUILD_SRC_DIR_Linux_aarch64_Artifacts}/lib"
     def osxX64Base = "${System.env.CODEBUILD_SRC_DIR_Osx_x64_Artifacts}/lib"
+    def osxAarch64Base = "${System.env.CODEBUILD_SRC_DIR_Osx_aarch64_Artifacts}/lib"
     def newPrefix = "AmazonCorrettoCryptoProvider-${version}"
     if (isFips) {
+        newPrefix = "AmazonCorrettoCryptoProvider-FIPS-${version}"
         x64Base = "${System.env.CODEBUILD_SRC_DIR_Linux_x64_Artifacts_FIPS}/lib"
         aarch64Base = "${System.env.CODEBUILD_SRC_DIR_Linux_aarch64_Artifacts_FIPS}/lib"
         osxX64Base = null
-        newPrefix = "AmazonCorrettoCryptoProvider-FIPS-${version}"
+        osxAarch64Base = null
     }
     def x86Jar = "${x64Base}/AmazonCorrettoCryptoProvider.jar"
     def aarch64Jar = "${aarch64Base}/AmazonCorrettoCryptoProvider.jar"
     def osxX64Jar = "${osxX64Base}/AmazonCorrettoCryptoProvider.jar"
+    def osxAarch64Jar = "${osxAarch64Base}/AmazonCorrettoCryptoProvider.jar"
     def sourceJar = "${x64Base}/AmazonCorrettoCryptoProvider-sources.jar"
     def javadocJar = "${x64Base}/AmazonCorrettoCryptoProvider-javadoc.jar"
 
@@ -600,6 +602,8 @@ task fakePublish {
         if (!isFips) {
             println osxX64Jar
             println file(osxX64Jar).file
+            println osxAarch64Jar
+            println file(osxAarch64Jar).file
         }
         println aarch64Jar
         println file(aarch64Jar).file
@@ -615,6 +619,11 @@ task fakePublish {
             copy {
                 from osxX64Jar
                 rename 'AmazonCorrettoCryptoProvider.jar', "${newPrefix}-osx-x86_64.jar"
+                into "${destinationDir}"
+            }
+            copy {
+                from osxAarch64Jar
+                rename 'AmazonCorrettoCryptoProvider.jar', "${newPrefix}-osx-aarch_64.jar"
                 into "${destinationDir}"
             }
         }
@@ -643,6 +652,14 @@ task fakePublish {
                     keystore: "${project.gradle.gradleUserHomeDir}/${jcecertJks}",
                     tsaurl: "http://timestamp.digicert.com"
                 )
+                ant.signjar(
+                    alias: jcecertAlias,
+                    jar: "${destinationDir}/${newPrefix}-osx-aarch_64.jar",
+                    storepass: jcecertPassword,
+                    keystore: "${project.gradle.gradleUserHomeDir}/${jcecertJks}",
+                    tsaurl: "http://timestamp.digicert.com"
+                )
+
             }
             ant.signjar(
                 alias: jcecertAlias,
@@ -679,12 +696,14 @@ if (project.hasProperty('mavenUser') && project.hasProperty('jcecertAlias')) {
                 def x86Jar = "${fakeMavenBase}linux-x86_64.jar"
                 def aarch64Jar = "${fakeMavenBase}linux-aarch_64.jar"
                 def osxX64Jar = "${fakeMavenBase}osx-x86_64.jar"
+                def osxAarch64Jar = "${fakeMavenBase}osx-aarch_64.jar"
                 def sourceJar = "${fakeMavenBase}sources.jar"
                 def javadocJar = "${fakeMavenBase}javadoc.jar"
                 artifact source: file(x86Jar),classifier:"linux-x86_64",extension:"jar"
                 artifact source: file(aarch64Jar),classifier:"linux-aarch_64",extension:"jar"
                 if (!isFips) {
                     artifact source: file(osxX64Jar),classifier:"osx-x86_64",extension:"jar"
+                    artifact source: file(osxAarch64Jar),classifier:"osx-aarch_64",extension:"jar"
                 }
                 artifact emptyJar
                 artifact source: file(javadocJar),classifier:"javadoc",extension:"jar"

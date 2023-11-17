@@ -122,9 +122,16 @@ will always have the most recent version. We strongly recommend you always pull
 in the latest version for best performance and bug-fixes.
 
 Whether you're using Maven, Gradle, or some other build system that also pulls
-packages from Maven Central, it's important to specify `linux-x86_64` or `linux-aarch_64` as the
-classifier. You'll get an empty package otherwise. Note that ACCP is not
-available for MacOS on Maven Central yet.
+packages from Maven Central, it's important to specify a classifier, otherwise,
+one would get an empty package. The possible classifiers are as follows:
+
+| Classifier | Support since version | FIPS support since version |
+|------------|-----------------------|----------------------------|
+| `linux-x86_64` | 1.0.0 | 2.3.0 |
+| `linux-aarch_64` | 2.0.0 | 2.3.0 |
+| `osx-x86_64` | 2.3.2 | Not supported |
+| `osx-aarch_64` | 2.3.3 | Not supported |
+
 
 Regardless of how you acquire ACCP (Maven, manual build, etc.) you will still need to follow the guidance in the [Configuration section](#configuration) to enable ACCP in your application.
 
@@ -143,11 +150,6 @@ For more information, please see [VERSIONING.rst](https://github.com/corretto/am
 ```
 
 The artifactId for FIPS builds is `AmazonCorrettoCryptoProvider-FIPS`.
-
-The classifier attribute could be set to `linux-aarch_64` to use ACCP on Linux ARM64 platforms.
-
-Starting from verions 2.3.2, the classifier attribute could be set to `osx-x86_64` to use ACCP
-on MacOS X86 platforms. The FIPS artifacts do not support MacOS X86.
 
 ACCP artifacts on Maven can be verified using the following PGP keys:
 

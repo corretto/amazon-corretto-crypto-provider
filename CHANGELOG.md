@@ -1,6 +1,20 @@
 # Changelog
 
-# 2.3.2
+## 2.3.3
+
+### Overview
+Starting from this version, build artifacts for MacOS AARCH64 (Arm64) are released.
+The corresponding Jar is identified by `osx-aarch_64` classifier.
+Please note that ACCP-FIPS does not have `osx-aarch_64` artifacts and `osx-aarch_64`
+is only available for non-FIPS builds.
+
+### Patch
+* Use AWS-LC [v1.17.0](https://github.com/aws/aws-lc/releases/tag/v1.17.0) for ACCP
+* Use AWS-LC [AWS-LC-FIPS-2.0.2](https://github.com/aws/aws-lc/releases/tag/AWS-LC-FIPS-2.0.2) for ACCP-FIPS
+* [PR 335: Do not destroy linked public keys](https://github.com/corretto/amazon-corretto-crypto-provider/pull/335)
+* [PR 329: Allow users to control the release of EVP context for AES-GCM](https://github.com/corretto/amazon-corretto-crypto-provider/pull/329)
+
+## 2.3.2
 
 ### Overview
 Starting from this version, build artifacts for MacOS X86-64 are released.
