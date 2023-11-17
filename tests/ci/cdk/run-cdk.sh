@@ -229,6 +229,9 @@ function export_global_variables() {
   if [[ -z "${CDK_DEPLOY_REGION+x}" || -z "${CDK_DEPLOY_REGION}" ]]; then
     export CDK_DEPLOY_REGION='us-west-2'
   fi
+  if [[ -z "${AWS_DEFAULT_REGION+x}" || -z "${AWS_DEFAULT_REGION}" ]]; then
+    export AWS_DEFAULT_REGION='us-west-2'
+  fi
   if [[ -z "${GITHUB_REPO_OWNER+x}" || -z "${GITHUB_REPO_OWNER}" ]]; then
     export GITHUB_REPO_OWNER='corretto'
   fi
@@ -262,6 +265,7 @@ function main() {
       ;;
     --aws-region)
       export CDK_DEPLOY_REGION="${2}"
+      export AWS_DEFAULT_REGION="${2}"
       shift
       ;;
     --github-repo-owner)
