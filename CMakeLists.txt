@@ -85,8 +85,6 @@ string(REPLACE ":" ";" TEST_CLASSPATH_LIST "${TEST_CLASSPATH}")
 
 # Needed as we abuse some of the test compile macros to test shared lib links
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-# CMake's default RPath handling includes the full build directory path, which isn't needed. Turn it off.
-set(CMAKE_SKIP_RPATH TRUE)
 set(GENERATE_HASHERS ${CMAKE_CURRENT_SOURCE_DIR}/build-tools/bin/generate-java-hash-spi)
 set(GENERATED_JAVA_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated-java/com/amazon/corretto/crypto/provider)
 set(JNI_HEADER_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated-include)
@@ -185,7 +183,6 @@ if (SIGNED_JAR)
         OUTPUT ${ACCP_JAR}
         COMMAND ${CMAKE_COMMAND} -E copy ${SIGNED_JAR} ${ACCP_JAR}
         COMMAND ${CMAKE_COMMAND} -E echo Copied ${SIGNED_JAR} to ${ACCP_JAR}
-        COMMAND ${CMAKE_COMMAND} -E copy ${OPENSSL_CRYPTO_LIBRARY} $<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
     )
 else()
 # CMake's UseJar doesn't let us control the paths that resource files are
@@ -201,8 +198,6 @@ else()
         COMMAND ${Java_JAR_EXECUTABLE} uf ${ACCP_JAR_TMP} -C ${CMAKE_CURRENT_SOURCE_DIR}/extra-jar-files .
         COMMAND ${Java_JAR_EXECUTABLE} uf ${ACCP_JAR_TMP} -C $<TARGET_PROPERTY:module-jar,CLASSDIR> module-info.class
         COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/tmplib/com/amazon/corretto/crypto/provider/
-        COMMAND ${CMAKE_COMMAND} -E copy ${OPENSSL_CRYPTO_LIBRARY} $<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
-        COMMAND ${CMAKE_COMMAND} -E copy ${OPENSSL_CRYPTO_LIBRARY} ${CMAKE_CURRENT_BINARY_DIR}/tmplib/com/amazon/corretto/crypto/provider/
         COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:amazonCorrettoCryptoProvider> ${CMAKE_CURRENT_BINARY_DIR}/tmplib/com/amazon/corretto/crypto/provider/
         COMMAND ${Java_JAR_EXECUTABLE} uf ${ACCP_JAR_TMP} -C ${CMAKE_CURRENT_BINARY_DIR}/tmplib/ com/amazon/corretto/crypto/provider/
         COMMAND ${Java_JAR_EXECUTABLE} uf ${ACCP_JAR_TMP} -C ${CMAKE_CURRENT_BINARY_DIR}/generated-java/ com/amazon/corretto/crypto/provider/version.properties
@@ -268,19 +263,6 @@ add_library(
         ${JNI_HEADER_DIR}/generated-headers.h
 )
 
-# We MUST set ACCP's RPATH to "$ORIGIN" so that the runtime dynamic loader will look in the same directory as ACCP for
-# any shared library dependencies BEFORE looking for a system-installed depencencies (such as libcrypto). If RPath is
-# not set, the loader may attempt to load an incompatible system-installed libcrypto and cause runtime crashes.
-if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-    set(CMAKE_MACOSX_RPATH TRUE)
-    set(RPATH_ORIGIN "@loader_path")
-elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-    set(RPATH_ORIGIN "\$ORIGIN")
-else()
-    message( FATAL_ERROR "Unsupported OS, need to determine OS-specific analog of linux rpath's $ORIGIN")
-endif()
-set_target_properties(amazonCorrettoCryptoProvider PROPERTIES LINK_FLAGS "-Wl,-rpath,${RPATH_ORIGIN}")
-
 add_custom_command(
     OUTPUT ${ACCP_JAR_SOURCE}
     COMMAND ${Java_JAR_EXECUTABLE} cf ${ACCP_JAR_SOURCE} -C ${CMAKE_CURRENT_SOURCE_DIR}/src .
@@ -296,7 +278,6 @@ if(ENABLE_NATIVE_TEST_HOOKS)
   add_executable(test_keyutils EXCLUDE_FROM_ALL
         csrc/test_keyutils.cpp
     )
-    set_target_properties(test_keyutils PROPERTIES LINK_FLAGS "-Wl,-rpath,${RPATH_ORIGIN}")
     target_link_libraries(test_keyutils ${OPENSSL_CRYPTO_LIBRARY})
     target_link_libraries(test_keyutils amazonCorrettoCryptoProvider)
 endif()
@@ -510,7 +491,11 @@ if(COVERAGE)
     if(NOT CXX_FLAG_COVERAGE)
         message(FATAL_ERROR "C++ compiler does not support coverage instrumentation")
     endif()
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprofile-arcs -ftest-coverage")
+    if(LEGACY_BUILD)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprofile-arcs -ftest-coverage")
+    else()
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprofile-arcs -ftest-coverage -fprofile-update=atomic")
+    endif()
 # Disable assert()s. This avoids having unreachable assert branches pollute our branch coverage.
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DNDEBUG")
 endif()
@@ -549,7 +534,7 @@ endif()
 # Add pthread support
 target_link_libraries(amazonCorrettoCryptoProvider Threads::Threads)
 
-# Take a dependency on our libcrypto.so file
+# Take a dependency on our libcrypto.a
 target_link_libraries(amazonCorrettoCryptoProvider ${OPENSSL_CRYPTO_LIBRARY})
 
 # NOTE: CMake introduced the CONFIGURE_DEPENDS feature in 3.12, so condition
@@ -782,7 +767,6 @@ add_custom_target(check
     check-junit
     check-junit-SecurityManager
     check-external-lib
-    check-libaccp-rpath
     check-junit-AesGcmLazy
     check-junit-AesGcmEager)
 
@@ -827,34 +811,6 @@ add_custom_target(check-integration
     DEPENDS accp-jar tests-jar)
 
 set_target_properties(check-integration PROPERTIES EXCLUDE_FROM_ALL 1)
-
-# Add a target to assert that the libaccp shared object's rpath meets 2 conditions:
-#   1. rpath contains only a single entry
-#   2. that entry is set to $ORIGIN on linux or @loader_path on mac
-if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-    add_custom_target(check-libaccp-rpath
-        COMMAND otool -l $<TARGET_FILE:amazonCorrettoCryptoProvider>
-            | grep 'cmd LC_RPATH'
-            | wc -l
-            | tr -d '[:blank:]'
-            | xargs test 1 -eq
-        COMMAND otool -l $<TARGET_FILE:amazonCorrettoCryptoProvider>
-            | grep -A2 'cmd LC_RPATH'
-            | tail -1
-            | grep '@loader_path'
-        )
-elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-    add_custom_target(check-libaccp-rpath
-        COMMAND objdump -x $<TARGET_FILE:amazonCorrettoCryptoProvider>
-            | grep -E 'RPATH|RUNPATH'   # RPATH on AL, RUNPATH on Ubuntu
-            | grep -v ':'
-        COMMAND objdump -x $<TARGET_FILE:amazonCorrettoCryptoProvider>
-            | grep -E 'RPATH|RUNPATH'   # RPATH on AL, RUNPATH on Ubuntu
-            | grep -E "\$ORIGIN"
-        )
-else()
-    message( FATAL_ERROR "Unsupported OS, need to validate OS-specific rpath $ORIGIN")
-endif()
 
 # Do this at the end, after we finish all our feature tests, or it'll be missing flags
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/csrc/config.h.in ${JNI_HEADER_DIR}/config.h)

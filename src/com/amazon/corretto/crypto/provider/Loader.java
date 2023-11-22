@@ -48,8 +48,7 @@ final class Loader {
   private static final String TEMP_DIR_PREFIX = "amazonCorrettoCryptoProviderNativeLibraries.";
   private static final String JNI_LIBRARY_NAME = "amazonCorrettoCryptoProvider";
   private static final String PROPERTY_VERSION_STR = "versionStr";
-  private static final String LIBCRYPTO_NAME = "crypto";
-  private static final String[] JAR_RESOURCES = {JNI_LIBRARY_NAME, LIBCRYPTO_NAME};
+  private static final String[] JAR_RESOURCES = {JNI_LIBRARY_NAME};
   private static final Pattern TEST_FILENAME_PATTERN =
       Pattern.compile("[-a-zA-Z0-9]+(\\.[a-zA-Z0-9]+)*");
   private static final FileAttribute<Set<PosixFilePermission>> SELF_OWNER_FILE_PERMISSIONS =
@@ -193,26 +192,40 @@ final class Loader {
      * Java will internally call dlopen() on libamazonCorrettoCryptoProvider from within this
      * System.load() call. This will cause the runtime dynamic loader to load ACCP's shared library
      * into a new LOCAL object group that is a child of the current Java LOCAL object group. Any
-     * shared library dependencies of the library being loaded (such as libcrypto) will also be
-     * loaded recursively into the same LOCAL object group until all transitive shared library
-     * dependencies are loaded. The system's regular dynamic loading rules are followed (namely, any
-     * RPATH values present will be used). Since libamazonCorrettoCryptoProvider is built with an
-     * RPATH value of "$ORIGIN", the runtime dynamic loader will always look in the same directory
-     * as libACCP for any shared library dependencies BEFORE attempting to look in any system
-     * directories containing potentially conflicting libraries with the same name.
+     * shared library dependencies of the library being loaded will also be loaded recursively into
+     * the same LOCAL object group until all transitive shared library dependencies are loaded. The
+     * system's regular dynamic loading rules are followed (namely, any RPATH values present will be
+     * used).
      *
      * <p>This means at runtime the Java process's object group hierarchy would look like this:
      *
-     * <p>+------------------------------------------------------------+ |Group #0: GLOBAL Object
-     * Group | | - Usually empty unless using LD_PRELOAD or dlopen() with | | RTLD_GLOBAL | | |
-     * +------------------------------------------------------------+ ^ | |
-     * +------------------------------------------------------------+ |Group #1: LOCAL Object Group
-     * | | - Java and JVM Symbols (libjli), libc, ld-linux, etc | | |
-     * +------------------------------------------------------------+ ^ ^ | | | |
-     * +---------------------------------------+ +---------------------------------------+ |Group
-     * #2: LOCAL Object Group | |Group #3: LOCAL Object Group | | - libamazonCorrettoCryptoProvider,
-     * | | - Any other JNI libraries. (Eg with | | libcrypto | | potentially different libcrypto) |
-     * | | | | +---------------------------------------+ +---------------------------------------+
+     * <table>
+     *     <tr>
+     *         <th> Group </th>
+     *         <th> Parent </th>
+     *         <th> Description </th>
+     *     </tr>
+     *     <tr>
+     *         <td> Group #0: GLOBAL Object Group</td>
+     *         <td> None </td>
+     *         <td> Usually empty unless using LD_PRELOAD or dlopen() with RTLD_GLOBAL </td>
+     *     </tr>
+     *     <tr>
+     *         <td> Group #1: LOCAL Object Group</td>
+     *         <td> Group #0 </td>
+     *         <td> Java and JVM Symbols (libjli), libc, ld-linux, etc </td>
+     *     </tr>
+     *     <tr>
+     *         <td> Group #2: LOCAL Object Group</td>
+     *         <td> Group #1 </td>
+     *         <td> Includes libamazonCorrettoCryptoProvider </td>
+     *     </tr>
+     *     <tr>
+     *         <td> Group #3: LOCAL Object Group</td>
+     *         <td> Group #1 </td>
+     *         <td> Any other JNI libraries. (Eg with potentially a libcrypto) </td>
+     *     </tr>
+     * </table>
      *
      * <p>Any shared libraries that are not present in Java's LOCAL object group (Group #1), will be
      * loaded into a new child LOCAL object group, lower in the object group hierarchy. This can be

@@ -207,9 +207,9 @@ task buildAwsLc {
                 args "-DMY_ASSEMBLER_IS_TOO_OLD_FOR_AVX=ON"
                 args "-std=gnu99"
                 args "-fgnu89-inline"
-                args '-DBUILD_SHARED_LIBS=ON'
                 args "-DCMAKE_INSTALL_PREFIX=${sharedObjectOutDir}"
                 args "-DCMAKE_VERBOSE_MAKEFILE:BOOL=ON"
+                args "-DLEGACY_BUILD=ON"
 
                 args "${awslcSrcPath}"
             }
@@ -219,7 +219,6 @@ task buildAwsLc {
                 workingDir awslcSrcPath
                 executable cmakeBin
                 args "-B${cMakeBuildDir}"
-                args '-DBUILD_SHARED_LIBS=ON'
                 args '-DCMAKE_BUILD_TYPE=RelWithDebInfo'
                 args "-DCMAKE_INSTALL_PREFIX=${sharedObjectOutDir}"
                 args "-DCMAKE_VERBOSE_MAKEFILE:BOOL=ON"
@@ -482,6 +481,9 @@ task coverage_cmake(type: Exec) {
     args '-DPROVIDER_VERSION_STRING=' + version, projectDir
     args "-DTEST_RUNNER_JAR=${configurations.testRunner.singleFile}"
     args "-DCMAKE_VERBOSE_MAKEFILE:BOOL=ON"
+    if (isLegacyBuild) {
+        args "-DLEGACY_BUILD=ON"
+    }
     if (isFips) {
         args "-DFIPS=ON"
     }
