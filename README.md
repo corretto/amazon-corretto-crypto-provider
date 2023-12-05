@@ -199,6 +199,23 @@ Building this provider requires a 64 bit Linux or MacOS build system with the fo
 2. Run `./gradlew release`
 3. The resulting jar is in `build/lib`
 
+### Repackaging ACCP into Uber/Fat Jars
+Please be aware that repackaging ACCP's published Jar files from Maven into your own "uber" or "fat" JAR file may not 
+work on OracleJDK. The OracleJDK requires that JCE providers be cryptographically signed by a trusted certificate. The 
+JARs we publish via Maven and our official [releases](https://github.com/corretto/amazon-corretto-crypto-provider/releases) are signed by our private key, but yours will not be.
+
+Depending on how ACCP is repackaged, ACCP's existing signature may be invalidated, and you may receive one of the
+following exceptions: 
+ - `java.util.jar.JarException: The JCE Provider file is not signed.`
+ - `java.lang.SecurityException: JCE cannot authenticate the provider`
+ - `java.security.NoSuchProviderException: JCE cannot authenticate the provider`
+
+If you receive one of these exceptions, then you will need to evaluate if any of the following options will work for your application and environment:
+1. Exclude ACCP from your repackaging process, keeping ACCP's jar file unmodified, and deploying both your uber jar and ACCP jar as separate jar files.
+2. Use a non-standard Java ClassLoader that allows loading a "jar of jars" (such as [Spring-boot's NestedJarFile](https://docs.spring.io/spring-boot/docs/current/reference/html/executable-jar.html#appendix.executable-jar.jarfile-class)), and copy ACCP's Jar file into the parent Jar file so that ACCP's JCE signature remains intact.
+3. Migrate to a different JDK (eg OpenJDK or CorrettoJDK) that does not require that JCE providers be signed.
+4. [Obtain your own JCE Code Signing Certificate](https://www.oracle.com/java/technologies/javase/getcodesigningcertificate.html) and sign your repackaged Jar.
+
 ##### FIPS builds
 **FIPS builds are still experimental and are not yet ready for production use.**
 
