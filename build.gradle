@@ -568,11 +568,7 @@ task unit_tests(type: Copy) {
 test.dependsOn unit_tests
 
 task release {
-    if (isLegacyBuild) {
-        dependsOn build, test, javadoc, src_jar
-    } else {
-        dependsOn build, test, javadoc, src_jar
-    }
+    dependsOn build, test, javadoc, src_jar
 }
 
 task overkill {
