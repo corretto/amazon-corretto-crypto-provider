@@ -199,7 +199,7 @@ Building this provider requires a 64 bit Linux or MacOS build system with the fo
 2. Run `./gradlew release`
 3. The resulting jar is in `build/lib`
 
-### Repackaging ACCP into Uber/Fat Jars
+#### Repackaging ACCP into Uber/Fat Jars
 Please be aware that repackaging ACCP's published Jar files from Maven into your own "uber" or "fat" JAR file may not 
 work on OracleJDK. The OracleJDK requires that JCE providers be cryptographically signed by a trusted certificate. The 
 JARs we publish via Maven and our official [releases](https://github.com/corretto/amazon-corretto-crypto-provider/releases) are signed by our private key, but yours will not be.
