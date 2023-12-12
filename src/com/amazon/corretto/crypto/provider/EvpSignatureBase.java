@@ -228,7 +228,7 @@ abstract class EvpSignatureBase extends SignatureSpi {
         throw new InvalidAlgorithmParameterException("Algorithm parameters do not match key");
       }
       // Check passes, no actual changes needed
-    } else if (params != null) {
+    } else {
       throw new InvalidAlgorithmParameterException(
           "Specified parameters supported by this algorithm");
     }
