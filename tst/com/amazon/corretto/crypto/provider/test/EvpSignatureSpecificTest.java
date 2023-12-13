@@ -448,6 +448,13 @@ public final class EvpSignatureSpecificTest {
             signature.setParameter(
                 new PSSParameterSpec("SHA-1", "MGF1", MGF1ParameterSpec.SHA1, 4096, 1)));
 
+    // Assert compatiblity with JCE on setting null parameter, BC doesn't throw.
+    assertThrows(InvalidAlgorithmParameterException.class, () -> signature.setParameter(null));
+    assertThrows(
+        InvalidAlgorithmParameterException.class,
+        () -> Signature.getInstance("RSASSA-PSS", "SunRsaSign").setParameter(null));
+    Signature.getInstance("RSASSA-PSS", TestUtil.BC_PROVIDER).setParameter(null);
+
     // "1" should be only valid trailer value.
     for (int ii = -10; ii < 11; ii++) {
       if (ii == 1) {
@@ -478,14 +485,6 @@ public final class EvpSignatureSpecificTest {
 
     signature = Signature.getInstance("RSASSA-PSS", NATIVE_PROVIDER);
     signature.initVerify(pair.getPublic());
-    spec = getPssParams(signature);
-    assertEquals("SHA-1", spec.getDigestAlgorithm());
-    assertEquals("SHA-1", ((MGF1ParameterSpec) spec.getMGFParameters()).getDigestAlgorithm());
-
-    // setting null params OK, shouldn't change from default
-    signature = Signature.getInstance("RSASSA-PSS", NATIVE_PROVIDER);
-    signature.setParameter(null);
-    signature.initSign(pair.getPrivate());
     spec = getPssParams(signature);
     assertEquals("SHA-1", spec.getDigestAlgorithm());
     assertEquals("SHA-1", ((MGF1ParameterSpec) spec.getMGFParameters()).getDigestAlgorithm());
@@ -771,14 +770,14 @@ public final class EvpSignatureSpecificTest {
   }
 
   @Test
-  public void ecdsaAcceptsNullParams() throws Exception {
+  public void ecdsaRejectsNullParams() throws Exception {
     final Signature signer = Signature.getInstance("SHA384withECDSA", NATIVE_PROVIDER);
     signer.initSign(ECDSA_PAIR.getPrivate());
-    signer.setParameter(null);
+    assertThrows(InvalidAlgorithmParameterException.class, () -> signer.setParameter(null));
     signer.update(MESSAGE);
     final byte[] signature = signer.sign();
     signer.initVerify(ECDSA_PAIR.getPublic());
-    signer.setParameter(null);
+    assertThrows(InvalidAlgorithmParameterException.class, () -> signer.setParameter(null));
     signer.update(MESSAGE);
     assertTrue(signer.verify(signature));
   }
