@@ -87,10 +87,14 @@ public class EvpSignatureTest {
       this.paramSpec = paramSpec;
 
       signer = getNativeSigner();
-      signer.setParameter(paramSpec);
+      if (paramSpec != null) {
+        signer.setParameter(paramSpec);
+      }
       signer.initSign(keyPair.getPrivate());
       verifier = getNativeSigner();
-      verifier.setParameter(paramSpec);
+      if (paramSpec != null) {
+        verifier.setParameter(paramSpec);
+      }
       verifier.initVerify(keyPair.getPublic());
 
       jceVerifier = getJceSigner();

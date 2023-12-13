@@ -770,14 +770,14 @@ public final class EvpSignatureSpecificTest {
   }
 
   @Test
-  public void ecdsaAcceptsNullParams() throws Exception {
+  public void ecdsaRejectsNullParams() throws Exception {
     final Signature signer = Signature.getInstance("SHA384withECDSA", NATIVE_PROVIDER);
     signer.initSign(ECDSA_PAIR.getPrivate());
-    signer.setParameter(null);
+    assertThrows(InvalidAlgorithmParameterException.class, () -> signer.setParameter(null));
     signer.update(MESSAGE);
     final byte[] signature = signer.sign();
     signer.initVerify(ECDSA_PAIR.getPublic());
-    signer.setParameter(null);
+    assertThrows(InvalidAlgorithmParameterException.class, () -> signer.setParameter(null));
     signer.update(MESSAGE);
     assertTrue(signer.verify(signature));
   }
