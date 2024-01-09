@@ -430,6 +430,22 @@ task test_extra_checks(type: Copy) {
     into "${buildDir}/reports/unit-tests"
 }
 
+task test_exec(type: Exec) {
+    dependsOn executeCmake
+    workingDir "${buildDir}/cmake"
+    commandLine 'make', 'check'
+}
+
+task unit_tests(type: Copy) {
+    doFirst {
+        mkdir "${buildDir}/reports/unit-tests"
+    }
+    dependsOn test_exec
+    from "${buildDir}/cmake/unit-tests/"
+    into "${buildDir}/reports/unit-tests"
+}
+test.dependsOn unit_tests
+
 task single_test(type: Exec) {
     dependsOn executeCmake
     workingDir "${buildDir}/cmake"
@@ -556,20 +572,13 @@ task coverage_cpp_report {
 task coverage {
     dependsOn coverage_java_report, coverage_cpp_report
 }
-test.dependsOn coverage
-
-task unit_tests(type: Copy) {
-    doFirst {
-        mkdir "${buildDir}/reports/unit-tests"
-    }
-    dependsOn coverage_exec
-    from "${buildDir}/cmake/unit-tests/"
-    into "${buildDir}/reports/unit-tests"
-}
-test.dependsOn unit_tests
 
 task release {
-    dependsOn build, test, javadoc, src_jar
+    if (isLegacyBuild) {
+        dependsOn build, test, javadoc, src_jar
+    } else {
+        dependsOn build, test, coverage, javadoc, src_jar
+    }
 }
 
 task overkill {
