@@ -669,6 +669,15 @@ add_custom_target(check-junit-AesGcmEager
 
     DEPENDS accp-jar tests-jar)
 
+add_custom_target(check-junit-DifferentTempDir
+    COMMAND ${TEST_JAVA_EXECUTABLE}
+    -Dcom.amazon.corretto.crypto.provider.tmpdir=${CMAKE_BINARY_DIR}/tmpdir
+        ${TEST_RUNNER_ARGUMENTS}
+        --select-class=com.amazon.corretto.crypto.provider.test.AesTest
+        --select-class=com.amazon.corretto.crypto.provider.test.AesGcmKatTest
+
+    DEPENDS accp-jar tests-jar)
+
 add_custom_target(check-junit-extra-checks
     COMMAND ${TEST_JAVA_EXECUTABLE}
         -Dcom.amazon.corretto.crypto.provider.extrachecks=ALL
@@ -768,7 +777,8 @@ add_custom_target(check
     check-junit-SecurityManager
     check-external-lib
     check-junit-AesGcmLazy
-    check-junit-AesGcmEager)
+    check-junit-AesGcmEager
+    check-junit-DifferentTempDir)
 
 if(ENABLE_NATIVE_TEST_HOOKS)
     add_custom_target(check-keyutils
