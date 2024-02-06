@@ -25,3 +25,12 @@ Use `-PaccpLocalJar="PATH_TO_LOCAL_JAR"`:
 ```bash
  ./gradlew -PaccpLocalJar="../../build/cmake/AmazonCorrettoCryptoProvider.jar" lib:jmh
 ```
+
+### Benchmarking ACCP that is bundled in JDK
+
+Some customers bundle ACCP directly with their JDKs. To run the benchmarks with such a setup,
+one can use the following command:
+
+```bash
+ ./gradlew -PuseBundledAccp -Dorg.gradle.java.home=<PATH_TO_YOUR_CUSTOM_JDK> lib:jmh
+```
