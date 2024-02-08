@@ -1254,6 +1254,49 @@ public class AesTest {
     assertNativeContextOk(spi);
   }
 
+  @Test
+  public void badInplaceDecryptZeroizes() throws Exception {
+    final int offset = 32;
+    final int ciphertextLength = 8;
+    final int tagLength = 16;
+
+    final byte[] expectedRandomCiphertext = TestUtil.getRandomBytes(64);
+    final byte[] invalidCiphertext = expectedRandomCiphertext.clone();
+
+    final byte[] expectedPrefix = Arrays.copyOfRange(expectedRandomCiphertext, 0, offset);
+    final byte[] expectedMiddle = new byte[ciphertextLength]; // Doesn't include the tag
+    final byte[] expectedSuffix =
+        Arrays.copyOfRange(expectedRandomCiphertext, offset + ciphertextLength, 64);
+
+    final Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding", NATIVE_PROVIDER);
+    cipher.init(
+        Cipher.DECRYPT_MODE,
+        new SecretKeySpec(new byte[16], "AES"),
+        new GCMParameterSpec(128, new byte[12]));
+
+    // Decrypt in the middle of things so we can detect if something is wrong
+    assertThrows(
+        AEADBadTagException.class,
+        () ->
+            cipher.doFinal(
+                invalidCiphertext,
+                offset,
+                ciphertextLength + tagLength,
+                invalidCiphertext,
+                offset));
+
+    // Prefix should be unchanged
+    final byte[] actualPrefix = Arrays.copyOfRange(invalidCiphertext, 0, offset);
+    final byte[] actualMiddle =
+        Arrays.copyOfRange(invalidCiphertext, offset, offset + ciphertextLength);
+    final byte[] actualSuffix =
+        Arrays.copyOfRange(invalidCiphertext, offset + ciphertextLength, 64);
+
+    assertArrayEquals(expectedPrefix, actualPrefix);
+    assertArrayEquals(expectedMiddle, actualMiddle);
+    assertArrayEquals(expectedSuffix, actualSuffix);
+  }
+
   private byte[] randomIV() {
     return TestUtil.getRandomBytes(16);
   }
