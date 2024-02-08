@@ -801,8 +801,8 @@ final class AesGcmSpi extends CipherSpi {
           decryptAADBuf.size());
     } catch (final AEADBadTagException e) {
       final int maxFillSize = output.length - outputOffset;
-      Arrays.fill(
-          output, outputOffset, Math.min(maxFillSize, engineGetOutputSize(inputLen)), (byte) 0);
+      final int endIndex = outputOffset + Math.min(maxFillSize, engineGetOutputSize(inputLen));
+      Arrays.fill(output, outputOffset, endIndex, (byte) 0);
       throw e;
     } finally {
       stateReset();
