@@ -251,6 +251,45 @@ public class EvpKeyFactoryTest {
 
   @ParameterizedTest(name = "{1}")
   @MethodSource("allPairs")
+  public void nullAlgorithm(final KeyPair keyPair, final String testName) throws Exception {
+    final KeyFactory nativeFactory =
+        KeyFactory.getInstance(keyPair.getPublic().getAlgorithm(), NATIVE_PROVIDER);
+    final Key nullPublicKey = new NullDataKey(keyPair.getPublic(), true, false, false);
+    final Key nullPrivateKey = new NullDataKey(keyPair.getPrivate(), true, false, false);
+
+    assertThrows(InvalidKeyException.class, () -> nativeFactory.translateKey(nullPublicKey));
+
+    assertThrows(InvalidKeyException.class, () -> nativeFactory.translateKey(nullPrivateKey));
+  }
+
+  @ParameterizedTest(name = "{1}")
+  @MethodSource("allPairs")
+  public void nullFormat(final KeyPair keyPair, final String testName) throws Exception {
+    final KeyFactory nativeFactory =
+        KeyFactory.getInstance(keyPair.getPublic().getAlgorithm(), NATIVE_PROVIDER);
+    final Key nullPublicKey = new NullDataKey(keyPair.getPublic(), false, true, false);
+    final Key nullPrivateKey = new NullDataKey(keyPair.getPrivate(), false, true, false);
+
+    assertThrows(InvalidKeyException.class, () -> nativeFactory.translateKey(nullPublicKey));
+
+    assertThrows(InvalidKeyException.class, () -> nativeFactory.translateKey(nullPrivateKey));
+  }
+
+  @ParameterizedTest(name = "{1}")
+  @MethodSource("allPairs")
+  public void nullEncoding(final KeyPair keyPair, final String testName) throws Exception {
+    final KeyFactory nativeFactory =
+        KeyFactory.getInstance(keyPair.getPublic().getAlgorithm(), NATIVE_PROVIDER);
+    final Key nullPublicKey = new NullDataKey(keyPair.getPublic(), false, false, true);
+    final Key nullPrivateKey = new NullDataKey(keyPair.getPrivate(), false, false, true);
+
+    assertThrows(InvalidKeyException.class, () -> nativeFactory.translateKey(nullPublicKey));
+
+    assertThrows(InvalidKeyException.class, () -> nativeFactory.translateKey(nullPrivateKey));
+  }
+
+  @ParameterizedTest(name = "{1}")
+  @MethodSource("allPairs")
   public void testPKCS8Encoding(final KeyPair keyPair, final String testName) throws Exception {
     final PrivateKey privKey = keyPair.getPrivate();
     final String algorithm = privKey.getAlgorithm();
@@ -668,6 +707,40 @@ public class EvpKeyFactoryTest {
     Samples(T nativeSample, T jceSample) {
       this.nativeSample = nativeSample;
       this.jceSample = jceSample;
+    }
+  }
+
+  public static class NullDataKey implements Key {
+    private static final long serialVersionUID = 1;
+    private final Key delegate;
+    private final boolean nullAlgorithm;
+    private final boolean nullFormat;
+    private final boolean nullEncoded;
+
+    public NullDataKey(
+        final Key delegate,
+        final boolean nullAlgorithm,
+        final boolean nullFormat,
+        final boolean nullEncoded) {
+      this.delegate = delegate;
+      this.nullAlgorithm = nullAlgorithm;
+      this.nullFormat = nullFormat;
+      this.nullEncoded = nullEncoded;
+    }
+
+    @Override
+    public String getAlgorithm() {
+      return nullAlgorithm ? null : delegate.getAlgorithm();
+    }
+
+    @Override
+    public String getFormat() {
+      return nullFormat ? null : delegate.getFormat();
+    }
+
+    @Override
+    public byte[] getEncoded() {
+      return nullEncoded ? null : delegate.getEncoded();
     }
   }
 }
