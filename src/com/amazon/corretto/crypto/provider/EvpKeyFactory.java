@@ -27,6 +27,8 @@ import java.security.spec.RSAPublicKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 
 abstract class EvpKeyFactory extends KeyFactorySpi {
+  private static final String PKCS8_FORMAT = "PKCS#8";
+  private static final String X509_FORMAT = "X.509";
   private final EvpKeyType type;
   private final AmazonCorrettoCryptoProvider provider;
 
@@ -91,11 +93,11 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
   protected <T extends KeySpec> T engineGetKeySpec(Key key, Class<T> keySpec)
       throws InvalidKeySpecException {
     if (keySpec.isAssignableFrom(PKCS8EncodedKeySpec.class)
-        && key.getFormat().equalsIgnoreCase("PKCS#8")) {
+        && PKCS8_FORMAT.equalsIgnoreCase(key.getFormat())) {
       return keySpec.cast(new PKCS8EncodedKeySpec(requireNonNullEncoding(key)));
     }
     if (keySpec.isAssignableFrom(X509EncodedKeySpec.class)
-        && key.getFormat().equalsIgnoreCase("X.509")) {
+        && X509_FORMAT.equalsIgnoreCase(key.getFormat())) {
       return keySpec.cast(new X509EncodedKeySpec(requireNonNullEncoding(key)));
     }
 
@@ -110,10 +112,10 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
 
     try {
       final EvpKey result;
-      if (key.getFormat().equalsIgnoreCase("PKCS#8")) {
+      if (PKCS8_FORMAT.equalsIgnoreCase(key.getFormat())) {
         result =
             (EvpKey) engineGeneratePrivate(new PKCS8EncodedKeySpec(requireNonNullEncoding(key)));
-      } else if (key.getFormat().equalsIgnoreCase("X.509")) {
+      } else if (X509_FORMAT.equalsIgnoreCase(key.getFormat())) {
         result = (EvpKey) engineGeneratePublic(new X509EncodedKeySpec(requireNonNullEncoding(key)));
       } else {
         throw new InvalidKeyException("Cannot convert key of format " + key.getFormat());
