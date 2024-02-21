@@ -32,19 +32,14 @@ dependencies {
         "2.+"
 
 
-    if (project.hasProperty("accpLocalJar")) {
-        jmh(files(accpLocalJar))
-    } else {
-        jmh("software.amazon.cryptools:${accpArtifactId}:$publishedAccpVersion:${osdetector.classifier}")
+    if (!project.hasProperty("useBundledAccp")) {
+        if (project.hasProperty("accpLocalJar")) {
+            jmh(files(accpLocalJar))
+        } else {
+            jmh("software.amazon.cryptools:${accpArtifactId}:$publishedAccpVersion:${osdetector.classifier}")
+        }
     }
 
-}
-
-// Apply a specific Java toolchain to ease working on different environments.
-java {
-    toolchain {
-        languageVersion.set(JavaLanguageVersion.of(11))
-    }
 }
 
 jmh {

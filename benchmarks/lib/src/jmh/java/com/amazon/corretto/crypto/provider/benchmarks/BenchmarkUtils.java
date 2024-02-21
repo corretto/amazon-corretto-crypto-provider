@@ -5,8 +5,10 @@ package com.amazon.corretto.crypto.provider.benchmarks;
 import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
@@ -16,17 +18,29 @@ class BenchmarkUtils {
   private BenchmarkUtils() {}
 
   private static final SecureRandom sr = new SecureRandom();
-  private static final Set<String> NON_DEFAULT_PROVIDERS =
-      new HashSet(Arrays.asList("BC", "BCFIPS", "AmazonCorrettoCryptoProvider"));
-  private static final Provider[] DEFAULT_PROVIDERS;
+  private static final List<Provider> DEFAULT_PROVIDERS = new ArrayList<>();
+  private static AmazonCorrettoCryptoProvider accp = null;
+  private static BouncyCastleProvider bc = null;
 
   static {
-    DEFAULT_PROVIDERS = Security.getProviders();
-    for (Provider provider : DEFAULT_PROVIDERS) {
-      if (NON_DEFAULT_PROVIDERS.contains(provider.getName())) {
-        throw new RuntimeException("Provider prematurely (statically) registered: " + provider);
+    // For BC and ACCP, if they are installed statically, we just remove them.
+    for (Provider provider : Security.getProviders()) {
+      if ("AmazonCorrettoCryptoProvider".equals(provider.getName())) {
+        accp = (AmazonCorrettoCryptoProvider) provider;
+      } else if ("BC".equals(provider.getName())) {
+        bc = (BouncyCastleProvider) provider;
+      } else {
+        DEFAULT_PROVIDERS.add(provider);
       }
     }
+    if (accp == null) {
+      accp = AmazonCorrettoCryptoProvider.INSTANCE;
+    }
+    if (bc == null) {
+      bc = new BouncyCastleProvider();
+    }
+    removeAllProviders();
+    installDefaultProviders();
   }
 
   static byte[] getRandBytes(int n) {
@@ -45,11 +59,11 @@ class BenchmarkUtils {
     switch (providerName) {
       case "AmazonCorrettoCryptoProvider":
         installDefaultProviders();
-        AmazonCorrettoCryptoProvider.install();
-        AmazonCorrettoCryptoProvider.INSTANCE.assertHealthy();
+        Security.insertProviderAt(accp, 1);
+        accp.assertHealthy();
         break;
       case "BC":
-        Security.insertProviderAt(new BouncyCastleProvider(), 1);
+        Security.insertProviderAt(bc, 1);
         break;
       case "SUN":
       case "SunEC":
