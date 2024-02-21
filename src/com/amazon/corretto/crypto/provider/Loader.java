@@ -48,6 +48,8 @@ final class Loader {
   private static final String TEMP_DIR_PREFIX = "amazonCorrettoCryptoProviderNativeLibraries.";
   private static final String JNI_LIBRARY_NAME = "amazonCorrettoCryptoProvider";
   private static final String PROPERTY_VERSION_STR = "versionStr";
+
+  private static final String PROPERTY_TMP_DIR = "tmpdir";
   private static final String[] JAR_RESOURCES = {JNI_LIBRARY_NAME};
   private static final Pattern TEST_FILENAME_PATTERN =
       Pattern.compile("[-a-zA-Z0-9]+(\\.[a-zA-Z0-9]+)*");
@@ -431,7 +433,8 @@ final class Loader {
    * SecureRandom, which results in a circular dependency.
    */
   private static synchronized Path createPrivateTmpDir(final String prefix) throws IOException {
-    final Path systemTempDir = Paths.get(System.getProperty("java.io.tmpdir"));
+    final Path systemTempDir =
+        Paths.get(getProperty(PROPERTY_TMP_DIR, System.getProperty("java.io.tmpdir")));
 
     final int RETRY_LIMIT = 10;
     int attempt = 0;

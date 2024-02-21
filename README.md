@@ -344,6 +344,9 @@ Thus, these should all be set on the JVM command line using `-D`.
   encryption/decryption operations would not require allocation and release of `EVP_CIPHER_CTX`
   structure. A common use case would be having long-running threads that each would get its
   own instance of `Cipher` class.
+* `com.amazon.corretto.crypto.provider.tmpdir`
+   Allows one to set the temporary directory used by ACCP when loading native libraries.
+   If this system property is not defined, the system property `java.io.tmpdir` is used.
 
 # License
 This library is licensed under the Apache 2.0 license although portions of this
