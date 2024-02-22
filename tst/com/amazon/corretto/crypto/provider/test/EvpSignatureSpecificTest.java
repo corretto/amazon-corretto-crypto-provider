@@ -5,6 +5,7 @@ package com.amazon.corretto.crypto.provider.test;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assumeMinimumVersion;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.getJavaVersion;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.versionCompare;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -448,11 +449,16 @@ public final class EvpSignatureSpecificTest {
             signature.setParameter(
                 new PSSParameterSpec("SHA-1", "MGF1", MGF1ParameterSpec.SHA1, 4096, 1)));
 
-    // Assert compatiblity with JCE on setting null parameter, BC doesn't throw.
+    // Assert compatibility with JCE on setting null parameter. BC doesn't throw. The test is
+    // skipped for JDK 10. SunRsaSign in JDK 10 doesn't support RSASSA-PSS signature algorithm, and
+    // it throws "java.security.NoSuchAlgorithmException: no such algorithm: RSASSA-PSS for provider
+    // SunRsaSign".
     assertThrows(InvalidAlgorithmParameterException.class, () -> signature.setParameter(null));
-    assertThrows(
-        InvalidAlgorithmParameterException.class,
-        () -> Signature.getInstance("RSASSA-PSS", "SunRsaSign").setParameter(null));
+    if (getJavaVersion() != 10) {
+      assertThrows(
+          InvalidAlgorithmParameterException.class,
+          () -> Signature.getInstance("RSASSA-PSS", "SunRsaSign").setParameter(null));
+    }
     Signature.getInstance("RSASSA-PSS", TestUtil.BC_PROVIDER).setParameter(null);
 
     // "1" should be only valid trailer value.
