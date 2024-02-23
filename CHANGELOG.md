@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.3.4
+
+### Patch
+* [PR 353: Static linking to libcrypto](https://github.com/corretto/amazon-corretto-crypto-provider/pull/353)
+* [PR 356: Match SunRsaSign's behavior when setting null params](https://github.com/corretto/amazon-corretto-crypto-provider/pull/356)
+* [PR 362: Fix IllegalArgumentException upon GCM decryption failure](https://github.com/corretto/amazon-corretto-crypto-provider/pull/362)
+* [PR 363: Fix NullPointerException on invalid keys](https://github.com/corretto/amazon-corretto-crypto-provider/pull/363)
+* [PR 361: Allow configuration of tmpdir to avoid issues with noexec on java.io.tmpdir](https://github.com/corretto/amazon-corretto-crypto-provider/pull/361)
+
 ## 2.3.3
 
 ### Overview
