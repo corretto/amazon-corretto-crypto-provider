@@ -881,7 +881,7 @@ public class AesTest {
 
     for (int bit = 0; bit < data.length * 8; bit++) {
       byte[] corruptData = data.clone();
-      corruptData[bit / 8] ^= (1 << (bit % 8));
+      corruptData[bit / 8] ^= (byte) (1 << (bit % 8));
 
       Cipher check = Cipher.getInstance(ALGO_NAME, NATIVE_PROVIDER);
       check.init(Cipher.DECRYPT_MODE, key, algorithmParameterSpec, rnd);
@@ -906,7 +906,7 @@ public class AesTest {
 
     for (int bit = 0; bit < data.length * 8; bit++) {
       byte[] corruptData = data.clone();
-      corruptData[bit / 8] ^= (1 << (bit % 8));
+      corruptData[bit / 8] ^= (byte) (1 << (bit % 8));
 
       Cipher check = Cipher.getInstance(ALGO_NAME, NATIVE_PROVIDER);
       check.init(Cipher.DECRYPT_MODE, key, algorithmParameterSpec, rnd);
@@ -934,7 +934,7 @@ public class AesTest {
 
     for (int bit = 0; bit < data.length * 8; bit++) {
       byte[] corruptData = data.clone();
-      corruptData[bit / 8] ^= (1 << (bit % 8));
+      corruptData[bit / 8] ^= (byte) (1 << (bit % 8));
       ByteBuffer corruptBuff = ByteBuffer.wrap(corruptData);
       ByteBuffer outputBuff = ByteBuffer.wrap(output);
 
