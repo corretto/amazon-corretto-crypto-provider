@@ -3,6 +3,7 @@
 package com.amazon.corretto.crypto.provider.test;
 
 import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.assertArraysHexEquals;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assumeMinimumVersion;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyConstruct;
@@ -1312,6 +1313,74 @@ public class AesTest {
     assertEquals(12, iv.length); // Default is 96 bits / 12 bytes
     // The IV must be random. Stating it isn't all zero is good enough.
     assertFalse(Arrays.equals(new byte[12], iv));
+  }
+
+  @Test
+  public void shortBufferDoesNotResetDecrypt() throws GeneralSecurityException {
+    final GCMParameterSpec spec = new GCMParameterSpec(128, randomIV());
+    amznC.init(Cipher.ENCRYPT_MODE, key, spec);
+    final byte[] plaintext = new byte[32];
+    final byte[] ciphertext = amznC.doFinal(plaintext);
+
+    amznC.init(Cipher.DECRYPT_MODE, key, spec);
+    amznC.update(ciphertext, 0, 16);
+
+    assertThrows(ShortBufferException.class, () -> amznC.doFinal(ciphertext, 8, 8, new byte[4]));
+
+    assertArraysHexEquals(plaintext, amznC.doFinal(ciphertext, 16, ciphertext.length - 16));
+  }
+
+  @Test
+  public void arrayIndexDoesNotResetDecrypt() throws GeneralSecurityException {
+    final GCMParameterSpec spec = new GCMParameterSpec(128, randomIV());
+    amznC.init(Cipher.ENCRYPT_MODE, key, spec);
+    final byte[] plaintext = new byte[32];
+    final byte[] ciphertext = amznC.doFinal(plaintext);
+
+    amznC.init(Cipher.DECRYPT_MODE, key, spec);
+    amznC.update(ciphertext, 0, 16);
+
+    assertThrows(
+        ArrayIndexOutOfBoundsException.class,
+        () -> amznC.doFinal(ciphertext, 8, 8, new byte[32], 36));
+
+    assertArraysHexEquals(plaintext, amznC.doFinal(ciphertext, 16, ciphertext.length - 16));
+  }
+
+  @Test
+  public void shortBufferDoesNotResetEncrypt() throws Exception {
+    final GCMParameterSpec spec = new GCMParameterSpec(128, randomIV());
+    amznC.init(Cipher.ENCRYPT_MODE, key, spec);
+    final byte[] plaintext = new byte[32];
+    final ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    baos.write(amznC.update(plaintext, 0, 16));
+
+    assertThrows(ShortBufferException.class, () -> amznC.doFinal(plaintext, 16, 16, new byte[4]));
+    baos.write(amznC.doFinal(plaintext, 16, 16));
+    final byte[] ciphertext = baos.toByteArray();
+
+    amznC.init(Cipher.DECRYPT_MODE, key, spec);
+
+    assertArraysHexEquals(plaintext, amznC.doFinal(ciphertext));
+  }
+
+  @Test
+  public void arrayIndexDoesNotResetEncrypt() throws Exception {
+    final GCMParameterSpec spec = new GCMParameterSpec(128, randomIV());
+    amznC.init(Cipher.ENCRYPT_MODE, key, spec);
+    final byte[] plaintext = new byte[32];
+    final ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    baos.write(amznC.update(plaintext, 0, 16));
+
+    assertThrows(
+        ArrayIndexOutOfBoundsException.class,
+        () -> amznC.doFinal(plaintext, 16, 16, new byte[32], 36));
+    baos.write(amznC.doFinal(plaintext, 16, 16));
+    final byte[] ciphertext = baos.toByteArray();
+
+    amznC.init(Cipher.DECRYPT_MODE, key, spec);
+
+    assertArraysHexEquals(plaintext, amznC.doFinal(ciphertext));
   }
 
   private byte[] randomIV() {

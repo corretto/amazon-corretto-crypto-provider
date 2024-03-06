@@ -564,17 +564,19 @@ final class AesGcmSpi extends CipherSpi {
   private int engineEncryptFinal(
       byte[] input, final int inputOffset, int inputLen, final byte[] output, int outputOffset)
       throws ShortBufferException {
+    // The following failures should not trigger reset
+    if (opMode != NATIVE_MODE_ENCRYPT) {
+      throw new IllegalStateException("Cipher not initialized for encryption");
+    }
+    if (input == null) {
+      input = EMPTY_ARRAY;
+    }
+
+    checkOutputBuffer(inputLen, output, outputOffset, true);
+    checkArrayLimits(input, inputOffset, inputLen);
+
+    // Any future success or failure should trigger reset
     try {
-      if (opMode != NATIVE_MODE_ENCRYPT) {
-        throw new IllegalStateException("Cipher not initialized for encryption");
-      }
-      if (input == null) {
-        input = EMPTY_ARRAY;
-      }
-
-      checkOutputBuffer(inputLen, output, outputOffset, true);
-      checkArrayLimits(input, inputOffset, inputLen);
-
       final boolean clobbers =
           Utils.outputClobbersInput(input, inputOffset, inputLen, output, outputOffset);
 
@@ -705,17 +707,19 @@ final class AesGcmSpi extends CipherSpi {
       byte[] output,
       final int outputOffset)
       throws AEADBadTagException, ShortBufferException {
+    // The following failures should not trigger reset
+    if (opMode != NATIVE_MODE_DECRYPT) {
+      throw new IllegalStateException("Cipher not initialized for decryption");
+    }
+    if (input == null) {
+      input = EMPTY_ARRAY;
+    }
+
+    checkOutputBuffer(inputLen, output, outputOffset, true);
+    checkArrayLimits(input, inputOffset, inputLen);
+
+    // Any future failure (or success) should trigger reset
     try {
-      if (opMode != NATIVE_MODE_DECRYPT) {
-        throw new IllegalStateException("Cipher not initialized for decryption");
-      }
-      if (input == null) {
-        input = EMPTY_ARRAY;
-      }
-
-      checkOutputBuffer(inputLen, output, outputOffset, true);
-      checkArrayLimits(input, inputOffset, inputLen);
-
       final byte[] workingInputArray;
       final int workingInputOffset;
       final int workingInputLength;
