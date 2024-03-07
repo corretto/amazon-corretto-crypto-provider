@@ -33,6 +33,7 @@ final class AesGcmSpi extends CipherSpi {
   }
 
   private static final int DEFAULT_TAG_LENGTH = 16 * 8;
+  private static final int DEFAULT_IV_LENGTH_BYTES = 12;
 
   /* Some random notes:
    * For decrypt mode, we buffer all data and process the decryption in doFinal;
@@ -190,7 +191,7 @@ final class AesGcmSpi extends CipherSpi {
   private Key lastKey = null;
   private byte[] iv, key;
   /** GCM tag length in bytes. */
-  private int tagLength;
+  private int tagLength = DEFAULT_TAG_LENGTH / 8;
 
   private int opMode = -1;
   private boolean hasConsumedData = false;
@@ -285,7 +286,13 @@ final class AesGcmSpi extends CipherSpi {
   protected AlgorithmParameters engineGetParameters() {
     try {
       AlgorithmParameters parameters = AlgorithmParameters.getInstance("GCM");
-      parameters.init(new GCMParameterSpec(tagLength * 8, iv));
+      byte[] ivForParams = iv;
+      if (ivForParams == null) {
+        // We aren't initialized so we return default and random values
+        ivForParams = new byte[DEFAULT_IV_LENGTH_BYTES];
+        new SecureRandom().nextBytes(ivForParams);
+      }
+      parameters.init(new GCMParameterSpec(tagLength * 8, ivForParams));
       return parameters;
     } catch (InvalidParameterSpecException | NoSuchAlgorithmException e) {
       throw new Error("Unexpected error", e);

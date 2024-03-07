@@ -1297,6 +1297,23 @@ public class AesTest {
     assertArrayEquals(expectedSuffix, actualSuffix);
   }
 
+  // Per the documentation of Cipher.getParameters(),
+  // when we haven't been initialized we should return default/random parameters.
+  @Test
+  public void unintCipherReturnsParameters() throws GeneralSecurityException {
+    final Cipher cipher = Cipher.getInstance(ALGO_NAME, NATIVE_PROVIDER);
+    final AlgorithmParameters params = cipher.getParameters();
+    final GCMParameterSpec spec = params.getParameterSpec(GCMParameterSpec.class);
+    // Default tag length is 128
+    assertEquals(128, spec.getTLen());
+
+    final byte[] iv = spec.getIV();
+    assertNotNull(iv);
+    assertEquals(12, iv.length); // Default is 96 bits / 12 bytes
+    // The IV must be random. Stating it isn't all zero is good enough.
+    assertFalse(Arrays.equals(new byte[12], iv));
+  }
+
   private byte[] randomIV() {
     return TestUtil.getRandomBytes(16);
   }
