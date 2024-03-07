@@ -290,7 +290,7 @@ final class AesGcmSpi extends CipherSpi {
       if (ivForParams == null) {
         // We aren't initialized so we return default and random values
         ivForParams = new byte[DEFAULT_IV_LENGTH_BYTES];
-        new SecureRandom().nextBytes(ivForParams);
+        new LibCryptoRng().nextBytes(ivForParams);
       }
       parameters.init(new GCMParameterSpec(tagLength * 8, ivForParams));
       return parameters;
