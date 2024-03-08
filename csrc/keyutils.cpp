@@ -1,6 +1,8 @@
 // Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 #include "keyutils.h"
+#include "auto_free.h"
+#include "bn.h"
 #include <openssl/ec.h>
 #include <openssl/err.h>
 #include <openssl/evp.h>
@@ -50,7 +52,7 @@ EVP_PKEY* der2EvpPrivateKey(
             // If blinding is set and any of the parameters required for blinding
             // are NULL, rebuild to turn blinding off. Otherwise, rebuild if any
             // of the params are 0-valued to NULL them out.
-            if (((rsa->flags & RSA_FLAG_NO_BLINDING) == 0) && (!e || !p || !q)) {
+            if ((RSA_test_flags(rsa, RSA_FLAG_NO_BLINDING) == 0) && (!e || !p || !q)) {
                 need_rebuild = true;
             } else if (e && BN_is_zero(e)) {
                 need_rebuild = true;
@@ -68,22 +70,20 @@ EVP_PKEY* der2EvpPrivateKey(
 
             if (need_rebuild) {
                 // This key likely only has (n, d) set. Very weird, but it happens in java sometimes.
-                RSA* nulled_rsa = RSA_new();
-
-                // Blinding requires |e| and the prime factors |p| and |q|, which we may not have here.
-                nulled_rsa->flags |= RSA_FLAG_NO_BLINDING;
-
-                // |e| might be NULL here, so swap in 0 when calling awslc and
-                // re-NULL it afterwards.
-                if (!RSA_set0_key(nulled_rsa, BN_dup(n), e ? BN_dup(e) : BN_new(), BN_dup(d))) {
-                    throw_openssl(javaExceptionClass, "Unable to set RSA key parameters");
+                RSA_auto nulled_rsa;
+                BigNumObj n_copy = BigNumObj::fromBIGNUM(n);
+                BigNumObj d_copy = BigNumObj::fromBIGNUM(d);
+                nulled_rsa.set(RSA_new_private_key_no_e(n_copy, d_copy));
+                if (e != nullptr && !BN_is_zero(e)) {
+                    BigNumObj e_copy = BigNumObj::fromBIGNUM(e);
+                    if (!RSA_set0_key(nulled_rsa, nullptr, e_copy, nullptr)) {
+                        throw_openssl("Unable to set e for RSA");
+                    }
+                    e_copy.releaseOwnership();
                 }
-                if (BN_is_zero(nulled_rsa->e)) {
-                    BN_free(nulled_rsa->e);
-                    nulled_rsa->e = NULL;
-                }
+                n_copy.releaseOwnership();
+                d_copy.releaseOwnership();
                 EVP_PKEY_set1_RSA(result, nulled_rsa);
-                RSA_free(nulled_rsa); // Decrement reference counter
                 shouldCheckPrivate = false; // We cannot check private keys without CRT parameters
             }
         }
@@ -169,4 +169,36 @@ const EVP_MD* digestFromJstring(raii_env& env, jstring digestName)
 
     return result;
 }
+
+RSA* RSA_new_private_key_no_e(BIGNUM* n, BIGNUM* d)
+{
+    RSA_auto rsa = RSA_auto::from(RSA_new());
+    if (rsa.get() == nullptr) {
+        throw_openssl("RSA_new failed");
+    }
+    // The FIPS builds of AWS-LC do not have an API to disable blinding.
+#ifdef FIPS_BUILD
+
+    // RSA struct is not opaque in FIPS mode.
+    rsa->flags |= RSA_FLAG_NO_BLINDING;
+
+#else
+
+    // RSA_blinding_off_temp_for_accp_compatibility is marked deprecated, so we need to disable the
+    // "deprecated-declarations" check for this invocation.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+    // We need to change this API once AWS-LC provides a method similar to the following:
+    // https://github.com/google/boringssl/blob/master/include/openssl/rsa.h#L630
+    RSA_blinding_off_temp_for_accp_compatibility(rsa);
+#pragma GCC diagnostic pop
+
+#endif
+    if (!RSA_set0_key(rsa, n, nullptr, d)) {
+        throw_openssl("Unable to set RSA key parameters");
+    }
+
+    return rsa.take();
+}
+
 }

@@ -139,6 +139,10 @@ public:
 };
 
 const EVP_MD* digestFromJstring(raii_env& env, jstring digestName);
+
+// The generated RSA structure will own n and d.
+RSA* RSA_new_private_key_no_e(BIGNUM* n, BIGNUM* d);
+
 }
 
 #endif

@@ -586,6 +586,7 @@ set(COVERAGE_ARGUMENTS
 )
 
 if(FIPS)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DFIPS_BUILD")
     set(TEST_FIPS_PROPERTY "-DFIPS=true")
     # ACCP's default behavior in FIPS mode is to not register a SecureRandom implementation.
     # However, we explicitly register it here to ensure its coverage under test.

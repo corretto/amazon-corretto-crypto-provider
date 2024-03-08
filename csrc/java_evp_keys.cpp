@@ -496,11 +496,10 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_r
         if (privateExponentArr) {
             BigNumObj privExp = BigNumObj::fromJavaArray(env, privateExponentArr);
 
-            int res;
+            int res = 1;
             if (BN_is_zero(pubExp)) {
-                // RSA blinding can't be performed without |e|; 0 indicates |e|'s absence.
-                rsa->flags |= RSA_FLAG_NO_BLINDING;
-                res = RSA_set0_key(rsa, modulus, NULL, privExp);
+                // RSA blinding can't be performed without |e|.
+                rsa.set(RSA_new_private_key_no_e(modulus, privExp));
             } else {
                 res = RSA_set0_key(rsa, modulus, pubExp, privExp);
             }

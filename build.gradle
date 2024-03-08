@@ -18,7 +18,7 @@ ext.isFips = Boolean.getBoolean('FIPS')
 if (ext.isFips) {
     ext.awsLcGitVersionId = 'AWS-LC-FIPS-2.0.2'
 } else {
-    ext.awsLcGitVersionId = 'v1.17.0'
+    ext.awsLcGitVersionId = '32143aae568a64245f9eae54dcbc49043dbf41e4'
 }
 ext.isLegacyBuild = Boolean.getBoolean('LEGACY_BUILD')
 
