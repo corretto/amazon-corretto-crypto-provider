@@ -1006,9 +1006,9 @@ final class AesGcmSpi extends CipherSpi {
     if (inputLength < 0 || outputOffset < 0) {
       throw new ArrayIndexOutOfBoundsException();
     }
-    // Allow outputOffset to index into a 0-length empty array. We must trust that the rest of the
-    // code doesn't actually do this.
-    if (outputOffset > output.length || (outputOffset == output.length && output.length != 0)) {
+    // We only allow outputOffset == output.length if we don't actually need any space for data
+    if (outputOffset > output.length
+        || (outputOffset == output.length && requiredBufferSpace > 0)) {
       throw new ArrayIndexOutOfBoundsException();
     }
 
