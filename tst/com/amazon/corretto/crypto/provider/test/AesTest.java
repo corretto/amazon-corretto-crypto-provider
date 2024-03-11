@@ -1383,6 +1383,23 @@ public class AesTest {
     assertArraysHexEquals(plaintext, amznC.doFinal(ciphertext));
   }
 
+  @Test
+  public void emptyPlaintextAtEndOfArray() throws GeneralSecurityException {
+    final GCMParameterSpec spec = new GCMParameterSpec(128, randomIV());
+    amznC.init(Cipher.ENCRYPT_MODE, key, spec);
+    final byte[] ciphertext = amznC.doFinal();
+
+    // Decrypt into empty array
+    amznC.init(Cipher.DECRYPT_MODE, key, spec);
+    assertEquals(0, amznC.doFinal(ciphertext, 0, ciphertext.length, new byte[0], 0));
+
+    // Decrypt into non-empty array
+    assertEquals(0, amznC.doFinal(ciphertext, 0, ciphertext.length, new byte[16], 0));
+
+    // Decrypt to end of non-empty array
+    assertEquals(0, amznC.doFinal(ciphertext, 0, ciphertext.length, new byte[16], 16));
+  }
+
   private byte[] randomIV() {
     return TestUtil.getRandomBytes(16);
   }
