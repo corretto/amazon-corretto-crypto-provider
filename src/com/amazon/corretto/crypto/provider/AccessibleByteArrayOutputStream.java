@@ -8,6 +8,7 @@ import java.util.Arrays;
 
 class AccessibleByteArrayOutputStream extends OutputStream implements Cloneable {
   private final int limit;
+  private final BufferShrinkStrategy shrinkStrategy;
   private byte[] buf;
   private int count;
 
@@ -19,6 +20,10 @@ class AccessibleByteArrayOutputStream extends OutputStream implements Cloneable 
   }
 
   AccessibleByteArrayOutputStream(final int capacity, final int limit) {
+    this(capacity, limit, new BufferShrinkStrategy.BasicThreshold());
+  }
+
+  AccessibleByteArrayOutputStream(final int capacity, final int limit, BufferShrinkStrategy shrinkStrategy) {
     if (limit < 0) {
       throw new IllegalArgumentException("Limit must be non-negative");
     }
@@ -27,6 +32,7 @@ class AccessibleByteArrayOutputStream extends OutputStream implements Cloneable 
     }
     buf = capacity == 0 ? Utils.EMPTY_ARRAY : new byte[capacity];
     this.limit = limit;
+    this.shrinkStrategy = shrinkStrategy;
     count = 0;
   }
 
@@ -83,11 +89,14 @@ class AccessibleByteArrayOutputStream extends OutputStream implements Cloneable 
   }
 
   void reset() {
-    Arrays.fill(buf, 0, count, (byte) 0);
+    int sizeUsed = count;
+    Arrays.fill(buf, 0, sizeUsed, (byte) 0);
     count = 0;
-    // TODO: Consider keeping track of length at reset.
-    // If it is consistently below the maximum value we may want to trim
-    // down to save on memory.
+
+    if (shrinkStrategy.shouldShrink(sizeUsed, buf.length)) {
+      // Shrink the buffer.
+      buf = new byte[buf.length / 2];
+    }
   }
 
   void write(final ByteBuffer bbuff) {
