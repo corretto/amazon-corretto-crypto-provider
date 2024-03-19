@@ -3,6 +3,7 @@
 package com.amazon.corretto.crypto.provider;
 
 import static com.amazon.corretto.crypto.provider.Utils.EMPTY_ARRAY;
+import static com.amazon.corretto.crypto.provider.Utils.checkAesKey;
 import static com.amazon.corretto.crypto.provider.Utils.checkArrayLimits;
 
 import java.nio.ByteBuffer;
@@ -22,7 +23,6 @@ import javax.crypto.Cipher;
 import javax.crypto.CipherSpi;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
-import javax.crypto.SecretKey;
 import javax.crypto.ShortBufferException;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
@@ -170,13 +170,6 @@ final class AesGcmSpi extends CipherSpi {
       byte[] output,
       int outputOffset,
       int tagLen);
-
-  /**
-   * Aborts an encryption operation and releases native resources associated with it.
-   *
-   * @param ptr Native context pointer
-   */
-  private static native void releaseContext(long ptr);
 
   private static final int BLOCK_SIZE = 128 / 8;
 
@@ -394,28 +387,7 @@ final class AesGcmSpi extends CipherSpi {
     if (key == lastKey) {
       return lastKeyBytes;
     }
-    if (!(key instanceof SecretKey)) {
-      throw new InvalidKeyException("Need a SecretKey");
-    }
-    if (!"RAW".equalsIgnoreCase(key.getFormat())) {
-      throw new InvalidKeyException("Need a raw format key");
-    }
-    if (!"AES".equalsIgnoreCase(key.getAlgorithm())) {
-      throw new InvalidKeyException("Expected an AES key");
-    }
-
-    final byte[] encodedKey = key.getEncoded();
-    if (encodedKey == null) {
-      throw new InvalidKeyException("Key doesn't support encoding");
-    }
-
-    if (encodedKey.length != 128 / 8
-        && encodedKey.length != 192 / 8
-        && encodedKey.length != 256 / 8) {
-      throw new InvalidKeyException(
-          "Bad key length of " + (encodedKey.length * 8) + " bits; expected 128, 192, or 256 bits");
-    }
-    return encodedKey;
+    return checkAesKey(key);
   }
 
   private static boolean checkKeyIvPair(
@@ -642,7 +614,7 @@ final class AesGcmSpi extends CipherSpi {
                   tagLength,
                   key,
                   iv);
-          context = new NativeContext(ptrOut[0]);
+          context = new NativeEvpCipherCtx(ptrOut[0]);
           return outLen;
         }
         // We don't need to save the context.
@@ -788,7 +760,7 @@ final class AesGcmSpi extends CipherSpi {
                 // To avoid this, we reuse the same empty array
                 decryptAADBuf.isEmpty() ? EMPTY_ARRAY : decryptAADBuf.getDataBuffer(),
                 decryptAADBuf.size());
-        context = new NativeContext(ptrOut[0]);
+        context = new NativeEvpCipherCtx(ptrOut[0]);
         return outlen;
       }
       // We don't have a context, and we don't need to save it
@@ -886,12 +858,6 @@ final class AesGcmSpi extends CipherSpi {
       return Utils.buildUnwrappedKey(provider, unwrappedKey, wrappedKeyAlgorithm, wrappedKeyType);
     } catch (final BadPaddingException | IllegalBlockSizeException | InvalidKeySpecException ex) {
       throw new InvalidKeyException("Unwrapping failed", ex);
-    }
-  }
-
-  private static final class NativeContext extends NativeResource {
-    private NativeContext(final long ptr) {
-      super(ptr, AesGcmSpi::releaseContext);
     }
   }
 
@@ -1035,7 +1001,7 @@ final class AesGcmSpi extends CipherSpi {
     if (context != null) {
       context.useVoid(ptr -> encryptInit(ptr, sameKey, key, iv));
     } else {
-      context = new NativeContext(encryptInit(0, false, key, iv));
+      context = new NativeEvpCipherCtx(encryptInit(0, false, key, iv));
     }
   }
 

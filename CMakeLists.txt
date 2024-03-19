@@ -251,6 +251,7 @@ add_library(
     amazonCorrettoCryptoProvider SHARED
         csrc/aes_gcm.cpp
         csrc/aes_xts.cpp
+        csrc/aes_cbc.cpp
         csrc/aes_kwp.cpp
         csrc/agreement.cpp
         csrc/bn.cpp
@@ -682,16 +683,18 @@ add_custom_target(check-junit-SecurityManager
 
     DEPENDS accp-jar tests-jar)
 
-add_custom_target(check-junit-AesGcmLazy
+add_custom_target(check-junit-AesLazy
     COMMAND ${TEST_JAVA_EXECUTABLE}
         -Dcom.amazon.corretto.crypto.provider.nativeContextReleaseStrategy=LAZY
         ${TEST_RUNNER_ARGUMENTS}
         --select-class=com.amazon.corretto.crypto.provider.test.AesTest
         --select-class=com.amazon.corretto.crypto.provider.test.AesGcmKatTest
+        --select-class=com.amazon.corretto.crypto.provider.test.AesCbcTest
+        --select-class=com.amazon.corretto.crypto.provider.test.AesCbcNistTest
 
     DEPENDS accp-jar tests-jar)
 
-add_custom_target(check-junit-AesGcmEager
+add_custom_target(check-junit-AesEager
     COMMAND ${TEST_JAVA_EXECUTABLE}
         -Dcom.amazon.corretto.crypto.provider.nativeContextReleaseStrategy=EAGER
         ${TEST_RUNNER_ARGUMENTS}
@@ -807,9 +810,10 @@ add_custom_target(check
     check-junit
     check-junit-SecurityManager
     check-external-lib
-    check-junit-AesGcmLazy
-    check-junit-AesGcmEager
-    check-junit-DifferentTempDir)
+    check-junit-AesLazy
+    check-junit-AesEager
+    check-junit-DifferentTempDir
+)
 
 if(ENABLE_NATIVE_TEST_HOOKS)
     add_custom_target(check-keyutils

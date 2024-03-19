@@ -603,5 +603,30 @@ private:
     jbyteArray jarray_;
 };
 
+class SimpleBuffer {
+public:
+    SimpleBuffer(int len);
+    ~SimpleBuffer();
+    uint8_t* get_buffer();
+
+private:
+    uint8_t* buffer_;
+};
+
+// This class can be used to represent either byte arrays or direct byte buffers. It's best to follow the guidelines
+// outlined in {Get,Release}PrimitiveArrayCritical when using this class even if it's representing a direct ByteBuffer:
+// https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/functions.html#GetPrimitiveArrayCritical_ReleasePrimitiveArrayCritical
+class JBinaryBlob {
+public:
+    JBinaryBlob(JNIEnv* env, jobject directByteBuffer, jbyteArray array);
+    ~JBinaryBlob();
+    uint8_t* get();
+
+private:
+    uint8_t* ptr_;
+    JNIEnv* env_;
+    jbyteArray array_;
+};
+
 }
 #endif

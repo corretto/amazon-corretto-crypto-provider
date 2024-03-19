@@ -22,9 +22,9 @@ jobs:
     - uses: actions/checkout@v3
       with:
         submodules: true
-    - name: Install lcov
+    - name: Install lcov golang
       run: |
-        env HOMEBREW_NO_AUTO_UPDATE=1 brew install lcov
+        env HOMEBREW_NO_AUTO_UPDATE=1 brew install lcov golang
     - name: Install clang-format
       run: |
         env HOMEBREW_NO_AUTO_UPDATE=1 brew install clang-format
@@ -70,9 +70,9 @@ jobs:
     - uses: actions/checkout@v3
       with:
         submodules: true
-    - name: Install lcov
+    - name: Install lcov golang
       run: |
-        env HOMEBREW_NO_AUTO_UPDATE=1 brew install lcov
+        env HOMEBREW_NO_AUTO_UPDATE=1 brew install lcov golang
     - name: Install clang-format
       run: |
         env HOMEBREW_NO_AUTO_UPDATE=1 brew install clang-format
@@ -107,9 +107,9 @@ jobs:
     - uses: actions/checkout@v3
       with:
         submodules: true
-    - name: Install lcov
+    - name: Install lcov golang
       run: |
-        env HOMEBREW_NO_AUTO_UPDATE=1 brew install lcov
+        env HOMEBREW_NO_AUTO_UPDATE=1 brew install lcov golang
     - name: Install clang-format
       run: |
         env HOMEBREW_NO_AUTO_UPDATE=1 brew install clang-format

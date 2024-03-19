@@ -198,6 +198,10 @@ final class Utils {
     }
   }
 
+  static byte[] encodeForWrapping(final Key key) throws InvalidKeyException {
+    return encodeForWrapping(AmazonCorrettoCryptoProvider.INSTANCE, key);
+  }
+
   static Key buildUnwrappedKey(
       final AmazonCorrettoCryptoProvider provider,
       final byte[] rawKey,
@@ -214,6 +218,11 @@ final class Utils {
       default:
         throw new IllegalArgumentException("Unexpected key type: " + keyType);
     }
+  }
+
+  static Key buildUnwrappedKey(final byte[] rawKey, final String algorithm, final int keyType)
+      throws NoSuchAlgorithmException, InvalidKeySpecException {
+    return buildUnwrappedKey(AmazonCorrettoCryptoProvider.INSTANCE, rawKey, algorithm, keyType);
   }
 
   static SecretKey buildUnwrappedSecretKey(final byte[] rawKey, final String algorithm) {
@@ -563,7 +572,13 @@ final class Utils {
     }
 
     if ((long) offset + (long) length > bytes.length) {
-      throw new ArrayIndexOutOfBoundsException("Requested range is outside of buffer limits");
+      throw new ArrayIndexOutOfBoundsException(
+          "Requested range is outside of buffer limits"
+              + bytes.length
+              + ":"
+              + offset
+              + ":"
+              + length);
     }
   }
 
@@ -601,5 +616,35 @@ final class Utils {
 
   static NativeContextReleaseStrategy getNativeContextReleaseStrategyProperty() {
     return getNativeContextReleaseStrategyProperty(PROPERTY_NATIVE_CONTEXT_RELEASE_STRATEGY);
+  }
+
+  static native void releaseEvpCipherCtx(long ctxPtr);
+
+  public static byte[] checkAesKey(final Key key) throws InvalidKeyException {
+    if (key == null) {
+      throw new InvalidKeyException("Key can't be null");
+    }
+    if (!(key instanceof SecretKey)) {
+      throw new InvalidKeyException("Need a SecretKey");
+    }
+    if (!"RAW".equalsIgnoreCase(key.getFormat())) {
+      throw new InvalidKeyException("Need a raw format key");
+    }
+    if (!"AES".equalsIgnoreCase(key.getAlgorithm())) {
+      throw new InvalidKeyException("Expected an AES key");
+    }
+
+    final byte[] encodedKey = key.getEncoded();
+    if (encodedKey == null) {
+      throw new InvalidKeyException("Key doesn't support encoding");
+    }
+
+    if (encodedKey.length != 128 / 8
+        && encodedKey.length != 192 / 8
+        && encodedKey.length != 256 / 8) {
+      throw new InvalidKeyException(
+          "Bad key length of " + (encodedKey.length * 8) + " bits; expected 128, 192, or 256 bits");
+    }
+    return encodedKey;
   }
 }

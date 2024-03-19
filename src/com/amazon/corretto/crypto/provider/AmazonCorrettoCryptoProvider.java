@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.amazon.corretto.crypto.provider;
 
+import static com.amazon.corretto.crypto.provider.AesCbcSpi.AES_CBC_NO_PADDING_NAMES;
+import static com.amazon.corretto.crypto.provider.AesCbcSpi.AES_CBC_PKCS7_PADDING_NAMES;
 import static com.amazon.corretto.crypto.provider.HkdfSecretKeyFactorySpi.HKDF_WITH_SHA1;
 import static com.amazon.corretto.crypto.provider.HkdfSecretKeyFactorySpi.HKDF_WITH_SHA256;
 import static com.amazon.corretto.crypto.provider.HkdfSecretKeyFactorySpi.HKDF_WITH_SHA384;
@@ -90,6 +92,21 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     addService("KeyGenerator", "AES", "keygeneratorspi.SecretKeyGenerator", false);
 
     addService("Cipher", "AES/XTS/NoPadding", "AesXtsSpi", false);
+
+    addService("Cipher", "AES/CBC/NoPadding", "AesCbcSpi", false);
+    addService("Cipher", "AES_128/CBC/NoPadding", "AesCbcSpi", false);
+    addService("Cipher", "AES_192/CBC/NoPadding", "AesCbcSpi", false);
+    addService("Cipher", "AES_256/CBC/NoPadding", "AesCbcSpi", false);
+
+    addService("Cipher", "AES/CBC/PKCS5Padding", "AesCbcSpi", false);
+    addService("Cipher", "AES_128/CBC/PKCS5Padding", "AesCbcSpi", false);
+    addService("Cipher", "AES_192/CBC/PKCS5Padding", "AesCbcSpi", false);
+    addService("Cipher", "AES_256/CBC/PKCS5Padding", "AesCbcSpi", false);
+
+    addService("Cipher", "AES/CBC/PKCS7Padding", "AesCbcSpi", false);
+    addService("Cipher", "AES_128/CBC/PKCS7Padding", "AesCbcSpi", false);
+    addService("Cipher", "AES_192/CBC/PKCS7Padding", "AesCbcSpi", false);
+    addService("Cipher", "AES_256/CBC/PKCS7Padding", "AesCbcSpi", false);
 
     addService("Cipher", "RSA/ECB/NoPadding", "RsaCipher$NoPadding");
     addService("Cipher", "RSA/ECB/Pkcs1Padding", "RsaCipher$Pkcs1");
@@ -307,6 +324,22 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
         if ("Cipher".equalsIgnoreCase(type) && "AES/XTS/NoPadding".equalsIgnoreCase(algo)) {
           return new AesXtsSpi();
+        }
+
+        if ("Cipher".equalsIgnoreCase(type)
+            && AES_CBC_PKCS7_PADDING_NAMES.contains(algo.toLowerCase())) {
+          final boolean saveContext =
+              AmazonCorrettoCryptoProvider.this.nativeContextReleaseStrategy
+                  == Utils.NativeContextReleaseStrategy.LAZY;
+          return new AesCbcSpi(true, saveContext);
+        }
+
+        if ("Cipher".equalsIgnoreCase(type)
+            && AES_CBC_NO_PADDING_NAMES.contains(algo.toLowerCase())) {
+          final boolean saveContext =
+              AmazonCorrettoCryptoProvider.this.nativeContextReleaseStrategy
+                  == Utils.NativeContextReleaseStrategy.LAZY;
+          return new AesCbcSpi(false, saveContext);
         }
 
         throw new NoSuchAlgorithmException(String.format("No service class for %s/%s", type, algo));
