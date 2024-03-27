@@ -140,7 +140,8 @@ public:
 
 const EVP_MD* digestFromJstring(raii_env& env, jstring digestName);
 
-// The generated RSA structure will own n and d.
+// The generated RSA structure will own n and d. The generated private key has blinding disabled since for blinding, one
+// needs the public exponent.
 RSA* RSA_new_private_key_no_e(BIGNUM* n, BIGNUM* d);
 
 }
