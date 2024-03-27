@@ -44,10 +44,6 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_RsaGen_generate
             if (RSA_generate_key_ex(r, bits, bne, NULL) != 1) {
                 throw_openssl("Unable to generate key");
             }
-
-            if (checkConsistency && RSA_check_key(r) != 1) {
-                throw_openssl("Key failed consistency check");
-            }
         }
 
         EVP_PKEY_auto result = EVP_PKEY_auto::from(EVP_PKEY_new());
