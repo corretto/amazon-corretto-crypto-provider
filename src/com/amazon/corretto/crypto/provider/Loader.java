@@ -233,7 +233,7 @@ final class Loader {
             throw new AssertionError("/dev/urandom must exist for bootstrapping");
         }
         final Path tmpDir = Paths.get(System.getProperty("java.io.tmpdir"));
-        if (!Files.isDirectory(tmpDir)) {
+        if (Files.exists(tmpDir) && !Files.isDirectory(tmpDir) {
             throw new AssertionError("java.io.tmpdir is not valid: " + tmpDir);
         }
 
@@ -246,6 +246,7 @@ final class Loader {
 
         final byte[] rndBytes = new byte[Long.BYTES]; // Default java tmp files use this much entropy
         final int RETRY_LIMIT = 1000;
+        Throwable lastError = null;
         try (InputStream rndStream = Files.newInputStream(urandomPath, StandardOpenOption.READ)) {
             int attempt = 0;
             // We keep doing this until we can create something new or fail badly
@@ -269,17 +270,22 @@ final class Loader {
                 final Path tmpFile = tmpDir.resolve(fileName.toString());
 
                 try {
+                    if (!Files.exists(tmpDir)) {
+                        // Creating tmpDir in case it's been deleted
+                        Files.createDirectories(tmpDir, permissions);
+                    }
                     final Path result = Files.createFile(tmpFile, permissions);
                     LOG.log(Level.FINE, "Created temporary library file after " + attempt + " attempts");
                     return result;
-                } catch (final FileAlreadyExistsException ex) {
+                } catch (final IOException ex) {
                     // We ignore and retry this exception
+                    lastError = ex;
                 } catch (final Exception ex) {
                     // Any other exception is bad and we may need to quash.
                     throw new AssertionError("Unable to create temporary file");
                 }
             }
         }
-        throw new AssertionError("Unable to create temporary file. Retries exceeded.");
+        throw new AssertionError("Unable to create temporary file. Retries exceeded.", lastError);
     }
 }
