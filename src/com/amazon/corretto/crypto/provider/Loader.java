@@ -233,7 +233,7 @@ final class Loader {
             throw new AssertionError("/dev/urandom must exist for bootstrapping");
         }
         final Path tmpDir = Paths.get(System.getProperty("java.io.tmpdir"));
-        if (Files.exists(tmpDir) && !Files.isDirectory(tmpDir) {
+        if (Files.exists(tmpDir) && !Files.isDirectory(tmpDir)) {
             throw new AssertionError("java.io.tmpdir is not valid: " + tmpDir);
         }
 
