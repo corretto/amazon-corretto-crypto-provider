@@ -66,6 +66,8 @@ import org.junit.jupiter.params.provider.MethodSource;
 @ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
 public class RsaCipherTest {
   private static final String OAEP_SHA1_PADDING = "RSA/ECB/OAEPWithSHA-1AndMGF1Padding";
+  // Some non-JCA-standard aliases are allowed for compatibility
+  private static final String OAEP_SHA1_PADDING_ALT1 = "RSA/ECB/OAEPWithSHA1AndMGF1Padding";
   private static final String OAEP_PADDING = "RSA/ECB/OAEPPadding";
   private static final String PKCS1_PADDING = "RSA/ECB/Pkcs1Padding";
   private static final String NO_PADDING = "RSA/ECB/NoPadding";
@@ -94,7 +96,8 @@ public class RsaCipherTest {
   }
 
   public static List<String> paddingParams() {
-    return Arrays.asList(OAEP_PADDING, OAEP_SHA1_PADDING, PKCS1_PADDING, NO_PADDING);
+    return Arrays.asList(
+        OAEP_PADDING, OAEP_SHA1_PADDING, OAEP_SHA1_PADDING_ALT1, PKCS1_PADDING, NO_PADDING);
   }
 
   public static List<String> messageDigestParams() {
@@ -106,7 +109,8 @@ public class RsaCipherTest {
           Object o = f.get(null); // static field, so null "instance"
           Method m = MGF1ParameterSpec.class.getDeclaredMethod("getDigestAlgorithm");
           String digest = (String) m.invoke(o);
-          // NOTE: AWS-LC doesn't support SHA-512/224 or SHA3
+          // NOTE: AWS-LC doesn't support SHA-512/224 or SHA3 in a recent FIPS
+          //       version, but does support them as of non-FIPS v1.17.0
           if ("SHA-512/224".equals(digest) || !digest.startsWith("SHA-")) {
             continue;
           }
@@ -734,7 +738,8 @@ public class RsaCipherTest {
   // Inspect each field, as for some reason the OAEPParameterSpec.equals method seems
   // to compare object hash code instead of individual members.
   private static void assertOAEPParamSpecsEqual(OAEPParameterSpec a, OAEPParameterSpec b) {
-    assertEquals(a.getDigestAlgorithm(), b.getDigestAlgorithm());
+    assertEquals(
+        a.getDigestAlgorithm().replaceAll("-", ""), b.getDigestAlgorithm().replaceAll("-", ""));
     assertEquals(a.getMGFAlgorithm(), b.getMGFAlgorithm());
     assertEquals(a.getMGFParameters(), b.getMGFParameters());
     assertEquals(a.getPSource().getAlgorithm(), b.getPSource().getAlgorithm());
@@ -1084,6 +1089,7 @@ public class RsaCipherTest {
           return 11;
         case OAEP_PADDING:
         case OAEP_SHA1_PADDING:
+        case OAEP_SHA1_PADDING_ALT1:
           return 42;
         default:
           throw new IllegalArgumentException("Bad padding: " + padding);
