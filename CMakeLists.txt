@@ -101,6 +101,22 @@ if (NOT RETURN_VALUE EQUAL 0)
     message(FATAL_ERROR "Failed to list generated hash function types")
 endif()
 
+# Consider setting OPENSSL_CRYPTO_LIBRARY_STATIC in case AWS-LC's shared object
+# has also been built. In such cases, OPENSSL_CRYPTO_LIBRARY defaults to libcrypto.so.
+# By setting OPENSSL_CRYPTO_LIBRARY_STATIC to the location of the static build of AWS-LC,
+# we ensure AWS-LC is not linked dynamically. This is useful for those who do not use
+# build.gradle for building ACCP and have a different build strategy for AWS-LC.
+function(link_with_openssl my_target)
+    # Take a dependency on our libcrypto.a
+    if(OPENSSL_CRYPTO_LIBRARY_STATIC)
+        message("OPENSSL_CRYPTO_LIBRARY_STATIC is defined, so we'll use that.")
+        target_link_libraries(${my_target} ${OPENSSL_CRYPTO_LIBRARY_STATIC})
+    else()
+        message("OPENSSL_CRYPTO_LIBRARY_STATIC is not defined. We'll use OPENSSL_CRYPTO_LIBRARY.")
+        target_link_libraries(${my_target} ${OPENSSL_CRYPTO_LIBRARY})
+    endif()
+endfunction()
+
 # This forces cmake to rerun if the generate script itself changes (and
 # therefore the list of files generated might change). Unfortunately this
 # dummy-file bit seems to be the supported way to do this, see e.g.
@@ -278,7 +294,7 @@ if(ENABLE_NATIVE_TEST_HOOKS)
   add_executable(test_keyutils EXCLUDE_FROM_ALL
         csrc/test_keyutils.cpp
     )
-    target_link_libraries(test_keyutils ${OPENSSL_CRYPTO_LIBRARY})
+    link_with_openssl(test_keyutils)
     target_link_libraries(test_keyutils amazonCorrettoCryptoProvider)
 endif()
 
@@ -303,16 +319,30 @@ macro(CHECK_CUSTOM_TRY_COMPILE var target)
 # get a false positive result due to the target being built already
 
         file(REMOVE_RECURSE ${CMAKE_CURRENT_BINARY_DIR}/try_compile_tmp/${var})
+        # Take a dependency on our libcrypto.a
+        if(OPENSSL_CRYPTO_LIBRARY_STATIC)
+            try_compile(${var}
+                ${CMAKE_CURRENT_BINARY_DIR}/try_compile_tmp/${var}
+                ${CMAKE_CURRENT_SOURCE_DIR}/CMake/trycompile
+                TryCompile ${target}
+                CMAKE_FLAGS
+                -DLINK_LIBS:STRING=${OPENSSL_CRYPTO_LIBRARY_STATIC}
+                    -DOPENSSL_INCLUDE_DIR:STRING=${OPENSSL_INCLUDE_DIR}
+                    ${ARGN}
+            )
+        else()
+            try_compile(${var}
+                ${CMAKE_CURRENT_BINARY_DIR}/try_compile_tmp/${var}
+                ${CMAKE_CURRENT_SOURCE_DIR}/CMake/trycompile
+                TryCompile ${target}
+                CMAKE_FLAGS
+                    -DLINK_LIBS:STRING=${OPENSSL_CRYPTO_LIBRARY}
+                    -DOPENSSL_INCLUDE_DIR:STRING=${OPENSSL_INCLUDE_DIR}
+                    ${ARGN}
+            )
+        endif()
 
-        try_compile(${var}
-            ${CMAKE_CURRENT_BINARY_DIR}/try_compile_tmp/${var}
-            ${CMAKE_CURRENT_SOURCE_DIR}/CMake/trycompile
-            TryCompile ${target}
-            CMAKE_FLAGS
-                -DLINK_LIBS:STRING=${OPENSSL_CRYPTO_LIBRARY}
-                -DOPENSSL_INCLUDE_DIR:STRING=${OPENSSL_INCLUDE_DIR}
-                ${ARGN}
-        )
+
 
         if(${var})
             message(STATUS "Performing test ${var} - Success")
@@ -535,7 +565,7 @@ endif()
 target_link_libraries(amazonCorrettoCryptoProvider Threads::Threads)
 
 # Take a dependency on our libcrypto.a
-target_link_libraries(amazonCorrettoCryptoProvider ${OPENSSL_CRYPTO_LIBRARY})
+link_with_openssl(amazonCorrettoCryptoProvider)
 
 # NOTE: CMake introduced the CONFIGURE_DEPENDS feature in 3.12, so condition
 #       its use on CMake version. If the feature is not available, you may need
