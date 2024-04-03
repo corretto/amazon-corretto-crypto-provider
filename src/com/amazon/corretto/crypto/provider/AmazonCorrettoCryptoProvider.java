@@ -121,6 +121,9 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
               singletonMap("ThreadSafe", "true"),
               "DEFAULT")
           .setSelfTest(LibCryptoRng.SPI.SELF_TEST);
+      // Following line is a workaround to ensure that the SecureRandom service
+      // is seens as ThreadSafe by SecureRandom, when using the alias name DEFAULT
+      setProperty("SecureRandom.DEFAULT ThreadSafe", "true");
     }
 
     addSignatures();
