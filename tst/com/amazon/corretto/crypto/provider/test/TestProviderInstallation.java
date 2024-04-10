@@ -89,4 +89,18 @@ public class TestProviderInstallation {
       result.assertHealthy();
     }
   }
+
+  /**
+   * Check that the SecureRandom algorithm `LibCryptoRng` and its alias `DEFAULT` are both marked
+   * thread safe
+   */
+  @Test
+  public void testSecureRandomThreadSafe() {
+    assertEquals(
+        "true",
+        AmazonCorrettoCryptoProvider.INSTANCE.getProperty("SecureRandom.LibCryptoRng ThreadSafe"));
+    assertEquals(
+        "true",
+        AmazonCorrettoCryptoProvider.INSTANCE.getProperty("SecureRandom.DEFAULT ThreadSafe"));
+  }
 }
