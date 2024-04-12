@@ -37,10 +37,12 @@ dependencies {
         else
             "AmazonCorrettoCryptoProvider"
 
-    if (project.hasProperty("accpLocalJar")) {
-        testImplementation(files(accpLocalJar))
-    } else {
-        testImplementation("software.amazon.cryptools:${accpArtifactId}:$accpVersion:${osdetector.classifier}")
+    if (!project.hasProperty("useBundledAccp")) {
+        if (project.hasProperty("accpLocalJar")) {
+            testImplementation(files(accpLocalJar))
+        } else {
+            testImplementation("software.amazon.cryptools:${accpArtifactId}:$accpVersion:${osdetector.classifier}")
+        }
     }
 
     testImplementation("com.amazonaws:aws-encryption-sdk-java:2.4.0")
