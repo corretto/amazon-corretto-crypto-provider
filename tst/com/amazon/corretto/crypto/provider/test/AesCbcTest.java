@@ -28,6 +28,7 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.InvalidParameterException;
 import java.security.Key;
+import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
 import java.util.ArrayList;
@@ -38,10 +39,12 @@ import java.util.stream.Stream;
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
 import javax.crypto.ShortBufferException;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import org.apache.commons.codec.binary.Hex;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.parallel.Execution;
@@ -56,6 +59,8 @@ import org.junit.jupiter.params.provider.MethodSource;
 @Execution(ExecutionMode.SAME_THREAD)
 @ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
 public class AesCbcTest {
+  private static final Provider bcProv = new BouncyCastleProvider();
+
   static Cipher accpAesCbcCipher(final boolean paddingEnabled) {
     try {
       return paddingEnabled
@@ -74,6 +79,40 @@ public class AesCbcTest {
     } catch (final Exception e) {
       throw new RuntimeException(e);
     }
+  }
+
+  static Cipher bcAesCbcCipher(final boolean paddingEnabled) {
+    try {
+      return paddingEnabled
+          ? Cipher.getInstance("AES/CBC/PKCS7Padding", bcProv)
+          : Cipher.getInstance("AES/CBC/NoPadding", bcProv);
+    } catch (final Exception e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  @Test
+  public void testPkcs7Name() throws Exception {
+    // SunJCE does not recognize AES/CBC/PKCS7Padding, but BouncyCastle does:
+    assertThrows(
+        NoSuchPaddingException.class, () -> Cipher.getInstance("AES/CBC/PKCS7Padding", "SunJCE"));
+
+    final Cipher bcCipher = bcAesCbcCipher(true);
+    final Cipher accpCipher = Cipher.getInstance("AES/CBC/PKCS7Padding", TestUtil.NATIVE_PROVIDER);
+
+    final byte[] data = genData(987, 23);
+    final SecretKeySpec aesKey = genAesKey(987, 256);
+    final IvParameterSpec iv = genIv(987, 16);
+
+    bcCipher.init(Cipher.ENCRYPT_MODE, aesKey, iv);
+    accpCipher.init(Cipher.ENCRYPT_MODE, aesKey, iv);
+    final byte[] cipherText = bcCipher.doFinal(data);
+    assertArrayEquals(cipherText, accpCipher.doFinal(data));
+
+    bcCipher.init(Cipher.DECRYPT_MODE, aesKey, iv);
+    accpCipher.init(Cipher.DECRYPT_MODE, aesKey, iv);
+    assertArrayEquals(data, bcCipher.doFinal(cipherText));
+    assertArrayEquals(data, accpCipher.doFinal(cipherText));
   }
 
   @ParameterizedTest
@@ -486,13 +525,8 @@ public class AesCbcTest {
         new IvParameterSpec(TestUtil.decodeHex("000102030405060708090A0B0C0D0E0F"));
     final Cipher cbcPadding = accpAesCbcCipher(true);
     cbcPadding.init(Cipher.ENCRYPT_MODE, key, iv);
-    // final ByteBuffer cipherText = ByteBuffer.allocate(input.length + 16);
-    // final int cipherLen = cbcPadding.doFinal(directInput, cipherText);
-    // cipherText.flip();
-    // assertEquals(cipherLen, cipherText.remaining());
     final ByteBuffer cipherText =
-        TestUtil.multiStepByteBuffer(
-            cbcPadding, Arrays.asList(0, 5, 5, 5, 5, 20), inputBuffer, false);
+        multiStepByteBuffer(cbcPadding, Arrays.asList(0, 5, 5, 5, 5, 20), inputBuffer, false);
     assertEquals(
         "F29000B62A499FD0A9F39A6ADD2E77809543B86FC046FA883A9446B82E47D12DA144FC255AAD45BF681D3A3773A325C275C285C2760F0ED66EB65CFBEED8781D",
         Hex.encodeHexString(Arrays.copyOf(cipherText.array(), cipherText.remaining()), false));
@@ -685,6 +719,7 @@ public class AesCbcTest {
   @MethodSource("paddings")
   public void aesCbcBlockSizeIs16(final boolean isPaddingEnabled) {
     assertEquals(16, accpAesCbcCipher(isPaddingEnabled).getBlockSize());
+    assertEquals(16, sunAesCbcCipher(isPaddingEnabled).getBlockSize());
   }
 
   @ParameterizedTest

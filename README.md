@@ -30,10 +30,14 @@ Mac algorithms:
 
 Cipher algorithms:
 * AES/GCM/NoPadding
-* AES_128/GCM/NoPadding
-* AES_256/GCM/NoPadding
+* AES_\<n\>/GCM/NoPadding, where n can be 128, or 256
 * AES/KWP/NoPadding
 * AES/XTS/NoPadding
+* AES/CBC/NoPadding
+  * AES_\<n\>/CBC/NoPadding, where n can be 128, 192, or 256
+* AES/CBC/PKCS5Padding
+  * AES_\<n\>/CBC/PKCS5Padding, where n can be 128, 192, or 256
+  * PKCS7Padding is also accepted with AES/CBC and it is treated the same as PKCS5.
 * RSA/ECB/NoPadding
 * RSA/ECB/PKCS1Padding
 * RSA/ECB/OAEPPadding

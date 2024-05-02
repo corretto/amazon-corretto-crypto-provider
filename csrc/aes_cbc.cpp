@@ -56,19 +56,31 @@ public:
         , ctx_(reinterpret_cast<EVP_CIPHER_CTX*>(ctx_ptr))
         , own_ctx_(!save_ctx)
     {
-        if (ctx_ == nullptr) {
-            // There is no context, so we need to create one.
-            ctx_ = EVP_CIPHER_CTX_new();
-            if (ctx_ == nullptr) {
-                throw_openssl(EX_RUNTIME_CRYPTO, "EVP_CIPHER_CTX_new failed.");
-            }
-
-            if (!own_ctx_) {
-                // We need to return the context.
-                jlong tmpPtr = reinterpret_cast<jlong>(ctx_);
-                jenv_->SetLongArrayRegion(ctx_container, 0, 1, &tmpPtr);
-            }
+        if (ctx_ != nullptr) {
+            // if there is a context, we don't need to do anything.
+            return;
         }
+
+        // There is no context, so we need to create one.
+        ctx_ = EVP_CIPHER_CTX_new();
+        if (ctx_ == nullptr) {
+            throw_openssl(EX_RUNTIME_CRYPTO, "EVP_CIPHER_CTX_new failed.");
+        }
+
+        if (own_ctx_) {
+            // Since we should own the context, there is no need to return the context to the caller.
+            return;
+        }
+
+        // We need to return the context.
+        if (ctx_container == nullptr) {
+            // This should not happen. We ensure this at the call sites.
+            EVP_CIPHER_CTX_free(ctx_);
+            throw java_ex(EX_ERROR, "THIS SHOULD NOT BE REACHABLE. No container is provided to return the context.");
+        }
+
+        jlong tmpPtr = reinterpret_cast<jlong>(ctx_);
+        jenv_->SetLongArrayRegion(ctx_container, 0, 1, &tmpPtr);
     }
 
     ~AesCbcCipher()
@@ -260,7 +272,6 @@ extern "C" JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesCb
 
 extern "C" JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesCbcSpi_nUpdateFinal(JNIEnv* env,
     jclass,
-    jlongArray ctxContainer,
     jlong ctxPtr,
     jboolean saveCtx,
     jobject inputDirect,
@@ -273,7 +284,7 @@ extern "C" JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesCb
     jint outputOffset)
 {
     try {
-        AesCbcCipher aes_cbc_cipher(env, ctxContainer, ctxPtr, saveCtx);
+        AesCbcCipher aes_cbc_cipher(env, nullptr, ctxPtr, saveCtx);
 
         int result = 0;
 

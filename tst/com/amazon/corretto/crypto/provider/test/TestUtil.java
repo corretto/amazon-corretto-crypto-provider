@@ -506,19 +506,6 @@ public class TestUtil {
 
   public static boolean byteBuffersAreEqual(final ByteBuffer a, final ByteBuffer b) {
     return byteBuffersAreEqual(a, Arrays.asList(b));
-    /*
-    if (a.remaining() != b.remaining()) {
-      return false;
-    }
-    final int len = a.remaining();
-    for (int i = 0; i != len; i++) {
-      if (a.get(a.position() + i) != b.get(b.position() + i)) {
-        return false;
-      }
-    }
-    return true;
-
-     */
   }
 
   public static boolean byteBuffersAreEqual(final ByteBuffer a, final List<ByteBuffer> chunks) {

@@ -42,7 +42,9 @@ class AesCbcSpi extends CipherSpi {
     AES_CBC_PKCS7_PADDING_NAMES.add("AES_128/CBC/PKCS7Padding".toLowerCase());
     AES_CBC_PKCS7_PADDING_NAMES.add("AES_192/CBC/PKCS7Padding".toLowerCase());
     AES_CBC_PKCS7_PADDING_NAMES.add("AES_256/CBC/PKCS7Padding".toLowerCase());
-    // PKCS5Padding with AES/CBC should be treated as PKCS7Padding
+    // PKCS5Padding with AES/CBC must be treated as PKCS7Padding. PKCS7Padding name is not
+    // recognized by SunJCE, but BouncyCastle supports PKCS7Padding as a valid name for the same
+    // padding.
     AES_CBC_PKCS7_PADDING_NAMES.add("AES/CBC/PKCS5Padding".toLowerCase());
     AES_CBC_PKCS7_PADDING_NAMES.add("AES_128/CBC/PKCS5Padding".toLowerCase());
     AES_CBC_PKCS7_PADDING_NAMES.add("AES_192/CBC/PKCS5Padding".toLowerCase());
@@ -114,6 +116,10 @@ class AesCbcSpi extends CipherSpi {
   protected int engineGetOutputSize(final int inputLen) {
     // There is no need to check if the Cipher is initialized since
     // javax.crypto.Cipher::getOutputSize checks that.
+
+    // This method cannot assume if the next operation is going to be engineUpdate or engineDoFinal.
+    // We provide separate methods to find the output length for engineUpdates and engineDoFinals to
+    // avoid over allocation and alignment checking of input.
     final long all = inputLen + unprocessedInput;
 
     final long rem = all % BLOCK_SIZE_IN_BYTES;
@@ -209,7 +215,7 @@ class AesCbcSpi extends CipherSpi {
       throws InvalidAlgorithmParameterException {
     if (!(params instanceof IvParameterSpec)) {
       throw new InvalidAlgorithmParameterException(
-          "I don't know how to handle a " + params.getClass());
+          "Unknown AlgorithmParameterSpec: " + params.getClass());
     }
 
     final IvParameterSpec ivParameterSpec = (IvParameterSpec) params;
@@ -224,11 +230,12 @@ class AesCbcSpi extends CipherSpi {
   @Override
   protected byte[] engineUpdate(final byte[] input, final int inputOffset, final int inputLen) {
     Utils.checkArrayLimits(input, inputOffset, inputLen);
+    // Since we allocate the output's memory, we only check if the cipher is in the correct state.
     finalOrUpdateStateCheck();
-    final byte[] result = new byte[getOutputSizeUpdate(inputLen)];
-    update(null, input, inputOffset, inputLen, null, result, 0);
     // For update, getOutputSizeUpdate returns the exact required size, therefore there is no need
     // for trimming the result;
+    final byte[] result = new byte[getOutputSizeUpdate(inputLen)];
+    update(null, input, inputOffset, inputLen, null, result, 0);
     return result;
   }
 
@@ -381,56 +388,36 @@ class AesCbcSpi extends CipherSpi {
     }
   }
 
-  private static native int nInitUpdate(
-      int opMode,
-      int padding,
-      byte[] key,
-      int keyLen,
-      byte[] iv,
-      long[] ctxContainer,
-      long ctxPtr,
-      ByteBuffer inputDirect,
-      byte[] inputArray,
-      int inputOffset,
-      int inputLen,
-      ByteBuffer outputDirect,
-      byte[] outputArray,
-      int outputOffset);
-
-  private static native int nUpdate(
-      long ctxPtr,
-      ByteBuffer inputDirect,
-      byte[] inputArray,
-      int inputOffset,
-      int inputLen,
-      int unprocessedInput,
-      ByteBuffer outputDirect,
-      byte[] outputArray,
-      int outputOffset);
-
   @Override
-  protected byte[] engineDoFinal(byte[] input, int inputOffset, int inputLen)
+  protected byte[] engineDoFinal(final byte[] input, final int inputOffset, final int inputLen)
       throws IllegalBlockSizeException, BadPaddingException {
-    Utils.checkArrayLimits(emptyIfNull(input), inputOffset, inputLen);
+    final byte[] inputNotNull = emptyIfNull(input);
+    Utils.checkArrayLimits(inputNotNull, inputOffset, inputLen);
+    // Since we allocate the output's memory, we only check if the cipher is in the correct state.
     finalOrUpdateStateCheck();
     final byte[] result = new byte[getOutputSizeFinal(inputLen)];
-    final int resultLen = doFinal(null, emptyIfNull(input), inputOffset, inputLen, null, result, 0);
+    final int resultLen = doFinal(null, inputNotNull, inputOffset, inputLen, null, result, 0);
     return resultLen == result.length ? result : Arrays.copyOf(result, resultLen);
   }
 
   @Override
   protected int engineDoFinal(
-      byte[] input, int inputOffset, int inputLen, byte[] output, int outputOffset)
+      final byte[] input,
+      final int inputOffset,
+      final int inputLen,
+      final byte[] output,
+      final int outputOffset)
       throws ShortBufferException, IllegalBlockSizeException, BadPaddingException {
-    Utils.checkArrayLimits(emptyIfNull(input), inputOffset, inputLen);
+    final byte[] inputNotNull = emptyIfNull(input);
+    Utils.checkArrayLimits(inputNotNull, inputOffset, inputLen);
     Utils.checkArrayLimits(output, outputOffset, output.length - outputOffset);
     finalChecks(inputLen, output.length - outputOffset);
 
-    return doFinal(null, emptyIfNull(input), inputOffset, inputLen, null, output, outputOffset);
+    return doFinal(null, inputNotNull, inputOffset, inputLen, null, output, outputOffset);
   }
 
   @Override
-  protected int engineDoFinal(ByteBuffer input, ByteBuffer output)
+  protected int engineDoFinal(final ByteBuffer input, final ByteBuffer output)
       throws ShortBufferException, IllegalBlockSizeException, BadPaddingException {
     finalChecks(input.remaining(), output.remaining());
 
@@ -463,6 +450,8 @@ class AesCbcSpi extends CipherSpi {
     }
   }
 
+  // This method is used when calling engineDoFinal to ensure that output is large enough and the
+  // input is aligned with block size if needed.
   private int getOutputSizeFinal(final int inputLen) throws IllegalBlockSizeException {
     final long all = ((long) inputLen) + ((long) unprocessedInput);
     final long rem = all % BLOCK_SIZE_IN_BYTES;
@@ -551,7 +540,6 @@ class AesCbcSpi extends CipherSpi {
               nativeCtx.use(
                   ctxPtr ->
                       nUpdateFinal(
-                          null,
                           ctxPtr,
                           true,
                           inputDirect,
@@ -565,6 +553,8 @@ class AesCbcSpi extends CipherSpi {
         }
       } else {
         // Don't need to save the context
+        final long ctxPtr = nativeCtx == null ? 0 : nativeCtx.take();
+        nativeCtx = null;
         if (cipherState == CipherState.INITIALIZED) {
           result =
               nInitUpdateFinal(
@@ -574,7 +564,7 @@ class AesCbcSpi extends CipherSpi {
                   key.length,
                   iv,
                   null,
-                  nativeCtx == null ? 0 : nativeCtx.take(),
+                  ctxPtr,
                   false,
                   inputDirect,
                   inputArray,
@@ -587,8 +577,7 @@ class AesCbcSpi extends CipherSpi {
           // Cipher is in UPDATE state and don't need to save the context
           result =
               nUpdateFinal(
-                  null,
-                  nativeCtx.take(),
+                  ctxPtr,
                   false,
                   inputDirect,
                   inputArray,
@@ -599,7 +588,6 @@ class AesCbcSpi extends CipherSpi {
                   outputArray,
                   outputOffset);
         }
-        nativeCtx = null;
       }
 
       cipherState = CipherState.INITIALIZED;
@@ -609,11 +597,7 @@ class AesCbcSpi extends CipherSpi {
 
     } catch (final Exception e) {
       cipherState = CipherState.NEEDS_INITIALIZATION;
-      if (saveContext) {
-        saveNativeContextIfNeeded(ctxContainer[0]);
-      } else {
-        nativeCtx = null;
-      }
+      saveNativeContextIfNeeded(ctxContainer[0]);
       throw e;
     }
   }
@@ -624,6 +608,12 @@ class AesCbcSpi extends CipherSpi {
     }
   }
 
+  // We have four JNI calls. Their names start with the letter n, followed by the operations that
+  // they perform on the underlying EVP_CIPHER_CTX. For example, nInitUpdate calls init and update
+  // on the context.
+
+  // This method is used for one-shot operations, when engineDoFinal is invoked immediately after
+  // engineInit.
   private static native int nInitUpdateFinal(
       int opMode,
       int padding,
@@ -641,8 +631,37 @@ class AesCbcSpi extends CipherSpi {
       byte[] outputArray,
       int outputOffset);
 
-  private static native int nUpdateFinal(
+  // This method is used the first time engineUpdate is used in a multi-step operation.
+  private static native int nInitUpdate(
+      int opMode,
+      int padding,
+      byte[] key,
+      int keyLen,
+      byte[] iv,
       long[] ctxContainer,
+      long ctxPtr,
+      ByteBuffer inputDirect,
+      byte[] inputArray,
+      int inputOffset,
+      int inputLen,
+      ByteBuffer outputDirect,
+      byte[] outputArray,
+      int outputOffset);
+
+  // This method is used the n^th time engineUpdate is used in a multi-step operation, where n >= 2.
+  private static native int nUpdate(
+      long ctxPtr,
+      ByteBuffer inputDirect,
+      byte[] inputArray,
+      int inputOffset,
+      int inputLen,
+      int unprocessedInput,
+      ByteBuffer outputDirect,
+      byte[] outputArray,
+      int outputOffset);
+
+  // This method is used  when engineDoFinal is used to finalize a multi-step operation.
+  private static native int nUpdateFinal(
       long ctxPtr,
       boolean saveCtx,
       ByteBuffer inputDirect,
