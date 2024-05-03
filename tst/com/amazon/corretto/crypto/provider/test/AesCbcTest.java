@@ -12,7 +12,10 @@ import static com.amazon.corretto.crypto.provider.test.TestUtil.multiStepArray;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.multiStepArrayMultiAllocationExplicit;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.multiStepArrayMultiAllocationImplicit;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.multiStepByteBuffer;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.multiStepByteBufferInPlace;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.multiStepByteBufferMultiAllocation;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.multiStepInPlaceArray;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.oneShotByteBuffer;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.randomPattern;
 import static org.junit.Assert.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -140,6 +143,36 @@ public class AesCbcTest {
 
   @ParameterizedTest
   @MethodSource("arrayTestParams")
+  public void testOneShotArrayInPlace(
+      final int keySize, final long seed, final boolean isPaddingEnabled, final int inputLen)
+      throws Exception {
+    final Cipher accpCipher = accpAesCbcCipher(isPaddingEnabled);
+    final SecretKeySpec aesKey = genAesKey(seed, keySize);
+    final IvParameterSpec iv = genIv(seed, 16);
+    accpCipher.init(Cipher.ENCRYPT_MODE, aesKey, iv);
+    final int bufferLen = accpCipher.getOutputSize(inputLen);
+
+    final Cipher sunCipher = sunAesCbcCipher(isPaddingEnabled);
+    final byte[] inputOutput = genData(seed, bufferLen);
+    final byte[] input = Arrays.copyOf(inputOutput, inputLen);
+
+    sunCipher.init(Cipher.ENCRYPT_MODE, aesKey, iv);
+    final byte[] sunCipherText = sunCipher.doFinal(input);
+    final int cipherTextLen = accpCipher.doFinal(inputOutput, 0, inputLen, inputOutput, 0);
+    assertEquals(sunCipherText.length, cipherTextLen);
+    assertTrue(
+        byteBuffersAreEqual(
+            ByteBuffer.wrap(sunCipherText), ByteBuffer.wrap(inputOutput, 0, cipherTextLen)));
+
+    accpCipher.init(Cipher.DECRYPT_MODE, aesKey, iv);
+    final int plainTextLen = accpCipher.doFinal(inputOutput, 0, cipherTextLen, inputOutput, 0);
+    assertEquals(inputLen, plainTextLen);
+    assertTrue(
+        byteBuffersAreEqual(ByteBuffer.wrap(input), ByteBuffer.wrap(inputOutput, 0, plainTextLen)));
+  }
+
+  @ParameterizedTest
+  @MethodSource("arrayTestParams")
   public void testMultiStepArray(
       final int keySize, final long seed, final boolean isPaddingEnabled, final int inputLen)
       throws Exception {
@@ -215,6 +248,48 @@ public class AesCbcTest {
   }
 
   @ParameterizedTest
+  @MethodSource("arrayTestParams")
+  public void testMultiStepArrayInPlace(
+      final int keySize, final long seed, final boolean isPaddingEnabled, final int inputLen)
+      throws Exception {
+    final Cipher accpCipher = accpAesCbcCipher(isPaddingEnabled);
+    final SecretKeySpec aesKey = genAesKey(seed, keySize);
+    final IvParameterSpec iv = genIv(seed, 16);
+    accpCipher.init(Cipher.ENCRYPT_MODE, aesKey, iv);
+    // With padding, the length of cipher text is greater than plaintext. The buffer needs to be set
+    // to the size of the cipher text for in-place operations.
+    final int bufferLen = accpCipher.getOutputSize(inputLen);
+    final byte[] inputOutput = genData(seed, bufferLen);
+    final byte[] input = Arrays.copyOf(inputOutput, inputLen);
+    final ByteBuffer inputByteBuffer = ByteBuffer.wrap(input);
+
+    final List<List<Integer>> processingPatterns =
+        Stream.of(-1, 0, 16, 20, 32)
+            .map(c -> genPattern(seed, c, inputLen))
+            .collect(Collectors.toList());
+
+    final Cipher sunCipher = sunAesCbcCipher(isPaddingEnabled);
+    sunCipher.init(Cipher.ENCRYPT_MODE, aesKey, iv);
+    final byte[] sunCipherText = sunCipher.doFinal(input);
+    final ByteBuffer sunCipherTextByteBuffer = ByteBuffer.wrap(sunCipherText);
+
+    for (final List<Integer> processingPattern : processingPatterns) {
+      accpCipher.init(Cipher.ENCRYPT_MODE, aesKey, iv);
+      final int cipherLen =
+          multiStepInPlaceArray(accpCipher, processingPattern, inputOutput, inputLen);
+      assertEquals(sunCipherText.length, cipherLen);
+      assertTrue(
+          byteBuffersAreEqual(sunCipherTextByteBuffer, ByteBuffer.wrap(inputOutput, 0, cipherLen)));
+      accpCipher.init(Cipher.DECRYPT_MODE, aesKey, iv);
+      final int plainTextLen =
+          multiStepInPlaceArray(accpCipher, processingPattern, inputOutput, cipherLen);
+      assertEquals(inputLen, plainTextLen);
+      assertTrue(
+          byteBuffersAreEqual(inputByteBuffer, ByteBuffer.wrap(inputOutput, 0, plainTextLen)));
+    }
+  }
+
+  @ParameterizedTest
   @MethodSource("byteBufferTestParams")
   public void testOneShotByteBuffer(
       final int keySize,
@@ -274,6 +349,66 @@ public class AesCbcTest {
     sunCipher.doFinal(sunCipherText, sunPlainText);
     sunPlainText.flip();
     assertTrue(byteBuffersAreEqual(sunPlainText, accpPlainText));
+  }
+
+  @ParameterizedTest
+  @MethodSource("byteBufferInPlaceTestParams")
+  public void testOneShotByteBufferInPlace(
+      final int keySize,
+      final long seed,
+      final boolean isPaddingEnabled,
+      final int inputLen,
+      final boolean isDirect)
+      throws Exception {
+
+    final SecretKeySpec aesKey = genAesKey(seed, keySize);
+    final IvParameterSpec iv = genIv(seed, 16);
+
+    final Cipher accpCipher = accpAesCbcCipher(isPaddingEnabled);
+    accpCipher.init(Cipher.ENCRYPT_MODE, aesKey, iv);
+    final int bufferLen = accpCipher.getOutputSize(inputLen);
+    final ByteBuffer buffer = genData(seed, bufferLen, isDirect);
+
+    final ByteBuffer input = buffer.duplicate();
+    input.limit(inputLen);
+
+    final ByteBuffer cipherTextView = buffer.duplicate();
+
+    final Cipher sunCipher = sunAesCbcCipher(isPaddingEnabled);
+
+    sunCipher.init(Cipher.ENCRYPT_MODE, aesKey, iv);
+    final ByteBuffer sunCipherText = oneShotByteBuffer(sunCipher, input.duplicate());
+
+    assertEquals(sunCipherText.remaining(), accpCipher.doFinal(input, cipherTextView));
+    cipherTextView.flip();
+    assertTrue(byteBuffersAreEqual(sunCipherText, cipherTextView));
+
+    accpCipher.init(Cipher.DECRYPT_MODE, aesKey, iv);
+    final ByteBuffer plainTextView = cipherTextView.duplicate();
+    assertEquals(inputLen, accpCipher.doFinal(cipherTextView, plainTextView));
+    plainTextView.flip();
+
+    sunCipher.init(Cipher.DECRYPT_MODE, aesKey, iv);
+    final ByteBuffer sunPlainText = sunCipherText.duplicate();
+    sunCipher.doFinal(sunCipherText, sunPlainText);
+    sunPlainText.flip();
+
+    assertTrue(byteBuffersAreEqual(sunPlainText, plainTextView));
+  }
+
+  private static Stream<Arguments> byteBufferInPlaceTestParams() {
+    final List<Arguments> result = new ArrayList<>();
+    for (final int keySize : new int[] {128}) {
+      for (int i = 0; i != 1024; i++) {
+        for (final boolean isPaddingEnabled : new boolean[] {true, false}) {
+          for (final boolean isDirect : new boolean[] {true, false}) {
+            if (!isPaddingEnabled && (i % 16 != 0)) continue;
+            result.add(Arguments.of(keySize, (long) i, isPaddingEnabled, i, isDirect));
+          }
+        }
+      }
+    }
+    return result.stream();
   }
 
   @ParameterizedTest
@@ -384,6 +519,52 @@ public class AesCbcTest {
       }
     }
     return result.stream();
+  }
+
+  @ParameterizedTest
+  @MethodSource("byteBufferInPlaceTestParams")
+  public void testMultiStepByteBufferInPlace(
+      final int keySize,
+      final long seed,
+      final boolean isPaddingEnabled,
+      final int inputLen,
+      final boolean isDirect)
+      throws Exception {
+
+    final List<List<Integer>> processingPatterns =
+        Stream.of(-1, 0, 16, 20, 32)
+            .map(c -> genPattern(seed, c, inputLen))
+            .collect(Collectors.toList());
+
+    final SecretKeySpec aesKey = genAesKey(seed, keySize);
+    final IvParameterSpec iv = genIv(seed, 16);
+
+    final Cipher accpCipher = accpAesCbcCipher(isPaddingEnabled);
+    accpCipher.init(Cipher.ENCRYPT_MODE, aesKey, iv);
+    final int bufferLen = accpCipher.getOutputSize(inputLen);
+    final ByteBuffer buffer = genData(seed, bufferLen, isDirect);
+
+    final Cipher sunCipher = sunAesCbcCipher(isPaddingEnabled);
+    final ByteBuffer sunInput = buffer.duplicate();
+    sunInput.limit(inputLen);
+    sunCipher.init(Cipher.ENCRYPT_MODE, aesKey, iv);
+    final ByteBuffer sunCipherText = oneShotByteBuffer(sunCipher, sunInput);
+    sunCipher.init(Cipher.DECRYPT_MODE, aesKey, iv);
+    final ByteBuffer sunPlainText = oneShotByteBuffer(sunCipher, sunCipherText.duplicate());
+
+    for (final List<Integer> processingPattern : processingPatterns) {
+      final ByteBuffer input = buffer.duplicate();
+      input.limit(inputLen);
+      accpCipher.init(Cipher.ENCRYPT_MODE, aesKey, iv);
+      final ByteBuffer cipherText =
+          multiStepByteBufferInPlace(accpCipher, processingPattern, input);
+      assertTrue(byteBuffersAreEqual(sunCipherText, cipherText));
+
+      accpCipher.init(Cipher.DECRYPT_MODE, aesKey, iv);
+      final ByteBuffer plainText =
+          multiStepByteBufferInPlace(accpCipher, processingPattern, cipherText);
+      assertTrue(byteBuffersAreEqual(sunPlainText, plainText));
+    }
   }
 
   @ParameterizedTest

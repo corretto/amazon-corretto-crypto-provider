@@ -669,6 +669,14 @@ public class TestUtil {
     return outputChunks;
   }
 
+  public static ByteBuffer oneShotByteBuffer(final Cipher cipher, final ByteBuffer input)
+      throws Exception {
+    final ByteBuffer output = ByteBuffer.allocate(cipher.getOutputSize(input.remaining()));
+    cipher.doFinal(input, output);
+    output.flip();
+    return output;
+  }
+
   public static ByteBuffer multiStepByteBuffer(
       final Cipher cipher,
       final List<Integer> process,
@@ -727,5 +735,56 @@ public class TestUtil {
     outputChunks.add(output);
 
     return outputChunks;
+  }
+
+  public static ByteBuffer multiStepByteBufferInPlace(
+      final Cipher cipher, final List<Integer> process, final ByteBuffer input) throws Exception {
+
+    final ByteBuffer output = input.duplicate();
+    output.limit(output.capacity());
+
+    for (final Integer p : process) {
+      if (!input.hasRemaining()) break;
+      final int toBeProcessed = p > input.remaining() ? input.remaining() : p;
+      final ByteBuffer temp = input.duplicate();
+      temp.limit(input.position() + toBeProcessed);
+      cipher.update(temp, output);
+      input.position(input.position() + toBeProcessed);
+    }
+
+    cipher.doFinal(input, output);
+
+    output.flip();
+
+    return output;
+  }
+  // Returns the length of the output.
+  public static int multiStepInPlaceArray(
+      final Cipher cipher,
+      final List<Integer> process,
+      final byte[] inputOutput,
+      final int inputLen)
+      throws Exception {
+
+    int inputOffset = 0;
+    int outputOffset = 0;
+
+    for (final Integer p : process) {
+      if (inputOffset == inputLen) break;
+      final int toBeProcessed = (p + inputOffset) > inputLen ? (inputLen - inputOffset) : p;
+      outputOffset +=
+          cipher.update(inputOutput, inputOffset, toBeProcessed, inputOutput, outputOffset);
+      inputOffset += toBeProcessed;
+    }
+
+    if (inputOffset == inputLen) {
+      outputOffset += cipher.doFinal(inputOutput, outputOffset);
+    } else {
+      outputOffset +=
+          cipher.doFinal(
+              inputOutput, inputOffset, inputLen - inputOffset, inputOutput, outputOffset);
+    }
+
+    return outputOffset;
   }
 }

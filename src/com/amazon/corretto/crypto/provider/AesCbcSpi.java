@@ -457,7 +457,7 @@ class AesCbcSpi extends CipherSpi {
     final long rem = all % BLOCK_SIZE_IN_BYTES;
     // If there is no padding or if we are decrypting, all the data must be aligned with block size.
     if ((opMode == DEC_MODE || padding == NO_PADDING) && rem != 0) {
-      throw new IllegalBlockSizeException();
+      throw new IllegalBlockSizeException("Input length not multiple of 16 bytes");
     }
     if (padding == NO_PADDING) {
       return (int) all;
