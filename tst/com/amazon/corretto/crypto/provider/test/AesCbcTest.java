@@ -4,7 +4,7 @@ package com.amazon.corretto.crypto.provider.test;
 
 import static com.amazon.corretto.crypto.provider.test.TestUtil.ascendingPattern;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.byteBuffersAreEqual;
-import static com.amazon.corretto.crypto.provider.test.TestUtil.fixPattern;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.constantPattern;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.genAesKey;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.genData;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.genIv;
@@ -231,7 +231,7 @@ public class AesCbcTest {
     if (choice == 0) {
       return ascendingPattern(inputLen);
     }
-    return fixPattern(inputLen, choice);
+    return constantPattern(inputLen, choice);
   }
 
   private static Stream<Arguments> arrayTestParams() {

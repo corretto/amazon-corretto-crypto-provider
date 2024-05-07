@@ -556,7 +556,7 @@ public class TestUtil {
     return result;
   }
 
-  public static List<Integer> fixPattern(final int inputLen, final int c) {
+  public static List<Integer> constantPattern(final int inputLen, final int c) {
     final List<Integer> result = new ArrayList<>();
     int total = 0;
     while (total < inputLen) {

@@ -4,6 +4,7 @@
 #define BUFFER_H
 
 #include "env.h"
+#include <openssl/mem.h>
 #include <vector>
 
 namespace AmazonCorrettoCryptoProvider {
@@ -402,7 +403,7 @@ public:
 
     size_t len() const { return m_length; }
 
-    void zeroize() { secureZero(data(), len()); }
+    void zeroize() { OPENSSL_cleanse(data(), len()); }
 };
 
 inline void java_buffer::get_bytes(raii_env& env, uint8_t* dest, size_t offset, size_t len) const
@@ -565,7 +566,7 @@ public:
             memcpy(borrow.data(), &m_storage, sizeof(m_storage));
         }
 
-        secureZero(&m_storage, sizeof(m_storage));
+        OPENSSL_cleanse(&m_storage, sizeof(m_storage));
     }
 
     T* ptr()
@@ -586,7 +587,7 @@ public:
     T* operator->() { return ptr(); }
     const T* operator->() const { return ptr(); }
 
-    void zeroize() { secureZero(&m_storage, sizeof(m_storage)); }
+    void zeroize() { OPENSSL_cleanse(&m_storage, sizeof(m_storage)); }
 };
 
 // Please follow the guidelines outlined in {Get,Release}PrimitiveArrayCritical when using this class:
@@ -610,6 +611,7 @@ public:
     uint8_t* get_buffer();
 
 private:
+    int size_;
     uint8_t* buffer_;
 };
 

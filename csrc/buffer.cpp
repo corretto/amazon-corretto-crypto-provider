@@ -1,6 +1,7 @@
 // Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 #include "buffer.h"
+#include <openssl/mem.h>
 #include <cstdlib>
 
 namespace AmazonCorrettoCryptoProvider {
@@ -51,7 +52,8 @@ JByteArrayCritical::~JByteArrayCritical() { env_->ReleasePrimitiveArrayCritical(
 unsigned char* JByteArrayCritical::get() { return (unsigned char*)ptr_; }
 
 SimpleBuffer::SimpleBuffer(int size)
-    : buffer_(nullptr)
+    : size_(size)
+    , buffer_(nullptr)
 {
     buffer_ = (uint8_t*)malloc(size);
     if (buffer_ == nullptr) {
@@ -59,7 +61,11 @@ SimpleBuffer::SimpleBuffer(int size)
     }
 }
 
-SimpleBuffer::~SimpleBuffer() { free(buffer_); }
+SimpleBuffer::~SimpleBuffer()
+{
+    OPENSSL_cleanse(buffer_, size_);
+    free(buffer_);
+}
 
 uint8_t* SimpleBuffer::get_buffer() { return buffer_; }
 
