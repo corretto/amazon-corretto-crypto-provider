@@ -42,7 +42,8 @@ std::string formatOpensslError(unsigned long errCode, const char* fallback)
     }
 }
 
-JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_Utils_releaseEvpCipherCtx(JNIEnv*, jclass, jlong ctxPtr)
+extern "C" JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_Utils_releaseEvpCipherCtx(
+    JNIEnv*, jclass, jlong ctxPtr)
 {
     EVP_CIPHER_CTX_free(reinterpret_cast<EVP_CIPHER_CTX*>(ctxPtr));
 }

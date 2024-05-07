@@ -27,10 +27,15 @@ import javax.crypto.ShortBufferException;
 import javax.crypto.spec.IvParameterSpec;
 
 class AesCbcSpi extends CipherSpi {
+  // The value of padding is passed to AWS-LC and it respects EVP_CIPHER_CTX_set_padding API:
+  // https://github.com/aws/aws-lc/blob/main/include/openssl/cipher.h#L294-L297
+  public static final int NO_PADDING = 0;
+  public static final int PKCS7_PADDING = 1;
   public static final Set<String> AES_CBC_NO_PADDING_NAMES;
   public static final Set<String> AES_CBC_PKCS7_PADDING_NAMES;
 
   static {
+    Loader.load();
     AES_CBC_NO_PADDING_NAMES = new HashSet<>();
     AES_CBC_NO_PADDING_NAMES.add("AES/CBC/NoPadding".toLowerCase());
     AES_CBC_NO_PADDING_NAMES.add("AES_128/CBC/NoPadding".toLowerCase());
@@ -52,10 +57,10 @@ class AesCbcSpi extends CipherSpi {
   }
 
   private static final byte[] EMPTY_ARRAY = new byte[0];
-  private static final int NO_PADDING = 0;
-  private static final int PKCS7_PADDING = 1;
   private static final int BLOCK_SIZE_IN_BYTES = 128 / 8;
   private static final int MODE_NOT_SET = -1;
+  // ENC_MODE and DEC_MODE are passed to AWS-LC and respect EVP_CipherInit_ex API:
+  // https://github.com/aws/aws-lc/blob/main/include/openssl/cipher.h#L168
   private static final int ENC_MODE = 1;
   private static final int DEC_MODE = 0;
 
@@ -84,8 +89,8 @@ class AesCbcSpi extends CipherSpi {
   // controlled by a system property.
   private final boolean saveContext;
 
-  AesCbcSpi(final boolean paddingEnabled, final boolean saveContext) {
-    this.padding = paddingEnabled ? PKCS7_PADDING : NO_PADDING;
+  AesCbcSpi(final int padding, final boolean saveContext) {
+    this.padding = padding;
     this.cipherState = CipherState.NEEDS_INITIALIZATION;
     this.unprocessedInput = 0;
     this.opMode = MODE_NOT_SET;
@@ -383,7 +388,7 @@ class AesCbcSpi extends CipherSpi {
       return result;
     } catch (final Exception e) {
       cipherState = CipherState.NEEDS_INITIALIZATION;
-      saveNativeContextIfNeeded(ctxContainer[0]);
+      cleanUpNativeContextIfNeeded(ctxContainer[0]);
       throw e;
     }
   }
@@ -597,14 +602,14 @@ class AesCbcSpi extends CipherSpi {
 
     } catch (final Exception e) {
       cipherState = CipherState.NEEDS_INITIALIZATION;
-      saveNativeContextIfNeeded(ctxContainer[0]);
+      cleanUpNativeContextIfNeeded(ctxContainer[0]);
       throw e;
     }
   }
 
-  private void saveNativeContextIfNeeded(final long ctxPtr) {
+  private void cleanUpNativeContextIfNeeded(final long ctxPtr) {
     if (nativeCtx == null && ctxPtr != 0) {
-      nativeCtx = new NativeEvpCipherCtx(ctxPtr);
+      Utils.releaseEvpCipherCtx(ctxPtr);
     }
   }
 

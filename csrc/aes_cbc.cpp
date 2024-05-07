@@ -2,14 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "buffer.h"
 #include "env.h"
+#include "util.h"
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <cstring>
 #include <jni.h>
-
-#define AWS_LC_BAD_PADDING_ERROR_CODE 0x1e000065
-
-#define EX_BAD_PADDING "javax/crypto/BadPaddingException"
 
 #define AES_CBC_BLOCK_SIZE_IN_BYTES 16
 #define KEY_LEN_AES128              16
@@ -143,8 +140,8 @@ public:
     {
         int result = 0;
         if (EVP_CipherFinal_ex(ctx_, output, &result) != 1) {
-            if (ERR_get_error() == AWS_LC_BAD_PADDING_ERROR_CODE) {
-                throw java_ex(EX_BAD_PADDING, "Bad padding");
+            if (ERR_GET_REASON(ERR_get_error()) == CIPHER_R_BAD_DECRYPT) {
+                throw java_ex(EX_BADPADDING, "Bad padding");
             } else {
                 throw_openssl(EX_RUNTIME_CRYPTO, "EVP_CipherFinal_ex failed.");
             }
@@ -159,7 +156,7 @@ using namespace AmazonCorrettoCryptoProvider;
 
 extern "C" JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesCbcSpi_nInitUpdateFinal(JNIEnv* env,
     jclass,
-    jint opMod,
+    jint opMode,
     jint padding,
     jbyteArray key,
     jint keyLen,
@@ -181,7 +178,7 @@ extern "C" JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesCb
         {
             JBinaryBlob j_key(env, nullptr, key);
             JBinaryBlob j_iv(env, nullptr, iv);
-            aes_cbc_cipher.init(opMod, padding, j_key.get(), keyLen, j_iv.get());
+            aes_cbc_cipher.init(opMode, padding, j_key.get(), keyLen, j_iv.get());
         }
 
         int result = 0;
@@ -206,7 +203,7 @@ extern "C" JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesCb
 
 extern "C" JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesCbcSpi_nInitUpdate(JNIEnv* env,
     jclass,
-    jint opMod,
+    jint opMode,
     jint padding,
     jbyteArray key,
     jint keyLen,
@@ -227,7 +224,7 @@ extern "C" JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesCb
         {
             JBinaryBlob j_key(env, nullptr, key);
             JBinaryBlob j_iv(env, nullptr, iv);
-            aes_cbc_cipher.init(opMod, padding, j_key.get(), keyLen, j_iv.get());
+            aes_cbc_cipher.init(opMode, padding, j_key.get(), keyLen, j_iv.get());
         }
 
         // update

@@ -623,8 +623,11 @@ public:
     uint8_t* get();
 
 private:
+    // The native pointer that is either backed by a direct ByteBuffer or a byte array.
     uint8_t* ptr_;
     JNIEnv* env_;
+    // In case the blob is backed by a byte array, we need to keep a reference that is used when the destructor is
+    // invoked.
     jbyteArray array_;
 };
 
