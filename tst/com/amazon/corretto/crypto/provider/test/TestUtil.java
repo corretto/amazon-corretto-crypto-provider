@@ -592,24 +592,30 @@ public class TestUtil {
 
   public static ByteBuffer multiStepArray(
       final Cipher cipher, final List<Integer> process, final byte[] input) throws Exception {
+    return multiStepArray(cipher, process, input, input.length);
+  }
 
-    final byte[] output = new byte[cipher.getOutputSize(input.length)];
+  public static ByteBuffer multiStepArray(
+      final Cipher cipher, final List<Integer> process, final byte[] input, final int inputLen)
+      throws Exception {
+
+    final byte[] output = new byte[cipher.getOutputSize(inputLen)];
 
     int inputOffset = 0;
     int outputOffset = 0;
 
     for (final Integer p : process) {
-      if (inputOffset == input.length) break;
-      final int toBeProcessed = (p + inputOffset) > input.length ? (input.length - inputOffset) : p;
+      if (inputOffset == inputLen) break;
+      final int toBeProcessed = (p + inputOffset) > inputLen ? (inputLen - inputOffset) : p;
       outputOffset += cipher.update(input, inputOffset, toBeProcessed, output, outputOffset);
       inputOffset += toBeProcessed;
     }
 
-    if (inputOffset == input.length) {
+    if (inputOffset == inputLen) {
       outputOffset += cipher.doFinal(output, outputOffset);
     } else {
       outputOffset +=
-          cipher.doFinal(input, inputOffset, input.length - inputOffset, output, outputOffset);
+          cipher.doFinal(input, inputOffset, inputLen - inputOffset, output, outputOffset);
     }
 
     return ByteBuffer.wrap(output, 0, outputOffset);
@@ -786,5 +792,15 @@ public class TestUtil {
     }
 
     return outputOffset;
+  }
+
+  public static List<Integer> genPattern(final long seed, final int choice, final int inputLen) {
+    if (choice < 0) {
+      return randomPattern(inputLen, seed);
+    }
+    if (choice == 0) {
+      return ascendingPattern(inputLen);
+    }
+    return constantPattern(inputLen, choice);
   }
 }

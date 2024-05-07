@@ -2,12 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.amazon.corretto.crypto.provider.test;
 
-import static com.amazon.corretto.crypto.provider.test.TestUtil.ascendingPattern;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.byteBuffersAreEqual;
-import static com.amazon.corretto.crypto.provider.test.TestUtil.constantPattern;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.genAesKey;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.genData;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.genIv;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.genPattern;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.multiStepArray;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.multiStepArrayMultiAllocationExplicit;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.multiStepArrayMultiAllocationImplicit;
@@ -16,7 +15,6 @@ import static com.amazon.corretto.crypto.provider.test.TestUtil.multiStepByteBuf
 import static com.amazon.corretto.crypto.provider.test.TestUtil.multiStepByteBufferMultiAllocation;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.multiStepInPlaceArray;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.oneShotByteBuffer;
-import static com.amazon.corretto.crypto.provider.test.TestUtil.randomPattern;
 import static org.junit.Assert.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -222,16 +220,6 @@ public class AesCbcTest {
               dataByteBuff,
               multiStepArrayMultiAllocationExplicit(accpCipher, processingPattern, sunCipherText)));
     }
-  }
-
-  private static List<Integer> genPattern(final long seed, final int choice, final int inputLen) {
-    if (choice < 0) {
-      return randomPattern(inputLen, seed);
-    }
-    if (choice == 0) {
-      return ascendingPattern(inputLen);
-    }
-    return constantPattern(inputLen, choice);
   }
 
   private static Stream<Arguments> arrayTestParams() {

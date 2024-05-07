@@ -691,6 +691,7 @@ add_custom_target(check-junit-AesLazy
         --select-class=com.amazon.corretto.crypto.provider.test.AesGcmKatTest
         --select-class=com.amazon.corretto.crypto.provider.test.AesCbcTest
         --select-class=com.amazon.corretto.crypto.provider.test.AesCbcNistTest
+        --select-class=com.amazon.corretto.crypto.provider.test.AesCbcIso10126Test
 
     DEPENDS accp-jar tests-jar)
 

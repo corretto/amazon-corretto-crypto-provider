@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.amazon.corretto.crypto.provider;
 
+import static com.amazon.corretto.crypto.provider.AesCbcSpi.AES_CBC_ISO10126_PADDING_NAMES;
 import static com.amazon.corretto.crypto.provider.AesCbcSpi.AES_CBC_NO_PADDING_NAMES;
 import static com.amazon.corretto.crypto.provider.AesCbcSpi.AES_CBC_PKCS7_PADDING_NAMES;
 import static com.amazon.corretto.crypto.provider.HkdfSecretKeyFactorySpi.HKDF_WITH_SHA1;
@@ -107,6 +108,11 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     addService("Cipher", "AES_128/CBC/PKCS7Padding", "AesCbcSpi", false);
     addService("Cipher", "AES_192/CBC/PKCS7Padding", "AesCbcSpi", false);
     addService("Cipher", "AES_256/CBC/PKCS7Padding", "AesCbcSpi", false);
+
+    addService("Cipher", "AES/CBC/ISO10126Padding", "AesCbcSpi", false);
+    addService("Cipher", "AES_128/CBC/ISO10126Padding", "AesCbcSpi", false);
+    addService("Cipher", "AES_192/CBC/ISO10126Padding", "AesCbcSpi", false);
+    addService("Cipher", "AES_256/CBC/ISO10126Padding", "AesCbcSpi", false);
 
     addService("Cipher", "RSA/ECB/NoPadding", "RsaCipher$NoPadding");
     addService("Cipher", "RSA/ECB/Pkcs1Padding", "RsaCipher$Pkcs1");
@@ -340,6 +346,14 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
               AmazonCorrettoCryptoProvider.this.nativeContextReleaseStrategy
                   == Utils.NativeContextReleaseStrategy.LAZY;
           return new AesCbcSpi(AesCbcSpi.NO_PADDING, saveContext);
+        }
+
+        if ("Cipher".equalsIgnoreCase(type)
+            && AES_CBC_ISO10126_PADDING_NAMES.contains(algo.toLowerCase())) {
+          final boolean saveContext =
+              AmazonCorrettoCryptoProvider.this.nativeContextReleaseStrategy
+                  == Utils.NativeContextReleaseStrategy.LAZY;
+          return new AesCbcSpi(AesCbcSpi.ISO10126_PADDING, saveContext);
         }
 
         throw new NoSuchAlgorithmException(String.format("No service class for %s/%s", type, algo));
