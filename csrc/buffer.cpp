@@ -52,20 +52,15 @@ JByteArrayCritical::~JByteArrayCritical() { env_->ReleasePrimitiveArrayCritical(
 unsigned char* JByteArrayCritical::get() { return (unsigned char*)ptr_; }
 
 SimpleBuffer::SimpleBuffer(int size)
-    : size_(size)
-    , buffer_(nullptr)
+    : buffer_(nullptr)
 {
-    buffer_ = (uint8_t*)malloc(size);
+    buffer_ = (uint8_t*)OPENSSL_malloc(size);
     if (buffer_ == nullptr) {
         throw java_ex(EX_ERROR, "malloc failed.");
     }
 }
 
-SimpleBuffer::~SimpleBuffer()
-{
-    OPENSSL_cleanse(buffer_, size_);
-    free(buffer_);
-}
+SimpleBuffer::~SimpleBuffer() { OPENSSL_free(buffer_); }
 
 uint8_t* SimpleBuffer::get_buffer() { return buffer_; }
 

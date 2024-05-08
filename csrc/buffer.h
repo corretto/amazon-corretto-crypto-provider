@@ -611,7 +611,6 @@ public:
     uint8_t* get_buffer();
 
 private:
-    int size_;
     uint8_t* buffer_;
 };
 
