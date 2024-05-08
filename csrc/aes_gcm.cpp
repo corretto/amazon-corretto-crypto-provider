@@ -241,13 +241,6 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_AesGcmSpi_encry
     }
 }
 
-JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_AesGcmSpi_releaseContext(JNIEnv*, jclass, jlong ctxPtr)
-{
-    EVP_CIPHER_CTX* ctx = (EVP_CIPHER_CTX*)ctxPtr;
-
-    EVP_CIPHER_CTX_free(ctx);
-}
-
 JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesGcmSpi_encryptUpdate(JNIEnv* pEnv,
     jclass,
     jlong ctxPtr,

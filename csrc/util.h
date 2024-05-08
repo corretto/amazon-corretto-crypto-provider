@@ -8,6 +8,7 @@
 #include "generated-headers.h"
 #include <openssl/bn.h>
 #include <openssl/ec.h>
+#include <openssl/mem.h> // for OPENSSL_cleanse
 #include <cstdlib>
 #include <pthread.h>
 #include <stdint.h>
@@ -45,25 +46,11 @@ inline std::string opensslErrorWithDefault(const char* fallback)
 #define EX_INVALID_KEY_SPEC    "java/security/spec/InvalidKeySpecException"
 #define EX_SIGNATURE_EXCEPTION "java/security/SignatureException"
 
-// Define this prior to use as some compilers don't like it the other way around.
-static inline void secureZero(void* ptr, size_t size)
-{
-    if (ptr == nullptr || size == 0) {
-        return;
-    }
-    memset(ptr, 0, size);
-    __asm__ __volatile__("" /* don't actually do anything */
-                         : /* no outputs */
-                         : "r"(ptr) /* make the compiler think the memset matters */
-                         : "memory" /* pretend we modify memory, so the compiler can't cache values in registers */
-    );
-}
-
 template <typename type, size_t size> class SecureBuffer {
 public:
     type buf[size];
 
-    SecureBuffer() { secureZero(buf, sizeof(buf)); }
+    SecureBuffer() { OPENSSL_cleanse(buf, sizeof(buf)); }
     virtual ~SecureBuffer() { zeroize(); }
     operator type*() { return buf; }
     operator const type*() const { return buf; }
@@ -71,7 +58,7 @@ public:
     const type& operator*() const { return &buf; }
     type& operator[](size_t idx) { return buf[idx]; }
     type& operator[](size_t idx) const { return buf[idx]; }
-    virtual void zeroize() { secureZero(buf, sizeof(buf)); }
+    virtual void zeroize() { OPENSSL_cleanse(buf, sizeof(buf)); }
 };
 
 #if __BYTE_ORDER == __LITTLE_ENDIAN
