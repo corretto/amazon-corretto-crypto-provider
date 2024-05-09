@@ -7,7 +7,10 @@ import static com.amazon.corretto.crypto.provider.test.TestUtil.genAesKey;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.genData;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.genIv;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.genPattern;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.mergeByteBuffers;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.multiStepArray;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.multiStepArrayMultiAllocationExplicit;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.multiStepArrayMultiAllocationImplicit;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.oneShotByteBuffer;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -169,6 +172,40 @@ public class AesCbcIso10126Test {
       assertTrue(
           byteBuffersAreEqual(
               dataByteBuff, multiStepArray(accpCipher, processingPattern, sunCipherText)));
+    }
+
+    for (final List<Integer> processingPattern : processingPatterns) {
+      accpCipher.init(Cipher.ENCRYPT_MODE, aesKey, iv);
+      final ByteBuffer accpCipherTextFromChunks =
+          mergeByteBuffers(
+              multiStepArrayMultiAllocationImplicit(accpCipher, processingPattern, data));
+      assertEquals(sunCipherText.length, accpCipherTextFromChunks.remaining());
+      accpCipher.init(Cipher.DECRYPT_MODE, aesKey, iv);
+      assertTrue(
+          byteBuffersAreEqual(
+              dataByteBuff,
+              multiStepArray(
+                  accpCipher,
+                  processingPattern,
+                  accpCipherTextFromChunks.array(),
+                  accpCipherTextFromChunks.remaining())));
+    }
+
+    for (final List<Integer> processingPattern : processingPatterns) {
+      accpCipher.init(Cipher.ENCRYPT_MODE, aesKey, iv);
+      final ByteBuffer accpCipherTextFromChunks =
+          mergeByteBuffers(
+              multiStepArrayMultiAllocationExplicit(accpCipher, processingPattern, data));
+      assertEquals(sunCipherText.length, accpCipherTextFromChunks.remaining());
+      accpCipher.init(Cipher.DECRYPT_MODE, aesKey, iv);
+      assertTrue(
+          byteBuffersAreEqual(
+              dataByteBuff,
+              multiStepArray(
+                  accpCipher,
+                  processingPattern,
+                  accpCipherTextFromChunks.array(),
+                  accpCipherTextFromChunks.remaining())));
     }
   }
 

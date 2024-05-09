@@ -96,7 +96,11 @@ class AesCbcSpi extends CipherSpi {
   // Determines if the EVP_CIPHER_CTX used should be released after doFinal or not. This is
   // controlled by a system property.
   private final boolean saveContext;
-  // This memory is used during decryption for ISO10126Padding.
+  // This memory is used during decryption for ISO10126Padding. For ISO10126 padding, we use AES-CBC
+  // with no padding and take care of padding/unpadding in ACCP. When decrypting with this padding,
+  // this memory is used to keep track of the last block of cipher text. This buffer is only read
+  // and written to in the native code. In the Java side, we only set it to zero whenever we
+  // initialized.
   private byte[] lastBlock;
 
   AesCbcSpi(final int padding, final boolean saveContext) {
@@ -233,6 +237,8 @@ class AesCbcSpi extends CipherSpi {
       return;
     }
     if (lastBlock == null) {
+      // We allocate 17 bytes. The last byte holds how much of this buffer is used to track the tail
+      // of a cipher text during decryption.
       lastBlock = new byte[BLOCK_SIZE_IN_BYTES + 1];
     } else {
       Arrays.fill(lastBlock, (byte) 0);
