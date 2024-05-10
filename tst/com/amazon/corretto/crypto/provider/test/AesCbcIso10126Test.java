@@ -80,11 +80,26 @@ public class AesCbcIso10126Test {
     sun.init(Cipher.ENCRYPT_MODE, aesKey, iv);
     final byte[] accpCipherText = accp.doFinal(input);
     final byte[] sunCipherText = sun.doFinal(input);
-    assertEquals(sunCipherText.length, accpCipherText.length);
+    final int cipherLen = sunCipherText.length;
+    assertEquals(cipherLen, accpCipherText.length);
     // Since the padding is random, the last block of the cipher texts are not necessarily the same.
     for (int i = 0; i < accpCipherText.length - 16; i++) {
       assertEquals(sunCipherText[i], accpCipherText[i]);
     }
+    // If we use AES/CBC/NoPadding and decrypt both sunCipherText and accpCipherText, then other
+    // than the random padding bytes, the rest should be the same:
+    final Cipher cbcNoPadding = Cipher.getInstance("AES/CBC/NoPadding", TestUtil.NATIVE_PROVIDER);
+    cbcNoPadding.init(Cipher.DECRYPT_MODE, aesKey, iv);
+    final byte[] accpUnpaddedPlainText = cbcNoPadding.doFinal(accpCipherText);
+    final byte[] sunUnpaddedPlainText = cbcNoPadding.doFinal(sunCipherText);
+    assertEquals(cipherLen, accpUnpaddedPlainText.length);
+    assertEquals(cipherLen, sunUnpaddedPlainText.length);
+    for (int i = 0; i != input.length; i++) {
+      assertEquals(input[i], accpUnpaddedPlainText[i]);
+      assertEquals(sunUnpaddedPlainText[i], accpUnpaddedPlainText[i]);
+    }
+    assertEquals(sunUnpaddedPlainText[cipherLen - 1], accpUnpaddedPlainText[cipherLen - 1]);
+
     accp.init(Cipher.DECRYPT_MODE, aesKey, iv);
     sun.init(Cipher.DECRYPT_MODE, aesKey, iv);
     assertArrayEquals(input, accp.doFinal(accpCipherText));

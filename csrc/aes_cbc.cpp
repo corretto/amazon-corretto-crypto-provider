@@ -21,9 +21,12 @@ static bool is_iso10126_padding(int padding)
     return padding == com_amazon_corretto_crypto_provider_AesCbcSpi_ISO10126_PADDING;
 }
 
-static bool is_enc(jint op_mode) { return op_mode == com_amazon_corretto_crypto_provider_AesCbcSpi_ENC_MODE; }
+static bool is_encryption_mode(jint op_mode)
+{
+    return op_mode == com_amazon_corretto_crypto_provider_AesCbcSpi_ENC_MODE;
+}
 
-static int min(int a, int b) { return a <= b ? a : b; }
+static unsigned int min(unsigned int a, unsigned int b) { return a <= b ? a : b; }
 
 class AesCbcCipher {
     JNIEnv* jenv_;
@@ -125,8 +128,13 @@ public:
             throw_openssl(EX_RUNTIME_CRYPTO, "EVP_CipherInit_ex failed.");
         }
 
+        // AWS-LC does not support AES-CBC with ISO10126 padding. ACCP supports ISO10126 by using AES-CBC with no
+        // padding and implements the logic of padding/unpadding by itself.
+        if (padding == com_amazon_corretto_crypto_provider_AesCbcSpi_ISO10126_PADDING) {
+            padding = com_amazon_corretto_crypto_provider_AesCbcSpi_NO_PADDING;
+        }
         // This method always returns 1 and succeeds.
-        if (EVP_CIPHER_CTX_set_padding(ctx_, padding_to_be_used(padding)) != 1) {
+        if (EVP_CIPHER_CTX_set_padding(ctx_, padding) != 1) {
             throw_openssl(EX_RUNTIME_CRYPTO, "EVP_CIPHER_CTX_set_padding failed.");
         }
     }
@@ -154,7 +162,8 @@ public:
 
     int extended_update(bool is_iso10126_padding,
         bool is_enc,
-        jbyteArray j_last_block,
+        jbyteArray j_last_block, /* j_last_block is AesCbcSpi.lastBlock. It's capacity is 17, where the last byte holds
+                                    the number of bytes that it is holding at that point. */
         uint8_t const* input,
         int input_len,
         uint8_t* output,
@@ -167,49 +176,92 @@ public:
         // The last_block is used to store this information.
         JBinaryBlob last_block(jenv_, nullptr, j_last_block);
         // The last byte of last_block stores the number of bytes in it from the previous call.
-        int last_block_len = last_block.get()[AES_CBC_BLOCK_SIZE_IN_BYTES];
+        unsigned int const last_block_len = last_block.get()[AES_CBC_BLOCK_SIZE_IN_BYTES];
         // This is the total number of bytes that we have. Some must be stored in the last_block and the rest must be
         // passed to the cipher.
-        int all = last_block_len + input_len;
-        int rem = all % AES_CBC_BLOCK_SIZE_IN_BYTES;
-        // We need to store no more than 16 bytes of all the input. c holds the number of bytes that must be copied into
-        // last_block.
-        int c = rem == 0 ? min(AES_CBC_BLOCK_SIZE_IN_BYTES, all) : rem;
-        // p is the total number of bytes that must be passed to the cipher.
-        int p = all - c;
-        // p1 is the number of bytes that must be pass to the cipher from last_block.
-        int p1 = min(p, last_block_len);
-        // p2 is the number of bytes that must be pass to the cipher from input.
-        int p2 = p - p1;
-        // c2 is the number of bytes that must be copied from input to last_block.
-        int c2 = min(c, input_len);
-        // c1 is the number of bytes that must be copied from last_block to itself.
-        int c1 = c - c2;
+        unsigned int const all = last_block_len + input_len;
+        // rem is used to find if all the input is aligned or not.
+        unsigned int const rem = all % AES_CBC_BLOCK_SIZE_IN_BYTES;
+
+        // We need to save the tail of cipher text during decryption so that during do_final the padding can be removed.
+        // If the total number of bytes is a multiple of 16 (AES's block size), then we should save that last 16 bytes,
+        // otherwise, we should save rem number of bytes into last_block.
+        unsigned int const save_bytes = rem == 0 ? min(AES_CBC_BLOCK_SIZE_IN_BYTES, all) : rem;
+        // save_bytes satisfies the following two properties:
+        // 1) 0 <= save_bytes <= 16
+        // 2) save_bytes <= all
+
+        // Any number of bytes that are not saved, must be processed and passed to EVP_CIPHER_CTX.
+        unsigned int const process_bytes = all - save_bytes;
+        // process_bytes has the following properties:
+        // 1) 0 <= process_bytes <= all
+        // 2) process_bytes + save_bytes == all
+
+        // Now, we need to figure out how many bytes should be processed from last_block and how many from input.
+        // process_bytes_last_block is the number of bytes that must be pass to the cipher from last_block.
+        unsigned int const process_bytes_last_block = min(process_bytes, last_block_len);
+
+        // The rest of the bytes for processing must come from input:
+        unsigned int const process_bytes_input = process_bytes - process_bytes_last_block;
+
+        // We also need to find out how many bytes should be saved from last_block and input by copying them into
+        // last_block. The total is save_bytes and we need to start saving from the tail of input.
+        unsigned int const save_bytes_input = min(save_bytes, input_len);
+        // The rest of the bytes that must be saved should come from the last_block itself.
+        unsigned int const save_bytes_last_block = save_bytes - save_bytes_input;
+
+        /* Let's prove two important theorems:
+        Theorem_1: process_bytes_last_block + save_bytes_last_block == last_block_len
+        Proof: expand each term to its defining expression:
+          min(process_bytes, last_block_len) + save_bytes - save_bytes_input ==
+          min(all - save_bytes, last_block_len) + save_bytes - min(save_bytes, input_len) ==
+          min(last_block_len + input_len - save_bytes, last_block_len) + save_bytes - min(save_bytes, input_len)
+
+        There are two possibilities:
+        1) save_bytes >= input_len: in this case:
+            min(last_block_len + input_len - save_bytes, last_block_len) == last_block_len &&
+            min(save_bytes, input_len) == save_bytes
+            Therefore, we can simplify the above equation to the following:
+            last_block_len + save_bytes - save_bytes  == last_block_len
+        2) save_bytes < input_len: in this case:
+            min(last_block_len + input_len - save_bytes, last_block_len) == last_block_len + input_len - save_bytes &&
+            min(save_bytes, input_len) == input_len
+            Therefore, we can simplify the above equation to the following:
+            last_block_len + input_len - save_bytes + save_bytes - input_len == last_block_len
+        */
+
+        /*
+        Theorem_2:  process_bytes_input + save_bytes_input == input_len
+        Proof: it can be proved similar to Theorem_1.
+        */
 
         // Processing step: passing bytes to the cipher. This includes passing bytes from last_block and input:
         // Passing bytes from last_block:
-        int up = unprocessed_input - last_block_len;
-        int result = update(last_block.get(), p1, output, up);
-        up = (p1 + up) - result;
+        int result = update(last_block.get(), process_bytes_last_block, output, 0);
 
         // Passing bytes from input
-        result += update(input, p2, output + result, up);
+        result += update(input, process_bytes_input, output + result, process_bytes_last_block - result);
 
-        // Copying step: storing bytes into last_byte. This includes copy from last_block into itself and from input
+        // Copying step: storing bytes into last_byte. This includes copying from last_block into itself and from input
         // to last_block.
-        // Copy c1 bytes from last_block to itself.
-        int from_index = last_block_len - c1;
-        for (int i = 0; i < c1; i++) {
+
+        // Copy save_bytes_last_block bytes from last_block to itself.
+        unsigned int from_index = last_block_len - save_bytes_last_block;
+        for (unsigned int i = 0; i < save_bytes_last_block; i++) {
             last_block.get()[i] = last_block.get()[from_index + i];
         }
-        // Copy c2 from input to last_block.
-        from_index = input_len - c2;
-        for (int i = 0; i < c2; i++) {
-            last_block.get()[c1 + i] = input[from_index + i];
+        // Based on Theorem_1, there is no array index out of bound in the above loop.
+
+        // Copy save_bytes_input bytes from input to last_block.
+        from_index = input_len - save_bytes_input;
+        for (unsigned int i = 0; i < save_bytes_input; i++) {
+            last_block.get()[save_bytes_last_block + i] = input[from_index + i];
         }
+        // Based on Theorem_2, there is no array index out of bound in the above loop.
+
         // Record the new size of last_block.
-        // Since c <= 16, the following cast is fine.
-        last_block.get()[AES_CBC_BLOCK_SIZE_IN_BYTES] = (uint8_t)c;
+        // Since  0 <= save_bytes <= 16, the following cast is fine.
+        last_block.get()[AES_CBC_BLOCK_SIZE_IN_BYTES] = (uint8_t)save_bytes;
 
         return result;
     }
@@ -309,8 +361,8 @@ extern "C" JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesCb
     try {
         AesCbcCipher aes_cbc_cipher(env, ctxContainer, ctxPtr, saveCtx);
 
-        bool is_iso10126_padding_flag = is_iso10126_padding(padding);
-        bool is_enc_flag = is_enc(opMode);
+        bool is_iso10126 = is_iso10126_padding(padding);
+        bool is_enc = is_encryption_mode(opMode);
 
         // init
         {
@@ -324,13 +376,13 @@ extern "C" JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesCb
         JBinaryBlob output(env, outputDirect, outputArray);
         {
             JBinaryBlob input(env, inputDirect, inputArray);
-            result = aes_cbc_cipher.extended_update(is_iso10126_padding_flag, is_enc_flag, lastBlock,
-                input.get() + inputOffset, inputLen, output.get() + outputOffset, 0);
+            result = aes_cbc_cipher.extended_update(
+                is_iso10126, is_enc, lastBlock, input.get() + inputOffset, inputLen, output.get() + outputOffset, 0);
         }
 
         // final
         result += aes_cbc_cipher.extended_do_final(
-            is_iso10126_padding_flag, is_enc_flag, lastBlock, output.get() + outputOffset + result, inputLen - result);
+            is_iso10126, is_enc, lastBlock, output.get() + outputOffset + result, inputLen - result);
 
         return result;
 
@@ -371,7 +423,7 @@ extern "C" JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesCb
         JBinaryBlob output(env, outputDirect, outputArray);
         JBinaryBlob input(env, inputDirect, inputArray);
 
-        return aes_cbc_cipher.extended_update(is_iso10126_padding(padding), is_enc(opMode), lastBlock,
+        return aes_cbc_cipher.extended_update(is_iso10126_padding(padding), is_encryption_mode(opMode), lastBlock,
             input.get() + inputOffset, inputLen, output.get() + outputOffset, 0);
 
     } catch (java_ex& ex) {
@@ -402,7 +454,7 @@ extern "C" JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesCb
         JBinaryBlob output(env, outputDirect, outputArray);
         JBinaryBlob input(env, inputDirect, inputArray);
 
-        return aes_cbc_cipher.extended_update(is_iso10126_padding(padding), is_enc(opMode), lastBlock,
+        return aes_cbc_cipher.extended_update(is_iso10126_padding(padding), is_encryption_mode(opMode), lastBlock,
             input.get() + inputOffset, inputLen, output.get() + outputOffset, unprocessedInput);
 
     } catch (java_ex& ex) {
@@ -430,8 +482,8 @@ extern "C" JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesCb
     try {
         AesCbcCipher aes_cbc_cipher(env, nullptr, ctxPtr, saveCtx);
 
-        bool is_iso10126_padding_flag = is_iso10126_padding(padding);
-        bool is_enc_flag = is_enc(opMode);
+        bool is_iso10126 = is_iso10126_padding(padding);
+        bool is_enc = is_encryption_mode(opMode);
 
         int result = 0;
         int up = unprocessedInput;
@@ -440,14 +492,14 @@ extern "C" JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesCb
         JBinaryBlob output(env, outputDirect, outputArray);
         {
             JBinaryBlob input(env, inputDirect, inputArray);
-            result = aes_cbc_cipher.extended_update(is_iso10126_padding_flag, is_enc_flag, lastBlock,
-                input.get() + inputOffset, inputLen, output.get() + outputOffset, up);
+            result = aes_cbc_cipher.extended_update(
+                is_iso10126, is_enc, lastBlock, input.get() + inputOffset, inputLen, output.get() + outputOffset, up);
         }
 
         // final
         up = (inputLen + unprocessedInput) - result;
         result += aes_cbc_cipher.extended_do_final(
-            is_iso10126_padding_flag, is_enc_flag, lastBlock, output.get() + outputOffset + result, up);
+            is_iso10126, is_enc, lastBlock, output.get() + outputOffset + result, up);
 
         return result;
 

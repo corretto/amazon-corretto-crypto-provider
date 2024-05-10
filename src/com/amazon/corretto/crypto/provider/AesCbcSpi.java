@@ -236,9 +236,12 @@ class AesCbcSpi extends CipherSpi {
     if ((padding != ISO10126_PADDING) || (opMode != DEC_MODE)) {
       return;
     }
+    // We only need this buffer decrypting a cipher text that was encrypted with ISO10126Padding.
     if (lastBlock == null) {
       // We allocate 17 bytes. The last byte holds how much of this buffer is used to track the tail
-      // of a cipher text during decryption.
+      // of a cipher text during decryption. For example, if there are 4 bytes in this array, its
+      // content would look something like the following:
+      // [0x00, 0x01, 0x02, 0x03, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0x04]
       lastBlock = new byte[BLOCK_SIZE_IN_BYTES + 1];
     } else {
       Arrays.fill(lastBlock, (byte) 0);
@@ -640,10 +643,6 @@ class AesCbcSpi extends CipherSpi {
                   outputArray,
                   outputOffset);
         }
-      }
-
-      if (result < 0) {
-        throw new AssertionError("Result is negative");
       }
 
       cipherState = CipherState.INITIALIZED;
