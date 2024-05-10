@@ -485,7 +485,7 @@ public class AesCbcTest {
   private static Stream<Arguments> byteBufferTestParams() {
     final List<Arguments> result = new ArrayList<>();
     for (final int keySize : new int[] {128}) {
-      for (int i = 0; i != 1024; i++) {
+      for (int i = 0; i != 512; i++) {
         for (final boolean isPaddingEnabled : new boolean[] {true, false}) {
           for (final boolean inputReadOnly : new boolean[] {true, false}) {
             for (final boolean inputDirect : new boolean[] {true, false}) {

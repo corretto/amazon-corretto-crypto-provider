@@ -32,6 +32,22 @@ class AesCbcSpi extends CipherSpi {
   public static final int NO_PADDING = 0;
   public static final int PKCS7_PADDING = 1;
   public static final int ISO10126_PADDING = 2;
+
+  enum Padding {
+    NONE(AesCbcSpi.NO_PADDING),
+    PKCS7(AesCbcSpi.PKCS7_PADDING),
+    ISO10126(AesCbcSpi.ISO10126_PADDING);
+    private final int value;
+
+    Padding(final int value) {
+      this.value = value;
+    }
+
+    int getValue() {
+      return value;
+    }
+  }
+
   public static final Set<String> AES_CBC_NO_PADDING_NAMES;
   public static final Set<String> AES_CBC_PKCS7_PADDING_NAMES;
   public static final Set<String> AES_CBC_ISO10126_PADDING_NAMES;
@@ -103,8 +119,8 @@ class AesCbcSpi extends CipherSpi {
   // initialized.
   private byte[] lastBlock;
 
-  AesCbcSpi(final int padding, final boolean saveContext) {
-    this.padding = padding;
+  AesCbcSpi(final Padding padding, final boolean saveContext) {
+    this.padding = padding.getValue();
     this.cipherState = CipherState.NEEDS_INITIALIZATION;
     this.unprocessedInput = 0;
     this.opMode = MODE_NOT_SET;

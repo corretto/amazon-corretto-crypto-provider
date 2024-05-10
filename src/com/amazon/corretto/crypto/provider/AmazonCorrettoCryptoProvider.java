@@ -337,7 +337,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
           final boolean saveContext =
               AmazonCorrettoCryptoProvider.this.nativeContextReleaseStrategy
                   == Utils.NativeContextReleaseStrategy.LAZY;
-          return new AesCbcSpi(AesCbcSpi.PKCS7_PADDING, saveContext);
+          return new AesCbcSpi(AesCbcSpi.Padding.PKCS7, saveContext);
         }
 
         if ("Cipher".equalsIgnoreCase(type)
@@ -345,7 +345,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
           final boolean saveContext =
               AmazonCorrettoCryptoProvider.this.nativeContextReleaseStrategy
                   == Utils.NativeContextReleaseStrategy.LAZY;
-          return new AesCbcSpi(AesCbcSpi.NO_PADDING, saveContext);
+          return new AesCbcSpi(AesCbcSpi.Padding.NONE, saveContext);
         }
 
         if ("Cipher".equalsIgnoreCase(type)
@@ -353,7 +353,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
           final boolean saveContext =
               AmazonCorrettoCryptoProvider.this.nativeContextReleaseStrategy
                   == Utils.NativeContextReleaseStrategy.LAZY;
-          return new AesCbcSpi(AesCbcSpi.ISO10126_PADDING, saveContext);
+          return new AesCbcSpi(AesCbcSpi.Padding.ISO10126, saveContext);
         }
 
         throw new NoSuchAlgorithmException(String.format("No service class for %s/%s", type, algo));
