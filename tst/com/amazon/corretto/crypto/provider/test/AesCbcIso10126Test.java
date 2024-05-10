@@ -224,6 +224,71 @@ public class AesCbcIso10126Test {
     }
   }
 
+  @Test
+  public void testMultiStepArrayOneByteAtATime() throws Exception {
+    final long seed = 9854;
+    final int keySize = 256;
+    final int inputLen = (int) seed;
+    final Cipher accpCipher = accpCipher();
+
+    final byte[] data = genData(seed, inputLen);
+    final ByteBuffer dataByteBuff = ByteBuffer.wrap(data);
+    final SecretKeySpec aesKey = genAesKey(seed, keySize);
+    final IvParameterSpec iv = genIv(seed, 16);
+
+    final List<Integer> oneByteAtATimePattern = genPattern(8788, 1, data.length);
+
+    final Cipher sunCipher = sunCipher();
+    sunCipher.init(Cipher.ENCRYPT_MODE, aesKey, iv);
+    final byte[] sunCipherText = sunCipher.doFinal(data);
+
+    accpCipher.init(Cipher.ENCRYPT_MODE, aesKey, iv);
+    final ByteBuffer accpCipherText = multiStepArray(accpCipher, oneByteAtATimePattern, data);
+    assertEquals(sunCipherText.length, accpCipherText.remaining());
+    accpCipher.init(Cipher.DECRYPT_MODE, aesKey, iv);
+    assertTrue(
+        byteBuffersAreEqual(
+            dataByteBuff,
+            multiStepArray(
+                accpCipher,
+                oneByteAtATimePattern,
+                accpCipherText.array(),
+                accpCipherText.remaining())));
+    assertTrue(
+        byteBuffersAreEqual(
+            dataByteBuff, multiStepArray(accpCipher, oneByteAtATimePattern, sunCipherText)));
+
+    accpCipher.init(Cipher.ENCRYPT_MODE, aesKey, iv);
+    ByteBuffer accpCipherTextFromChunks =
+        mergeByteBuffers(
+            multiStepArrayMultiAllocationImplicit(accpCipher, oneByteAtATimePattern, data));
+    assertEquals(sunCipherText.length, accpCipherTextFromChunks.remaining());
+    accpCipher.init(Cipher.DECRYPT_MODE, aesKey, iv);
+    assertTrue(
+        byteBuffersAreEqual(
+            dataByteBuff,
+            multiStepArray(
+                accpCipher,
+                oneByteAtATimePattern,
+                accpCipherTextFromChunks.array(),
+                accpCipherTextFromChunks.remaining())));
+
+    accpCipher.init(Cipher.ENCRYPT_MODE, aesKey, iv);
+    accpCipherTextFromChunks =
+        mergeByteBuffers(
+            multiStepArrayMultiAllocationExplicit(accpCipher, oneByteAtATimePattern, data));
+    assertEquals(sunCipherText.length, accpCipherTextFromChunks.remaining());
+    accpCipher.init(Cipher.DECRYPT_MODE, aesKey, iv);
+    assertTrue(
+        byteBuffersAreEqual(
+            dataByteBuff,
+            multiStepArray(
+                accpCipher,
+                oneByteAtATimePattern,
+                accpCipherTextFromChunks.array(),
+                accpCipherTextFromChunks.remaining())));
+  }
+
   private static Stream<Arguments> arrayTestParams() {
     final List<Arguments> result = new ArrayList<>();
     for (final int keySize : new int[] {128, 192, 256}) {

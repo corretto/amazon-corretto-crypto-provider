@@ -60,12 +60,6 @@ class AesCbcCipher {
         }
     }
 
-    // For ISO10126, we use CBC with no padding.
-    static int padding_to_be_used(int padding)
-    {
-        return is_iso10126_padding(padding) ? com_amazon_corretto_crypto_provider_AesCbcSpi_NO_PADDING : padding;
-    }
-
 public:
     AesCbcCipher(JNIEnv* jenv, jlongArray ctx_container, jlong ctx_ptr, bool save_ctx)
         : jenv_(jenv)
