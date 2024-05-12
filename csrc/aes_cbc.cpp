@@ -26,8 +26,6 @@ static bool is_encryption_mode(jint op_mode)
     return op_mode == com_amazon_corretto_crypto_provider_AesCbcSpi_ENC_MODE;
 }
 
-static unsigned int min(unsigned int a, unsigned int b) { return a <= b ? a : b; }
-
 class AesCbcCipher {
     JNIEnv* jenv_;
     EVP_CIPHER_CTX* ctx_;
@@ -166,96 +164,55 @@ public:
         if (!is_iso10126_padding || is_enc) {
             return update(input, input_len, output, unprocessed_input);
         }
+
         // We are decrypting and padding is ISO10126. In this case, we must not decrypt the last block until do_final.
+
         // The last_block is used to store this information.
         JBinaryBlob last_block(jenv_, nullptr, j_last_block);
         // The last byte of last_block stores the number of bytes in it from the previous call.
         unsigned int const last_block_len = last_block.get()[AES_CBC_BLOCK_SIZE_IN_BYTES];
+
         // This is the total number of bytes that we have. Some must be stored in the last_block and the rest must be
         // passed to the cipher.
         unsigned int const all = last_block_len + input_len;
-        // rem is used to find if all the input is aligned or not.
+
+        if (all <= AES_CBC_BLOCK_SIZE_IN_BYTES) {
+            // The total number of bytes is less than one full block size. We must save all bytes.
+
+            // Appending the input to the end of last_block:
+            std::memcpy(last_block.get() + last_block_len, input, input_len);
+            // Updating the length of last_block:
+            last_block.get()[AES_CBC_BLOCK_SIZE_IN_BYTES] = (uint8_t)all;
+
+            // Returning 0 since no plaintext has been produced.
+            return 0;
+        }
+
+        // We have more than 16 bytes in total. To find out how many bytes must be saved, we need to see if the total
+        // number of bytes is a multiple of AES block size or not:
+
         unsigned int const rem = all % AES_CBC_BLOCK_SIZE_IN_BYTES;
-
-        // We need to save the tail of cipher text during decryption so that during do_final the padding can be removed.
-        // If the total number of bytes is a multiple of 16 (AES's block size), then we should save that last 16 bytes,
-        // otherwise, we should save rem number of bytes into last_block.
-        unsigned int const save_bytes = rem == 0 ? min(AES_CBC_BLOCK_SIZE_IN_BYTES, all) : rem;
-        // save_bytes satisfies the following two properties:
-        // 1) 0 <= save_bytes <= 16
-        // 2) save_bytes <= all
-
-        // Any number of bytes that are not saved, must be processed and passed to EVP_CIPHER_CTX.
-        unsigned int const process_bytes = all - save_bytes;
-        // process_bytes has the following properties:
-        // 1) 0 <= process_bytes <= all
-        // 2) process_bytes + save_bytes == all
-
-        // Now, we need to figure out how many bytes should be processed from last_block and how many from input.
-        // process_bytes_last_block is the number of bytes that must be pass to the cipher from last_block.
-        unsigned int const process_bytes_last_block = min(process_bytes, last_block_len);
-
-        // The rest of the bytes for processing must come from input:
-        unsigned int const process_bytes_input = process_bytes - process_bytes_last_block;
-
-        // We also need to find out how many bytes should be saved from last_block and input by copying them into
-        // last_block. The total is save_bytes and we need to start saving from the tail of input.
-        unsigned int const save_bytes_input = min(save_bytes, input_len);
-        // The rest of the bytes that must be saved should come from the last_block itself.
-        unsigned int const save_bytes_last_block = save_bytes - save_bytes_input;
-
-        /* Let's prove two important theorems:
-        Theorem_1: process_bytes_last_block + save_bytes_last_block == last_block_len
-        Proof: expand each term to its defining expression:
-          min(process_bytes, last_block_len) + save_bytes - save_bytes_input ==
-          min(all - save_bytes, last_block_len) + save_bytes - min(save_bytes, input_len) ==
-          min(last_block_len + input_len - save_bytes, last_block_len) + save_bytes - min(save_bytes, input_len)
-
-        There are two possibilities:
-        1) save_bytes >= input_len: in this case:
-            min(last_block_len + input_len - save_bytes, last_block_len) == last_block_len &&
-            min(save_bytes, input_len) == save_bytes
-            Therefore, we can simplify the above equation to the following:
-            last_block_len + save_bytes - save_bytes  == last_block_len
-        2) save_bytes < input_len: in this case:
-            min(last_block_len + input_len - save_bytes, last_block_len) == last_block_len + input_len - save_bytes &&
-            min(save_bytes, input_len) == input_len
-            Therefore, we can simplify the above equation to the following:
-            last_block_len + input_len - save_bytes + save_bytes - input_len == last_block_len
-        */
-
-        /*
-        Theorem_2:  process_bytes_input + save_bytes_input == input_len
-        Proof: it can be proved similar to Theorem_1.
-        */
-
-        // Processing step: passing bytes to the cipher. This includes passing bytes from last_block and input:
-        // Passing bytes from last_block:
-        int result = update(last_block.get(), process_bytes_last_block, output, 0);
-
-        // Passing bytes from input
-        result += update(input, process_bytes_input, output + result, process_bytes_last_block - result);
-
-        // Copying step: storing bytes into last_byte. This includes copying from last_block into itself and from input
-        // to last_block.
-
-        // Copy save_bytes_last_block bytes from last_block to itself.
-        unsigned int from_index = last_block_len - save_bytes_last_block;
-        for (unsigned int i = 0; i < save_bytes_last_block; i++) {
-            last_block.get()[i] = last_block.get()[from_index + i];
+        unsigned int save_bytes = 0;
+        if (rem == 0) {
+            // If the total number of bytes is a multiple of AES block size (16), then we must save one full block. We
+            // cannot assume that more cipher text is to come: if this was the last update call, then after decrypting,
+            // the padding must be removed from the output before returning the plaintext.
+            save_bytes = AES_CBC_BLOCK_SIZE_IN_BYTES;
+        } else {
+            // Since the total number of bytes is not a multiple of AES block size, we can save the bytes that cause
+            // misalignment and there is no need to save a full block. The total length of the cipher text in AES-CBC
+            // mode is always a multiple of the block size (16): since the total number of bytes is not a multiple of
+            // 16, more cipher text is to come.
+            save_bytes = rem;
         }
-        // Based on Theorem_1, there is no array index out of bound in the above loop.
 
-        // Copy save_bytes_input bytes from input to last_block.
-        from_index = input_len - save_bytes_input;
-        for (unsigned int i = 0; i < save_bytes_input; i++) {
-            last_block.get()[save_bytes_last_block + i] = input[from_index + i];
-        }
-        // Based on Theorem_2, there is no array index out of bound in the above loop.
+        // We must process all the bytes except the last save_bytes in input:
+        int result = update(last_block.get(), last_block_len, output, 0);
+        result += update(input, input_len - save_bytes, output + result, last_block_len - result);
 
-        // Record the new size of last_block.
-        // Since  0 <= save_bytes <= 16, the following cast is fine.
-        last_block.get()[AES_CBC_BLOCK_SIZE_IN_BYTES] = (uint8_t)save_bytes;
+        // Save the last save_bytes of input into last_block and update its length:
+        std::memcpy(last_block.get(), input + (input_len - save_bytes), save_bytes);
+        last_block.get()[AES_CBC_BLOCK_SIZE_IN_BYTES] = save_bytes;
 
         return result;
     }
