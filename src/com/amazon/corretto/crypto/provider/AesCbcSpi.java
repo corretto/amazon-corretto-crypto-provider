@@ -31,8 +31,26 @@ class AesCbcSpi extends CipherSpi {
   // https://github.com/aws/aws-lc/blob/main/include/openssl/cipher.h#L294-L297
   public static final int NO_PADDING = 0;
   public static final int PKCS7_PADDING = 1;
+  public static final int ISO10126_PADDING = 2;
+
+  enum Padding {
+    NONE(AesCbcSpi.NO_PADDING),
+    PKCS7(AesCbcSpi.PKCS7_PADDING),
+    ISO10126(AesCbcSpi.ISO10126_PADDING);
+    private final int value;
+
+    Padding(final int value) {
+      this.value = value;
+    }
+
+    int getValue() {
+      return value;
+    }
+  }
+
   public static final Set<String> AES_CBC_NO_PADDING_NAMES;
   public static final Set<String> AES_CBC_PKCS7_PADDING_NAMES;
+  public static final Set<String> AES_CBC_ISO10126_PADDING_NAMES;
 
   static {
     Loader.load();
@@ -54,6 +72,12 @@ class AesCbcSpi extends CipherSpi {
     AES_CBC_PKCS7_PADDING_NAMES.add("AES_128/CBC/PKCS5Padding".toLowerCase());
     AES_CBC_PKCS7_PADDING_NAMES.add("AES_192/CBC/PKCS5Padding".toLowerCase());
     AES_CBC_PKCS7_PADDING_NAMES.add("AES_256/CBC/PKCS5Padding".toLowerCase());
+
+    AES_CBC_ISO10126_PADDING_NAMES = new HashSet<>();
+    AES_CBC_ISO10126_PADDING_NAMES.add("AES/CBC/ISO10126Padding".toLowerCase());
+    AES_CBC_ISO10126_PADDING_NAMES.add("AES_128/CBC/ISO10126Padding".toLowerCase());
+    AES_CBC_ISO10126_PADDING_NAMES.add("AES_192/CBC/ISO10126Padding".toLowerCase());
+    AES_CBC_ISO10126_PADDING_NAMES.add("AES_256/CBC/ISO10126Padding".toLowerCase());
   }
 
   private static final byte[] EMPTY_ARRAY = new byte[0];
@@ -88,9 +112,15 @@ class AesCbcSpi extends CipherSpi {
   // Determines if the EVP_CIPHER_CTX used should be released after doFinal or not. This is
   // controlled by a system property.
   private final boolean saveContext;
+  // This memory is used during decryption for ISO10126Padding. For ISO10126 padding, we use AES-CBC
+  // with no padding and take care of padding/unpadding in ACCP. When decrypting with this padding,
+  // this memory is used to keep track of the last block of cipher text. This buffer is only read
+  // and written to in the native code. In the Java side, we only set it to zero whenever we
+  // initialized.
+  private byte[] lastBlock;
 
-  AesCbcSpi(final int padding, final boolean saveContext) {
-    this.padding = padding;
+  AesCbcSpi(final Padding padding, final boolean saveContext) {
+    this.padding = padding.getValue();
     this.cipherState = CipherState.NEEDS_INITIALIZATION;
     this.unprocessedInput = 0;
     this.opMode = MODE_NOT_SET;
@@ -98,6 +128,11 @@ class AesCbcSpi extends CipherSpi {
     this.iv = null;
     this.nativeCtx = null;
     this.saveContext = saveContext;
+    this.lastBlock = null;
+  }
+
+  private boolean noPadding() {
+    return padding == NO_PADDING;
   }
 
   @Override
@@ -130,7 +165,7 @@ class AesCbcSpi extends CipherSpi {
     final long rem = all % BLOCK_SIZE_IN_BYTES;
 
     // When there is no padding, the output size for enc/dec is at most all.
-    if (padding == NO_PADDING) {
+    if (noPadding()) {
       return (int) (all);
     }
 
@@ -210,6 +245,23 @@ class AesCbcSpi extends CipherSpi {
     this.iv = iv;
     this.key = keyBytes;
     this.unprocessedInput = 0;
+    initLastBlock();
+  }
+
+  private void initLastBlock() {
+    if ((padding != ISO10126_PADDING) || (opMode != DEC_MODE)) {
+      return;
+    }
+    // We only need this buffer decrypting a cipher text that was encrypted with ISO10126Padding.
+    if (lastBlock == null) {
+      // We allocate 17 bytes. The last byte holds how much of this buffer is used to track the tail
+      // of a cipher text during decryption. For example, if there are 4 bytes in this array, its
+      // content would look something like the following:
+      // [0x00, 0x01, 0x02, 0x03, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0x04]
+      lastBlock = new byte[BLOCK_SIZE_IN_BYTES + 1];
+    } else {
+      Arrays.fill(lastBlock, (byte) 0);
+    }
   }
 
   private static int checkOperation(final int opMode) throws InvalidParameterException {
@@ -303,7 +355,7 @@ class AesCbcSpi extends CipherSpi {
       return 0;
     }
     final long rem = all % BLOCK_SIZE_IN_BYTES;
-    if (padding == NO_PADDING || opMode == ENC_MODE || rem != 0) {
+    if (noPadding() || opMode == ENC_MODE || rem != 0) {
       return (int) (all - rem);
     }
     // When all data (inputLen + unprocessedInput) is block-size aligned, padding is enabled, and we
@@ -339,6 +391,7 @@ class AesCbcSpi extends CipherSpi {
                           iv,
                           null,
                           ctxPtr,
+                          lastBlock,
                           inputDirect,
                           inputArray,
                           inputOffset,
@@ -356,6 +409,7 @@ class AesCbcSpi extends CipherSpi {
                   iv,
                   ctxContainer,
                   0,
+                  lastBlock,
                   inputDirect,
                   inputArray,
                   inputOffset,
@@ -372,7 +426,10 @@ class AesCbcSpi extends CipherSpi {
             nativeCtx.use(
                 ctxPtr ->
                     nUpdate(
+                        opMode,
+                        padding,
                         ctxPtr,
+                        lastBlock,
                         inputDirect,
                         inputArray,
                         inputOffset,
@@ -461,10 +518,10 @@ class AesCbcSpi extends CipherSpi {
     final long all = ((long) inputLen) + ((long) unprocessedInput);
     final long rem = all % BLOCK_SIZE_IN_BYTES;
     // If there is no padding or if we are decrypting, all the data must be aligned with block size.
-    if ((opMode == DEC_MODE || padding == NO_PADDING) && rem != 0) {
+    if ((opMode == DEC_MODE || noPadding()) && rem != 0) {
       throw new IllegalBlockSizeException("Input length not multiple of 16 bytes");
     }
-    if (padding == NO_PADDING) {
+    if (noPadding()) {
       return (int) all;
     }
     // When encrypting with padding enabled ...
@@ -510,6 +567,7 @@ class AesCbcSpi extends CipherSpi {
                             null,
                             ctxPtr,
                             true,
+                            lastBlock,
                             inputDirect,
                             inputArray,
                             inputOffset,
@@ -528,6 +586,7 @@ class AesCbcSpi extends CipherSpi {
                     ctxContainer,
                     0,
                     true,
+                    lastBlock,
                     inputDirect,
                     inputArray,
                     inputOffset,
@@ -545,8 +604,11 @@ class AesCbcSpi extends CipherSpi {
               nativeCtx.use(
                   ctxPtr ->
                       nUpdateFinal(
+                          opMode,
+                          padding,
                           ctxPtr,
                           true,
+                          lastBlock,
                           inputDirect,
                           inputArray,
                           inputOffset,
@@ -571,6 +633,7 @@ class AesCbcSpi extends CipherSpi {
                   null,
                   ctxPtr,
                   false,
+                  lastBlock,
                   inputDirect,
                   inputArray,
                   inputOffset,
@@ -582,8 +645,11 @@ class AesCbcSpi extends CipherSpi {
           // Cipher is in UPDATE state and don't need to save the context
           result =
               nUpdateFinal(
+                  opMode,
+                  padding,
                   ctxPtr,
                   false,
+                  lastBlock,
                   inputDirect,
                   inputArray,
                   inputOffset,
@@ -597,6 +663,9 @@ class AesCbcSpi extends CipherSpi {
 
       cipherState = CipherState.INITIALIZED;
       unprocessedInput = 0;
+      if (lastBlock != null) {
+        Arrays.fill(lastBlock, (byte) 0);
+      }
 
       return result;
 
@@ -628,6 +697,7 @@ class AesCbcSpi extends CipherSpi {
       long[] ctxContainer,
       long ctxPtr,
       boolean saveCtx,
+      byte[] lastBlock,
       ByteBuffer inputDirect,
       byte[] inputArray,
       int inputOffset,
@@ -645,6 +715,7 @@ class AesCbcSpi extends CipherSpi {
       byte[] iv,
       long[] ctxContainer,
       long ctxPtr,
+      byte[] lastBlock,
       ByteBuffer inputDirect,
       byte[] inputArray,
       int inputOffset,
@@ -655,7 +726,10 @@ class AesCbcSpi extends CipherSpi {
 
   // This method is used the n^th time engineUpdate is used in a multi-step operation, where n >= 2.
   private static native int nUpdate(
+      int opMode,
+      int padding,
       long ctxPtr,
+      byte[] lastBlock,
       ByteBuffer inputDirect,
       byte[] inputArray,
       int inputOffset,
@@ -667,8 +741,11 @@ class AesCbcSpi extends CipherSpi {
 
   // This method is used  when engineDoFinal is used to finalize a multi-step operation.
   private static native int nUpdateFinal(
+      int opMode,
+      int padding,
       long ctxPtr,
       boolean saveCtx,
+      byte[] lastBlock,
       ByteBuffer inputDirect,
       byte[] inputArray,
       int inputOffset,

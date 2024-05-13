@@ -1,6 +1,10 @@
 # Changelog
 
-## 2.3.4
+## 2.4.0
+
+### Minor
+* [PR 380:](https://github.com/corretto/amazon-corretto-crypto-provider/pull/380) Support for AES-CBC with NoPadding, PKCS5Padding, PKCS7Padding
+* [PR 381:](https://github.com/corretto/amazon-corretto-crypto-provider/pull/381) Support for AES-CBC with ISO10126Padding
 
 ### Patch
 * [PR 353: Static linking to libcrypto](https://github.com/corretto/amazon-corretto-crypto-provider/pull/353)
