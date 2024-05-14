@@ -44,6 +44,7 @@ class AccessibleByteArrayOutputStream extends OutputStream implements Cloneable 
 
   @Override
   public void write(final byte[] b, final int off, final int len) {
+    Utils.checkArrayLimits(b, off, len);
     growCapacity(count + len);
     System.arraycopy(b, off, buf, count, len);
     count += len;
@@ -54,6 +55,7 @@ class AccessibleByteArrayOutputStream extends OutputStream implements Cloneable 
    * you know it would be the last time something needs to be written to the buffer.
    */
   void finalWrite(final byte[] b, final int off, final int len) {
+    Utils.checkArrayLimits(b, off, len);
     growCapacity(count + len, true);
     System.arraycopy(b, off, buf, count, len);
     count += len;
@@ -102,12 +104,9 @@ class AccessibleByteArrayOutputStream extends OutputStream implements Cloneable 
   }
 
   private void growCapacity(final int newCapacity, final boolean doNotAllocateMoreThanNeeded) {
-    if (newCapacity < 0) {
-      throw new OutOfMemoryError();
-    }
-    if (newCapacity > limit) {
+    if (newCapacity < 0 || newCapacity > limit) {
       throw new IllegalArgumentException(
-          String.format("Exceeded capacity limit %d. Requested %d", limit, newCapacity));
+          String.format("Invalid capacity. Limit: %d, Requested: %d.", limit, newCapacity));
     }
     if (newCapacity <= buf.length) {
       return;
