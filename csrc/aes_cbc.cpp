@@ -264,8 +264,8 @@ public:
             JBinaryBlob last_block(jenv_, nullptr, j_last_block);
             int last_block_len = last_block.get()[AES_CBC_BLOCK_SIZE_IN_BYTES];
             if (last_block_len != AES_CBC_BLOCK_SIZE_IN_BYTES) {
-                // This can happen if the input is empty.
-                throw java_ex(EX_BADPADDING, "Bad padding");
+                throw java_ex(
+                    EX_ERROR, "THIS SHOULD NOT BE REACHABLE: in the Java layer we ensure that this never happens.");
             }
             // First, we decrypt the last block.
             result = update(last_block.get(), last_block_len, output, unprocessed_input);

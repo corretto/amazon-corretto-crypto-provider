@@ -16,6 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -64,6 +65,44 @@ public class AesCbcIso10126Test {
     } catch (final Exception e) {
       throw new RuntimeException(e);
     }
+  }
+
+  @Test
+  public void emptyCipherTextWithPaddingEnabledShouldProduceEmptyPlaintext() throws Exception {
+    // For empty cipher text, SunJCE returns empty plain text when decrypting with padding enabled.
+    // This is despite the fact that Cipher text with padding is always at least 16 bytes. This test
+    // shows that ACCP is compatible with SunJCE in this manner.
+    final SecretKeySpec key = genAesKey(10, 128);
+    final IvParameterSpec iv = genIv(10, 16);
+    final Cipher accp = accpCipher();
+    final Cipher sun = sunCipher();
+
+    accp.init(Cipher.DECRYPT_MODE, key, iv);
+    sun.init(Cipher.DECRYPT_MODE, key, iv);
+
+    final byte[] empty = new byte[0];
+
+    assertEquals(0, accp.doFinal().length);
+    assertEquals(sun.doFinal().length, sun.doFinal().length);
+
+    assertEquals(0, accp.doFinal(empty).length);
+    assertEquals(sun.doFinal().length, sun.doFinal(empty).length);
+
+    assertNull(accp.update(empty));
+    assertEquals(sun.update(empty), sun.update(empty));
+    assertEquals(0, accp.doFinal().length);
+    assertEquals(sun.doFinal().length, sun.doFinal().length);
+
+    assertNull(accp.update(empty));
+    assertEquals(sun.update(empty), sun.update(empty));
+    assertEquals(0, accp.doFinal(empty).length);
+    assertEquals(sun.doFinal(empty).length, sun.doFinal(empty).length);
+
+    // On the other hand, encrypting an empty array produces 16 bytes of cipher text:
+    accp.init(Cipher.ENCRYPT_MODE, key, iv);
+    sun.init(Cipher.ENCRYPT_MODE, key, iv);
+    assertEquals(16, accp.doFinal().length);
+    assertEquals(16, sun.doFinal().length);
   }
 
   @ParameterizedTest

@@ -93,6 +93,46 @@ public class AesCbcTest {
   }
 
   @Test
+  public void emptyCipherTextWithPaddingEnabledShouldProduceEmptyPlaintext() throws Exception {
+    // For empty cipher text, SunJCE returns empty plain text when decrypting with padding enabled.
+    // This is despite the fact that Cipher text with padding is always at least 16 bytes. This test
+    // shows that ACCP is compatible with SunJCE in this manner. AWS-LC has a different behavior:
+    // EVP_CipherFinal fails when no input is passed to decryption with PKCS7Padding.
+    final SecretKeySpec key = genAesKey(10, 128);
+    final IvParameterSpec iv = genIv(10, 16);
+    final Cipher accp = accpAesCbcCipher(true);
+    final Cipher sun = sunAesCbcCipher(true);
+
+    accp.init(Cipher.DECRYPT_MODE, key, iv);
+    sun.init(Cipher.DECRYPT_MODE, key, iv);
+
+    final byte[] empty = new byte[0];
+
+    assertEquals(0, accp.doFinal().length);
+    assertEquals(sun.doFinal().length, sun.doFinal().length);
+
+    assertEquals(0, accp.doFinal(empty).length);
+    assertEquals(sun.doFinal().length, sun.doFinal(empty).length);
+
+    assertNull(accp.update(empty));
+    assertEquals(sun.update(empty), sun.update(empty));
+    assertEquals(0, accp.doFinal().length);
+    assertEquals(sun.doFinal().length, sun.doFinal().length);
+
+    assertNull(accp.update(empty));
+    assertEquals(sun.update(empty), sun.update(empty));
+    assertEquals(0, accp.doFinal(empty).length);
+    assertEquals(sun.doFinal(empty).length, sun.doFinal(empty).length);
+
+    // On the other hand, encrypting an empty array produces 16 bytes of cipher text:
+    accp.init(Cipher.ENCRYPT_MODE, key, iv);
+    sun.init(Cipher.ENCRYPT_MODE, key, iv);
+    final byte[] accpCipherText = accp.doFinal();
+    assertEquals(16, accpCipherText.length);
+    assertArrayEquals(sun.doFinal(), accpCipherText);
+  }
+
+  @Test
   public void testPkcs7Name() throws Exception {
     // SunJCE does not recognize AES/CBC/PKCS7Padding, but BouncyCastle does:
     assertThrows(
