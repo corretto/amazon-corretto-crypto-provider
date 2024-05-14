@@ -40,8 +40,9 @@ public class SHA256Test {
 
     assertThrows(
         IndexOutOfBoundsException.class,
-        () -> { digest.update(data, start, end); }
-    );
+        () -> {
+          digest.update(data, start, end);
+        });
   }
 
   @Test

@@ -57,8 +57,9 @@ public class InputBufferTest {
 
     assertThrows(
         IndexOutOfBoundsException.class,
-        () -> { buffer.update(data, start, end); }
-    );
+        () -> {
+          buffer.update(data, start, end);
+        });
   }
 
   @Test
