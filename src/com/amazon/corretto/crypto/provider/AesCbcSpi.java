@@ -250,6 +250,7 @@ class AesCbcSpi extends CipherSpi {
     this.iv = iv;
     this.key = keyBytes;
     this.unprocessedInput = 0;
+    this.inputIsEmpty = true;
     initLastBlock();
   }
 
@@ -377,7 +378,9 @@ class AesCbcSpi extends CipherSpi {
       final byte[] outputArray,
       final int outputOffset) {
 
-    inputIsEmpty = inputIsEmpty && (inputLen == 0);
+    if (inputLen > 0) {
+      inputIsEmpty = false;
+    }
 
     // Unlike, doFinal (which needs to decide if a context should be released or not), update always
     // has to save the context.
@@ -549,7 +552,9 @@ class AesCbcSpi extends CipherSpi {
       final byte[] outputArray,
       final int outputOffset) {
 
-    inputIsEmpty = inputIsEmpty && (inputLen == 0);
+    if (inputLen > 0) {
+      inputIsEmpty = false;
+    }
 
     if (inputIsEmpty && (opMode == DEC_MODE) && (!noPadding())) {
       // AWS-LC's behavior in treating empty input when decrypting with padding differs from SunJCE.

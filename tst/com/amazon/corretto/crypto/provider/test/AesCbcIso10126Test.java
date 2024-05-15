@@ -105,6 +105,39 @@ public class AesCbcIso10126Test {
     assertEquals(16, sun.doFinal().length);
   }
 
+  @Test
+  public void ensureInputEmptyIsResetAfterAnOperation() throws Exception {
+    final SecretKeySpec key = genAesKey(10, 128);
+    final IvParameterSpec iv = genIv(10, 16);
+    final Cipher accp = accpCipher();
+
+    accp.init(Cipher.ENCRYPT_MODE, key, iv);
+
+    // First we encrypt with a non-empty input.
+    assertEquals(16, accp.doFinal(genData(10, 10)).length);
+    // Now we decrypt with the same cipher object and empty input:
+    accp.init(Cipher.DECRYPT_MODE, key, iv);
+    assertEquals(0, accp.doFinal().length);
+  }
+
+  @Test
+  public void ensureInputEmptyIsResetAfterAnOperationWithBadPaddingToo() throws Exception {
+    final SecretKeySpec key = genAesKey(10, 128);
+    final IvParameterSpec iv = genIv(10, 16);
+    final Cipher accp = accpCipher();
+
+    accp.init(Cipher.DECRYPT_MODE, key, iv);
+    accp.update(new byte[8]);
+    // inputIsEmpty is false. We pass bad cipher text to cause bad padding.
+    assertThrows(BadPaddingException.class, () -> accp.doFinal(new byte[8]));
+    // The cipher must need re-initialization.
+    assertThrows(IllegalStateException.class, () -> accp.doFinal());
+    // After initialization, inputIsEmpty should be rest to true and produce zero output when
+    // decrypting empty input.
+    accp.init(Cipher.DECRYPT_MODE, key, iv);
+    assertEquals(0, accp.doFinal().length);
+  }
+
   @ParameterizedTest
   @MethodSource("arrayTestParams")
   public void testArrayOneShot(final long seed, final int keySize) throws Exception {
