@@ -55,10 +55,11 @@ public class AccessibleByteArrayOutputStreamTest {
   }
 
   @Test
-  public void outOfMemory() throws Throwable {
+  public void intMaxOverflow() throws Throwable {
     OutputStream instance = getInstance();
     instance.write(new byte[1024]);
-    assertThrows(OutOfMemoryError.class, () -> instance.write(null, 0, Integer.MAX_VALUE - 512));
+    assertThrows(
+        IllegalArgumentException.class, () -> instance.write(null, 0, Integer.MAX_VALUE - 512));
   }
 
   @Test

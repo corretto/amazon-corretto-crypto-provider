@@ -48,6 +48,21 @@ public class InputBufferTest {
   }
 
   @Test
+  public void testNegativeLength() throws Throwable {
+    assumeMinimumVersion("1.6.1", NATIVE_PROVIDER);
+    final InputBuffer<byte[], ByteBuffer, RuntimeException> buffer = getBuffer(4);
+    final byte[] data = new byte[32];
+    final int start = 0;
+    final int end = -31;
+
+    assertThrows(
+        IndexOutOfBoundsException.class,
+        () -> {
+          buffer.update(data, start, end);
+        });
+  }
+
+  @Test
   public void minimalCase() {
     assumeMinimumVersion("1.6.1", NATIVE_PROVIDER);
     // Just tests the bare minimum configuration and ensures things are properly buffered

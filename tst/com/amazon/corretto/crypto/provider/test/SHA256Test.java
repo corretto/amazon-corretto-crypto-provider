@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.amazon.corretto.crypto.provider.test;
 
+import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -27,6 +28,21 @@ public class SHA256Test {
 
   private MessageDigest getDigest() throws Exception {
     return MessageDigest.getInstance(SHA_256, TestUtil.NATIVE_PROVIDER);
+  }
+
+  @Test
+  public void testNegativeLength() throws Exception {
+    final byte[] data = new byte[32];
+    final int start = 0;
+    final int end = -31;
+
+    final MessageDigest digest = getDigest();
+
+    assertThrows(
+        IndexOutOfBoundsException.class,
+        () -> {
+          digest.update(data, start, end);
+        });
   }
 
   @Test
