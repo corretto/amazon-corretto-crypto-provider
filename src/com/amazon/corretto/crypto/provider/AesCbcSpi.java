@@ -118,6 +118,10 @@ class AesCbcSpi extends CipherSpi {
   // and written to in the native code. In the Java side, we only set it to zero whenever we
   // initialized.
   private byte[] lastBlock;
+  // This flag is initially true. Whenever a non-zero input is passed, it is set to false, and it
+  // remains false till the cipher is done processing. This is used during decryption with padding
+  // to produce empty output when nothing is passed to the cipher.
+  private boolean inputIsEmpty;
 
   AesCbcSpi(final Padding padding, final boolean saveContext) {
     this.padding = padding.getValue();
@@ -129,6 +133,7 @@ class AesCbcSpi extends CipherSpi {
     this.nativeCtx = null;
     this.saveContext = saveContext;
     this.lastBlock = null;
+    this.inputIsEmpty = true;
   }
 
   private boolean noPadding() {
@@ -245,6 +250,7 @@ class AesCbcSpi extends CipherSpi {
     this.iv = iv;
     this.key = keyBytes;
     this.unprocessedInput = 0;
+    this.inputIsEmpty = true;
     initLastBlock();
   }
 
@@ -371,6 +377,10 @@ class AesCbcSpi extends CipherSpi {
       final ByteBuffer outputDirect,
       final byte[] outputArray,
       final int outputOffset) {
+
+    if (inputLen > 0) {
+      inputIsEmpty = false;
+    }
 
     // Unlike, doFinal (which needs to decide if a context should be released or not), update always
     // has to save the context.
@@ -542,6 +552,16 @@ class AesCbcSpi extends CipherSpi {
       final byte[] outputArray,
       final int outputOffset) {
 
+    if (inputLen > 0) {
+      inputIsEmpty = false;
+    }
+
+    if (inputIsEmpty && (opMode == DEC_MODE) && (!noPadding())) {
+      // AWS-LC's behavior in treating empty input when decrypting with padding differs from SunJCE.
+      // Here we return zero plaintext.
+      return 0;
+    }
+
     // There are four possibilities:
     // 1. Save context AND Cipher is in INITIALIZED state => nInitUpdateFinal(saveContext == true)
     // 2. Save context AND Cipher is in UPDATED state => nUpdateFinal(saveContext == true)
@@ -663,6 +683,7 @@ class AesCbcSpi extends CipherSpi {
 
       cipherState = CipherState.INITIALIZED;
       unprocessedInput = 0;
+      inputIsEmpty = true;
       if (lastBlock != null) {
         Arrays.fill(lastBlock, (byte) 0);
       }

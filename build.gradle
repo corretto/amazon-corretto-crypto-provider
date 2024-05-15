@@ -13,7 +13,7 @@ plugins {
 }
 
 group = 'software.amazon.cryptools'
-version = '2.3.4'
+version = '2.4.0'
 ext.isFips = Boolean.getBoolean('FIPS')
 if (ext.isFips) {
     ext.awsLcGitVersionId = 'AWS-LC-FIPS-2.0.2'
