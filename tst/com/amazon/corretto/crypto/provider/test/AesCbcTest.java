@@ -1166,6 +1166,30 @@ public class AesCbcTest {
     assertArrayEquals(cipherText, cipher.doFinal(input));
 
     cipher.init(Cipher.DECRYPT_MODE, key, iv);
+    // Using cipher.update will produce same result, but this should be doFinal. Please have a look
+    // at the following test for the reason.
+    assertArrayEquals(input, cipher.doFinal(cipherText));
+  }
+
+  @ParameterizedTest
+  @MethodSource("paddings")
+  public void
+      whenInputIsAMultipleOfBlockSizeUpdateAndDoFinalProduceSameResultDuringDecrypt_expectSuccess(
+          final boolean isPaddingEnabled) throws Exception {
+    final IvParameterSpec iv = genIv(1, 16);
+    final SecretKeySpec key = genAesKey(1, 128);
+    final byte[] input = new byte[16];
+
+    final Cipher sunCipher = sunAesCbcCipher(isPaddingEnabled);
+    sunCipher.init(Cipher.ENCRYPT_MODE, key, iv);
+    final byte[] cipherText = sunCipher.doFinal(input);
+
+    final Cipher cipher = accpAesCbcCipher(isPaddingEnabled);
+
+    cipher.init(Cipher.DECRYPT_MODE, key, iv);
+    assertArrayEquals(input, cipher.doFinal(cipherText));
+    // Update will produce the same result as doFinal even padding is enabled. The reason is that
+    // when input is aligned, decrypt-final does not produce any output.
     assertArrayEquals(input, cipher.update(cipherText));
   }
 }

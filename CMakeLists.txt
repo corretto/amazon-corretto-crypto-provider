@@ -683,6 +683,18 @@ add_custom_target(check-junit-SecurityManager
 
     DEPENDS accp-jar tests-jar)
 
+add_custom_target(check-with-jni-flag
+    COMMAND ${TEST_JAVA_EXECUTABLE}
+        -Xcheck:jni
+        ${TEST_RUNNER_ARGUMENTS}
+        --select-class=com.amazon.corretto.crypto.provider.test.AesTest
+        --select-class=com.amazon.corretto.crypto.provider.test.AesGcmKatTest
+        --select-class=com.amazon.corretto.crypto.provider.test.AesCbcTest
+        --select-class=com.amazon.corretto.crypto.provider.test.AesCbcNistTest
+        --select-class=com.amazon.corretto.crypto.provider.test.AesCbcIso10126Test
+
+    DEPENDS accp-jar tests-jar)
+
 add_custom_target(check-junit-AesLazy
     COMMAND ${TEST_JAVA_EXECUTABLE}
         -Dcom.amazon.corretto.crypto.provider.nativeContextReleaseStrategy=LAZY
@@ -804,17 +816,33 @@ add_custom_target(check-install-via-properties-with-debug
 
     DEPENDS accp-jar tests-jar)
 
-add_custom_target(check
-    DEPENDS check-recursive-init
-    check-install-via-properties
-    check-install-via-properties-with-debug
-    check-junit
-    check-junit-SecurityManager
-    check-external-lib
-    check-junit-AesLazy
-    check-junit-AesEager
-    check-junit-DifferentTempDir
-)
+if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+    add_custom_target(check
+        DEPENDS check-recursive-init
+        check-install-via-properties
+        check-install-via-properties-with-debug
+        check-junit
+        check-junit-SecurityManager
+        check-external-lib
+        check-junit-AesLazy
+        check-junit-AesEager
+        check-junit-DifferentTempDir
+        check-with-jni-flag
+    )
+else()
+    add_custom_target(check
+        DEPENDS check-recursive-init
+        check-install-via-properties
+        check-install-via-properties-with-debug
+        check-junit
+        check-junit-SecurityManager
+        check-external-lib
+        check-junit-AesLazy
+        check-junit-AesEager
+        check-junit-DifferentTempDir
+        # check-with-jni-flag for macos, we disable this check due to failures in java.net.Inet6AddressImpl.lookupAllHostAddr
+    )
+endif()
 
 if(ENABLE_NATIVE_TEST_HOOKS)
     add_custom_target(check-keyutils
