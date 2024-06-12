@@ -814,33 +814,22 @@ add_custom_target(check-install-via-properties-with-debug
 
     DEPENDS accp-jar tests-jar)
 
+set(check_targets check-recursive-init
+    check-install-via-properties
+    check-install-via-properties-with-debug
+    check-junit
+    check-junit-SecurityManager
+    check-external-lib
+    check-junit-AesLazy
+    check-junit-AesEager
+    check-junit-DifferentTempDir)
+
 if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-    add_custom_target(check
-        DEPENDS check-recursive-init
-        check-install-via-properties
-        check-install-via-properties-with-debug
-        check-junit
-        check-junit-SecurityManager
-        check-external-lib
-        check-junit-AesLazy
-        check-junit-AesEager
-        check-junit-DifferentTempDir
-        check-with-jni-flag
-    )
-else()
-    add_custom_target(check
-        DEPENDS check-recursive-init
-        check-install-via-properties
-        check-install-via-properties-with-debug
-        check-junit
-        check-junit-SecurityManager
-        check-external-lib
-        check-junit-AesLazy
-        check-junit-AesEager
-        check-junit-DifferentTempDir
-        # check-with-jni-flag for macos, we disable this check due to failures in java.net.Inet6AddressImpl.lookupAllHostAddr: https://bugs.openjdk.org/browse/JDK-8205076
-    )
+  set(check_targets ${check_targets} check-with-jni-flag)
 endif()
+# For MacOS, check-with-jni-flag is not added due to failures in java.net.Inet6AddressImpl.lookupAllHostAddr: https://bugs.openjdk.org/browse/JDK-8205076
+
+add_custom_target(check DEPENDS ${check_targets})
 
 if(ENABLE_NATIVE_TEST_HOOKS)
     add_custom_target(check-keyutils
