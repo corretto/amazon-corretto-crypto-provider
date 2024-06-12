@@ -687,11 +687,9 @@ add_custom_target(check-with-jni-flag
     COMMAND ${TEST_JAVA_EXECUTABLE}
         -Xcheck:jni
         ${TEST_RUNNER_ARGUMENTS}
-        --select-class=com.amazon.corretto.crypto.provider.test.AesTest
-        --select-class=com.amazon.corretto.crypto.provider.test.AesGcmKatTest
-        --select-class=com.amazon.corretto.crypto.provider.test.AesCbcTest
-        --select-class=com.amazon.corretto.crypto.provider.test.AesCbcNistTest
-        --select-class=com.amazon.corretto.crypto.provider.test.AesCbcIso10126Test
+        --select-package=com.amazon.corretto.crypto.provider.test
+        --exclude-package=com.amazon.corretto.crypto.provider.test.integration
+        --exclude-classname=com.amazon.corretto.crypto.provider.test.SecurityManagerTest
 
     DEPENDS accp-jar tests-jar)
 
@@ -840,7 +838,7 @@ else()
         check-junit-AesLazy
         check-junit-AesEager
         check-junit-DifferentTempDir
-        # check-with-jni-flag for macos, we disable this check due to failures in java.net.Inet6AddressImpl.lookupAllHostAddr
+        # check-with-jni-flag for macos, we disable this check due to failures in java.net.Inet6AddressImpl.lookupAllHostAddr: https://bugs.openjdk.org/browse/JDK-8205076
     )
 endif()
 
