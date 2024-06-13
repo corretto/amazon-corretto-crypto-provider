@@ -322,18 +322,14 @@ extern "C" JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesCb
             aes_cbc_cipher.init(opMode, padding, j_key.get(), keyLen, j_iv.get());
         }
 
-        int result = 0;
         // update
-        JBinaryBlob output(env, outputDirect, outputArray);
-        {
-            JBinaryBlob input(env, inputDirect, inputArray);
-            result = aes_cbc_cipher.extended_update(
-                is_iso10126, is_enc, lastBlock, input.get() + inputOffset, inputLen, output.get() + outputOffset, 0);
-        }
+        JIOBlobs io_blobs(env, inputDirect, inputArray, outputDirect, outputArray);
+        int result = aes_cbc_cipher.extended_update(is_iso10126, is_enc, lastBlock, io_blobs.get_input() + inputOffset,
+            inputLen, io_blobs.get_output() + outputOffset, 0);
 
         // final
         result += aes_cbc_cipher.extended_do_final(
-            is_iso10126, is_enc, lastBlock, output.get() + outputOffset + result, inputLen - result);
+            is_iso10126, is_enc, lastBlock, io_blobs.get_output() + outputOffset + result, inputLen - result);
 
         return result;
 
@@ -371,11 +367,10 @@ extern "C" JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesCb
         }
 
         // update
-        JBinaryBlob output(env, outputDirect, outputArray);
-        JBinaryBlob input(env, inputDirect, inputArray);
+        JIOBlobs io_blobs(env, inputDirect, inputArray, outputDirect, outputArray);
 
         return aes_cbc_cipher.extended_update(is_iso10126_padding(padding), is_encryption_mode(opMode), lastBlock,
-            input.get() + inputOffset, inputLen, output.get() + outputOffset, 0);
+            io_blobs.get_input() + inputOffset, inputLen, io_blobs.get_output() + outputOffset, 0);
 
     } catch (java_ex& ex) {
         ex.throw_to_java(env);
@@ -402,11 +397,10 @@ extern "C" JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesCb
         AesCbcCipher aes_cbc_cipher(env, nullptr, ctxPtr, true);
 
         // update
-        JBinaryBlob output(env, outputDirect, outputArray);
-        JBinaryBlob input(env, inputDirect, inputArray);
+        JIOBlobs io_blobs(env, inputDirect, inputArray, outputDirect, outputArray);
 
         return aes_cbc_cipher.extended_update(is_iso10126_padding(padding), is_encryption_mode(opMode), lastBlock,
-            input.get() + inputOffset, inputLen, output.get() + outputOffset, unprocessedInput);
+            io_blobs.get_input() + inputOffset, inputLen, io_blobs.get_output() + outputOffset, 0);
 
     } catch (java_ex& ex) {
         ex.throw_to_java(env);
@@ -436,21 +430,17 @@ extern "C" JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesCb
         bool is_iso10126 = is_iso10126_padding(padding);
         bool is_enc = is_encryption_mode(opMode);
 
-        int result = 0;
         int up = unprocessedInput;
 
         // update
-        JBinaryBlob output(env, outputDirect, outputArray);
-        {
-            JBinaryBlob input(env, inputDirect, inputArray);
-            result = aes_cbc_cipher.extended_update(
-                is_iso10126, is_enc, lastBlock, input.get() + inputOffset, inputLen, output.get() + outputOffset, up);
-        }
+        JIOBlobs io_blobs(env, inputDirect, inputArray, outputDirect, outputArray);
+        int result = aes_cbc_cipher.extended_update(is_iso10126, is_enc, lastBlock, io_blobs.get_input() + inputOffset,
+            inputLen, io_blobs.get_output() + outputOffset, up);
 
         // final
         up = (inputLen + unprocessedInput) - result;
         result += aes_cbc_cipher.extended_do_final(
-            is_iso10126, is_enc, lastBlock, output.get() + outputOffset + result, up);
+            is_iso10126, is_enc, lastBlock, io_blobs.get_output() + outputOffset + result, up);
 
         return result;
 

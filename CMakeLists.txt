@@ -683,6 +683,16 @@ add_custom_target(check-junit-SecurityManager
 
     DEPENDS accp-jar tests-jar)
 
+add_custom_target(check-with-jni-flag
+    COMMAND ${TEST_JAVA_EXECUTABLE}
+        -Xcheck:jni
+        ${TEST_RUNNER_ARGUMENTS}
+        --select-package=com.amazon.corretto.crypto.provider.test
+        --exclude-package=com.amazon.corretto.crypto.provider.test.integration
+        --exclude-classname=com.amazon.corretto.crypto.provider.test.SecurityManagerTest
+
+    DEPENDS accp-jar tests-jar)
+
 add_custom_target(check-junit-AesLazy
     COMMAND ${TEST_JAVA_EXECUTABLE}
         -Dcom.amazon.corretto.crypto.provider.nativeContextReleaseStrategy=LAZY
@@ -804,8 +814,7 @@ add_custom_target(check-install-via-properties-with-debug
 
     DEPENDS accp-jar tests-jar)
 
-add_custom_target(check
-    DEPENDS check-recursive-init
+set(check_targets check-recursive-init
     check-install-via-properties
     check-install-via-properties-with-debug
     check-junit
@@ -813,8 +822,14 @@ add_custom_target(check
     check-external-lib
     check-junit-AesLazy
     check-junit-AesEager
-    check-junit-DifferentTempDir
-)
+    check-junit-DifferentTempDir)
+
+if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+  set(check_targets ${check_targets} check-with-jni-flag)
+endif()
+# For MacOS, check-with-jni-flag is not added due to failures in java.net.Inet6AddressImpl.lookupAllHostAddr: https://bugs.openjdk.org/browse/JDK-8205076
+
+add_custom_target(check DEPENDS ${check_targets})
 
 if(ENABLE_NATIVE_TEST_HOOKS)
     add_custom_target(check-keyutils

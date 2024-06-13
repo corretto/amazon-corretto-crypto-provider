@@ -632,5 +632,33 @@ private:
     jbyteArray array_;
 };
 
+// This class is similar to JBinaryBlob, but it handles both input and output buffers at the same time. The benefits of
+// using this class over two objects of type JBinaryBlob are the following:
+// 1. In case input and output refer to the same byte[], GetPrimitiveArrayCritical is only invoked once.
+// 2. It ensures GetDirectBufferAddress is not invoked after GetPrimitiveArrayCritical. When one of the input/output
+// buffers is a direct ByteBuffer and the other one is an array, we need to make sure JNI calls are not invoked after
+// GetPrimitiveArrayCritical: when passing -Xcheck:jni flag, such scenarios would trigger warnings.
+class JIOBlobs {
+public:
+    JIOBlobs(JNIEnv* env,
+        jobject inputDirectByteBuffer,
+        jbyteArray inputArray,
+        jobject outputDirectByteBuffer,
+        jbyteArray outputArray);
+    ~JIOBlobs();
+    uint8_t* get_input();
+    uint8_t* get_output();
+
+private:
+    // The native pointers that are either backed by a direct ByteBuffer or a byte array.
+    uint8_t* input_ptr_;
+    uint8_t* output_ptr_;
+    JNIEnv* env_;
+    // In case the blobs are backed by byte arrays, we need to keep a reference that is used when the destructor is
+    // invoked.
+    jbyteArray input_array_;
+    jbyteArray output_array_;
+};
+
 }
 #endif

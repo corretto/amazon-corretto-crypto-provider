@@ -100,4 +100,74 @@ JBinaryBlob::~JBinaryBlob()
 
 uint8_t* JBinaryBlob::get() { return ptr_; }
 
+JIOBlobs::JIOBlobs(JNIEnv* env,
+    jobject inputDirectByteBuffer,
+    jbyteArray inputArray,
+    jobject outputDirectByteBuffer,
+    jbyteArray outputArray)
+    : env_(env)
+    , input_array_(inputArray)
+    , output_array_(outputArray)
+{
+    // First, we need to deal with buffers that are direct ByteBuffers.
+    if (inputDirectByteBuffer != nullptr) {
+        // One should be null. In the Java layer, we ensure this.
+        if (inputArray != nullptr) {
+            throw java_ex(EX_ERROR,
+                "THIS SHOULD NOT BE REACHABLE. Both inputDirectByteBuffer and inputArray cannot be provided.");
+        }
+        input_ptr_ = (uint8_t*)env->GetDirectBufferAddress(inputDirectByteBuffer);
+    }
+
+    if (outputDirectByteBuffer != nullptr) {
+        // One should be null. In the Java layer, we ensure this.
+        if (outputArray != nullptr) {
+            throw java_ex(EX_ERROR,
+                "THIS SHOULD NOT BE REACHABLE. Both outputDirectByteBuffer and outputArray cannot be provided.");
+        }
+        output_ptr_ = (inputDirectByteBuffer == outputDirectByteBuffer)
+            ? input_ptr_
+            : ((uint8_t*)env->GetDirectBufferAddress(outputDirectByteBuffer));
+    }
+
+    if (inputArray != nullptr) {
+        input_ptr_ = (uint8_t*)env->GetPrimitiveArrayCritical(inputArray, nullptr);
+        if (input_ptr_ == nullptr) {
+            throw java_ex(EX_ERROR, "GetPrimitiveArrayCritical failed.");
+        }
+    }
+
+    if (outputArray != nullptr) {
+        // We should check if inputArray and outputArray are the same.
+        if (inputArray == outputArray) {
+            output_ptr_ = input_ptr_;
+            // The output_array_ is set to null so that we do not call ReleasePrimitiveArrayCritical twice on the same
+            // buffer.
+            output_array_ = nullptr;
+        } else {
+            output_ptr_ = (uint8_t*)env->GetPrimitiveArrayCritical(outputArray, nullptr);
+            if (output_ptr_ == nullptr) {
+                throw java_ex(EX_ERROR, "GetPrimitiveArrayCritical failed.");
+            }
+        }
+    }
+}
+
+JIOBlobs::~JIOBlobs()
+{
+    if (input_array_ != nullptr) {
+        env_->ReleasePrimitiveArrayCritical(input_array_, input_ptr_, 0);
+    }
+
+    if (output_array_ != nullptr) {
+        env_->ReleasePrimitiveArrayCritical(output_array_, output_ptr_, 0);
+    }
+
+    // For direct ByteBuffers, there is no cleaning up.
+}
+
+uint8_t* JIOBlobs::get_input() { return input_ptr_; }
+
+uint8_t* JIOBlobs::get_output() { return output_ptr_; }
+
 } // end of namespace AmazonCorrettoCryptoProvider

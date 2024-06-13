@@ -295,11 +295,9 @@ class AesCbcSpi extends CipherSpi {
     Utils.checkArrayLimits(input, inputOffset, inputLen);
     // Since we allocate the output's memory, we only check if the cipher is in the correct state.
     finalOrUpdateStateCheck();
-    // For update, getOutputSizeUpdate returns the exact required size, therefore there is no need
-    // for trimming the result;
     final byte[] result = new byte[getOutputSizeUpdate(inputLen)];
-    update(null, input, inputOffset, inputLen, null, result, 0);
-    return result;
+    final int resultLen = update(null, input, inputOffset, inputLen, null, result, 0);
+    return result.length == resultLen ? result : Arrays.copyOf(result, resultLen);
   }
 
   @Override
@@ -365,8 +363,9 @@ class AesCbcSpi extends CipherSpi {
       return (int) (all - rem);
     }
     // When all data (inputLen + unprocessedInput) is block-size aligned, padding is enabled, and we
-    // are decrypting, the cipher does not decrypt the last block until doFinal.
-    return (int) (all - BLOCK_SIZE_IN_BYTES);
+    // are decrypting, the cipher does not decrypt the last block until doFinal. However, AWS-LC
+    // touches the last block of output, as a result, in ACCP, we must over allocate.
+    return (int) all;
   }
 
   private int update(
