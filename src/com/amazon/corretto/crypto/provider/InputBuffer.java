@@ -256,6 +256,7 @@ public class InputBuffer<T, S, X extends Throwable> implements Cloneable {
   }
 
   public void update(final byte[] src, final int offset, final int length) {
+    Utils.checkArrayLimits(src, offset, length);
     if (fillBuffer(src, offset, length)) {
       return;
     }

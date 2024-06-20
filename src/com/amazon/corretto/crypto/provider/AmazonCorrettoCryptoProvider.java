@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.amazon.corretto.crypto.provider;
 
+import static com.amazon.corretto.crypto.provider.AesCbcSpi.AES_CBC_ISO10126_PADDING_NAMES;
+import static com.amazon.corretto.crypto.provider.AesCbcSpi.AES_CBC_NO_PADDING_NAMES;
+import static com.amazon.corretto.crypto.provider.AesCbcSpi.AES_CBC_PKCS7_PADDING_NAMES;
 import static com.amazon.corretto.crypto.provider.HkdfSecretKeyFactorySpi.HKDF_WITH_SHA1;
 import static com.amazon.corretto.crypto.provider.HkdfSecretKeyFactorySpi.HKDF_WITH_SHA256;
 import static com.amazon.corretto.crypto.provider.HkdfSecretKeyFactorySpi.HKDF_WITH_SHA384;
@@ -91,6 +94,26 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
     addService("Cipher", "AES/XTS/NoPadding", "AesXtsSpi", false);
 
+    addService("Cipher", "AES/CBC/NoPadding", "AesCbcSpi", false);
+    addService("Cipher", "AES_128/CBC/NoPadding", "AesCbcSpi", false);
+    addService("Cipher", "AES_192/CBC/NoPadding", "AesCbcSpi", false);
+    addService("Cipher", "AES_256/CBC/NoPadding", "AesCbcSpi", false);
+
+    addService("Cipher", "AES/CBC/PKCS5Padding", "AesCbcSpi", false);
+    addService("Cipher", "AES_128/CBC/PKCS5Padding", "AesCbcSpi", false);
+    addService("Cipher", "AES_192/CBC/PKCS5Padding", "AesCbcSpi", false);
+    addService("Cipher", "AES_256/CBC/PKCS5Padding", "AesCbcSpi", false);
+
+    addService("Cipher", "AES/CBC/PKCS7Padding", "AesCbcSpi", false);
+    addService("Cipher", "AES_128/CBC/PKCS7Padding", "AesCbcSpi", false);
+    addService("Cipher", "AES_192/CBC/PKCS7Padding", "AesCbcSpi", false);
+    addService("Cipher", "AES_256/CBC/PKCS7Padding", "AesCbcSpi", false);
+
+    addService("Cipher", "AES/CBC/ISO10126Padding", "AesCbcSpi", false);
+    addService("Cipher", "AES_128/CBC/ISO10126Padding", "AesCbcSpi", false);
+    addService("Cipher", "AES_192/CBC/ISO10126Padding", "AesCbcSpi", false);
+    addService("Cipher", "AES_256/CBC/ISO10126Padding", "AesCbcSpi", false);
+
     addService("Cipher", "RSA/ECB/NoPadding", "RsaCipher$NoPadding");
     addService("Cipher", "RSA/ECB/Pkcs1Padding", "RsaCipher$Pkcs1");
     addService("Cipher", "RSA/ECB/OAEPPadding", "RsaCipher$OAEP");
@@ -121,6 +144,24 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
               singletonMap("ThreadSafe", "true"),
               "DEFAULT")
           .setSelfTest(LibCryptoRng.SPI.SELF_TEST);
+
+      // Following lines are a workaround to ensure that the SecureRandom service
+      // is seen as ThreadSafe by SecureRandom, when using the alias name DEFAULT
+      // See https://bugs.openjdk.org/browse/JDK-8329754
+
+      // We add additional tests to confirm the DEFAULT algorithm is actually ThreadSafe
+      // This is to prevent issues in case a future code change set DEFAULT to a non-ThreadSafe
+      // algorithm
+
+      // Get the name of the algorithm pointed by the alias name DEFAULT
+      String algorithmUsedForDEFAULT = getProperty("Alg.Alias.SecureRandom.DEFAULT");
+      // If this alias exists and the algorithm pointed by it is thread safe, then mark DEFAULT
+      // ThreadSafe
+      if (algorithmUsedForDEFAULT != null
+          && "true"
+              .equals(getProperty("SecureRandom." + algorithmUsedForDEFAULT + " ThreadSafe"))) {
+        setProperty("SecureRandom.DEFAULT ThreadSafe", "true");
+      }
     }
 
     addSignatures();
@@ -289,6 +330,30 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
         if ("Cipher".equalsIgnoreCase(type) && "AES/XTS/NoPadding".equalsIgnoreCase(algo)) {
           return new AesXtsSpi();
+        }
+
+        if ("Cipher".equalsIgnoreCase(type)
+            && AES_CBC_PKCS7_PADDING_NAMES.contains(algo.toLowerCase())) {
+          final boolean saveContext =
+              AmazonCorrettoCryptoProvider.this.nativeContextReleaseStrategy
+                  == Utils.NativeContextReleaseStrategy.LAZY;
+          return new AesCbcSpi(AesCbcSpi.Padding.PKCS7, saveContext);
+        }
+
+        if ("Cipher".equalsIgnoreCase(type)
+            && AES_CBC_NO_PADDING_NAMES.contains(algo.toLowerCase())) {
+          final boolean saveContext =
+              AmazonCorrettoCryptoProvider.this.nativeContextReleaseStrategy
+                  == Utils.NativeContextReleaseStrategy.LAZY;
+          return new AesCbcSpi(AesCbcSpi.Padding.NONE, saveContext);
+        }
+
+        if ("Cipher".equalsIgnoreCase(type)
+            && AES_CBC_ISO10126_PADDING_NAMES.contains(algo.toLowerCase())) {
+          final boolean saveContext =
+              AmazonCorrettoCryptoProvider.this.nativeContextReleaseStrategy
+                  == Utils.NativeContextReleaseStrategy.LAZY;
+          return new AesCbcSpi(AesCbcSpi.Padding.ISO10126, saveContext);
         }
 
         throw new NoSuchAlgorithmException(String.format("No service class for %s/%s", type, algo));

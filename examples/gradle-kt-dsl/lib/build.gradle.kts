@@ -1,4 +1,4 @@
-val accpVersion = "2.3.4"
+val accpVersion = "2.4.0"
 val accpLocalJar: String by project
 val fips: Boolean by project
 val PLATFORMS_WITHOUT_FIPS_SUPPORT = setOf("osx-x86_64", "osx-aarch_64")
@@ -37,10 +37,12 @@ dependencies {
         else
             "AmazonCorrettoCryptoProvider"
 
-    if (project.hasProperty("accpLocalJar")) {
-        testImplementation(files(accpLocalJar))
-    } else {
-        testImplementation("software.amazon.cryptools:${accpArtifactId}:$accpVersion:${osdetector.classifier}")
+    if (!project.hasProperty("useBundledAccp")) {
+        if (project.hasProperty("accpLocalJar")) {
+            testImplementation(files(accpLocalJar))
+        } else {
+            testImplementation("software.amazon.cryptools:${accpArtifactId}:$accpVersion:${osdetector.classifier}")
+        }
     }
 
     testImplementation("com.amazonaws:aws-encryption-sdk-java:2.4.0")

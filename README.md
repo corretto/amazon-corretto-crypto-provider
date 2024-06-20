@@ -30,10 +30,16 @@ Mac algorithms:
 
 Cipher algorithms:
 * AES/GCM/NoPadding
-* AES_128/GCM/NoPadding
-* AES_256/GCM/NoPadding
+* AES_\<n\>/GCM/NoPadding, where n can be 128, or 256
 * AES/KWP/NoPadding
 * AES/XTS/NoPadding
+* AES/CBC/NoPadding
+  * AES_\<n\>/CBC/NoPadding, where n can be 128, 192, or 256
+* AES/CBC/PKCS5Padding
+  * AES_\<n\>/CBC/PKCS5Padding, where n can be 128, 192, or 256
+  * PKCS7Padding is also accepted with AES/CBC and it is treated the same as PKCS5.
+* AES/CBC/ISO10126Padding
+    * AES_\<n\>/CBC/ISO10126Padding, where n can be 128, 192, or 256
 * RSA/ECB/NoPadding
 * RSA/ECB/PKCS1Padding
 * RSA/ECB/OAEPPadding
@@ -175,6 +181,26 @@ For Gradle builds, the [os-detector plugin](https://github.com/google/osdetector
 could be used so that one does not have to explicitly specify the platform.
 [Here](https://github.com/corretto/amazon-corretto-crypto-provider/blob/f1d54b34cf4765789314941dbeefdafd35a4da58/examples/gradle-kt-dsl/lib/build.gradle.kts#L30)
 is an example.
+
+### Bundle ACCP with JDK
+We provide two scripts that allow one to add ACCP to their JDKs: one for JDK8 and one for JDKs 11+.
+Please note that these scripts are provided as examples and for testing only.
+
+These scripts take the version of ACCP and the classifier as input. Optionally, one can pass `-FIPS`
+as the third argument to bundle the FIPS artifacts. To use these scripts, please set `JAVA_HOME` to
+the path of your desired JDK.
+
+Usage example:
+```bash
+./bin/bundle-accp.sh 2.3.3 linux-x86_64
+```
+
+To find the the available versions and classifiers, please checkout Maven central.
+
+Some notes on the bundling scripts:
+* One needs to run the bundling script only once.
+* The bundling is not idempotent: runing the script on a JDK that has ACCP bundled in it could result in undefined behavior.
+* There is no unbundling. Please do a fresh install of the JDK if you need to remove ACCP from your JDK.
 
 ### Manual
 Manual installation requires acquiring the provider and adding it to your classpath.
