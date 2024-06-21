@@ -347,7 +347,6 @@ Thus, these should all be set on the JVM command line using `-D`.
   Takes in `true` or `false` (defaults to `true`).
   If `true`, then ACCP will register a SecureRandom implementation (`LibCryptoRng`) backed by AWS-LC
   Else, ACCP will not register a SecureRandom implementation, meaning that the JCA will source SecureRandom instances from another registered provider. AWS-LC will still use its internal DRBG for key generation and other operations requiring secure pseudo-randomness.
-  LibCryptoRng is very fast during steady state operation in all cases.
 * `com.amazon.corretto.crypto.provider.nativeContextReleaseStrategy`
   Takes in `HYBRID`, `LAZY`, or `EAGER` (defaults ot `HYBRID`). This property only affects
   AES-GCM cipher for now. AES-GCM associates a native object of type `EVP_CIPHER_CTX`
