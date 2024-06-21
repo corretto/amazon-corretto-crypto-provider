@@ -97,16 +97,6 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_curveNam
         BigNumObj orderBN;
 
         const EC_POINT* generator = NULL;
-        const EC_METHOD* method = NULL;
-        int fieldNid = 0;
-        int m = 0;
-
-        // Figure out which type of group this is
-        method = EC_GROUP_method_of(group);
-        if (!method) {
-            throw_openssl("Unable to acquire method");
-        }
-        fieldNid = EC_METHOD_get_field_type(method);
 
         if (EC_GROUP_get_cofactor(group, cfBN, NULL) != 1) {
             throw_openssl("Unable to get cofactor");
@@ -118,26 +108,11 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_curveNam
             throw_openssl("Unable to get generator");
         }
 
-        switch (fieldNid) {
-        case NID_X9_62_prime_field:
-            if (EC_GROUP_get_curve_GFp(group, pBN, aBN, bBN, NULL) != 1) {
-                throw_openssl("Unable to get group information");
-            }
-            if (EC_POINT_get_affine_coordinates_GFp(group, generator, gxBN, gyBN, NULL) != 1) {
-                throw_openssl("Unable to get generator coordinates");
-            }
-            break;
-        case NID_X9_62_characteristic_two_field:
-            if (EC_GROUP_get_curve_GFp(group, pBN, aBN, bBN, NULL) != 1) {
-                throw_openssl("Unable to get group information");
-            }
-            if (EC_POINT_get_affine_coordinates_GFp(group, generator, gxBN, gyBN, NULL) != 1) {
-                throw_openssl("Unable to get generator coordinates");
-            }
-            m = EC_GROUP_get_degree(group);
-            env->SetIntArrayRegion(mArr, 0, 1, &m);
-            env.rethrow_java_exception();
-            break;
+        if (EC_GROUP_get_curve_GFp(group, pBN, aBN, bBN, NULL) != 1) {
+            throw_openssl("Unable to get group information");
+        }
+        if (EC_POINT_get_affine_coordinates_GFp(group, generator, gxBN, gyBN, NULL) != 1) {
+            throw_openssl("Unable to get generator coordinates");
         }
 
         gxBN.toJavaArray(env, gxArr);
