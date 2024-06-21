@@ -16,9 +16,9 @@ group = 'software.amazon.cryptools'
 version = '2.4.0'
 ext.isFips = Boolean.getBoolean('FIPS')
 if (ext.isFips) {
-    ext.awsLcGitVersionId = 'AWS-LC-FIPS-2.0.2'
+    ext.awsLcGitVersionId = 'AWS-LC-FIPS-2.0.13'
 } else {
-    ext.awsLcGitVersionId = '32143aae568a64245f9eae54dcbc49043dbf41e4'
+    ext.awsLcGitVersionId = 'v1.30.1'
 }
 ext.isLegacyBuild = Boolean.getBoolean('LEGACY_BUILD')
 

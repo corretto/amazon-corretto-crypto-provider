@@ -7,7 +7,7 @@ DELAY_BETWEEN_RETRIES=10
 for i in $(seq 1 ${NUMBER_OF_RETRIES})
 do
     echo "Iteration ${i}"
-    ./gradlew lib:test && ./gradlew -Pfips -Dcom.amazon.corretto.crypto.provider.registerSecureRandom=true lib:test
+    ./gradlew lib:test && ./gradlew -Pfips lib:test
     result=$?
     if [[ $result -eq 0 ]]
     then

@@ -57,7 +57,6 @@ jmh {
     resultFormat.set("JSON")
     duplicateClassesStrategy.set(DuplicatesStrategy.WARN)
     jvmArgs.add("-DversionStr=${accpVersion}")
-    jvmArgs.add("-Dcom.amazon.corretto.crypto.provider.registerSecureRandom=true")
     if (project.hasProperty("nativeContextReleaseStrategy")) {
         jvmArgs.add("-Dcom.amazon.corretto.crypto.provider.nativeContextReleaseStrategy=${nativeContextReleaseStrategy}")
     }

@@ -43,17 +43,9 @@ public final class SecurityPropertyTester {
     @SuppressWarnings("unused")
     KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC", "SunEC");
 
-    // Ensure that FIPS mode determines default behavior for registering SecureRandom and "strong"
-    // random
-    // Applications should never use getInstanceStrong as it is an anti-pattern.
     final SecureRandom strongRng = SecureRandom.getInstanceStrong();
-    if (NATIVE_PROVIDER.isFips()) {
-      assertNotEquals(NATIVE_PROVIDER.getName(), new SecureRandom().getProvider().getName());
-      assertNotEquals(NATIVE_PROVIDER.getName(), strongRng.getProvider().getName());
-    } else {
-      assertEquals(NATIVE_PROVIDER.getName(), new SecureRandom().getProvider().getName());
-      assertEquals(NATIVE_PROVIDER.getName(), strongRng.getProvider().getName());
-    }
+    assertEquals(NATIVE_PROVIDER.getName(), new SecureRandom().getProvider().getName());
+    assertEquals(NATIVE_PROVIDER.getName(), strongRng.getProvider().getName());
 
     // Ensure that we can successfully generate an AES key, regardless of FIPS
     // mode or whether ACCP registers a SecureRandom implementation.
