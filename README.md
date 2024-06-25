@@ -223,6 +223,9 @@ Building this provider requires a 64 bit Linux or MacOS build system with the fo
 * C++ build chain
 * [lcov](http://ltp.sourceforge.net/coverage/lcov.php) for coverage metrics
 * [gcovr](https://gcovr.com/en/stable/) for reporting coverage metrics in CodeBuild
+* [Go](https://golang.org/dl/) 1.18 or later is required. If not found by 
+  CMake, the go executable may be configured explicitly by setting
+  `GO_EXECUTABLE`.
 
 1. Download the repository via `git clone --recurse-submodules`
 2. Run `./gradlew release`
