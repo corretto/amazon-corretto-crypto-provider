@@ -118,7 +118,7 @@ ACCP has the following requirements:
 * JDK8 or newer (This includes both OracleJDK and [Amazon Corretto](https://aws.amazon.com/corretto/))
 * Linux (x86-64 or arm64) or MacOs running on x86_64 (also known as x64 or AMD64)
 
-ACCP comes bundled with AWS-lC's `libcrypto.so`, so it is not necessary to install AWS-LC on the host or container where you run your application.
+ACCP comes bundled with AWS-LC's `libcrypto.so`, so it is not necessary to install AWS-LC on the host or container where you run your application.
 
 If ACCP is used/installed on a system it does not support, it will disable itself and the JVM will behave as if ACCP weren't installed at all.
 
@@ -344,9 +344,9 @@ Thus, these should all be set on the JVM command line using `-D`.
   re-run the tests.
 * `com.amazon.corretto.crypto.provider.registerEcParams`
   Takes in `true` or `false` (defaults to `false`).
-  If `true`, then ACCP will register its EC-flavoered AlgorithmParameters implementation on startup.
+  If `true`, then ACCP will register its EC-flavored AlgorithmParameters implementation on startup.
   Else, the JCA will get the implementation from another registered provider (usually stock JCE).
-  Using JCE's impelmentation is generally recommended unless using ACCP as a standalone provider
+  Using JCE's implementation is generally recommended unless using ACCP as a standalone provider
   Callers can choose to register ACCP's implementation at runtime with a call to `AmazonCorrettoCryptoProvider.registerEcParams()`
 * `com.amazon.corretto.crypto.provider.registerSecureRandom`
   Takes in `true` or `false` (defaults to `false` in FIPS mode, defaults to `true` in non-FIPS).
@@ -357,7 +357,7 @@ Thus, these should all be set on the JVM command line using `-D`.
   Because, in extreme cases this could present an availability risk, we do not register LibCryptoRng by default in configurations where this initialization cost is incurred (i.e. FIPS mode).
   Non-FIPS AWS-LC does not use CPU jitter for its DRBG seed's entropy, and therefore does not incur this initialization cost, therefore we register LibCryptoRng by default when not in FIPS mode.
 * `com.amazon.corretto.crypto.provider.nativeContextReleaseStrategy`
-  Takes in `HYBRID`, `LAZY`, or `EAGER` (defaults ot `HYBRID`). This property only affects
+  Takes in `HYBRID`, `LAZY`, or `EAGER` (defaults to `HYBRID`). This property only affects
   AES-GCM cipher for now. AES-GCM associates a native object of type `EVP_CIPHER_CTX`
   to each `Cipher` object. This property allows users to control the strategy for releasing
   the native object.
