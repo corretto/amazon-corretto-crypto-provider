@@ -752,8 +752,8 @@ if (project.hasProperty('mavenUser') && project.hasProperty('jcecertAlias')) {
         repositories {
             sonatype {
                 nexusUrl = uri('https://aws.oss.sonatype.org/service/local/')
-                username = mavenUser
-                password = mavenPassword
+                username = "${System.env.ORG_GRADLE_PROJECT_sonatypeUsername}"
+                password = "${System.env.ORG_GRADLE_PROJECT_sonatypePassword}"
             }
         }
     }
