@@ -47,9 +47,9 @@ jmh {
         includes.add(includeBenchmark)
     }
     fork.set(1)
-    benchmarkMode.add("thrpt")
-    threads.set(1)
-    timeUnit.set("s")
+    // Do not specify benchmarkMode nor timeUnit to allow each benchmark to use their own
+    // Do not set threads.set(1) as it prevents multi-threaded benchmarks
+    // Classes without any annotation will use a single thread and ops/s by default
     iterations.set(5)
     timeOnIteration.set("3s")
     warmup.set("1s")
@@ -57,7 +57,6 @@ jmh {
     resultFormat.set("JSON")
     duplicateClassesStrategy.set(DuplicatesStrategy.WARN)
     jvmArgs.add("-DversionStr=${accpVersion}")
-    jvmArgs.add("-Dcom.amazon.corretto.crypto.provider.registerSecureRandom=true")
     if (project.hasProperty("nativeContextReleaseStrategy")) {
         jvmArgs.add("-Dcom.amazon.corretto.crypto.provider.nativeContextReleaseStrategy=${nativeContextReleaseStrategy}")
     }

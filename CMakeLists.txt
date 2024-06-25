@@ -619,9 +619,6 @@ set(COVERAGE_ARGUMENTS
 if(FIPS)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DFIPS_BUILD")
     set(TEST_FIPS_PROPERTY "-DFIPS=true")
-    # ACCP's default behavior in FIPS mode is to not register a SecureRandom implementation.
-    # However, we explicitly register it here to ensure its coverage under test.
-    set(REGISTER_RNG_PROPERTY "-Dcom.amazon.corretto.crypto.provider.registerSecureRandom=true")
 else()
     set(TEST_FIPS_PROPERTY "-DFIPS=false")
 endif()
@@ -635,7 +632,6 @@ set(TEST_RUNNER_ARGUMENTS
     ${TEST_ADD_OPENS}
     ${TEST_FIPS_PROPERTY}
     ${EXTERNAL_LIB_PROPERTY}
-    ${REGISTER_RNG_PROPERTY}
     -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
     -Dtest.data.dir=${TEST_DATA_DIR}
     -Djunit.jupiter.execution.parallel.enabled=true
