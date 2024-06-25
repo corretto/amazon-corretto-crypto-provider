@@ -206,7 +206,7 @@ Some notes on the bundling scripts:
 ### Manual
 Manual installation requires acquiring the provider and adding it to your classpath.
 You can either download a prebuilt version of the provider or build it yourself.
-Adding a jar to your classpath is highly application and build-system dependant and we cannot provide specific guidance.
+Adding a jar to your classpath is highly application and build-system dependent and we cannot provide specific guidance.
 
 #### Download from GitHub releases
 The most recent version of our provider will always be on our official [releases](https://github.com/corretto/amazon-corretto-crypto-provider/releases) page.
