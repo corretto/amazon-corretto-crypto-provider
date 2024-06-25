@@ -196,11 +196,11 @@ Usage example:
 ./bin/bundle-accp.sh 2.3.3 linux-x86_64
 ```
 
-To find the the available versions and classifiers, please checkout Maven central.
+To find the available versions and classifiers, please checkout Maven central.
 
 Some notes on the bundling scripts:
 * One needs to run the bundling script only once.
-* The bundling is not idempotent: runing the script on a JDK that has ACCP bundled in it could result in undefined behavior.
+* The bundling is not idempotent: running the script on a JDK that has ACCP bundled in it could result in undefined behavior.
 * There is no unbundling. Please do a fresh install of the JDK if you need to remove ACCP from your JDK.
 
 ### Manual
@@ -320,7 +320,7 @@ These are all read early in the load process and may be cached so any changes to
 Thus, these should all be set on the JVM command line using `-D`.
 
 * `com.amazon.corretto.crypto.provider.extrachecks`
-   Adds exta cryptographic consistency checks which are not necessary on standard systems.
+   Adds extra cryptographic consistency checks which are not necessary on standard systems.
    These checks may be computationally expensive and are not normally relevant.
    See `ExtraCheck.java` for values and more information.
    (Also accepts "ALL" as a value to enable all flags and "help" to print out all flags to STDERR.)
@@ -336,7 +336,7 @@ Thus, these should all be set on the JVM command line using `-D`.
 * `com.amazon.corretto.crypto.provider.janitor.stripes`
    Takes *positive integer value* which is the requested minimum number of "stripes" used by the `Janitor` for dividing cleaning tasks (messes) among its workers.
    (Current behavior is to default this value to 4 times the CPU core count and then round the value up to the nearest power of two.)
-   See `Janitor.java` for for more information.
+   See `Janitor.java` for more information.
 * `com.amazon.corretto.crypto.provider.cacheselftestresults` Takes in `true` or `false`
   (defaults to `true`). If set to `true`, the results of running tests are cached,
   and the subsequent calls to `AmazonCorrettoCryptoProvider::runSelfTests`
