@@ -44,6 +44,7 @@ Cipher algorithms:
 * RSA/ECB/PKCS1Padding
 * RSA/ECB/OAEPPadding
 * RSA/ECB/OAEPWithSHA-1AndMGF1Padding
+* RSA/ECB/OAEPWithSHA1AndMGF1Padding
 
 Signature algorithms:
 * SHA1withRSA
