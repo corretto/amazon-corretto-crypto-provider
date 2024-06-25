@@ -108,7 +108,7 @@ Notable differences between ACCP and ACCP-FIPS:
 
 ACCP-FIPS is only supported on the following platforms:
 
-| Platfrom | FIPS support since version |
+| Platform | FIPS support since version |
 |----------|----------------------------|
 | `linux-x86_64` | 2.3.0 |
 | `linux-aarch_64` | 2.3.0 |
