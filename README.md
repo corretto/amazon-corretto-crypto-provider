@@ -82,7 +82,7 @@ SecretKeyFactory:
 * HkdfWithHmacSHA512
 
 SecureRandom:
-* ACCP's SecureRandom uses AWS-LC's DRBG implementation, which is described [here](https://github.com/awslabs/aws-lc/blob/main/third_party/jitterentropy/README.md) and [here](https://github.com/awslabs/aws-lc/blob/725625435158150ef21e0a4dab6fa3aca1ef2d2c/crypto/fipsmodule/rand/rand.c#L36-L60). Please refer to [system properties](https://github.com/corretto/amazon-corretto-crypto-provider#other-system-properties) for more information.
+* ACCP's SecureRandom uses [AWS-LC's DRBG implementation](https://github.com/aws/aws-lc/blob/main/crypto/fipsmodule/rand/rand.c).
 
 KeyFactory:
 * EC
@@ -223,9 +223,9 @@ Building this provider requires a 64 bit Linux or MacOS build system with the fo
 * C++ build chain
 * [lcov](http://ltp.sourceforge.net/coverage/lcov.php) for coverage metrics
 * [gcovr](https://gcovr.com/en/stable/) for reporting coverage metrics in CodeBuild
-* [Go](https://golang.org/dl/) 1.18 or later is required. If not found by 
-  CMake, the go executable may be configured explicitly by setting
-  `GO_EXECUTABLE`.
+* [Go](https://golang.org/dl/) 1.18 or later is required. 1.18 or later is the minimum required
+  version to build AWS-LC, 1.20 or later is needed in order to run AWS-LC's test suite. If not 
+  found by CMake, the go executable may be configured explicitly by setting `GO_EXECUTABLE`.
 
 1. Download the repository via `git clone --recurse-submodules`
 2. Run `./gradlew release`
