@@ -451,13 +451,8 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
         Utils.getBooleanProperty(PROPERTY_CACHE_SELF_TEST_RESULTS, true);
     this.shouldRegisterEcParams = Utils.getBooleanProperty(PROPERTY_REGISTER_EC_PARAMS, false);
 
-    // AWS-LC-FIPS's DRBG has per-thread initialization latency that can degrade performance in
-    // highly threaded
-    // applications. Until this is resolved, we only register an AWS-LC-backed SecureRandom
-    // implementation
-    // when we're not operating in FIPS mode.
     this.shouldRegisterSecureRandom =
-        Utils.getBooleanProperty(PROPERTY_REGISTER_SECURE_RANDOM, !isFips());
+        Utils.getBooleanProperty(PROPERTY_REGISTER_SECURE_RANDOM, true);
 
     this.nativeContextReleaseStrategy = Utils.getNativeContextReleaseStrategyProperty();
 

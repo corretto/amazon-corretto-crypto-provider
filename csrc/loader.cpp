@@ -32,9 +32,6 @@ void initialize()
     CRYPTO_library_init();
     ERR_load_crypto_strings();
     OpenSSL_add_all_digests();
-
-    // seed the PRNG
-    RAND_poll();
 }
 
 }
