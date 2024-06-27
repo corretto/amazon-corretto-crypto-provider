@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.4.1
+
+### Patch
+* [PR 388: Revert PR 376](https://github.com/corretto/amazon-corretto-crypto-provider/pull/388)
+
 ## 2.4.0
 
 ### Minor

@@ -145,23 +145,10 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
               "DEFAULT")
           .setSelfTest(LibCryptoRng.SPI.SELF_TEST);
 
-      // Following lines are a workaround to ensure that the SecureRandom service
-      // is seen as ThreadSafe by SecureRandom, when using the alias name DEFAULT
-      // See https://bugs.openjdk.org/browse/JDK-8329754
-
-      // We add additional tests to confirm the DEFAULT algorithm is actually ThreadSafe
-      // This is to prevent issues in case a future code change set DEFAULT to a non-ThreadSafe
-      // algorithm
-
-      // Get the name of the algorithm pointed by the alias name DEFAULT
-      String algorithmUsedForDEFAULT = getProperty("Alg.Alias.SecureRandom.DEFAULT");
-      // If this alias exists and the algorithm pointed by it is thread safe, then mark DEFAULT
-      // ThreadSafe
-      if (algorithmUsedForDEFAULT != null
-          && "true"
-              .equals(getProperty("SecureRandom." + algorithmUsedForDEFAULT + " ThreadSafe"))) {
-        setProperty("SecureRandom.DEFAULT ThreadSafe", "true");
-      }
+      // If we `setProperty("SecureRandom.DEFAULT ThreadSafe", "true")`, then
+      // TestProviderInstallation::testProviderInstallation fails. The unique thing about this test
+      // is that it does `new SecureRandom` immediately after installing ACCP and expects to be
+      // backed by ACCP.
     }
 
     addSignatures();
