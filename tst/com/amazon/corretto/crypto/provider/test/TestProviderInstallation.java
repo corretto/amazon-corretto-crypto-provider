@@ -15,6 +15,7 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.security.MessageDigest;
 import java.security.Provider;
+import java.security.SecureRandom;
 import java.security.Security;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
@@ -47,6 +48,8 @@ public class TestProviderInstallation {
             .equals(MessageDigest.getInstance("SHA-256").getProvider().getName()));
 
     AmazonCorrettoCryptoProvider.install();
+
+    assertEquals("AmazonCorrettoCryptoProvider", new SecureRandom().getProvider().getName());
 
     assertEquals(
         "AmazonCorrettoCryptoProvider",
@@ -99,8 +102,5 @@ public class TestProviderInstallation {
     assertEquals(
         "true",
         AmazonCorrettoCryptoProvider.INSTANCE.getProperty("SecureRandom.LibCryptoRng ThreadSafe"));
-    assertEquals(
-        "true",
-        AmazonCorrettoCryptoProvider.INSTANCE.getProperty("SecureRandom.DEFAULT ThreadSafe"));
   }
 }
