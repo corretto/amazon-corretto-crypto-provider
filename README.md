@@ -44,6 +44,7 @@ Cipher algorithms:
 * RSA/ECB/PKCS1Padding
 * RSA/ECB/OAEPPadding
 * RSA/ECB/OAEPWithSHA-1AndMGF1Padding
+* RSA/ECB/OAEPWithSHA1AndMGF1Padding
 
 Signature algorithms:
 * SHA1withRSA
@@ -81,7 +82,7 @@ SecretKeyFactory:
 * HkdfWithHmacSHA512
 
 SecureRandom:
-* ACCP's SecureRandom uses AWS-LC's DRBG implementation, which is described [here](https://github.com/awslabs/aws-lc/blob/main/third_party/jitterentropy/README.md) and [here](https://github.com/awslabs/aws-lc/blob/725625435158150ef21e0a4dab6fa3aca1ef2d2c/crypto/fipsmodule/rand/rand.c#L36-L60). Please refer to [system properties](https://github.com/corretto/amazon-corretto-crypto-provider#other-system-properties) for more information.
+* ACCP's SecureRandom uses [AWS-LC's DRBG implementation](https://github.com/aws/aws-lc/blob/main/crypto/fipsmodule/rand/rand.c).
 
 KeyFactory:
 * EC
@@ -107,7 +108,7 @@ Notable differences between ACCP and ACCP-FIPS:
 
 ACCP-FIPS is only supported on the following platforms:
 
-| Platfrom | FIPS support since version |
+| Platform | FIPS support since version |
 |----------|----------------------------|
 | `linux-x86_64` | 2.3.0 |
 | `linux-aarch_64` | 2.3.0 |
@@ -117,7 +118,7 @@ ACCP has the following requirements:
 * JDK8 or newer (This includes both OracleJDK and [Amazon Corretto](https://aws.amazon.com/corretto/))
 * Linux (x86-64 or arm64) or MacOs running on x86_64 (also known as x64 or AMD64)
 
-ACCP comes bundled with AWS-lC's `libcrypto.so`, so it is not neccessery to install AWS-LC on the host or container where you run your application.
+ACCP comes bundled with AWS-LC's `libcrypto.so`, so it is not necessary to install AWS-LC on the host or container where you run your application.
 
 If ACCP is used/installed on a system it does not support, it will disable itself and the JVM will behave as if ACCP weren't installed at all.
 
@@ -195,17 +196,17 @@ Usage example:
 ./bin/bundle-accp.sh 2.3.3 linux-x86_64
 ```
 
-To find the the available versions and classifiers, please checkout Maven central.
+To find the available versions and classifiers, please checkout Maven central.
 
 Some notes on the bundling scripts:
 * One needs to run the bundling script only once.
-* The bundling is not idempotent: runing the script on a JDK that has ACCP bundled in it could result in undefined behavior.
+* The bundling is not idempotent: running the script on a JDK that has ACCP bundled in it could result in undefined behavior.
 * There is no unbundling. Please do a fresh install of the JDK if you need to remove ACCP from your JDK.
 
 ### Manual
 Manual installation requires acquiring the provider and adding it to your classpath.
 You can either download a prebuilt version of the provider or build it yourself.
-Adding a jar to your classpath is highly application and build-system dependant and we cannot provide specific guidance.
+Adding a jar to your classpath is highly application and build-system dependent and we cannot provide specific guidance.
 
 #### Download from GitHub releases
 The most recent version of our provider will always be on our official [releases](https://github.com/corretto/amazon-corretto-crypto-provider/releases) page.
@@ -222,6 +223,9 @@ Building this provider requires a 64 bit Linux or MacOS build system with the fo
 * C++ build chain
 * [lcov](http://ltp.sourceforge.net/coverage/lcov.php) for coverage metrics
 * [gcovr](https://gcovr.com/en/stable/) for reporting coverage metrics in CodeBuild
+* [Go](https://golang.org/dl/) 1.18 or later is required. 1.18 or later is the minimum required
+  version to build AWS-LC, 1.20 or later is needed in order to run AWS-LC's test suite. If not 
+  found by CMake, the go executable may be configured explicitly by setting `GO_EXECUTABLE`.
 
 1. Download the repository via `git clone --recurse-submodules`
 2. Run `./gradlew release`
@@ -315,7 +319,7 @@ These are all read early in the load process and may be cached so any changes to
 Thus, these should all be set on the JVM command line using `-D`.
 
 * `com.amazon.corretto.crypto.provider.extrachecks`
-   Adds exta cryptographic consistency checks which are not necessary on standard systems.
+   Adds extra cryptographic consistency checks which are not necessary on standard systems.
    These checks may be computationally expensive and are not normally relevant.
    See `ExtraCheck.java` for values and more information.
    (Also accepts "ALL" as a value to enable all flags and "help" to print out all flags to STDERR.)
@@ -331,7 +335,7 @@ Thus, these should all be set on the JVM command line using `-D`.
 * `com.amazon.corretto.crypto.provider.janitor.stripes`
    Takes *positive integer value* which is the requested minimum number of "stripes" used by the `Janitor` for dividing cleaning tasks (messes) among its workers.
    (Current behavior is to default this value to 4 times the CPU core count and then round the value up to the nearest power of two.)
-   See `Janitor.java` for for more information.
+   See `Janitor.java` for more information.
 * `com.amazon.corretto.crypto.provider.cacheselftestresults` Takes in `true` or `false`
   (defaults to `true`). If set to `true`, the results of running tests are cached,
   and the subsequent calls to `AmazonCorrettoCryptoProvider::runSelfTests`
@@ -339,16 +343,16 @@ Thus, these should all be set on the JVM command line using `-D`.
   re-run the tests.
 * `com.amazon.corretto.crypto.provider.registerEcParams`
   Takes in `true` or `false` (defaults to `false`).
-  If `true`, then ACCP will register its EC-flavoered AlgorithmParameters implementation on startup.
+  If `true`, then ACCP will register its EC-flavored AlgorithmParameters implementation on startup.
   Else, the JCA will get the implementation from another registered provider (usually stock JCE).
-  Using JCE's impelmentation is generally recommended unless using ACCP as a standalone provider
+  Using JCE's implementation is generally recommended unless using ACCP as a standalone provider
   Callers can choose to register ACCP's implementation at runtime with a call to `AmazonCorrettoCryptoProvider.registerEcParams()`
 * `com.amazon.corretto.crypto.provider.registerSecureRandom`
   Takes in `true` or `false` (defaults to `true`).
   If `true`, then ACCP will register a SecureRandom implementation (`LibCryptoRng`) backed by AWS-LC
   Else, ACCP will not register a SecureRandom implementation, meaning that the JCA will source SecureRandom instances from another registered provider. AWS-LC will still use its internal DRBG for key generation and other operations requiring secure pseudo-randomness.
 * `com.amazon.corretto.crypto.provider.nativeContextReleaseStrategy`
-  Takes in `HYBRID`, `LAZY`, or `EAGER` (defaults ot `HYBRID`). This property only affects
+  Takes in `HYBRID`, `LAZY`, or `EAGER` (defaults to `HYBRID`). This property only affects
   AES-GCM cipher for now. AES-GCM associates a native object of type `EVP_CIPHER_CTX`
   to each `Cipher` object. This property allows users to control the strategy for releasing
   the native object.
