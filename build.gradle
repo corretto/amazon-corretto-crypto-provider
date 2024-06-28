@@ -20,6 +20,12 @@ if (ext.isFips) {
 } else {
     ext.awsLcGitVersionId = 'v1.30.1'
 }
+
+// Check for user inputted git version ID
+if (System.properties["AWSLC_REF"]) {
+    ext.awsLcGitVersionId = System.properties["AWSLC_REF"]
+}
+
 ext.isLegacyBuild = Boolean.getBoolean('LEGACY_BUILD')
 
 ext.lcovIgnore = System.properties['LCOV_IGNORE']
@@ -89,6 +95,10 @@ def getClangFormatVersion() {
 }
 
 def awslcSrcPath = "${projectDir}/aws-lc/"
+if (System.properties["AWSLC_SRC_DIR"]) {
+    awslcSrcPath = System.properties["AWSLC_SRC_DIR"]
+}
+
 
 // Execute cmake3 command to see if it exists. Mainly to support AL2.
 def detect_cmake3 = {
