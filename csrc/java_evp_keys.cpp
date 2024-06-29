@@ -496,21 +496,19 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_r
         if (privateExponentArr) {
             BigNumObj privExp = BigNumObj::fromJavaArray(env, privateExponentArr);
 
-            int res = 1;
             if (BN_is_zero(pubExp)) {
                 // RSA blinding can't be performed without |e|.
-                rsa.set(RSA_new_private_key_no_e(modulus, privExp));
+                rsa.set(new_private_RSA_key_with_no_e(modulus, privExp));
+                // new_private_RSA_key_with_no_e does not take the ownership of its arguments
             } else {
-                res = RSA_set0_key(rsa, modulus, pubExp, privExp);
+                if (RSA_set0_key(rsa, modulus, pubExp, privExp) != 1) {
+                    throw_openssl(EX_RUNTIME_CRYPTO, "Unable to set RSA values");
+                }
+                // RSA_set0_key takes ownership
+                modulus.releaseOwnership();
+                pubExp.releaseOwnership();
+                privExp.releaseOwnership();
             }
-
-            if (res != 1) {
-                throw_openssl(EX_RUNTIME_CRYPTO, "Unable to set RSA values");
-            }
-            // RSA_set0_key takes ownership
-            modulus.releaseOwnership();
-            pubExp.releaseOwnership();
-            privExp.releaseOwnership();
         } else {
             if (RSA_set0_key(rsa, modulus, pubExp, NULL) != 1) {
                 throw_openssl(EX_RUNTIME_CRYPTO, "Unable to set RSA values");

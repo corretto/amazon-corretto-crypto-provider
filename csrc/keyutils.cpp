@@ -71,18 +71,16 @@ EVP_PKEY* der2EvpPrivateKey(
             if (need_rebuild) {
                 // This key likely only has (n, d) set. Very weird, but it happens in java sometimes.
                 RSA_auto nulled_rsa;
-                BigNumObj n_copy = BigNumObj::fromBIGNUM(n);
-                BigNumObj d_copy = BigNumObj::fromBIGNUM(d);
-                nulled_rsa.set(RSA_new_private_key_no_e(n_copy, d_copy));
+                // No need to copy n or d since new_private_RSA_key_with_no_e does not take ownership.
+                nulled_rsa.set(new_private_RSA_key_with_no_e(n, d));
                 if (e != nullptr && !BN_is_zero(e)) {
+                    // Need to copy e since RSA_set0_key takes ownership.
                     BigNumObj e_copy = BigNumObj::fromBIGNUM(e);
                     if (!RSA_set0_key(nulled_rsa, nullptr, e_copy, nullptr)) {
                         throw_openssl("Unable to set e for RSA");
                     }
                     e_copy.releaseOwnership();
                 }
-                n_copy.releaseOwnership();
-                d_copy.releaseOwnership();
                 EVP_PKEY_set1_RSA(result, nulled_rsa);
                 shouldCheckPrivate = false; // We cannot check private keys without CRT parameters
             }
@@ -170,35 +168,36 @@ const EVP_MD* digestFromJstring(raii_env& env, jstring digestName)
     return result;
 }
 
-RSA* RSA_new_private_key_no_e(BIGNUM* n, BIGNUM* d)
+RSA* new_private_RSA_key_with_no_e(BIGNUM const* n, BIGNUM const* d)
 {
+#ifdef FIPS_BUILD
+    // AWS-LC-FIPS doesn't have RSA_new_private_key_no_e method yet.
+    // The following implementation has been copied from AWS-LC:
+    // https://github.com/aws/aws-lc/blob/v1.30.1/crypto/fipsmodule/rsa/rsa.c#L147
     RSA_auto rsa = RSA_auto::from(RSA_new());
     if (rsa.get() == nullptr) {
         throw_openssl("RSA_new failed");
     }
-    // The FIPS builds of AWS-LC do not have an API to disable blinding.
-#ifdef FIPS_BUILD
 
     // RSA struct is not opaque in FIPS mode.
     rsa->flags |= RSA_FLAG_NO_BLINDING;
 
-#else
-
-    // RSA_blinding_off_temp_for_accp_compatibility is marked deprecated, so we need to disable the
-    // "deprecated-declarations" check for this invocation.
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-    // We need to change this API once AWS-LC provides a method similar to the following:
-    // https://github.com/google/boringssl/blob/master/include/openssl/rsa.h#L630
-    RSA_blinding_off_temp_for_accp_compatibility(rsa);
-#pragma GCC diagnostic pop
-
-#endif
-    if (!RSA_set0_key(rsa, n, nullptr, d)) {
-        throw_openssl("Unable to set RSA key parameters");
-    }
+    bn_dup_into(&rsa->n, n);
+    bn_dup_into(&rsa->d, d);
 
     return rsa.take();
+
+#else
+
+    RSA* result = RSA_new_private_key_no_e(n, d);
+
+    if (result == nullptr) {
+        throw_openssl("RSA_new_private_key_no_e failed.");
+    }
+
+    return result;
+
+#endif
 }
 
 }

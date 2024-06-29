@@ -139,6 +139,9 @@ public:
 
 inline BigNumObj bn_zero() { return BigNumObj(); }
 
+// Frees the data referenced by *dst, if any, and copies src to *dst.
+void bn_dup_into(BIGNUM** dst, BIGNUM const* src);
+
 } // namespace AmazonCorrettoCryptoProvider
 
 #endif
