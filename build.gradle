@@ -27,7 +27,6 @@ if (System.properties["AWSLC_REF"]) {
 }
 
 ext.isLegacyBuild = Boolean.getBoolean('LEGACY_BUILD')
-ext.isCustomBuild = Boolean.getBoolean('CUSTOM_BUILD')
 
 ext.lcovIgnore = System.properties['LCOV_IGNORE']
 if (ext.lcovIgnore == null) {
@@ -189,7 +188,7 @@ task buildAwsLc {
         }
         
 
-        if (!isLegacyBuild && !isCustomBuild) {
+        if (!isLegacyBuild) {
             exec {
                 workingDir awslcSrcPath
                 commandLine "git", "fetch", "--tags"
