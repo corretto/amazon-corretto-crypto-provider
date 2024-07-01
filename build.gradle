@@ -22,8 +22,8 @@ if (ext.isFips) {
 }
 
 // Check for user inputted git version ID.
-if (System.properties["AWSLC_REF"]) {
-    ext.awsLcGitVersionId = System.properties["AWSLC_REF"]
+if (System.env.AWSLC_GITVERSION) {
+    ext.awsLcGitVersionId = System.env.AWSLC_GITVERSION
 }
 
 ext.isLegacyBuild = Boolean.getBoolean('LEGACY_BUILD')
@@ -97,8 +97,8 @@ def getClangFormatVersion() {
 def awslcSrcPath = "${projectDir}/aws-lc/"
 
 // Check for user inputted AWS-LC source directory. 
-if (System.properties["AWSLC_SRC_DIR"]) {
-    awslcSrcPath = System.properties["AWSLC_SRC_DIR"]
+if (System.env.AWSLC_SRC_DIR) {
+    awslcSrcPath = System.env.AWSLC_SRC_DIR
 }
 
 // Execute cmake3 command to see if it exists. Mainly to support AL2.
