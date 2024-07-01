@@ -27,6 +27,7 @@ if (System.properties["AWSLC_REF"]) {
 }
 
 ext.isLegacyBuild = Boolean.getBoolean('LEGACY_BUILD')
+ext.isCustomBuild = Boolean.getBoolean('CUSTOM_BUILD')
 
 ext.lcovIgnore = System.properties['LCOV_IGNORE']
 if (ext.lcovIgnore == null) {
@@ -186,8 +187,9 @@ task buildAwsLc {
         if (file(awslcSrcPath).list().size() == 0) {
             throw new GradleException("aws-lc dir empty! run 'git submodule update --init --recursive' to populate.")
         }
+        
 
-        if (!isLegacyBuild) {
+        if (!isLegacyBuild && !isCustomBuild) {
             exec {
                 workingDir awslcSrcPath
                 commandLine "git", "fetch", "--tags"
