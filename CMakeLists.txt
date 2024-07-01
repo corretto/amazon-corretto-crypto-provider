@@ -28,8 +28,6 @@ else()
   set(Java_VERSION_MINOR ${JAVA_MINOR_VERSION})
 endif()
 
-set(JAVA_AWT_LIBRARY NotNeeded)
-set(JAVA_AWT_INCLUDE_PATH NotNeeded)
 find_package(JNI REQUIRED)
 include(FindOpenSSL)
 
