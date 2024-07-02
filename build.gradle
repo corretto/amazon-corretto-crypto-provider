@@ -185,7 +185,11 @@ task buildAwsLc {
 
     doFirst {
         if (file(awslcSrcPath).list().size() == 0) {
-            throw new GradleException("aws-lc dir empty! run 'git submodule update --init --recursive' to populate.")
+            if (System.properties["AWSLC_SRC_DIR"]) {
+                throw new GradleException("aws-lc dir empty! specify another directory or populate with aws-lc source files.")
+            } else {
+                throw new GradleException("aws-lc dir empty! run 'git submodule update --init --recursive' to populate.")
+            }
         }
 
         if (!isLegacyBuild) {
