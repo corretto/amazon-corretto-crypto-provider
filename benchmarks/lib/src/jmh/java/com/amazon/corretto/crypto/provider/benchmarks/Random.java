@@ -53,7 +53,7 @@ public class Random {
     // !!! WARNING: java.util.random is not a secure randomness generator
     // !!! WARNING: we add it here just for comparison
     @Param({
-      AmazonCorrettoCryptoProvider.PROVIDER_NAME + "/DEFAULT",
+      AmazonCorrettoCryptoProvider.PROVIDER_NAME + "/LibCryptoRng",
       "BC/DEFAULT",
       "SUN/NativePrng",
       "SUN/DRBG",
