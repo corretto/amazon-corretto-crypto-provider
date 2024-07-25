@@ -5,6 +5,12 @@ package com.amazon.corretto.crypto.provider;
 import static com.amazon.corretto.crypto.provider.AesCbcSpi.AES_CBC_ISO10126_PADDING_NAMES;
 import static com.amazon.corretto.crypto.provider.AesCbcSpi.AES_CBC_NO_PADDING_NAMES;
 import static com.amazon.corretto.crypto.provider.AesCbcSpi.AES_CBC_PKCS7_PADDING_NAMES;
+import static com.amazon.corretto.crypto.provider.ConcatenationKdfSpi.CKDF_WITH_HMAC_SHA256;
+import static com.amazon.corretto.crypto.provider.ConcatenationKdfSpi.CKDF_WITH_HMAC_SHA512;
+import static com.amazon.corretto.crypto.provider.ConcatenationKdfSpi.CKDF_WITH_SHA224;
+import static com.amazon.corretto.crypto.provider.ConcatenationKdfSpi.CKDF_WITH_SHA256;
+import static com.amazon.corretto.crypto.provider.ConcatenationKdfSpi.CKDF_WITH_SHA384;
+import static com.amazon.corretto.crypto.provider.ConcatenationKdfSpi.CKDF_WITH_SHA512;
 import static com.amazon.corretto.crypto.provider.HkdfSecretKeyFactorySpi.HKDF_WITH_SHA1;
 import static com.amazon.corretto.crypto.provider.HkdfSecretKeyFactorySpi.HKDF_WITH_SHA256;
 import static com.amazon.corretto.crypto.provider.HkdfSecretKeyFactorySpi.HKDF_WITH_SHA384;
@@ -86,6 +92,17 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     addService("SecretKeyFactory", HKDF_WITH_SHA256, hkdfSpi, false);
     addService("SecretKeyFactory", HKDF_WITH_SHA384, hkdfSpi, false);
     addService("SecretKeyFactory", HKDF_WITH_SHA512, hkdfSpi, false);
+
+    // Once these KDFs are added to a FIPS branch of AWS-LC, we can remove this check.
+    if (!Loader.FIPS_BUILD) {
+      final String concatenationKdfSpi = "ConcatenationKdf";
+      addService("SecretKeyFactory", CKDF_WITH_SHA224, concatenationKdfSpi, false);
+      addService("SecretKeyFactory", CKDF_WITH_SHA256, concatenationKdfSpi, false);
+      addService("SecretKeyFactory", CKDF_WITH_SHA384, concatenationKdfSpi, false);
+      addService("SecretKeyFactory", CKDF_WITH_SHA512, concatenationKdfSpi, false);
+      addService("SecretKeyFactory", CKDF_WITH_HMAC_SHA256, concatenationKdfSpi, false);
+      addService("SecretKeyFactory", CKDF_WITH_HMAC_SHA512, concatenationKdfSpi, false);
+    }
 
     addService("KeyPairGenerator", "RSA", "RsaGen");
     addService("KeyPairGenerator", "EC", "EcGen");
@@ -308,6 +325,12 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
                   HkdfSecretKeyFactorySpi.getSpiFactoryForAlgName(algo));
           if (spi != null) {
             return spi;
+          }
+
+          final ConcatenationKdfSpi ckdfSpi =
+              ConcatenationKdfSpi.INSTANCES.get(ConcatenationKdfSpi.getSpiFactoryForAlgName(algo));
+          if (ckdfSpi != null) {
+            return ckdfSpi;
           }
         }
 
