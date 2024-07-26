@@ -28,6 +28,10 @@ import javax.crypto.spec.SecretKeySpec;
 
 /** Miscellaneous utility methods. */
 final class Utils {
+  static final int SHA1_CODE = 1;
+  static final int SHA256_CODE = 2;
+  static final int SHA384_CODE = 3;
+  static final int SHA512_CODE = 4;
   private static final String PROPERTY_NATIVE_CONTEXT_RELEASE_STRATEGY =
       "nativeContextReleaseStrategy";
 
