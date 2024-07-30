@@ -117,6 +117,10 @@ static inline bool check_bounds(size_t length, size_t offset, size_t range_len)
     return remaining >= range_len;
 }
 
+// Given the code of a digest, returns its correspodning EVP_MD* object. The possible values of digestCode are defined
+// in Utils.java. This method is used by different KDFs that can work with different digest algorithms.
+EVP_MD const* digest_code_to_EVP_MD(int digestCode);
+
 } // namespace AmazonCorrettoCryptoProvider
 
 #endif

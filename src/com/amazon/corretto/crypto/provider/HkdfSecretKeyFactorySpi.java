@@ -13,10 +13,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import javax.crypto.SecretKey;
-import javax.crypto.SecretKeyFactorySpi;
 import javax.crypto.spec.SecretKeySpec;
 
-class HkdfSecretKeyFactorySpi extends SecretKeyFactorySpi {
+class HkdfSecretKeyFactorySpi extends KdfSpi {
   private final int digestCode;
   private final int digestLength;
 
@@ -121,16 +120,6 @@ class HkdfSecretKeyFactorySpi extends SecretKeyFactorySpi {
       byte[] jInfo,
       int infoLen);
 
-  @Override
-  protected KeySpec engineGetKeySpec(final SecretKey key, final Class<?> keySpec) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  protected SecretKey engineTranslateKey(final SecretKey key) {
-    throw new UnsupportedOperationException();
-  }
-
   static final Map<String, HkdfSecretKeyFactorySpi> INSTANCES = getInstances();
 
   private static final String HKDF = "Hkdf";
@@ -140,25 +129,20 @@ class HkdfSecretKeyFactorySpi extends SecretKeyFactorySpi {
   static final String HKDF_WITH_SHA384 = HKDF + WITH + "HmacSHA384";
   static final String HKDF_WITH_SHA512 = HKDF + WITH + "HmacSHA512";
 
-  private static final int SHA1_CODE = 1;
-  private static final int SHA256_CODE = 2;
-  private static final int SHA384_CODE = 3;
-  private static final int SHA512_CODE = 4;
-
   private static Map<String, HkdfSecretKeyFactorySpi> getInstances() {
     final Map<String, HkdfSecretKeyFactorySpi> result = new HashMap<>();
     result.put(
         getSpiFactoryForAlgName(HKDF_WITH_SHA1),
-        new HkdfSecretKeyFactorySpi(SHA1_CODE, getDigestLength("sha1")));
+        new HkdfSecretKeyFactorySpi(Utils.SHA1_CODE, getDigestLength("sha1")));
     result.put(
         getSpiFactoryForAlgName(HKDF_WITH_SHA256),
-        new HkdfSecretKeyFactorySpi(SHA256_CODE, getDigestLength("sha256")));
+        new HkdfSecretKeyFactorySpi(Utils.SHA256_CODE, getDigestLength("sha256")));
     result.put(
         getSpiFactoryForAlgName(HKDF_WITH_SHA384),
-        new HkdfSecretKeyFactorySpi(SHA384_CODE, getDigestLength("sha384")));
+        new HkdfSecretKeyFactorySpi(Utils.SHA384_CODE, getDigestLength("sha384")));
     result.put(
         getSpiFactoryForAlgName(HKDF_WITH_SHA512),
-        new HkdfSecretKeyFactorySpi(SHA512_CODE, getDigestLength("sha512")));
+        new HkdfSecretKeyFactorySpi(Utils.SHA512_CODE, getDigestLength("sha512")));
     return Collections.unmodifiableMap(result);
   }
 

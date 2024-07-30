@@ -8,23 +8,6 @@
 
 using namespace AmazonCorrettoCryptoProvider;
 
-// The possible values of digestCode are defined in HkdfSecretKeyFactorySpi.java
-static EVP_MD const* digest_code_to_EVP_MD(int digestCode)
-{
-    switch (digestCode) {
-    case com_amazon_corretto_crypto_provider_HkdfSecretKeyFactorySpi_SHA1_CODE:
-        return EVP_sha1();
-    case com_amazon_corretto_crypto_provider_HkdfSecretKeyFactorySpi_SHA256_CODE:
-        return EVP_sha256();
-    case com_amazon_corretto_crypto_provider_HkdfSecretKeyFactorySpi_SHA384_CODE:
-        return EVP_sha384();
-    case com_amazon_corretto_crypto_provider_HkdfSecretKeyFactorySpi_SHA512_CODE:
-        return EVP_sha512();
-    default:
-        throw java_ex(EX_ERROR, "THIS SHOULD NOT BE REACHABLE.");
-    }
-}
-
 extern "C" JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_HkdfSecretKeyFactorySpi_hkdf(JNIEnv* env,
     jclass,
     jbyteArray jOutput,
