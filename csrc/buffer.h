@@ -599,9 +599,11 @@ public:
     unsigned char* get();
 
 #ifdef HAVE_CPP11
-    // deleting copy constructor and copy assignment to satisfy rule of three
+    // deleting copy & move operations to satisfy rule of five
     JByteArrayCritical(const JByteArrayCritical&) = delete;
     JByteArrayCritical& operator=(const JByteArrayCritical&) = delete;
+    JByteArrayCritical(JByteArrayCritical&&) = delete;
+    JByteArrayCritical& operator=(JByteArrayCritical&&) = delete;
 #endif
 
 private:
@@ -617,9 +619,11 @@ public:
     uint8_t* get_buffer();
 
 #ifdef HAVE_CPP11
-    // deleting copy constructor and copy assignment to satisfy rule of three
+    // deleting copy & move operations to satisfy rule of five
     SimpleBuffer(const SimpleBuffer&) = delete;
     SimpleBuffer& operator=(const SimpleBuffer&) = delete;
+    SimpleBuffer(SimpleBuffer&&) = delete;
+    SimpleBuffer& operator=(SimpleBuffer&&) = delete;
 #endif
 
 private:
@@ -636,9 +640,11 @@ public:
     uint8_t* get();
 
 #ifdef HAVE_CPP11
-    // deleting copy constructor and copy assignment to satisfy rule of three
+    // deleting copy & move operations to satisfy rule of five
     JBinaryBlob(const JBinaryBlob&) = delete;
     JBinaryBlob& operator=(const JBinaryBlob&) = delete;
+    JBinaryBlob(JBinaryBlob&&) = delete;
+    JBinaryBlob& operator=(JBinaryBlob&&) = delete;
 #endif
 
 private:
@@ -668,9 +674,11 @@ public:
     uint8_t* get_output();
 
 #ifdef HAVE_CPP11
-    // deleting copy constructor and copy assignment to satisfy rule of three
+    // deleting copy & move operations to satisfy rule of five
     JIOBlobs(const JIOBlobs&) = delete;
     JIOBlobs& operator=(const JIOBlobs&) = delete;
+    JIOBlobs(JIOBlobs&&) = delete;
+    JIOBlobs& operator=(JIOBlobs&&) = delete;
 #endif
 
 private:
