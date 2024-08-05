@@ -598,6 +598,12 @@ public:
     ~JByteArrayCritical();
     unsigned char* get();
 
+#ifdef HAVE_CPP11
+    // deleting copy constructor and copy assignment to satisfy rule of three
+    JByteArrayCritical(const JByteArrayCritical&) = delete;
+    JByteArrayCritical& operator=(const JByteArrayCritical&) = delete;
+#endif
+
 private:
     void* ptr_;
     JNIEnv* env_;
@@ -609,6 +615,12 @@ public:
     SimpleBuffer(int len);
     ~SimpleBuffer();
     uint8_t* get_buffer();
+
+#ifdef HAVE_CPP11
+    // deleting copy constructor and copy assignment to satisfy rule of three
+    SimpleBuffer(const SimpleBuffer&) = delete;
+    SimpleBuffer& operator=(const SimpleBuffer&) = delete;
+#endif
 
 private:
     uint8_t* buffer_;
@@ -622,6 +634,12 @@ public:
     JBinaryBlob(JNIEnv* env, jobject directByteBuffer, jbyteArray array);
     ~JBinaryBlob();
     uint8_t* get();
+
+#ifdef HAVE_CPP11
+    // deleting copy constructor and copy assignment to satisfy rule of three
+    JBinaryBlob(const JBinaryBlob&) = delete;
+    JBinaryBlob& operator=(const JBinaryBlob&) = delete;
+#endif
 
 private:
     // The native pointer that is either backed by a direct ByteBuffer or a byte array.
@@ -648,6 +666,12 @@ public:
     ~JIOBlobs();
     uint8_t* get_input();
     uint8_t* get_output();
+
+#ifdef HAVE_CPP11
+    // deleting copy constructor and copy assignment to satisfy rule of three
+    JIOBlobs(const JIOBlobs&) = delete;
+    JIOBlobs& operator=(const JIOBlobs&) = delete;
+#endif
 
 private:
     // The native pointers that are either backed by a direct ByteBuffer or a byte array.
