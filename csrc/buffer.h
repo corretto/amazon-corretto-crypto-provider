@@ -598,6 +598,14 @@ public:
     ~JByteArrayCritical();
     unsigned char* get();
 
+#ifdef HAVE_CPP11
+    // deleting copy & move operations to satisfy rule of five
+    JByteArrayCritical(const JByteArrayCritical&) = delete;
+    JByteArrayCritical& operator=(const JByteArrayCritical&) = delete;
+    JByteArrayCritical(JByteArrayCritical&&) = delete;
+    JByteArrayCritical& operator=(JByteArrayCritical&&) = delete;
+#endif
+
 private:
     void* ptr_;
     JNIEnv* env_;
@@ -609,6 +617,14 @@ public:
     SimpleBuffer(int len);
     ~SimpleBuffer();
     uint8_t* get_buffer();
+
+#ifdef HAVE_CPP11
+    // deleting copy & move operations to satisfy rule of five
+    SimpleBuffer(const SimpleBuffer&) = delete;
+    SimpleBuffer& operator=(const SimpleBuffer&) = delete;
+    SimpleBuffer(SimpleBuffer&&) = delete;
+    SimpleBuffer& operator=(SimpleBuffer&&) = delete;
+#endif
 
 private:
     uint8_t* buffer_;
@@ -622,6 +638,14 @@ public:
     JBinaryBlob(JNIEnv* env, jobject directByteBuffer, jbyteArray array);
     ~JBinaryBlob();
     uint8_t* get();
+
+#ifdef HAVE_CPP11
+    // deleting copy & move operations to satisfy rule of five
+    JBinaryBlob(const JBinaryBlob&) = delete;
+    JBinaryBlob& operator=(const JBinaryBlob&) = delete;
+    JBinaryBlob(JBinaryBlob&&) = delete;
+    JBinaryBlob& operator=(JBinaryBlob&&) = delete;
+#endif
 
 private:
     // The native pointer that is either backed by a direct ByteBuffer or a byte array.
@@ -648,6 +672,14 @@ public:
     ~JIOBlobs();
     uint8_t* get_input();
     uint8_t* get_output();
+
+#ifdef HAVE_CPP11
+    // deleting copy & move operations to satisfy rule of five
+    JIOBlobs(const JIOBlobs&) = delete;
+    JIOBlobs& operator=(const JIOBlobs&) = delete;
+    JIOBlobs(JIOBlobs&&) = delete;
+    JIOBlobs& operator=(JIOBlobs&&) = delete;
+#endif
 
 private:
     // The native pointers that are either backed by a direct ByteBuffer or a byte array.
