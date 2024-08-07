@@ -64,10 +64,12 @@ Signature algorithms:
 * SHA512withECDSA
 * SHA512withECDSAinP1363Format
 * RSASSA-PSS
+* ED25519
 
 KeyPairGenerator:
 * EC
 * RSA
+* ED25519
 
 KeyGenerator:
 * AES
@@ -92,6 +94,7 @@ SecureRandom:
 KeyFactory:
 * EC
 * RSA
+* ED25519
 
 AlgorithmParameters:
 * EC. Please refer to [system properties](https://github.com/corretto/amazon-corretto-crypto-provider#other-system-properties) for more information.

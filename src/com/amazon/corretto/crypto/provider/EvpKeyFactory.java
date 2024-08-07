@@ -302,4 +302,27 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
       return super.engineGetKeySpec(key, keySpec);
     }
   }
+
+  static class EdDSA extends EvpKeyFactory {
+
+    EdDSA(AmazonCorrettoCryptoProvider provider) {
+      super(EvpKeyType.Ed25519, provider);
+    }
+
+    @Override
+    protected PrivateKey engineGeneratePrivate(KeySpec keySpec) throws InvalidKeySpecException {
+      return super.engineGeneratePrivate(keySpec);
+    }
+
+    @Override
+    protected PublicKey engineGeneratePublic(KeySpec keySpec) throws InvalidKeySpecException {
+      return super.engineGeneratePublic(keySpec);
+    }
+
+    @Override
+    protected <T extends KeySpec> T engineGetKeySpec(Key key, Class<T> keySpec)
+        throws InvalidKeySpecException {
+      return super.engineGetKeySpec(key, keySpec);
+    }
+  }
 }

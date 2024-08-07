@@ -104,7 +104,7 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_p
 
         {
             jni_borrow borrow = jni_borrow(env, pkcs8Buff, "pkcs8Buff");
-            result.set(der2EvpPrivateKey(borrow, derLen, shouldCheckPrivate, EX_INVALID_KEY_SPEC));
+            result.set(der2EvpPrivateKey(borrow, derLen, nativeValue, shouldCheckPrivate, EX_INVALID_KEY_SPEC));
             if (EVP_PKEY_base_id(result) != nativeValue) {
                 throw_java_ex(EX_INVALID_KEY_SPEC, "Incorrect key type");
             }
@@ -326,6 +326,42 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpEcPriva
         ex.throw_to_java(pEnv);
         return NULL;
     }
+}
+
+/*
+ * Class:     com_amazon_corretto_crypto_provider_EvpEdEcPrivateKey
+ * Method:    getPrivateKey
+ */
+JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpEdEcPrivateKey_getPrivateKey(
+    JNIEnv* pEnv, jclass, jlong keyHandle)
+{
+    jbyteArray result = NULL;
+
+    try {
+        raii_env env(pEnv);
+
+        EVP_PKEY* key = reinterpret_cast<EVP_PKEY*>(keyHandle);
+
+        EVP_PKEY_CTX_auto ctx = EVP_PKEY_CTX_auto::from(EVP_PKEY_CTX_new(key, nullptr));
+        CHECK_OPENSSL(ctx.isInitialized());
+
+        OPENSSL_buffer_auto privateKeyBuffer;
+        PKCS8_PRIV_KEY_INFO_auto pkcs8 = PKCS8_PRIV_KEY_INFO_auto::from(EVP_PKEY2PKCS8(key));
+        CHECK_OPENSSL(pkcs8.isInitialized());
+
+        // This next line allocates memory
+        int bufLen = i2d_PKCS8_PRIV_KEY_INFO(pkcs8, &privateKeyBuffer);
+        CHECK_OPENSSL(bufLen > 0);
+
+        size_t bufLen2 = (size_t)bufLen;
+        CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(key, privateKeyBuffer, &bufLen2) > 0);
+
+        result = env->NewByteArray(bufLen2);
+        env->SetByteArrayRegion(result, 0, bufLen2, privateKeyBuffer);
+    } catch (java_ex& ex) {
+        ex.throw_to_java(pEnv);
+    }
+    return result;
 }
 
 JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpRsaKey_getModulus(

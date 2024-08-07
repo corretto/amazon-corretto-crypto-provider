@@ -57,6 +57,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
   private final boolean relyOnCachedSelfTestResults;
   private final boolean shouldRegisterEcParams;
   private final boolean shouldRegisterSecureRandom;
+  private final boolean shouldRegisterEdDSA;
   private final Utils.NativeContextReleaseStrategy nativeContextReleaseStrategy;
 
   private transient SelfTestSuite selfTestSuite = new SelfTestSuite();
@@ -85,6 +86,13 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
     addService("KeyFactory", "RSA", "EvpKeyFactory$RSA");
     addService("KeyFactory", "EC", "EvpKeyFactory$EC");
+
+    if (shouldRegisterEdDSA) {
+      addService("KeyFactory", "EdDSA", "EvpKeyFactory$EdDSA");
+      addService("KeyFactory", "Ed25519", "EvpKeyFactory$EdDSA");
+      addService("KeyPairGenerator", "EdDSA", "EdGen");
+      addService("KeyPairGenerator", "Ed25519", "EdGen");
+    }
 
     final String hkdfSpi = "HkdfSecretKeyFactorySpi";
     addService("SecretKeyFactory", HKDF_WITH_SHA1, hkdfSpi, false);
@@ -187,6 +195,10 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
     addService("Signature", "RSASSA-PSS", "EvpSignature$RSASSA_PSS");
     addService("Signature", "NONEwithECDSA", "EvpSignatureRaw$NONEwithECDSA");
+    if (shouldRegisterEdDSA) {
+      addService("Signature", "EdDSA", "EvpSignatureRaw$Ed25519");
+      addService("Signature", "Ed25519", "EvpSignatureRaw$Ed25519");
+    }
   }
 
   private ACCPService addService(
@@ -462,6 +474,9 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     this.shouldRegisterSecureRandom =
         Utils.getBooleanProperty(PROPERTY_REGISTER_SECURE_RANDOM, true);
 
+    // Register EdDSA if JDK version >= 15
+    this.shouldRegisterEdDSA = Utils.getJavaVersion() >= 15;
+
     this.nativeContextReleaseStrategy = Utils.getNativeContextReleaseStrategyProperty();
 
     Utils.optionsFromProperty(ExtraCheck.class, extraChecks, "extrachecks");
@@ -663,6 +678,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
   // Provider.getService logic.
   private transient volatile KeyFactory rsaFactory;
   private transient volatile KeyFactory ecFactory;
+  private transient volatile KeyFactory edFactory;
 
   KeyFactory getKeyFactory(EvpKeyType keyType) {
     try {
@@ -677,6 +693,11 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
             ecFactory = KeyFactory.getInstance(keyType.jceName, this);
           }
           return ecFactory;
+        case Ed25519:
+          if (edFactory == null) {
+            edFactory = KeyFactory.getInstance(keyType.jceName, this);
+          }
+          return edFactory;
         default:
           throw new AssertionError("Unsupported key type");
       }
