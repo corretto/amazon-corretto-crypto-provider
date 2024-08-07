@@ -16,9 +16,9 @@ group = 'software.amazon.cryptools'
 version = '2.4.1'
 ext.isFips = Boolean.getBoolean('FIPS')
 if (ext.isFips) {
-    ext.awsLcGitVersionId = 'AWS-LC-FIPS-2.0.13'
+    ext.awsLcGitVersionId = 'hmac-precomputed-key-size-define'  // FIXME: needed for version w/ precomputed keys
 } else {
-    ext.awsLcGitVersionId = 'v1.30.1'
+    ext.awsLcGitVersionId = 'hmac-precomputed-key-size-define'  // FIXME: needed for version w/ precomputed keys
 }
 
 // Check for user inputted git version ID.
@@ -197,10 +197,10 @@ task buildAwsLc {
                 workingDir awslcSrcPath
                 commandLine "git", "fetch", "--tags"
             }
-            exec {
-                workingDir awslcSrcPath
-                commandLine "git", "checkout", awsLcGitVersionId
-            }
+//            exec {
+//                workingDir awslcSrcPath
+//                commandLine "git", "checkout", awsLcGitVersionId
+//            }
         }
         mkdir "${buildDir}/awslc"
         mkdir sharedObjectOutDir
