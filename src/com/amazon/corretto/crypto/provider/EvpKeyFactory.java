@@ -306,7 +306,7 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
   static class EdDSA extends EvpKeyFactory {
 
     EdDSA(AmazonCorrettoCryptoProvider provider) {
-      super(EvpKeyType.Ed25519, provider);
+      super(EvpKeyType.EdDSA, provider);
     }
 
     @Override

@@ -694,7 +694,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
             ecFactory = KeyFactory.getInstance(keyType.jceName, this);
           }
           return ecFactory;
-        case Ed25519:
+        case EdDSA:
           if (edFactory == null) {
             edFactory = KeyFactory.getInstance(keyType.jceName, this);
           }

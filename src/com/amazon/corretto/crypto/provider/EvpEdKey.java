@@ -6,6 +6,6 @@ abstract class EvpEdKey extends EvpKey {
   private static final long serialVersionUID = 1;
 
   EvpEdKey(final InternalKey key, final boolean isPublicKey) {
-    super(key, EvpKeyType.Ed25519, isPublicKey);
+    super(key, EvpKeyType.EdDSA, isPublicKey);
   }
 }
