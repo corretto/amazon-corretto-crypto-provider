@@ -5,6 +5,7 @@ package com.amazon.corretto.crypto.provider.test;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.Arrays;
 import java.security.*;
 import java.security.SignatureException;
 import java.security.spec.InvalidKeySpecException;
@@ -55,7 +56,14 @@ public class EdDSATest {
     final KeyPair kp1 = nativeGen.generateKeyPair();
     final KeyPair kp2 = nativeGen.generateKeyPair();
 
-    assertTrue(!kp1.equals(kp2));
+    final byte [] pk1 = kp1.getPrivate().getEncoded();
+    final byte [] pk2 = kp2.getPrivate().getEncoded();
+
+    final byte [] pbk1 = kp1.getPublic().getEncoded();
+    final byte [] pbk2 = kp2.getPublic().getEncoded();
+
+    assertTrue(!Arrays.equals(pk1, pk2));
+    assertTrue(!Arrays.equals(pbk1, pbk2));
   }
 
   @Test
@@ -99,15 +107,9 @@ public class EdDSATest {
     final byte[] privateKeyACCP = kf.generatePrivate(privateKeyPkcs8).getEncoded();
     final byte[] publicKeyACCP = kf.generatePublic(publicKeyX509).getEncoded();
 
-    assertTrue(privateKeyACCP.length == privateKeyJCE.length);
-    for (int i = 0; i < privateKeyACCP.length; i++) {
-      assertTrue(privateKeyACCP[i] == privateKeyJCE[i]);
-    }
-
-    assertTrue(publicKeyACCP.length == publicKeyJCE.length);
-    for (int i = 0; i < publicKeyACCP.length; i++) {
-      assertTrue(publicKeyACCP[i] == publicKeyJCE[i]);
-    }
+    // Confirm that ACCP & SunEC keys are equivalent
+    assertTrue(Arrays.equals(privateKeyACCP, privateKeyJCE));
+    assertTrue(Arrays.equals(publicKeyACCP, publicKeyJCE));
   }
 
   @Test
@@ -196,15 +198,8 @@ public class EdDSATest {
     final byte[] pbkBC = kf.generatePublic(publicKeyX509).getEncoded();
 
     // Confirm that ACCP & BC keys are equivalent
-    assertTrue(pkACCP.length == pkBC.length);
-    for (int i = 0; i < pkACCP.length; i++) {
-      assertTrue(pkACCP[i] == pkBC[i]);
-    }
-
-    assertTrue(pbkACCP.length == pbkBC.length);
-    for (int i = 0; i < pbkACCP.length; i++) {
-      assertTrue(pbkACCP[i] == pbkBC[i]);
-    }
+    assertTrue(Arrays.equals(pkACCP, pkBC));
+    assertTrue(Arrays.equals(pbkACCP, pbkBC));
   }
 
   @Test

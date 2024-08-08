@@ -81,7 +81,7 @@ private:
 
 EVP_PKEY* der2EvpPrivateKey(const unsigned char* der,
     const int derLen,
-    const int nativeValue,
+    const int evpType,
     const bool checkPrivateKey,
     const char* javaExceptionClass);
 EVP_PKEY* der2EvpPublicKey(const unsigned char* der, const int derLen, const char* javaExceptionClass);

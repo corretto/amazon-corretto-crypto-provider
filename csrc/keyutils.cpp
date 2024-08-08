@@ -13,13 +13,13 @@ namespace AmazonCorrettoCryptoProvider {
 
 EVP_PKEY* der2EvpPrivateKey(const unsigned char* der,
     const int derLen,
-    const int nativeValue,
+    const int evpType,
     bool shouldCheckPrivate,
     const char* javaExceptionClass)
 {
     const unsigned char* der_mutable_ptr = der; // openssl modifies the input pointer
 
-    EVP_PKEY* result = d2i_PrivateKey(nativeValue, NULL, &der_mutable_ptr, derLen);
+    EVP_PKEY* result = d2i_PrivateKey(evpType, NULL, &der_mutable_ptr, derLen);
 
     if (der + derLen != der_mutable_ptr) {
         if (result) {

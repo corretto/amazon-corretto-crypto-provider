@@ -190,7 +190,6 @@ public class EvpKeyFactoryTest {
   public void keysSerialize(final KeyPair keyPair, final String testName) throws Exception {
     final KeyFactory kf =
         KeyFactory.getInstance(keyPair.getPrivate().getAlgorithm(), NATIVE_PROVIDER);
-
     final Key privateKey = kf.translateKey(keyPair.getPrivate());
     final Key publicKey = kf.translateKey(keyPair.getPublic());
 
