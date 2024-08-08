@@ -5,12 +5,12 @@ package com.amazon.corretto.crypto.provider.test;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.util.Arrays;
 import java.security.*;
 import java.security.SignatureException;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.util.Arrays;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -56,11 +56,11 @@ public class EdDSATest {
     final KeyPair kp1 = nativeGen.generateKeyPair();
     final KeyPair kp2 = nativeGen.generateKeyPair();
 
-    final byte [] pk1 = kp1.getPrivate().getEncoded();
-    final byte [] pk2 = kp2.getPrivate().getEncoded();
+    final byte[] pk1 = kp1.getPrivate().getEncoded();
+    final byte[] pk2 = kp2.getPrivate().getEncoded();
 
-    final byte [] pbk1 = kp1.getPublic().getEncoded();
-    final byte [] pbk2 = kp2.getPublic().getEncoded();
+    final byte[] pbk1 = kp1.getPublic().getEncoded();
+    final byte[] pbk2 = kp2.getPublic().getEncoded();
 
     assertTrue(!Arrays.equals(pk1, pk2));
     assertTrue(!Arrays.equals(pbk1, pbk2));

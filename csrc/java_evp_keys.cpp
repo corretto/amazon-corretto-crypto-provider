@@ -93,7 +93,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpKey_enc
  * Signature: ([BI)J
  */
 JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_pkcs82Evp(
-    JNIEnv* pEnv, jclass, jbyteArray pkcs8der, jint nativeValue, jboolean shouldCheckPrivate)
+    JNIEnv* pEnv, jclass, jbyteArray pkcs8der, jint evpType, jboolean shouldCheckPrivate)
 {
     try {
         raii_env env(pEnv);
@@ -104,8 +104,8 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_p
 
         {
             jni_borrow borrow = jni_borrow(env, pkcs8Buff, "pkcs8Buff");
-            result.set(der2EvpPrivateKey(borrow, derLen, nativeValue, shouldCheckPrivate, EX_INVALID_KEY_SPEC));
-            if (EVP_PKEY_base_id(result) != nativeValue) {
+            result.set(der2EvpPrivateKey(borrow, derLen, evpType, shouldCheckPrivate, EX_INVALID_KEY_SPEC));
+            if (EVP_PKEY_base_id(result) != evpType) {
                 throw_java_ex(EX_INVALID_KEY_SPEC, "Incorrect key type");
             }
         }
@@ -122,7 +122,7 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_p
  * Signature: ([BI)J
  */
 JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_x5092Evp(
-    JNIEnv* pEnv, jclass, jbyteArray x509der, jint nativeValue)
+    JNIEnv* pEnv, jclass, jbyteArray x509der, jint evpType)
 {
     try {
         raii_env env(pEnv);
@@ -134,7 +134,7 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_x
         {
             jni_borrow borrow = jni_borrow(env, x509Buff, "x509Buff");
             result.set(der2EvpPublicKey(borrow, derLen, EX_INVALID_KEY_SPEC));
-            if (EVP_PKEY_base_id(result) != nativeValue) {
+            if (EVP_PKEY_base_id(result) != evpType) {
                 throw_java_ex(EX_INVALID_KEY_SPEC, "Incorrect key type");
             }
         }
@@ -354,7 +354,6 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpEdPriva
         CHECK_OPENSSL(bufInt > 0);
 
         size_t bufSize = (size_t)bufInt;
-        CHECK_OPENSSL(bufSize == (size_t)bufInt);
         CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(key, privateKeyBuffer, &bufSize) > 0);
 
         result = env->NewByteArray(bufSize);

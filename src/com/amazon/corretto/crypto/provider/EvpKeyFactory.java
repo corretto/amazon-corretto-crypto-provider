@@ -32,10 +32,10 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
   private final EvpKeyType type;
   private final AmazonCorrettoCryptoProvider provider;
 
-  private static native long pkcs82Evp(byte[] der, int nativeValue, boolean checkPrivate)
+  private static native long pkcs82Evp(byte[] der, int evpType, boolean checkPrivate)
       throws InvalidKeySpecException;
 
-  private static native long x5092Evp(byte[] der, int nativeValue) throws InvalidKeySpecException;
+  private static native long x5092Evp(byte[] der, int evpType) throws InvalidKeySpecException;
 
   private static native long rsa2Evp(
       byte[] modulus,
@@ -65,8 +65,8 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
     return provider.hasExtraCheck(ExtraCheck.PRIVATE_KEY_CONSISTENCY);
   }
 
-  protected long maybeCheckPkcs82Evp(byte[] der, int nativeValue) throws InvalidKeySpecException {
-    return pkcs82Evp(der, nativeValue, shouldCheckPrivateKey());
+  protected long maybeCheckPkcs82Evp(byte[] der, int evpType) throws InvalidKeySpecException {
+    return pkcs82Evp(der, evpType, shouldCheckPrivateKey());
   }
 
   @Override
