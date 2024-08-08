@@ -462,14 +462,20 @@ public class TestUtil {
     }
   }
 
-  public static Stream<RspTestEntry> getEntriesFromFile(final String fileName) throws IOException {
+  public static Stream<RspTestEntry> getEntriesFromFile(
+      final String fileName, final boolean isCompressed) throws IOException {
     final File rsp = new File(System.getProperty("test.data.dir"), fileName);
-    final InputStream is = new GZIPInputStream(new FileInputStream(rsp));
+    final InputStream is =
+        isCompressed ? new GZIPInputStream(new FileInputStream(rsp)) : new FileInputStream(rsp);
     final Iterator<RspTestEntry> iterator =
         RspTestEntry.iterateOverResource(is, true); // Auto-closes stream
     final Spliterator<RspTestEntry> split =
         Spliterators.spliteratorUnknownSize(iterator, Spliterator.ORDERED);
     return StreamSupport.stream(split, false);
+  }
+
+  public static Stream<RspTestEntry> getEntriesFromFile(final String fileName) throws IOException {
+    return getEntriesFromFile(fileName, true);
   }
 
   public static int roundUp(final int i, final int m) {

@@ -189,7 +189,7 @@ RSA* new_private_RSA_key_with_no_e(BIGNUM const* n, BIGNUM const* d)
 
 #else
 
-    RSA* result = RSA_new_private_key_no_e(n, d);
+    RSA* result = ::RSA_new_private_key_no_e(n, d);
 
     if (result == nullptr) {
         throw_openssl("RSA_new_private_key_no_e failed.");

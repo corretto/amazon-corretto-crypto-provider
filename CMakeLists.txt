@@ -247,38 +247,47 @@ ADD_CUSTOM_COMMAND(
 ### Native library configuration
 include_directories(${OPENSSL_INCLUDE_DIR} ${JNI_INCLUDE_DIRS} ${JNI_HEADER_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
 
-add_library(
-    amazonCorrettoCryptoProvider SHARED
-        csrc/aes_gcm.cpp
-        csrc/aes_xts.cpp
-        csrc/aes_cbc.cpp
-        csrc/aes_kwp.cpp
-        csrc/agreement.cpp
-        csrc/bn.cpp
-        csrc/buffer.cpp
-        csrc/ec_gen.cpp
-        csrc/ec_utils.cpp
-        csrc/env.cpp
-        csrc/hkdf.cpp
-        csrc/hmac.cpp
-        csrc/keyutils.cpp
-        csrc/java_evp_keys.cpp
-        csrc/libcrypto_rng.cpp
-        csrc/loader.cpp
-        csrc/md5.cpp
-        csrc/rsa_cipher.cpp
-        csrc/rsa_gen.cpp
-        csrc/sha1.cpp
-        csrc/sha256.cpp
-        csrc/sha384.cpp
-        csrc/sha512.cpp
-        csrc/sign.cpp
-        csrc/testhooks.cpp
-        csrc/util.cpp
-        csrc/util_class.cpp
-        csrc/fips_kat_self_test.cpp
-        ${JNI_HEADER_DIR}/generated-headers.h
-)
+set(C_SRC
+    csrc/aes_gcm.cpp
+    csrc/aes_xts.cpp
+    csrc/aes_cbc.cpp
+    csrc/aes_kwp.cpp
+    csrc/agreement.cpp
+    csrc/bn.cpp
+    csrc/buffer.cpp
+    csrc/ec_gen.cpp
+    csrc/ec_utils.cpp
+    csrc/env.cpp
+    csrc/hkdf.cpp
+    csrc/hmac.cpp
+    csrc/keyutils.cpp
+    csrc/java_evp_keys.cpp
+    csrc/libcrypto_rng.cpp
+    csrc/loader.cpp
+    csrc/md5.cpp
+    csrc/rsa_cipher.cpp
+    csrc/rsa_gen.cpp
+    csrc/sha1.cpp
+    csrc/sha256.cpp
+    csrc/sha384.cpp
+    csrc/sha512.cpp
+    csrc/sign.cpp
+    csrc/testhooks.cpp
+    csrc/util.cpp
+    csrc/util_class.cpp
+    csrc/fips_kat_self_test.cpp
+    ${JNI_HEADER_DIR}/generated-headers.h)
+
+if(FIPS)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DFIPS_BUILD")
+    set(TEST_FIPS_PROPERTY "-DFIPS=true")
+else()
+    set(TEST_FIPS_PROPERTY "-DFIPS=false")
+    set(C_SRC ${C_SRC}
+        csrc/concatenation_kdf.cpp)
+endif()
+
+add_library(amazonCorrettoCryptoProvider SHARED ${C_SRC})
 
 add_custom_command(
     OUTPUT ${ACCP_JAR_SOURCE}
@@ -616,12 +625,6 @@ set(COVERAGE_ARGUMENTS
     -javaagent:${JACOCO_AGENT_JAR}=destfile=coverage/jacoco.exec,classdumpdir=coverage/classes
 )
 
-if(FIPS)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DFIPS_BUILD")
-    set(TEST_FIPS_PROPERTY "-DFIPS=true")
-else()
-    set(TEST_FIPS_PROPERTY "-DFIPS=false")
-endif()
 
 if(ALWAYS_ALLOW_EXTERNAL_LIB)
     set(EXTERNAL_LIB_PROPERTY "-Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>")
