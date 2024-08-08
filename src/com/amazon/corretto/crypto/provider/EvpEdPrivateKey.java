@@ -5,25 +5,25 @@ package com.amazon.corretto.crypto.provider;
 import java.security.PrivateKey;
 import java.util.Optional;
 
-class EvpEdEcPrivateKey extends EvpEdEcKey implements PrivateKey {
+class EvpEdPrivateKey extends EvpEdKey implements PrivateKey {
   private static final long serialVersionUID = 1;
 
   private static native byte[] getPrivateKey(long ptr);
 
   private volatile byte[] privateKey;
 
-  EvpEdEcPrivateKey(final long ptr) {
+  EvpEdPrivateKey(final long ptr) {
     this(new InternalKey(ptr));
   }
 
-  EvpEdEcPrivateKey(final InternalKey key) {
+  EvpEdPrivateKey(final InternalKey key) {
     super(key, false);
   }
 
-  public EvpEdEcPublicKey getPublicKey() {
+  public EvpEdPublicKey getPublicKey() {
     ephemeral = false;
     sharedKey = true;
-    final EvpEdEcPublicKey result = new EvpEdEcPublicKey(internalKey);
+    final EvpEdPublicKey result = new EvpEdPublicKey(internalKey);
     result.sharedKey = true;
     return result;
   }
@@ -34,7 +34,7 @@ class EvpEdEcPrivateKey extends EvpEdEcKey implements PrivateKey {
       synchronized (this) {
         bytes = privateKey;
         if (bytes == null) {
-          bytes = use(EvpEdEcPrivateKey::getPrivateKey);
+          bytes = use(EvpEdPrivateKey::getPrivateKey);
           privateKey = bytes;
         }
       }

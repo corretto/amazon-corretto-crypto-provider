@@ -474,7 +474,8 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     this.shouldRegisterSecureRandom =
         Utils.getBooleanProperty(PROPERTY_REGISTER_SECURE_RANDOM, true);
 
-    // Register EdDSA if JDK version >= 15
+    // The Java classes necessary for EdDSA are not included in Java versions < 15, so to compile
+    // successfully on older versions of Java we can only register EdDSA if JDK version >= 15.
     this.shouldRegisterEdDSA = Utils.getJavaVersion() >= 15;
 
     this.nativeContextReleaseStrategy = Utils.getNativeContextReleaseStrategyProperty();

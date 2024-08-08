@@ -9,11 +9,8 @@ import java.security.SecureRandom;
 class EdGen extends KeyPairGeneratorSpi {
   /**
    * Generates a new Ed25519 key and returns a pointer to it.
-   *
-   * @param params a native pointer created by {@link #buildEcParams(int)}
-   * @param checkConsistency Run additional consistency checks on the generated keypair
    */
-  private static native long generateEvpEdEcKey();
+  private static native long generateEvpEdKey();
 
   private final AmazonCorrettoCryptoProvider provider_;
 
@@ -29,9 +26,9 @@ class EdGen extends KeyPairGeneratorSpi {
 
   @Override
   public KeyPair generateKeyPair() {
-    final EvpEdEcPrivateKey privateKey;
-    final EvpEdEcPublicKey publicKey;
-    privateKey = new EvpEdEcPrivateKey(generateEvpEdEcKey());
+    final EvpEdPrivateKey privateKey;
+    final EvpEdPublicKey publicKey;
+    privateKey = new EvpEdPrivateKey(generateEvpEdKey());
     publicKey = privateKey.getPublicKey();
     return new KeyPair(publicKey, privateKey);
   }

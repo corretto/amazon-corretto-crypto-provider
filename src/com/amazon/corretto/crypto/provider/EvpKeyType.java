@@ -57,7 +57,7 @@ enum EvpKeyType {
       case EC:
         return new EvpEcPrivateKey(fn.applyAsLong(der.getEncoded(), nativeValue));
       case Ed25519:
-        return new EvpEdEcPrivateKey(fn.applyAsLong(der.getEncoded(), nativeValue));
+        return new EvpEdPrivateKey(fn.applyAsLong(der.getEncoded(), nativeValue));
       default:
         throw new AssertionError("Unsupported key type");
     }
@@ -72,7 +72,7 @@ enum EvpKeyType {
       case EC:
         return new EvpEcPublicKey(fn.applyAsLong(der.getEncoded(), nativeValue));
       case Ed25519:
-        return new EvpEdEcPublicKey(fn.applyAsLong(der.getEncoded(), nativeValue));
+        return new EvpEdPublicKey(fn.applyAsLong(der.getEncoded(), nativeValue));
       default:
         throw new AssertionError("Unsupported key type");
     }

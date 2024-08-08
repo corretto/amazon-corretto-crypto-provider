@@ -329,10 +329,10 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpEcPriva
 }
 
 /*
- * Class:     com_amazon_corretto_crypto_provider_EvpEdEcPrivateKey
+ * Class:     com_amazon_corretto_crypto_provider_EvpEdPrivateKey
  * Method:    getPrivateKey
  */
-JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpEdEcPrivateKey_getPrivateKey(
+JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpEdPrivateKey_getPrivateKey(
     JNIEnv* pEnv, jclass, jlong keyHandle)
 {
     jbyteArray result = NULL;
