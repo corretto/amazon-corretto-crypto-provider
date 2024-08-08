@@ -4,6 +4,7 @@ package com.amazon.corretto.crypto.provider.test;
 
 import static com.amazon.corretto.crypto.provider.test.TestUtil.getEntriesFromFile;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
@@ -57,18 +58,15 @@ public class ConcatenationKdfTest {
   @Test
   public void secretLengthCannotBeZero() {
     assertThrows(
-        IllegalArgumentException.class,
-        () -> new ConcatenationKdfSpec(new byte[0], new byte[0], new byte[0], 1, "name"));
+        IllegalArgumentException.class, () -> new ConcatenationKdfSpec(new byte[0], 1, "name"));
   }
 
   @Test
   public void outputLengthCannotBeZeroOrNegative() {
     assertThrows(
-        IllegalArgumentException.class,
-        () -> new ConcatenationKdfSpec(new byte[1], new byte[0], new byte[0], 0, "name"));
+        IllegalArgumentException.class, () -> new ConcatenationKdfSpec(new byte[0], 0, "name"));
     assertThrows(
-        IllegalArgumentException.class,
-        () -> new ConcatenationKdfSpec(new byte[1], new byte[0], new byte[0], -1, "name"));
+        IllegalArgumentException.class, () -> new ConcatenationKdfSpec(new byte[0], -1, "name"));
   }
 
   // The rest of the tests are only available in non-FIPS mode.
@@ -82,34 +80,30 @@ public class ConcatenationKdfTest {
   }
 
   @Test
-  public void concatenationKdfWithHmacExpectsSalt() throws Exception {
-    assumeFalse(TestUtil.isFips());
-    final SecretKeyFactory skf =
-        SecretKeyFactory.getInstance("ConcatenationKdfWithHmacSha256", TestUtil.NATIVE_PROVIDER);
-    assertThrows(
-        InvalidKeySpecException.class,
-        () ->
-            skf.generateSecret(
-                new ConcatenationKdfSpec(new byte[1], new byte[0], null, 10, "name")));
-  }
-
-  @Test
   public void concatenationKdfWithEmptyInfoIsFine() throws Exception {
     assumeFalse(TestUtil.isFips());
     final SecretKeyFactory skf =
         SecretKeyFactory.getInstance("ConcatenationKdfWithSha256", TestUtil.NATIVE_PROVIDER);
-    assertNotNull(
-        skf.generateSecret(new ConcatenationKdfSpec(new byte[1], new byte[0], null, 1, "name")));
+    final ConcatenationKdfSpec spec = new ConcatenationKdfSpec(new byte[1], 10, "name");
+    assertEquals(0, spec.getInfo().length);
+    assertNotNull(skf.generateSecret(spec));
   }
 
   @Test
-  public void concatenationKdfWithHmacEmptySaltIsFine() throws Exception {
+  public void concatenationKdfHmacWithEmptySaltIsFine() throws Exception {
     assumeFalse(TestUtil.isFips());
     final SecretKeyFactory skf =
         SecretKeyFactory.getInstance("ConcatenationKdfWithHmacSha256", TestUtil.NATIVE_PROVIDER);
-    assertNotNull(
-        skf.generateSecret(
-            new ConcatenationKdfSpec(new byte[1], new byte[0], new byte[0], 1, "name")));
+    final ConcatenationKdfSpec spec1 = new ConcatenationKdfSpec(new byte[1], 10, "name");
+    assertEquals(0, spec1.getInfo().length);
+    assertEquals(0, spec1.getSalt().length);
+    assertNotNull(skf.generateSecret(spec1));
+
+    final ConcatenationKdfSpec spec2 =
+        new ConcatenationKdfSpec(new byte[1], 10, "name", new byte[10]);
+    assertEquals(10, spec2.getInfo().length);
+    assertEquals(0, spec2.getSalt().length);
+    assertNotNull(skf.generateSecret(spec2));
   }
 
   @ParameterizedTest(name = "{0}")
@@ -120,14 +114,17 @@ public class ConcatenationKdfTest {
     assumeFalse("SHA1".equals(digest));
     final boolean digestPrf = entry.getInstance("VARIANT").equals("DIGEST");
     final byte[] expected = entry.getInstanceFromHex("EXPECT");
+    final byte[] secret = entry.getInstanceFromHex("SECRET");
+    final byte[] info = entry.getInstanceFromHex("INFO");
 
-    final ConcatenationKdfSpec spec =
-        new ConcatenationKdfSpec(
-            entry.getInstanceFromHex("SECRET"),
-            entry.getInstanceFromHex("INFO"),
-            entry.getInstanceFromHex("SALT"),
-            expected.length,
-            "SECRET_KEY");
+    final ConcatenationKdfSpec spec;
+    if (entry.contains("SALT")) {
+      spec =
+          new ConcatenationKdfSpec(
+              secret, expected.length, "SECRET_KEY", info, entry.getInstanceFromHex("SALT"));
+    } else {
+      spec = new ConcatenationKdfSpec(secret, expected.length, "SECRET_KEY", info);
+    }
 
     final String alg = "ConcatenationKdfWith" + (digestPrf ? "" : "Hmac") + digest;
 

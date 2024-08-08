@@ -4,38 +4,49 @@ package com.amazon.corretto.crypto.provider;
 
 import java.security.spec.KeySpec;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * Represents the inputs to ConcatenationKdf algorithms.
  *
- * <p>When using HMAC variants, salt must be provided. The algorithmName is the name of algorithm
- * used to create SecretKeySpec.
+ * <p>If info or salt is not provided, empty byte arrays are used.
+ *
+ * <p>The algorithmName is the name of algorithm used to create SecretKeySpec.
  */
 public class ConcatenationKdfSpec implements KeySpec {
+  private static final byte[] EMPTY = new byte[0];
   private final byte[] secret;
-  private final byte[] info;
-  private final Optional<byte[]> salt;
   private final int outputLen;
   private final String algorithmName;
+  private final byte[] info;
+  private final byte[] salt;
 
   public ConcatenationKdfSpec(
       final byte[] secret,
-      final byte[] info,
-      final byte[] salt,
       final int outputLen,
-      final String algorithmName) {
+      final String algorithmName,
+      final byte[] info,
+      final byte[] salt) {
     this.secret = Objects.requireNonNull(secret);
     if (this.secret.length == 0) {
       throw new IllegalArgumentException("Secret must be byte array with non-zero length.");
     }
-    this.info = Objects.requireNonNull(info);
-    this.salt = Optional.ofNullable(salt);
     if (outputLen <= 0) {
       throw new IllegalArgumentException("Output size must be greater than zero.");
     }
     this.outputLen = outputLen;
     this.algorithmName = Objects.requireNonNull(algorithmName);
+    this.info = Objects.requireNonNull(info);
+    this.salt = Objects.requireNonNull(salt);
+  }
+
+  public ConcatenationKdfSpec(
+      final byte[] secret, final int outputLen, final String algorithmName) {
+    this(secret, outputLen, algorithmName, EMPTY, EMPTY);
+  }
+
+  public ConcatenationKdfSpec(
+      final byte[] secret, final int outputLen, final String algorithmName, final byte[] info) {
+    this(secret, outputLen, algorithmName, info, EMPTY);
   }
 
   public byte[] getSecret() {
@@ -50,7 +61,7 @@ public class ConcatenationKdfSpec implements KeySpec {
     return outputLen;
   }
 
-  public Optional<byte[]> getSalt() {
+  public byte[] getSalt() {
     return salt;
   }
 

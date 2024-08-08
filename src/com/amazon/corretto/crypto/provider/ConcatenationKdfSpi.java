@@ -23,7 +23,7 @@ class ConcatenationKdfSpi extends KdfSpi {
   @Override
   protected SecretKey engineGenerateSecret(final KeySpec keySpec) throws InvalidKeySpecException {
     if (!(keySpec instanceof ConcatenationKdfSpec)) {
-      throw new InvalidKeySpecException("Expected a key spec of type GenericSpec.");
+      throw new InvalidKeySpecException("Expected a key spec of type ConcatenationKdfSpi.");
     }
     final ConcatenationKdfSpec spec = (ConcatenationKdfSpec) keySpec;
 
@@ -39,20 +39,14 @@ class ConcatenationKdfSpi extends KdfSpi {
           output,
           output.length);
     } else {
-      final byte[] salt =
-          spec.getSalt()
-              .orElseThrow(
-                  () ->
-                      new InvalidKeySpecException(
-                          "Salt cannot be null for HMAC variation of Concatenation KDF."));
       nSskdfHmac(
           digestCode,
           spec.getSecret(),
           spec.getSecret().length,
           spec.getInfo(),
           spec.getInfo().length,
-          salt,
-          salt.length,
+          spec.getSalt(),
+          spec.getSalt().length,
           output,
           output.length);
     }
