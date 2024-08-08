@@ -17,7 +17,8 @@ import java.util.Map;
 /** Corresponds to native constants in OpenSSL which represent keytypes. */
 enum EvpKeyType {
   RSA("RSA", 6, RSAPublicKey.class, RSAPrivateKey.class),
-  EC("EC", 408, ECPublicKey.class, ECPrivateKey.class);
+  EC("EC", 408, ECPublicKey.class, ECPrivateKey.class),
+  EdDSA("EdDSA", 949, PublicKey.class, PrivateKey.class);
 
   final String jceName;
   final int nativeValue;
@@ -55,6 +56,8 @@ enum EvpKeyType {
         return EvpRsaPrivateCrtKey.buildProperKey(fn.applyAsLong(der.getEncoded(), nativeValue));
       case EC:
         return new EvpEcPrivateKey(fn.applyAsLong(der.getEncoded(), nativeValue));
+      case EdDSA:
+        return new EvpEdPrivateKey(fn.applyAsLong(der.getEncoded(), nativeValue));
       default:
         throw new AssertionError("Unsupported key type");
     }
@@ -68,6 +71,8 @@ enum EvpKeyType {
         return new EvpRsaPublicKey(fn.applyAsLong(der.getEncoded(), nativeValue));
       case EC:
         return new EvpEcPublicKey(fn.applyAsLong(der.getEncoded(), nativeValue));
+      case EdDSA:
+        return new EvpEdPublicKey(fn.applyAsLong(der.getEncoded(), nativeValue));
       default:
         throw new AssertionError("Unsupported key type");
     }

@@ -258,6 +258,7 @@ add_library(
         csrc/buffer.cpp
         csrc/ec_gen.cpp
         csrc/ec_utils.cpp
+        csrc/ed_gen.cpp
         csrc/env.cpp
         csrc/hkdf.cpp
         csrc/hmac.cpp
