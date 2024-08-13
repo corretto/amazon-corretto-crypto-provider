@@ -134,18 +134,20 @@ public class EdDSATest {
     final byte[] message = new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
     nativeSig.initSign(keyPair.getPrivate());
     nativeSig.update(message, 0, message.length);
-    byte[] signature = nativeSig.sign();
+    final byte[] signatureACCP = nativeSig.sign();
     jceSig.initVerify(publicKey);
     jceSig.update(message);
-    assertTrue(jceSig.verify(signature), "Native->JCE: Ed25519");
+    assertTrue(jceSig.verify(signatureACCP), "Native->JCE: Ed25519");
 
     // Sign with SunEC and verify with ACCP
     jceSig.initSign(privateKey);
     jceSig.update(message, 0, message.length);
-    signature = jceSig.sign();
+    final byte[] signatureJCE = jceSig.sign();
     nativeSig.initVerify(keyPair.getPublic());
     nativeSig.update(message);
-    assertTrue(nativeSig.verify(signature), "JCE->Native: Ed25519");
+    assertTrue(nativeSig.verify(signatureJCE), "JCE->Native: Ed25519");
+
+    assertTrue(Arrays.equals(signatureJCE, signatureACCP));
   }
 
   @Test
@@ -169,17 +171,20 @@ public class EdDSATest {
     // Sign with ACCP, Verify with BouncyCastle
     nativeSig.initSign(keyPair.getPrivate());
     nativeSig.update(message, 0, message.length);
-    byte[] signature = nativeSig.sign();
+    final byte[] signatureACCP = nativeSig.sign();
     bcSig.initVerify(publicKey);
     bcSig.update(message);
-    assertTrue(bcSig.verify(signature), "Native->BC: Ed25519");
+    assertTrue(bcSig.verify(signatureACCP), "Native->BC: Ed25519");
 
+    // Sign with BouncyCastle, Verify with ACCP
     bcSig.initSign(privateKey);
     bcSig.update(message, 0, message.length);
-    signature = bcSig.sign();
+    final byte[] signatureBC = bcSig.sign();
     nativeSig.initVerify(keyPair.getPublic());
     nativeSig.update(message);
-    assertTrue(nativeSig.verify(signature), "BC->Native: Ed25519");
+    assertTrue(nativeSig.verify(signatureBC), "BC->Native: Ed25519");
+
+    assertTrue(Arrays.equals(signatureBC, signatureACCP));
   }
 
   @Test
@@ -224,15 +229,25 @@ public class EdDSATest {
     final byte[] message2 = new byte[] {5, 5, 5, 5, 5, 5, 5, 5, 5, 5};
 
     final KeyPair kp = nativeGen.generateKeyPair();
-    final Signature eddsa = Signature.getInstance("Ed25519", NATIVE_PROVIDER);
 
-    eddsa.initSign(kp.getPrivate());
-    eddsa.update(message1, 0, message1.length);
-    final byte[] signature = eddsa.sign();
+    final X509EncodedKeySpec publicKeyX509 = new X509EncodedKeySpec(kp.getPublic().getEncoded());
+    final KeyFactory kf = KeyFactory.getInstance("Ed25519", BOUNCYCASTLE_PROVIDER);
+    final PublicKey pbkJCE = kf.generatePublic(publicKeyX509);
 
-    eddsa.initVerify(kp.getPublic());
-    eddsa.update(message2, 0, message2.length);
-    TestUtil.assertThrows(SignatureException.class, () -> eddsa.verify(signature));
+    final Signature nativeSig = Signature.getInstance("Ed25519", NATIVE_PROVIDER);
+    final Signature jceSig = Signature.getInstance("Ed25519", "SunEC");
+
+    nativeSig.initSign(kp.getPrivate());
+    nativeSig.update(message1, 0, message1.length);
+    final byte[] signature = nativeSig.sign();
+
+    nativeSig.initVerify(kp.getPublic());
+    nativeSig.update(message2, 0, message2.length);
+    assertTrue(!nativeSig.verify(signature));
+
+    jceSig.initVerify(pbkJCE);
+    jceSig.update(message2, 0, message2.length);
+    assertTrue(!jceSig.verify(signature));
   }
 
   @Test
@@ -244,9 +259,9 @@ public class EdDSATest {
     final KeyFactory kf = KeyFactory.getInstance("Ed25519", NATIVE_PROVIDER);
 
     TestUtil.assertThrows(
-        InvalidKeySpecException.class, () -> kf.generatePrivate(invalidPrivateKeySpec));
+            InvalidKeySpecException.class, () -> kf.generatePrivate(invalidPrivateKeySpec));
     TestUtil.assertThrows(
-        InvalidKeySpecException.class, () -> kf.generatePublic(invalidPublicKeySpec));
+            InvalidKeySpecException.class, () -> kf.generatePublic(invalidPublicKeySpec));
   }
 
   @Test

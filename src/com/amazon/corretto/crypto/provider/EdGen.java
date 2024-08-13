@@ -5,6 +5,7 @@ package com.amazon.corretto.crypto.provider;
 import java.security.KeyPair;
 import java.security.KeyPairGeneratorSpi;
 import java.security.SecureRandom;
+import java.security.InvalidParameterException;
 
 class EdGen extends KeyPairGeneratorSpi {
   /** Generates a new Ed25519 key and returns a pointer to it. */
@@ -18,8 +19,10 @@ class EdGen extends KeyPairGeneratorSpi {
   }
 
   public void initialize(int keysize, SecureRandom random) {
-    // Has some behavior in Java, but throws error as placeholder for now.
-    throw new UnsupportedOperationException();
+    if (keysize != 255) {
+      throw new InvalidParameterException("Params must be Ed25519.");
+    }
+    return;
   }
 
   @Override
