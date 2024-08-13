@@ -6,7 +6,6 @@ import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.security.*;
-import java.security.SignatureException;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
@@ -259,9 +258,9 @@ public class EdDSATest {
     final KeyFactory kf = KeyFactory.getInstance("Ed25519", NATIVE_PROVIDER);
 
     TestUtil.assertThrows(
-            InvalidKeySpecException.class, () -> kf.generatePrivate(invalidPrivateKeySpec));
+        InvalidKeySpecException.class, () -> kf.generatePrivate(invalidPrivateKeySpec));
     TestUtil.assertThrows(
-            InvalidKeySpecException.class, () -> kf.generatePublic(invalidPublicKeySpec));
+        InvalidKeySpecException.class, () -> kf.generatePublic(invalidPublicKeySpec));
   }
 
   @Test
