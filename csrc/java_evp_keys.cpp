@@ -342,19 +342,12 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpEdPriva
 
         EVP_PKEY* key = reinterpret_cast<EVP_PKEY*>(keyHandle);
 
-        EVP_PKEY_CTX_auto ctx = EVP_PKEY_CTX_auto::from(EVP_PKEY_CTX_new(key, nullptr));
-        CHECK_OPENSSL(ctx.isInitialized());
+        size_t bufSize;
 
+        CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(key, NULL, &bufSize) == 1);
         OPENSSL_buffer_auto privateKeyBuffer;
-        PKCS8_PRIV_KEY_INFO_auto pkcs8 = PKCS8_PRIV_KEY_INFO_auto::from(EVP_PKEY2PKCS8(key));
-        CHECK_OPENSSL(pkcs8.isInitialized());
-
-        // This next line allocates memory
-        int bufInt = i2d_PKCS8_PRIV_KEY_INFO(pkcs8, &privateKeyBuffer);
-        CHECK_OPENSSL(bufInt > 0);
-
-        size_t bufSize = (size_t)bufInt;
-        CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(key, privateKeyBuffer, &bufSize) > 0);
+        privateKeyBuffer.buf = (uint8_t*)OPENSSL_malloc(bufSize);
+        CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(key, privateKeyBuffer, &bufSize) == 1);
 
         result = env->NewByteArray(bufSize);
         env->SetByteArrayRegion(result, 0, bufSize, privateKeyBuffer);

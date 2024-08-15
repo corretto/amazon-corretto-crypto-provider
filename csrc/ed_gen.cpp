@@ -1,9 +1,9 @@
 // Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
-#include <openssl/evp.h>
 #include "auto_free.h"
 #include "env.h"
 #include "generated-headers.h"
+#include <openssl/evp.h>
 
 using namespace AmazonCorrettoCryptoProvider;
 
