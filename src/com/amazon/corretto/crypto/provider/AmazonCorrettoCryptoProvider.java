@@ -152,6 +152,14 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     }
 
     addSignatures();
+    addHPKE();
+  }
+
+  private void addHPKE() {
+    // Support EVP_HPKE as a Cipher
+    addService("KeyPairGenerator", "HPKE", "HpkeGen");
+    // FIXME(sanketh): add cipher implementation
+    // addService("Cipher", "HPKE", "HpkeCipher");
   }
 
   private void addSignatures() {
