@@ -197,11 +197,11 @@ task buildAwsLc {
             // FIXME: Change to tag once stabilized.
             exec {
                 workingDir projectDir
-                commandLine "git", "submodule", "sync"
+                commandLine "git", "submodule", "sync", "--recursive"
             }
             exec {
                 workingDir projectDir
-                commandLine "git", "submodule", "update", "--init", "--remote"
+                commandLine "git", "submodule", "update", "--init", "--recursive", "--remote"
             }
             exec {
                 workingDir awslcSrcPath
