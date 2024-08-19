@@ -9,12 +9,12 @@ public class EvpHpkePrivateKey extends EvpHpkeKey
     implements PrivateKey, CanDerivePublicKey<EvpHpkePublicKey> {
   private static final long serialVersionUID = 1;
 
-  EvpHpkePrivateKey(InternalKey key) {
-    super(key, false);
+  EvpHpkePrivateKey(InternalKey key, HpkeParameterSpec spec) {
+    super(key, false, spec);
   }
 
-  EvpHpkePrivateKey(final long ptr) {
-    this(new InternalKey(ptr));
+  EvpHpkePrivateKey(final long ptr, HpkeParameterSpec spec) {
+    this(new InternalKey(ptr), spec);
   }
 
   // Copied from EvpEcPrivateKey
@@ -23,7 +23,7 @@ public class EvpHpkePrivateKey extends EvpHpkeKey
     // Once our internal key could be elsewhere, we can no longer safely release it when done
     ephemeral = false;
     sharedKey = true;
-    final EvpHpkePublicKey result = new EvpHpkePublicKey(internalKey);
+    final EvpHpkePublicKey result = new EvpHpkePublicKey(internalKey, spec);
     result.sharedKey = true;
     return result;
   }

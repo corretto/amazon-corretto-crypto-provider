@@ -42,7 +42,7 @@ public class HpkeGen extends KeyPairGeneratorSpi {
       throw new InvalidParameterException("Spec not initialized");
     }
     final EvpHpkePrivateKey privateKey =
-        new EvpHpkePrivateKey(generateEvpHpkeKemKeyFromSpec(spec.getKemId()));
+        new EvpHpkePrivateKey(generateEvpHpkeKemKeyFromSpec(spec.getKemId()), spec);
     final EvpHpkePublicKey publicKey = privateKey.getPublicKey();
     return new KeyPair(publicKey, privateKey);
   }

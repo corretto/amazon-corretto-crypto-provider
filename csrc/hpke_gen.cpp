@@ -8,6 +8,7 @@
 #include "keyutils.h"
 #include "util.h"
 #include <openssl/evp.h>
+#include <openssl/hpke.h>
 #include <openssl/nid.h>
 
 using namespace AmazonCorrettoCryptoProvider;
@@ -24,7 +25,7 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_HpkeGen_generat
     try {
         raii_env env(pEnv);
         key.set(EVP_HPKE_KEY_new());
-        const EVP_HPKE_KEM* kem = EVP_HPKE_KEM_find_kem_by_id(hpke_kem_id);
+        const EVP_HPKE_KEM* kem = EVP_HPKE_KEM_find_by_id(hpke_kem_id);
         CHECK_OPENSSL(EVP_HPKE_KEY_generate(key, kem));
         return reinterpret_cast<jlong>(key.take());
     } catch (java_ex& ex) {

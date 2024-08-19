@@ -194,6 +194,7 @@ task buildAwsLc {
         }
 
         if (!isLegacyBuild) {
+            // FIXME: Change to tag once stabilized.
             exec {
                 workingDir awslcSrcPath
                 commandLine "git", "fetch", "--all"
@@ -201,6 +202,10 @@ task buildAwsLc {
             exec {
                 workingDir awslcSrcPath
                 commandLine "git", "checkout", awsLcGitVersionId
+            }
+            exec {
+                workingDir awslcSrcPath
+                commandLine "git", "pull"
             }
         }
         mkdir "${buildDir}/awslc"

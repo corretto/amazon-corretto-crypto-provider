@@ -4,8 +4,6 @@ package com.amazon.corretto.crypto.provider.test;
 
 import static org.junit.Assert.assertNotNull;
 
-import com.amazon.corretto.crypto.provider.EvpHpkePrivateKey;
-import com.amazon.corretto.crypto.provider.EvpHpkePublicKey;
 import com.amazon.corretto.crypto.provider.HpkeParameterSpec;
 import java.security.GeneralSecurityException;
 import java.security.KeyPair;
@@ -42,12 +40,8 @@ public class HpkeGenTest {
       final KeyPairGenerator generator = getGenerator();
       generator.initialize(spec);
       final KeyPair keyPair = generator.generateKeyPair();
-      final EvpHpkePublicKey pubKey = (EvpHpkePublicKey) keyPair.getPublic();
-      final EvpHpkePrivateKey privKey = (EvpHpkePrivateKey) keyPair.getPrivate();
-
-      assertNotNull(pubKey);
-      assertNotNull(privKey);
-      // TODO: do more checks
+      assertNotNull(keyPair.getPublic());
+      assertNotNull(keyPair.getPrivate());
     }
   }
 }
