@@ -1,6 +1,6 @@
 # EXPERIMENTAL BRANCH
 
-This branch includes an experimental implementation of KEMs and HPKE.
+This branch includes an experimental implementation of HPKE.
 
 ---
 
