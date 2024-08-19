@@ -201,6 +201,10 @@ task buildAwsLc {
             }
             exec {
                 workingDir projectDir
+                commandLine "git", "submodule", "foreach", "'git fetch --all'"
+            }
+            exec {
+                workingDir projectDir
                 commandLine "git", "submodule", "update", "--init", "--recursive", "--remote"
             }
             exec {
