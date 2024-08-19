@@ -196,6 +196,10 @@ task buildAwsLc {
         if (!isLegacyBuild) {
             // FIXME: Change to tag once stabilized.
             exec {
+                workingDir projectDir
+                commandLine "git", "submodule", "sync"
+            }
+            exec {
                 workingDir awslcSrcPath
                 commandLine "git", "fetch", "--all"
             }
