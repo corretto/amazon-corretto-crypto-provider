@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.amazon.corretto.crypto.provider;
 
-import java.security.InvalidParameterException;
 import java.security.KeyPair;
 import java.security.KeyPairGeneratorSpi;
 import java.security.SecureRandom;
@@ -19,10 +18,7 @@ class EdGen extends KeyPairGeneratorSpi {
   }
 
   public void initialize(int keysize, SecureRandom random) {
-    if (keysize != 255) {
-      throw new InvalidParameterException("Params must be Ed25519.");
-    }
-    return;
+    throw new UnsupportedOperationException();
   }
 
   @Override
