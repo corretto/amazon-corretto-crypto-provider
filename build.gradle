@@ -200,6 +200,10 @@ task buildAwsLc {
                 commandLine "git", "submodule", "sync"
             }
             exec {
+                workingDir projectDir
+                commandLine "git", "submodule", "update", "--init", "--remote"
+            }
+            exec {
                 workingDir awslcSrcPath
                 commandLine "git", "fetch", "--all"
             }
