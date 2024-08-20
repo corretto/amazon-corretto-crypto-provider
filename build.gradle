@@ -194,31 +194,11 @@ task buildAwsLc {
         }
 
         if (!isLegacyBuild) {
-            // FIXME: Change to tag once stabilized.
-//            exec {
-//                workingDir projectDir
-//                commandLine "git", "submodule", "sync", "--recursive"
-//            }
-//            exec {
-//                workingDir projectDir
-//                commandLine "git", "submodule", "foreach", "'git fetch --all'"
-//            }
-//            exec {
-//                workingDir projectDir
-//                commandLine "git", "submodule", "update", "--init", "--recursive", "--remote"
-//            }
-//            exec {
-//                workingDir awslcSrcPath
-//                commandLine "git", "fetch", "--all"
-//            }
-//            exec {
-//                workingDir awslcSrcPath
-//                commandLine "git", "checkout", awsLcGitVersionId
-//            }
-//            exec {
-//                workingDir awslcSrcPath
-//                commandLine "git", "pull"
-//            }
+            // FIXME: Commented because it was breaking Github CI
+            // exec {
+            //     workingDir awslcSrcPath
+            //     commandLine "git", "checkout", awsLcGitVersionId
+            // }
         }
         mkdir "${buildDir}/awslc"
         mkdir sharedObjectOutDir
