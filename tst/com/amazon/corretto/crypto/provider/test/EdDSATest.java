@@ -116,14 +116,8 @@ public class EdDSATest {
     // Generate keys with ACCP and use JCE KeyFactory to get equivalent JCE Keys
     final KeyPair keyPair = nativeGen.generateKeyPair();
 
-    final PKCS8EncodedKeySpec privateKeyPkcs8 =
-        new PKCS8EncodedKeySpec(keyPair.getPrivate().getEncoded());
-    final X509EncodedKeySpec publicKeyX509 =
-        new X509EncodedKeySpec(keyPair.getPublic().getEncoded());
-
-    final KeyFactory kf = KeyFactory.getInstance("Ed25519", "SunEC");
-    final PrivateKey privateKey = kf.generatePrivate(privateKeyPkcs8);
-    final PublicKey publicKey = kf.generatePublic(publicKeyX509);
+    final PrivateKey privateKey = keyPair.getPrivate();
+    final PublicKey publicKey = keyPair.getPublic();
 
     // Set up ACCP and JCE Signature Instances
     final Signature nativeSig = Signature.getInstance("Ed25519", NATIVE_PROVIDER);
@@ -131,7 +125,7 @@ public class EdDSATest {
 
     // Sign with ACCP and verify with SunEC
     final byte[] message = new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-    nativeSig.initSign(keyPair.getPrivate());
+    nativeSig.initSign(privateKey);
     nativeSig.update(message, 0, message.length);
     final byte[] signatureACCP = nativeSig.sign();
     jceSig.initVerify(publicKey);
@@ -142,7 +136,7 @@ public class EdDSATest {
     jceSig.initSign(privateKey);
     jceSig.update(message, 0, message.length);
     final byte[] signatureJCE = jceSig.sign();
-    nativeSig.initVerify(keyPair.getPublic());
+    nativeSig.initVerify(publicKey);
     nativeSig.update(message);
     assertTrue(nativeSig.verify(signatureJCE), "JCE->Native: Ed25519");
 
@@ -157,18 +151,11 @@ public class EdDSATest {
     final Signature bcSig = Signature.getInstance("Ed25519", BOUNCYCASTLE_PROVIDER);
     final KeyPair keyPair = nativeGen.generateKeyPair();
 
-    final PKCS8EncodedKeySpec privateKeyPkcs8 =
-        new PKCS8EncodedKeySpec(keyPair.getPrivate().getEncoded());
-    final X509EncodedKeySpec publicKeyX509 =
-        new X509EncodedKeySpec(keyPair.getPublic().getEncoded());
-
-    final KeyFactory kf = KeyFactory.getInstance("Ed25519", BOUNCYCASTLE_PROVIDER);
-
-    final PrivateKey privateKey = kf.generatePrivate(privateKeyPkcs8);
-    final PublicKey publicKey = kf.generatePublic(publicKeyX509);
+    final PrivateKey privateKey = keyPair.getPrivate();
+    final PublicKey publicKey = keyPair.getPublic();
 
     // Sign with ACCP, Verify with BouncyCastle
-    nativeSig.initSign(keyPair.getPrivate());
+    nativeSig.initSign(privateKey);
     nativeSig.update(message, 0, message.length);
     final byte[] signatureACCP = nativeSig.sign();
     bcSig.initVerify(publicKey);
@@ -179,7 +166,7 @@ public class EdDSATest {
     bcSig.initSign(privateKey);
     bcSig.update(message, 0, message.length);
     final byte[] signatureBC = bcSig.sign();
-    nativeSig.initVerify(keyPair.getPublic());
+    nativeSig.initVerify(publicKey);
     nativeSig.update(message);
     assertTrue(nativeSig.verify(signatureBC), "BC->Native: Ed25519");
 
@@ -229,10 +216,6 @@ public class EdDSATest {
 
     final KeyPair kp = nativeGen.generateKeyPair();
 
-    final X509EncodedKeySpec publicKeyX509 = new X509EncodedKeySpec(kp.getPublic().getEncoded());
-    final KeyFactory kf = KeyFactory.getInstance("Ed25519", BOUNCYCASTLE_PROVIDER);
-    final PublicKey pbkJCE = kf.generatePublic(publicKeyX509);
-
     final Signature nativeSig = Signature.getInstance("Ed25519", NATIVE_PROVIDER);
     final Signature jceSig = Signature.getInstance("Ed25519", "SunEC");
 
@@ -244,7 +227,7 @@ public class EdDSATest {
     nativeSig.update(message2, 0, message2.length);
     assertTrue(!nativeSig.verify(signature));
 
-    jceSig.initVerify(pbkJCE);
+    jceSig.initVerify(kp.getPublic());
     jceSig.update(message2, 0, message2.length);
     assertTrue(!jceSig.verify(signature));
   }
