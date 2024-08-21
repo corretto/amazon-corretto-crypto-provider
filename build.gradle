@@ -12,14 +12,15 @@ plugins {
     id "io.github.gradle-nexus.publish-plugin" version "1.1.0"
 }
 
+ext.experimentalPqHybrid = true
+
 group = 'software.amazon.cryptools'
 version = '2.4.1'
 ext.isFips = Boolean.getBoolean('FIPS')
 if (ext.isFips) {
     ext.awsLcGitVersionId = 'AWS-LC-FIPS-2.0.13'
 } else {
-    // FIXME: Change to tag once stabilized.
-    ext.awsLcGitVersionId = 'experimental-pq-hybrid-with-hpke'
+    ext.awsLcGitVersionId = 'v1.30.1'
 }
 
 // Check for user inputted git version ID.
@@ -193,12 +194,15 @@ task buildAwsLc {
             }
         }
 
-        if (!isLegacyBuild) {
-            // FIXME: Commented because it was breaking Github CI
-            // exec {
-            //     workingDir awslcSrcPath
-            //     commandLine "git", "checkout", awsLcGitVersionId
-            // }
+        if (!isLegacyBuild && !experimentalPqHybrid) {
+            exec {
+                workingDir awslcSrcPath
+                commandLine "git", "fetch", "--tags"
+            }
+            exec {
+                workingDir awslcSrcPath
+                commandLine "git", "checkout", awsLcGitVersionId
+            }
         }
         mkdir "${buildDir}/awslc"
         mkdir sharedObjectOutDir
