@@ -18,7 +18,14 @@ public class HpkeGen extends KeyPairGeneratorSpi {
     provider_ = provider;
   }
 
-  /** Generates a new HPKE key and returns a pointer to it. */
+  /**
+   * Generates a new HPKE key and returns a pointer to it.
+   *
+   * @param hpke_kem_id HPKE KEM ID defined in Table 2 of RFC 9180
+   * @return native pointer to a newly allocated EVP_HPKE_KEY structure, does not need to be
+   *     explicitly freed when wrapped inside InternalKey (or EvpHpkeKey) which calls OPENSSL_free
+   *     when destroyed.
+   */
   private static native long generateEvpHpkeKemKeyFromSpec(int hpke_kem_id);
 
   @Override
