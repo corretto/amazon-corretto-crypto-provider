@@ -2,7 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.amazon.corretto.crypto.provider;
 
-import java.security.*;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidParameterException;
+import java.security.KeyPair;
+import java.security.KeyPairGeneratorSpi;
+import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
 
 public class HpkeGen extends KeyPairGeneratorSpi {
@@ -38,7 +42,6 @@ public class HpkeGen extends KeyPairGeneratorSpi {
   @Override
   public KeyPair generateKeyPair() {
     if (spec == null) {
-      // TODO: support default spec?
       throw new InvalidParameterException("Spec not initialized");
     }
     final EvpHpkePrivateKey privateKey =

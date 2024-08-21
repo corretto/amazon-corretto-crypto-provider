@@ -80,8 +80,8 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_HpkeCipher_hpkeC
                 jni_borrow enc(env, encBuf, "output enc");
                 jni_borrow ct(env, ctBuf, "output ciphertext");
 
-                CHECK_OPENSSL(EVP_HPKE_seal(enc.data(), &enc_len, enc.size(), ct.data(), &ct_len, ct.size(), kem, kdf,
-                    aead, public_key_r.data(), public_key_r_len, info.data(), info.size(), msg.data(), msg.size(),
+                CHECK_OPENSSL(EVP_HPKE_seal(enc.data(), &enc_len, enc.len(), ct.data(), &ct_len, ct.len(), kem, kdf,
+                    aead, public_key_r.data(), public_key_r_len, info.data(), info.size(), msg.data(), msg.len(),
                     ad.data(), ad.size()));
                 if (enc_len != encBufLen) {
                     throw_java_ex(EX_RUNTIME_CRYPTO, "Unexpected error, enc buffer length is wrong!");
@@ -109,8 +109,8 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_HpkeCipher_hpkeC
                 jni_borrow enc(env, encBuf, "input enc");
                 jni_borrow ct(env, ctBuf, "input ciphertext");
 
-                CHECK_OPENSSL(EVP_HPKE_open(msg.data(), &msg_len, msg.size(), key, kdf, aead, enc.data(), enc.size(),
-                    info.data(), info.size(), ct.data(), ct.size(), ad.data(), ad.size()))
+                CHECK_OPENSSL(EVP_HPKE_open(msg.data(), &msg_len, msg.len(), key, kdf, aead, enc.data(), enc.len(),
+                    info.data(), info.size(), ct.data(), ct.len(), ad.data(), ad.size()))
                 result = msg_len;
             }
         } else {

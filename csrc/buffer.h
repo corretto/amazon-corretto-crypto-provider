@@ -402,7 +402,6 @@ public:
     }
 
     size_t len() const { return m_length; }
-    size_t size() const { return len(); }
 
     void zeroize() { OPENSSL_cleanse(data(), len()); }
 };

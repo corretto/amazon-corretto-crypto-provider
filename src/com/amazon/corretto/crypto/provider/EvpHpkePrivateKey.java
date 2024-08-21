@@ -17,7 +17,6 @@ public class EvpHpkePrivateKey extends EvpHpkeKey
     this(new InternalKey(ptr), spec);
   }
 
-  // Copied from EvpEcPrivateKey
   @Override
   public EvpHpkePublicKey getPublicKey() {
     // Once our internal key could be elsewhere, we can no longer safely release it when done

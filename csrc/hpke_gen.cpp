@@ -26,6 +26,7 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_HpkeGen_generat
         raii_env env(pEnv);
         key.set(EVP_HPKE_KEY_new());
         const EVP_HPKE_KEM* kem = EVP_HPKE_KEM_find_by_id(hpke_kem_id);
+        CHECK_OPENSSL(kem != NULL);
         CHECK_OPENSSL(EVP_HPKE_KEY_generate(key, kem));
         return reinterpret_cast<jlong>(key.take());
     } catch (java_ex& ex) {
