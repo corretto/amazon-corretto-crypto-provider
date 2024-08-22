@@ -120,6 +120,16 @@ public class HpkeCipher extends CipherSpi {
     }
   }
 
+  /**
+   * Initializes a HPKE instance.
+   *
+   * @param opmode cipher mode, one of ENCRYPT, DECRYPT, WRAP, and UNWRAP
+   * @param key must be an instance of EvpHpkePublicKey for ENCRYPT and WRAP, and EvpHpkePrivateKey
+   *     for DECRYPT and UNWRAP
+   * @param params the algorithm parameters, must be an instance of HpkeParameterSpec, and may not
+   *     be null.
+   * @param random a source of randomness
+   */
   @Override
   protected void engineInit(int opmode, Key key, AlgorithmParameterSpec params, SecureRandom random)
       throws InvalidKeyException, InvalidAlgorithmParameterException {
@@ -138,8 +148,13 @@ public class HpkeCipher extends CipherSpi {
   }
 
   /**
-   * Internal method to perform single-shot HPKE encryption or decryption, specified in Section 6.1
-   * of RFC 9180.
+   * Internal method to perform single-shot HPKE encryption or decryption.
+   *
+   * <p>The underlying encrypt and decrypt functions are specified in Section 6.1 of RFC 9180.
+   *
+   * <p>For encryption, the output concatenates the encapsulated key and the ciphertext.
+   *
+   * <p>For decryption, the input ciphertext must be a concatenation of the key and the ciphertext.
    *
    * @return number of bytes written to output
    */
@@ -186,11 +201,10 @@ public class HpkeCipher extends CipherSpi {
                   outputOffset));
     }
   }
+
   /**
-   * Internal method to perform single-shot HPKE encryption or decryption, specified in Section 6.1
-   * of RFC 9180.
-   *
-   * @return a new buffer with the output
+   * Wrapper around {@link #internalOneShotHpke(byte[], int, int, byte[], int) internalOneShotHpke},
+   * to return a new output buffer.
    */
   byte[] internalOneShotHpke(byte[] input, int inputOffset, int inputLen)
       throws IllegalBlockSizeException, BadPaddingException {
@@ -208,8 +222,9 @@ public class HpkeCipher extends CipherSpi {
   }
 
   /**
-   * Supply AAD to HPKE. Must be called before the cipher is used, i.e., before DoFinal, Wrap, or
-   * Unwrap.
+   * Supply AAD to HPKE.
+   *
+   * <p>Must be called before the cipher is used, i.e., before DoFinal, Wrap, or Unwrap.
    */
   @Override
   protected void engineUpdateAAD(byte[] src, int offset, int len) {
@@ -226,7 +241,11 @@ public class HpkeCipher extends CipherSpi {
   /**
    * Wraps key using HPKE single-shot encryption.
    *
-   * @return concatenation of KEM encapsulated key and encrypted ciphertext
+   * <p>Provided key must be an instance of SecretKey, PrivateKey, or PublicKey. SecretKey are
+   * encoded with their native encoding, PrivateKeys are encoded using PKCS8, and PublicKeys are
+   * encoded using X509.
+   *
+   * @return concatenation of KEM encapsulated key and encrypted encoded key
    */
   @Override
   protected byte[] engineWrap(Key key) throws IllegalBlockSizeException, InvalidKeyException {
@@ -244,6 +263,11 @@ public class HpkeCipher extends CipherSpi {
   /**
    * Unwraps key using HPKE single-shot decryption.
    *
+   * <p>The encrypted key must be an instance of SecretKey, PrivateKey, or PublicKey. SecretKeys
+   * must be encoded as the raw key, PrivateKeys must be encoded using PKCS8, and PublicKeys must be
+   * encoded using X509.
+   *
+   * @param wrappedKey concatenation of the KEM encapsulated key and the encrypted encoded key
    * @return decrypted key
    */
   @Override
@@ -262,6 +286,10 @@ public class HpkeCipher extends CipherSpi {
 
   /**
    * Performs HPKE single-shot encryption or decryption, as specified in Section 6.1 of RFC 9180.
+   *
+   * <p>For encryption, the output concatenates the encapsulated key and the ciphertext.
+   *
+   * <p>For decryption, the input ciphertext must be a concatenation of the key and the ciphertext.
    *
    * @return number of bytes written to output
    */
