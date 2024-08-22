@@ -51,6 +51,7 @@ Cipher algorithms:
 * RSA/ECB/OAEPPadding
 * RSA/ECB/OAEPWithSHA-1AndMGF1Padding
 * RSA/ECB/OAEPWithSHA1AndMGF1Padding
+* HPKE
 
 Signature algorithms:
 * SHA1withRSA
@@ -74,6 +75,7 @@ Signature algorithms:
 KeyPairGenerator:
 * EC
 * RSA
+* HPKE
 
 KeyGenerator:
 * AES
