@@ -4,6 +4,7 @@ package com.amazon.corretto.crypto.provider.test;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import com.amazon.corretto.crypto.provider.HpkeParameterSpec;
@@ -147,5 +148,24 @@ public class HpkeCipherTest {
     TestUtil.assertThrows(IllegalStateException.class, () -> encryptCipher.wrap(aesKey));
     TestUtil.assertThrows(
         IllegalStateException.class, () -> decryptCipher.unwrap(input, "AES", Cipher.SECRET_KEY));
+  }
+
+  @Test
+  public void overlappingInputAndOutput() throws GeneralSecurityException {
+    final HpkeParameterSpec spec = HpkeParameterSpec.Mlkem768Sha256Aes256gcm;
+    final KeyPair keyPair = getKeyPair(spec);
+    final Cipher encryptCipher = getInitCipher(keyPair, Cipher.ENCRYPT_MODE);
+    final Cipher decryptCipher = getInitCipher(keyPair, Cipher.DECRYPT_MODE);
+
+    final byte[] msg = TestUtil.arrayOf((byte) 0x42, 42);
+
+    // in-place encrypt and decrypt on buf
+    byte[] buf = new byte[encryptCipher.getOutputSize(msg.length)];
+    System.arraycopy(msg, 0, buf, 0, msg.length);
+
+    encryptCipher.doFinal(buf, 0, msg.length, buf, 0);
+    assertFalse(Arrays.equals(msg, Arrays.copyOfRange(buf, 0, msg.length)));
+    decryptCipher.doFinal(buf, 0, buf.length, buf, 0);
+    assertArrayEquals(msg, Arrays.copyOfRange(buf, 0, msg.length));
   }
 }

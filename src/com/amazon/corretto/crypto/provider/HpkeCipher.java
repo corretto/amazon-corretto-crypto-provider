@@ -162,10 +162,6 @@ public class HpkeCipher extends CipherSpi {
       byte[] input, int inputOffset, int inputLen, byte[] output, int outputOffset)
       throws ShortBufferException {
     finalized_ = true; // cannot update AAD after this function is called
-    if (input == output) {
-      // TODO: is it okay if they are non-overlapping, support that case if necessary.
-      throw new IllegalStateException("input and output must be separate arrays");
-    }
     if ((outputOffset > output.length)
         || (inputOffset > input.length)
         || ((inputOffset + inputLen) > input.length)) {
@@ -173,6 +169,13 @@ public class HpkeCipher extends CipherSpi {
     }
     if (engineGetOutputSize(inputLen) > (output.length - outputOffset)) {
       throw new ShortBufferException();
+    }
+    // if input will overlap with output, then copy input to a new buffer
+    if ((input == output) && ((inputOffset + engineGetOutputSize(inputLen)) > outputOffset)) {
+      byte[] tmp = new byte[inputLen];
+      System.arraycopy(input, inputOffset, tmp, 0, inputLen);
+      input = tmp;
+      inputOffset = 0;
     }
     synchronized (lock_) {
       try {
@@ -184,6 +187,8 @@ public class HpkeCipher extends CipherSpi {
       byte[] aad = aadBuffer_.getDataBuffer();
       int aadLen = aadBuffer_.size();
 
+      final byte[] finalInput = input;
+      final int finalInputOffset = inputOffset;
       return key_.use(
           ptr ->
               hpkeCipher(
@@ -192,8 +197,8 @@ public class HpkeCipher extends CipherSpi {
                   params_.getKemId(),
                   params_.getKdfId(),
                   params_.getAeadId(),
-                  input,
-                  inputOffset,
+                  finalInput,
+                  finalInputOffset,
                   inputLen,
                   aad,
                   aadLen,
