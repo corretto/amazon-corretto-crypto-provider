@@ -35,12 +35,10 @@ public class HpkeCipherTest {
     return Arrays.asList(
         HpkeParameterSpec.X25519Sha256Aes128gcm,
         HpkeParameterSpec.X25519Sha256Chapoly,
-        HpkeParameterSpec.Mlkem768Sha256Aes128gcm,
-        HpkeParameterSpec.Mlkem768Sha256Chapoly,
+        HpkeParameterSpec.Mlkem768Sha256Aes256gcm,
         HpkeParameterSpec.Mlkem1024Sha384Aes256gcm,
-        HpkeParameterSpec.Pqt25519Sha256Aes128gcm,
-        HpkeParameterSpec.Pqt25519768Sha256Chapoly,
-        HpkeParameterSpec.Pqt256Sha256Aes128gcm,
+        HpkeParameterSpec.Pqt25519Sha256Aes256gcm,
+        HpkeParameterSpec.Pqt256Sha256Aes256gcm,
         HpkeParameterSpec.Pqt384Sha384Aes256gcm);
   }
 
@@ -134,7 +132,7 @@ public class HpkeCipherTest {
 
   @Test
   public void invalidUses() throws GeneralSecurityException {
-    final HpkeParameterSpec spec = HpkeParameterSpec.Mlkem768Sha256Chapoly;
+    final HpkeParameterSpec spec = HpkeParameterSpec.Mlkem768Sha256Aes256gcm;
     final KeyPair keyPair = getKeyPair(spec);
     final byte[] input = TestUtil.arrayOf((byte) 0x42, 42);
 
