@@ -30,12 +30,28 @@ public class HpkeCipherTest {
     return KeyPairGenerator.getInstance("HPKE", TestUtil.NATIVE_PROVIDER);
   }
 
+  private KeyPair getKeyPair(HpkeParameterSpec spec) throws GeneralSecurityException {
+    final KeyPairGenerator generator = getGenerator();
+    generator.initialize(spec);
+    return generator.generateKeyPair();
+  }
+
   private static Cipher getCipher() throws GeneralSecurityException {
     return Cipher.getInstance("HPKE", TestUtil.NATIVE_PROVIDER);
   }
 
+  private static Cipher getInitCipher(KeyPair keyPair, int opmode) throws GeneralSecurityException {
+    Cipher cipher = getCipher();
+    if ((opmode == Cipher.ENCRYPT_MODE) || (opmode == Cipher.WRAP_MODE)) {
+      cipher.init(opmode, keyPair.getPublic());
+    } else if ((opmode == Cipher.DECRYPT_MODE) || (opmode == Cipher.UNWRAP_MODE)) {
+      cipher.init(opmode, keyPair.getPrivate());
+    }
+    return cipher;
+  }
+
   @Test
-  public void testWrapUnwrap() throws GeneralSecurityException {
+  public void basicCorrectness() throws GeneralSecurityException {
     final HpkeParameterSpec[] namedSpecs = {
       HpkeParameterSpec.X25519Sha256Aes128gcm,
       HpkeParameterSpec.X25519Sha256Chapoly,
@@ -48,19 +64,29 @@ public class HpkeCipherTest {
       HpkeParameterSpec.Pqt384Sha384Aes256gcm
     };
     for (final HpkeParameterSpec spec : namedSpecs) {
-      final KeyPairGenerator generator = getGenerator();
-      final Cipher wrapCipher = getCipher();
-      final Cipher unwrapCipher = getCipher();
 
       // Generate a key pair
-      generator.initialize(spec);
-      final KeyPair keyPair = generator.generateKeyPair();
+      final KeyPair keyPair = getKeyPair(spec);
       assertNotNull(keyPair.getPublic());
       assertNotNull(keyPair.getPrivate());
 
       // Initialize ciphers
-      wrapCipher.init(Cipher.WRAP_MODE, keyPair.getPublic());
-      unwrapCipher.init(Cipher.UNWRAP_MODE, keyPair.getPrivate());
+      final Cipher encryptCipher = getInitCipher(keyPair, Cipher.ENCRYPT_MODE);
+      final Cipher decryptCipher = getInitCipher(keyPair, Cipher.DECRYPT_MODE);
+      final Cipher wrapCipher = getInitCipher(keyPair, Cipher.WRAP_MODE);
+      final Cipher unwrapCipher = getInitCipher(keyPair, Cipher.UNWRAP_MODE);
+
+      // Test encrypting data with aad
+      final byte[] message = TestUtil.arrayOf((byte) 0x42, 42);
+      final byte[] aad1 = TestUtil.arrayOf((byte) 0x24, 24);
+      final byte[] aad2 = TestUtil.arrayOf((byte) 0x12, 12);
+      encryptCipher.updateAAD(aad1, 0, aad1.length);
+      encryptCipher.updateAAD(aad2, 0, aad2.length);
+      final byte[] ciphertext = encryptCipher.doFinal(message);
+      decryptCipher.updateAAD(aad1, 0, aad1.length);
+      decryptCipher.updateAAD(aad2, 0, aad2.length);
+      final byte[] decrypted = decryptCipher.doFinal(ciphertext);
+      assertArrayEquals(message, decrypted);
 
       // Test wrapping AES key
       final SecretKeySpec aesKey = new SecretKeySpec(TestUtil.getRandomBytes(16), "AES");
@@ -100,5 +126,24 @@ public class HpkeCipherTest {
       assertEquals(ecPrivateKey.getAlgorithm(), unwrappedEcPrivateKey.getAlgorithm());
       assertArrayEquals(ecPrivateKey.getEncoded(), unwrappedEcPrivateKey.getEncoded());
     }
+  }
+
+  @Test
+  public void invalidUses() throws GeneralSecurityException {
+    final HpkeParameterSpec spec = HpkeParameterSpec.Mlkem768Sha256Chapoly;
+    final KeyPair keyPair = getKeyPair(spec);
+    final byte[] input = TestUtil.arrayOf((byte) 0x42, 42);
+
+    final Cipher wrapCipher = getInitCipher(keyPair, Cipher.WRAP_MODE);
+    final Cipher unwrapCipher = getInitCipher(keyPair, Cipher.UNWRAP_MODE);
+    TestUtil.assertThrows(IllegalStateException.class, () -> wrapCipher.doFinal(input));
+    TestUtil.assertThrows(IllegalStateException.class, () -> unwrapCipher.doFinal(input));
+
+    final SecretKeySpec aesKey = new SecretKeySpec(TestUtil.getRandomBytes(16), "AES");
+    final Cipher encryptCipher = getInitCipher(keyPair, Cipher.ENCRYPT_MODE);
+    final Cipher decryptCipher = getInitCipher(keyPair, Cipher.DECRYPT_MODE);
+    TestUtil.assertThrows(IllegalStateException.class, () -> encryptCipher.wrap(aesKey));
+    TestUtil.assertThrows(
+        IllegalStateException.class, () -> decryptCipher.unwrap(input, "AES", Cipher.SECRET_KEY));
   }
 }

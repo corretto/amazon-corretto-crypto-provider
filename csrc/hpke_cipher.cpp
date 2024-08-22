@@ -16,7 +16,7 @@ using namespace AmazonCorrettoCryptoProvider;
 /*
  * Class:     com_amazon_corretto_crypto_provider_HpkeCipher
  * Method:    hpkeWrap
- * Signature: (J[BIIII[BI)I
+ * Signature: (JIIIIB[IIB[IB[I)I
  */
 JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_HpkeCipher_hpkeCipher(JNIEnv* pEnv,
     jclass,
@@ -28,6 +28,8 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_HpkeCipher_hpkeC
     jbyteArray input,
     jint inputOffset,
     jint inputLen,
+    jbyteArray aad,
+    jint aadLen,
     jbyteArray output,
     jint outputOffset)
 {
@@ -51,13 +53,12 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_HpkeCipher_hpkeC
             throw_java_ex(EX_RUNTIME_CRYPTO, "KEM in the key does not match the param");
         }
 
-        // FIXME: support setting these values
         std::vector<uint8_t> info(0);
-        std::vector<uint8_t> ad(0);
+        java_buffer aadBuf = java_buffer::from_array(env, aad, 0, aadLen);
 
         size_t result = -1;
 
-        if (javaCipherMode == 3 /* Wrap */) {
+        if ((javaCipherMode == 1 /* Encrypt */) || (javaCipherMode == 3 /* Wrap */)) {
             // Serialize public key
             std::vector<uint8_t> public_key_r(EVP_HPKE_KEM_public_key_len(kem));
             size_t public_key_r_len;
@@ -77,12 +78,13 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_HpkeCipher_hpkeC
 
             {
                 jni_borrow msg(env, msgBuf, "input msg");
+                jni_borrow aad(env, aadBuf, "aad");
                 jni_borrow enc(env, encBuf, "output enc");
                 jni_borrow ct(env, ctBuf, "output ciphertext");
 
                 CHECK_OPENSSL(EVP_HPKE_seal(enc.data(), &enc_len, enc.len(), ct.data(), &ct_len, ct.len(), kem, kdf,
                     aead, public_key_r.data(), public_key_r_len, info.data(), info.size(), msg.data(), msg.len(),
-                    ad.data(), ad.size()));
+                    aad.data(), aad.len()));
                 if (enc_len != encBufLen) {
                     throw_java_ex(EX_RUNTIME_CRYPTO, "Unexpected error, enc buffer length is wrong!");
                 }
@@ -91,8 +93,8 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_HpkeCipher_hpkeC
                 }
                 result = outBufLen;
             }
-        } else if (javaCipherMode == 4 /* Unwrap */) {
-            // The input the enc and the ciphertext
+        } else if ((javaCipherMode == 2 /* Decrypt */) || (javaCipherMode == 4 /* Unwrap */)) {
+            // The input is the enc and the ciphertext
             const auto encBufLen = EVP_HPKE_KEM_enc_len(kem);
             if (inputLen < (encBufLen + aead_overhead)) {
                 throw_java_ex(EX_RUNTIME_CRYPTO, "input too short to unwrap with HPKE");
@@ -105,12 +107,13 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_HpkeCipher_hpkeC
             java_buffer msgBuf = java_buffer::from_array(env, output, outputOffset);
             size_t msg_len = 0;
             {
-                jni_borrow msg(env, msgBuf, "output msg");
                 jni_borrow enc(env, encBuf, "input enc");
                 jni_borrow ct(env, ctBuf, "input ciphertext");
+                jni_borrow aad(env, aadBuf, "aad");
+                jni_borrow msg(env, msgBuf, "output msg");
 
                 CHECK_OPENSSL(EVP_HPKE_open(msg.data(), &msg_len, msg.len(), key, kdf, aead, enc.data(), enc.len(),
-                    info.data(), info.size(), ct.data(), ct.len(), ad.data(), ad.size()))
+                    info.data(), info.size(), ct.data(), ct.len(), aad.data(), aad.len()))
                 result = msg_len;
             }
         } else {
@@ -139,10 +142,10 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_HpkeCipher_hpkeO
     try {
         raii_env env(pEnv);
 
-        if (javaCipherMode == 3 /* Wrap */) {
+        if ((javaCipherMode == 1 /* Encrypt */) || (javaCipherMode == 3 /* Wrap */)) {
             // We write the enc and the ciphertext to the output buffer
             return (inputLen + enc_len + aead_overhead);
-        } else if (javaCipherMode == 4 /* Unwrap */) {
+        } else if ((javaCipherMode == 2 /* Decrypt */) || (javaCipherMode == 4 /* Unwrap */)) {
             // We write the plaintext to the output buffer
             if (inputLen < (enc_len + aead_overhead)) {
                 throw_java_ex(EX_RUNTIME_CRYPTO, "input too short to unwrap with HPKE");

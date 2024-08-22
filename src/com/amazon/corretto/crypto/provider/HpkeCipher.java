@@ -25,16 +25,21 @@ public class HpkeCipher extends CipherSpi {
   }
 
   private final AmazonCorrettoCryptoProvider provider_;
+  private final Object lock_ = new Object();
 
-  private int javaCipherMode_ = 0;
+  private int javaCipherMode_ = -1;
   private EvpHpkeKey key_;
   private HpkeParameterSpec params_;
 
-  private final Object lock_ = new Object();
+  /** tracks whether the cipher has been used (to encrypt, decrypt, wrap, or unwrap) */
+  private boolean finalized_ = false;
 
-  HpkeCipher(AmazonCorrettoCryptoProvider provider) {
+  private final AccessibleByteArrayOutputStream aadBuffer_;
+
+  HpkeCipher(final AmazonCorrettoCryptoProvider provider) {
     Loader.checkNativeLibraryAvailability();
-    provider_ = provider;
+    this.provider_ = provider;
+    aadBuffer_ = new AccessibleByteArrayOutputStream();
   }
 
   // Core Native Methods
@@ -54,6 +59,8 @@ public class HpkeCipher extends CipherSpi {
       byte[] input,
       int inputOffset,
       int inputLen,
+      byte[] aad,
+      int aadLen,
       byte[] output,
       int outputOffset);
 
@@ -72,11 +79,17 @@ public class HpkeCipher extends CipherSpi {
   // Core Java Methods
   // -----------------
 
-  @Override
-  protected void engineInit(int opmode, Key key, AlgorithmParameterSpec params, SecureRandom random)
-      throws InvalidKeyException, InvalidAlgorithmParameterException {
-    if ((opmode != Cipher.WRAP_MODE) && (opmode != Cipher.UNWRAP_MODE)) {
-      throw new IllegalStateException("HpkeCipher only supports WRAP_MODE and UNWRAP_MODE");
+  private static void checkModeKeyParams(int opmode, Key key, AlgorithmParameterSpec params)
+      throws InvalidAlgorithmParameterException, InvalidKeyException {
+    if ((opmode != Cipher.WRAP_MODE)
+        && (opmode != Cipher.UNWRAP_MODE)
+        && (opmode != Cipher.ENCRYPT_MODE)
+        && (opmode != Cipher.DECRYPT_MODE)) {
+      throw new IllegalStateException(
+          "HpkeCipher only supports WRAP_MODE, UNWRAP_MODE, ENCRYPT_MODE, and DECRYPT_MODE.");
+    }
+    if (key == null) {
+      throw new IllegalStateException("HpkeCipher does not support a null key.");
     }
     if (params == null) {
       throw new InvalidAlgorithmParameterException(
@@ -92,21 +105,126 @@ public class HpkeCipher extends CipherSpi {
     if (((EvpHpkeKey) key).getSpec() != params) {
       throw new InvalidKeyException("Spec of key does not match the params provided");
     }
-    if ((opmode == Cipher.WRAP_MODE) && !(key instanceof EvpHpkePublicKey)) {
-      throw new IllegalStateException("Need PublicKey to wrap");
+    if (key instanceof EvpHpkePublicKey) {
+      if ((opmode != Cipher.WRAP_MODE) && (opmode != Cipher.ENCRYPT_MODE)) {
+        throw new IllegalStateException("Need PublicKey to wrap and encrypt");
+      }
+    } else if (key instanceof EvpHpkePrivateKey) {
+      if ((opmode != Cipher.UNWRAP_MODE) && (opmode != Cipher.DECRYPT_MODE)) {
+        throw new IllegalStateException("Need PrivateKey to unwrap and decrypt");
+      }
+    } else {
+      throw new InvalidKeyException(
+          "HpkeCipher only supports EvpHpkePublicKey and EvpHpkePrivate key types, given: "
+              + key.getClass());
     }
-    if ((opmode == Cipher.UNWRAP_MODE) && !(key instanceof EvpHpkePrivateKey)) {
-      throw new IllegalStateException("Need PrivateKey to unwrap");
-    }
+  }
+
+  @Override
+  protected void engineInit(int opmode, Key key, AlgorithmParameterSpec params, SecureRandom random)
+      throws InvalidKeyException, InvalidAlgorithmParameterException {
+    checkModeKeyParams(opmode, key, params);
     synchronized (lock_) {
-      params_ = (HpkeParameterSpec) params;
       javaCipherMode_ = opmode;
-      key_ = opmode == Cipher.WRAP_MODE ? (EvpHpkePublicKey) key : (EvpHpkePrivateKey) key;
+      if ((opmode == Cipher.UNWRAP_MODE) || (opmode == Cipher.DECRYPT_MODE)) {
+        key_ = (EvpHpkePrivateKey) key;
+      } else {
+        key_ = (EvpHpkePublicKey) key;
+      }
+      params_ = (HpkeParameterSpec) params;
+      finalized_ = false;
+      aadBuffer_.reset();
     }
   }
 
   /**
-   * Performs HPKE single-shot encryption, as specified in Section 6.1 of RFC 9180.
+   * Internal method to perform single-shot HPKE encryption or decryption, specified in Section 6.1
+   * of RFC 9180.
+   *
+   * @return number of bytes written to output
+   */
+  private int internalOneShotHpke(
+      byte[] input, int inputOffset, int inputLen, byte[] output, int outputOffset)
+      throws ShortBufferException {
+    finalized_ = true; // cannot update AAD after this function is called
+    if (input == output) {
+      // TODO: is it okay if they are non-overlapping, support that case if necessary.
+      throw new IllegalStateException("input and output must be separate arrays");
+    }
+    if ((outputOffset > output.length)
+        || (inputOffset > input.length)
+        || ((inputOffset + inputLen) > input.length)) {
+      throw new ArrayIndexOutOfBoundsException();
+    }
+    if (engineGetOutputSize(inputLen) > (output.length - outputOffset)) {
+      throw new ShortBufferException();
+    }
+    synchronized (lock_) {
+      try {
+        checkModeKeyParams(javaCipherMode_, key_, params_);
+      } catch (InvalidAlgorithmParameterException | InvalidKeyException e) {
+        throw new IllegalStateException(e);
+      }
+
+      byte[] aad = aadBuffer_.getDataBuffer();
+      int aadLen = aadBuffer_.size();
+
+      return key_.use(
+          ptr ->
+              hpkeCipher(
+                  ptr,
+                  javaCipherMode_,
+                  params_.getKemId(),
+                  params_.getKdfId(),
+                  params_.getAeadId(),
+                  input,
+                  inputOffset,
+                  inputLen,
+                  aad,
+                  aadLen,
+                  output,
+                  outputOffset));
+    }
+  }
+  /**
+   * Internal method to perform single-shot HPKE encryption or decryption, specified in Section 6.1
+   * of RFC 9180.
+   *
+   * @return a new buffer with the output
+   */
+  byte[] internalOneShotHpke(byte[] input, int inputOffset, int inputLen)
+      throws IllegalBlockSizeException, BadPaddingException {
+    byte[] output = new byte[engineGetOutputSize(inputLen)];
+    try {
+      int len = internalOneShotHpke(input, inputOffset, inputLen, output, 0);
+      if (len != output.length) {
+        throw new RuntimeCryptoException(
+            "HpkeCipher expected output of length " + output.length + ", got output of len " + len);
+      }
+      return output;
+    } catch (ShortBufferException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  /**
+   * Supply AAD to HPKE. Must be called before the cipher is used, i.e., before DoFinal, Wrap, or
+   * Unwrap.
+   */
+  @Override
+  protected void engineUpdateAAD(byte[] src, int offset, int len) {
+    synchronized (lock_) {
+      if (finalized_) {
+        throw new IllegalStateException(
+            "Cannot update AAD after HpkeCipher has been used to Wrap, Unwrap, Encrypt, or"
+                + " Decrypt");
+      }
+      aadBuffer_.write(src, offset, len);
+    }
+  }
+
+  /**
+   * Wraps key using HPKE single-shot encryption.
    *
    * @return concatenation of KEM encapsulated key and encrypted ciphertext
    */
@@ -115,21 +233,18 @@ public class HpkeCipher extends CipherSpi {
     if (javaCipherMode_ != Cipher.WRAP_MODE) {
       throw new IllegalStateException("Cipher must be in WRAP_MODE");
     }
-    if ((key_ == null) || !(key_ instanceof EvpHpkePublicKey)) {
-      throw new IllegalStateException("PublicKey should be set before wrapping.");
-    }
     try {
       final byte[] encoded = Utils.encodeForWrapping(provider_, key);
-      return engineDoFinal(encoded, 0, encoded.length);
+      return internalOneShotHpke(encoded, 0, encoded.length);
     } catch (final BadPaddingException e) {
       throw new InvalidKeyException("Failed to wrap key", e);
     }
   }
 
   /**
-   * Performs HPKE single-shot decryption, as specified in Section 6.1 of RFC 9180.
+   * Unwraps key using HPKE single-shot decryption.
    *
-   * @return decrypted plaintext
+   * @return decrypted key
    */
   @Override
   protected Key engineUnwrap(byte[] wrappedKey, String wrappedKeyAlgorithm, int wrappedKeyType)
@@ -137,11 +252,8 @@ public class HpkeCipher extends CipherSpi {
     if (javaCipherMode_ != Cipher.UNWRAP_MODE) {
       throw new IllegalStateException("Cipher must be in UNWRAP_MODE");
     }
-    if ((key_ == null) || !(key_ instanceof EvpHpkePrivateKey)) {
-      throw new IllegalStateException("PrivateKey should be set before unwrapping.");
-    }
     try {
-      final byte[] unwrappedKey = engineDoFinal(wrappedKey, 0, wrappedKey.length);
+      final byte[] unwrappedKey = internalOneShotHpke(wrappedKey, 0, wrappedKey.length);
       return Utils.buildUnwrappedKey(provider_, unwrappedKey, wrappedKeyAlgorithm, wrappedKeyType);
     } catch (final BadPaddingException | IllegalBlockSizeException | InvalidKeySpecException e) {
       throw new InvalidKeyException("Failed to unwrap key", e);
@@ -157,55 +269,23 @@ public class HpkeCipher extends CipherSpi {
   protected int engineDoFinal(
       byte[] input, int inputOffset, int inputLen, byte[] output, int outputOffset)
       throws ShortBufferException {
-
-    if (input == output) {
-      // TODO: is it okay if they are non-overlapping, support that case if necessary.
-      throw new IllegalStateException("input and output must be separate arrays");
+    if ((javaCipherMode_ != Cipher.ENCRYPT_MODE) && (javaCipherMode_ != Cipher.DECRYPT_MODE)) {
+      throw new IllegalStateException("cipher must be in ENCRYPT_MODE or DECRYPT_MODE");
     }
-
-    synchronized (lock_) {
-      if (key_ == null) {
-        throw new IllegalStateException("key should be set before finalizing");
-      }
-      if ((javaCipherMode_ != Cipher.WRAP_MODE) && (javaCipherMode_ != Cipher.UNWRAP_MODE)) {
-        throw new IllegalStateException("HpkeCipher only supports WRAP_MODE and UNWRAP_MODE");
-      }
-      if ((javaCipherMode_ == Cipher.WRAP_MODE) && !(key_ instanceof EvpHpkePublicKey)) {
-        throw new IllegalStateException("PublicKey should be set before wrapping.");
-      }
-      if ((javaCipherMode_ == Cipher.UNWRAP_MODE) && !(key_ instanceof EvpHpkePrivateKey)) {
-        throw new IllegalStateException("PrivateKey should be set before wrapping.");
-      }
-
-      final int result;
-      result =
-          key_.use(
-              ptr ->
-                  hpkeCipher(
-                      ptr,
-                      javaCipherMode_,
-                      params_.getKemId(),
-                      params_.getKdfId(),
-                      params_.getAeadId(),
-                      input,
-                      inputOffset,
-                      inputLen,
-                      output,
-                      outputOffset));
-      return result;
-    }
+    return internalOneShotHpke(input, inputOffset, inputLen, output, outputOffset);
   }
 
   @Override
   protected int engineGetOutputSize(int inputLen) {
-    if (params_ == null) {
-      throw new IllegalStateException("params should be set before getOutputSize");
+    synchronized (lock_) {
+      try {
+        checkModeKeyParams(javaCipherMode_, key_, params_);
+        return hpkeOutputSize(
+            javaCipherMode_, params_.getKemId(), params_.getKdfId(), params_.getAeadId(), inputLen);
+      } catch (InvalidAlgorithmParameterException | InvalidKeyException e) {
+        throw new IllegalStateException(e);
+      }
     }
-    if ((javaCipherMode_ != Cipher.WRAP_MODE) && (javaCipherMode_ != Cipher.UNWRAP_MODE)) {
-      throw new IllegalStateException("cipher mode should be set before getOutputSize");
-    }
-    return hpkeOutputSize(
-        javaCipherMode_, params_.getKemId(), params_.getKdfId(), params_.getAeadId(), inputLen);
   }
 
   // Boilerplate Methods
@@ -226,17 +306,7 @@ public class HpkeCipher extends CipherSpi {
   @Override
   protected byte[] engineDoFinal(byte[] input, int inputOffset, int inputLen)
       throws IllegalBlockSizeException, BadPaddingException {
-    byte[] output = new byte[engineGetOutputSize(inputLen)];
-    try {
-      int len = engineDoFinal(input, inputOffset, inputLen, output, 0);
-      if (len != output.length) {
-        throw new RuntimeCryptoException(
-            "HpkeCipher expected output of length " + output.length + ", got output of len " + len);
-      }
-      return output;
-    } catch (ShortBufferException e) {
-      throw new RuntimeException(e);
-    }
+    return internalOneShotHpke(input, inputOffset, inputLen);
   }
 
   @Override
@@ -270,12 +340,6 @@ public class HpkeCipher extends CipherSpi {
   // -------------------
 
   @Override
-  protected void engineUpdateAAD(byte[] src, int offset, int len) {
-    // TODO: implement AAD support
-    throw new IllegalStateException("HpkeCipher currently does not support AAD");
-  }
-
-  @Override
   protected void engineSetMode(String mode) throws NoSuchAlgorithmException {
     throw new NoSuchAlgorithmException("HpkeCipher does not support modes");
   }
@@ -297,13 +361,13 @@ public class HpkeCipher extends CipherSpi {
 
   @Override
   protected byte[] engineUpdate(byte[] input, int inputOffset, int inputLen) {
-    throw new IllegalStateException("HpkeCipher does not support updates");
+    throw new IllegalStateException("HpkeCipher currently does not support updates");
   }
 
   @Override
   protected int engineUpdate(
       byte[] input, int inputOffset, int inputLen, byte[] output, int outputOffset)
       throws ShortBufferException {
-    throw new IllegalStateException("HpkeCipher does not support updates");
+    throw new IllegalStateException("HpkeCipher currently does not support updates");
   }
 }
