@@ -42,12 +42,16 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_HpkeCipher_hpkeC
         if (!output) {
             throw_java_ex(EX_NPE, "Empty output array");
         }
+        if (inputLen < 0) {
+            throw_java_ex(EX_RUNTIME_CRYPTO, "Negative input length");
+        }
+        const size_t input_length = (size_t)inputLen;
 
         const EVP_HPKE_KEY* key = reinterpret_cast<EVP_HPKE_KEY*>(keyHandle);
-        const auto kem = EVP_HPKE_KEM_find_by_id(kemId);
-        const auto kdf = EVP_HPKE_KDF_find_by_id(kdfId);
-        const auto aead = EVP_HPKE_AEAD_find_by_id(aeadId);
-        const auto aead_overhead = EVP_AEAD_max_overhead(EVP_HPKE_AEAD_aead(aead));
+        const EVP_HPKE_KEM* kem = EVP_HPKE_KEM_find_by_id(kemId);
+        const EVP_HPKE_KDF* kdf = EVP_HPKE_KDF_find_by_id(kdfId);
+        const EVP_HPKE_AEAD* aead = EVP_HPKE_AEAD_find_by_id(aeadId);
+        const size_t aead_overhead = EVP_AEAD_max_overhead(EVP_HPKE_AEAD_aead(aead));
 
         if (kemId != EVP_HPKE_KEM_id(EVP_HPKE_KEY_kem(key))) {
             throw_java_ex(EX_RUNTIME_CRYPTO, "KEM in the key does not match the param");
@@ -65,12 +69,12 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_HpkeCipher_hpkeC
             CHECK_OPENSSL(EVP_HPKE_KEY_public_key(key, public_key_r.data(), &public_key_r_len, public_key_r.size()));
 
             // The input is the plaintext message
-            java_buffer msgBuf = java_buffer::from_array(env, input, inputOffset, inputLen);
+            java_buffer msgBuf = java_buffer::from_array(env, input, inputOffset, input_length);
 
             // We write the enc and the ciphertext to the output buffer
-            const auto encBufLen = EVP_HPKE_KEM_enc_len(kem);
-            const auto ctBufLen = inputLen + aead_overhead;
-            const auto outBufLen = encBufLen + ctBufLen;
+            const size_t encBufLen = EVP_HPKE_KEM_enc_len(kem);
+            const size_t ctBufLen = input_length + aead_overhead;
+            const size_t outBufLen = encBufLen + ctBufLen;
             java_buffer encBuf = java_buffer::from_array(env, output, outputOffset, encBufLen);
             java_buffer ctBuf = java_buffer::from_array(env, output, outputOffset + encBufLen, ctBufLen);
             size_t enc_len = 0;
@@ -95,11 +99,11 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_HpkeCipher_hpkeC
             }
         } else if ((javaCipherMode == 2 /* Decrypt */) || (javaCipherMode == 4 /* Unwrap */)) {
             // The input is the enc and the ciphertext
-            const auto encBufLen = EVP_HPKE_KEM_enc_len(kem);
-            if (inputLen < (encBufLen + aead_overhead)) {
+            const size_t encBufLen = EVP_HPKE_KEM_enc_len(kem);
+            if (input_length < (encBufLen + aead_overhead)) {
                 throw_java_ex(EX_RUNTIME_CRYPTO, "input too short to unwrap with HPKE");
             }
-            const auto ctBufLen = inputLen - encBufLen;
+            const size_t ctBufLen = input_length - encBufLen;
             java_buffer encBuf = java_buffer::from_array(env, input, inputOffset, encBufLen);
             java_buffer ctBuf = java_buffer::from_array(env, input, inputOffset + encBufLen, ctBufLen);
 
@@ -134,23 +138,28 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_HpkeCipher_hpkeC
 JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_HpkeCipher_hpkeOutputSize(
     JNIEnv* pEnv, jclass, jint javaCipherMode, jint kemId, jint kdfId, jint aeadId, jint inputLen)
 {
-    const auto kem = EVP_HPKE_KEM_find_by_id(kemId);
-    const auto aead = EVP_HPKE_AEAD_find_by_id(aeadId);
-    const auto aead_overhead = EVP_AEAD_max_overhead(EVP_HPKE_AEAD_aead(aead));
-    const auto enc_len = EVP_HPKE_KEM_enc_len(kem);
+    const EVP_HPKE_KEM* kem = EVP_HPKE_KEM_find_by_id(kemId);
+    const EVP_HPKE_AEAD* aead = EVP_HPKE_AEAD_find_by_id(aeadId);
+    const size_t aead_overhead = EVP_AEAD_max_overhead(EVP_HPKE_AEAD_aead(aead));
+    const size_t enc_len = EVP_HPKE_KEM_enc_len(kem);
 
     try {
         raii_env env(pEnv);
 
+        if (inputLen < 0) {
+            throw_java_ex(EX_RUNTIME_CRYPTO, "negative input length");
+        }
+        const size_t input_length = (size_t)inputLen;
+
         if ((javaCipherMode == 1 /* Encrypt */) || (javaCipherMode == 3 /* Wrap */)) {
             // We write the enc and the ciphertext to the output buffer
-            return (inputLen + enc_len + aead_overhead);
+            return (input_length + enc_len + aead_overhead);
         } else if ((javaCipherMode == 2 /* Decrypt */) || (javaCipherMode == 4 /* Unwrap */)) {
             // We write the plaintext to the output buffer
-            if (inputLen < (enc_len + aead_overhead)) {
+            if (input_length < (enc_len + aead_overhead)) {
                 throw_java_ex(EX_RUNTIME_CRYPTO, "input too short to unwrap with HPKE");
             }
-            return (inputLen - enc_len - aead_overhead);
+            return (input_length - enc_len - aead_overhead);
         } else {
             throw_java_ex(EX_RUNTIME_CRYPTO, "Unsupported cipher mode");
         }
