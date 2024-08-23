@@ -151,18 +151,21 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_HpkeCipher_hpkeO
         }
         const size_t input_length = (size_t)inputLen;
 
+        size_t ret = -1;
+
         if ((javaCipherMode == 1 /* Encrypt */) || (javaCipherMode == 3 /* Wrap */)) {
             // We write the enc and the ciphertext to the output buffer
-            return (input_length + enc_len + aead_overhead);
+            ret = input_length + enc_len + aead_overhead;
         } else if ((javaCipherMode == 2 /* Decrypt */) || (javaCipherMode == 4 /* Unwrap */)) {
             // We write the plaintext to the output buffer
             if (input_length < (enc_len + aead_overhead)) {
                 throw_java_ex(EX_RUNTIME_CRYPTO, "input too short to unwrap with HPKE");
             }
-            return (input_length - enc_len - aead_overhead);
+            ret = (input_length - enc_len - aead_overhead);
         } else {
             throw_java_ex(EX_RUNTIME_CRYPTO, "Unsupported cipher mode");
         }
+        return (jint)ret;
     } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);
         return -1;
