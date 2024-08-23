@@ -16,7 +16,8 @@ group = 'software.amazon.cryptools'
 version = '2.4.1'
 ext.isFips = Boolean.getBoolean('FIPS')
 if (ext.isFips) {
-    ext.awsLcGitVersionId = 'AWS-LC-FIPS-2.0.13'
+    // TODO: replace with tags once stable
+    ext.awsLcGitVersionId = '72c276e9c709a2d9b94e41b06da6abf2b3805a4a'
 } else {
     ext.awsLcGitVersionId = '72c276e9c709a2d9b94e41b06da6abf2b3805a4a'
 }
