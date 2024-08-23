@@ -1,4 +1,4 @@
 [submodule "aws-lc"]
 	path = aws-lc
-	url = https://github.com/sgmenda-aws/aws-lc
-	branch = experimental-pq-hybrid-with-hpke
+	url = https://github.com/aws/aws-lc
+	branch = experimental-pq-hybrid
