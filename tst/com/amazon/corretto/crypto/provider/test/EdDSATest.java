@@ -3,6 +3,8 @@
 package com.amazon.corretto.crypto.provider.test;
 
 import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.security.*;
@@ -10,6 +12,7 @@ import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Arrays;
+import java.util.Random;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -61,8 +64,8 @@ public class EdDSATest {
     final byte[] pbk1 = kp1.getPublic().getEncoded();
     final byte[] pbk2 = kp2.getPublic().getEncoded();
 
-    assertTrue(!Arrays.equals(pk1, pk2));
-    assertTrue(!Arrays.equals(pbk1, pbk2));
+    assertFalse(Arrays.equals(pk1, pk2));
+    assertFalse(Arrays.equals(pbk1, pbk2));
   }
 
   @Test
@@ -107,8 +110,8 @@ public class EdDSATest {
     final byte[] publicKeyACCP = kf.generatePublic(publicKeyX509).getEncoded();
 
     // Confirm that ACCP & SunEC keys are equivalent
-    assertTrue(Arrays.equals(privateKeyACCP, privateKeyJCE));
-    assertTrue(Arrays.equals(publicKeyACCP, publicKeyJCE));
+    assertArrayEquals(privateKeyACCP, privateKeyJCE);
+    assertArrayEquals(publicKeyACCP, publicKeyJCE);
   }
 
   @Test
@@ -122,55 +125,69 @@ public class EdDSATest {
     // Set up ACCP and JCE Signature Instances
     final Signature nativeSig = Signature.getInstance("Ed25519", NATIVE_PROVIDER);
     final Signature jceSig = Signature.getInstance("Ed25519", "SunEC");
+    byte[] message, signatureACCP, signatureJCE;
+    Random random = new Random();
 
-    // Sign with ACCP and verify with SunEC
-    final byte[] message = new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-    nativeSig.initSign(privateKey);
-    nativeSig.update(message, 0, message.length);
-    final byte[] signatureACCP = nativeSig.sign();
-    jceSig.initVerify(publicKey);
-    jceSig.update(message);
-    assertTrue(jceSig.verify(signatureACCP), "Native->JCE: Ed25519");
+    for (int messageLength = 1; messageLength <= 1024; messageLength++) {
+      message = new byte[messageLength];
+      random.nextBytes(message);
+      // Sign with ACCP and verify with SunEC
+      nativeSig.initSign(privateKey);
+      nativeSig.update(message, 0, message.length);
+      signatureACCP = nativeSig.sign();
+      jceSig.initVerify(publicKey);
+      jceSig.update(message);
+      assertTrue(
+          jceSig.verify(signatureACCP),
+          "Native->JCE: Ed25519 (message length: " + messageLength + ")");
 
-    // Sign with SunEC and verify with ACCP
-    jceSig.initSign(privateKey);
-    jceSig.update(message, 0, message.length);
-    final byte[] signatureJCE = jceSig.sign();
-    nativeSig.initVerify(publicKey);
-    nativeSig.update(message);
-    assertTrue(nativeSig.verify(signatureJCE), "JCE->Native: Ed25519");
+      // Sign with SunEC and verify with ACCP
+      jceSig.initSign(privateKey);
+      jceSig.update(message, 0, message.length);
+      signatureJCE = jceSig.sign();
+      nativeSig.initVerify(publicKey);
+      nativeSig.update(message);
+      assertTrue(
+          nativeSig.verify(signatureJCE),
+          "JCE->Native: Ed25519 (message length: " + messageLength + ")");
 
-    assertTrue(Arrays.equals(signatureJCE, signatureACCP));
+      assertArrayEquals(signatureJCE, signatureACCP);
+    }
   }
 
   @Test
   public void bcInteropValidation() throws GeneralSecurityException {
     // Generate keys with ACCP and use BC KeyFactory to get equivalent JCE Keys
-    final byte[] message = new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
     final Signature nativeSig = Signature.getInstance("Ed25519", NATIVE_PROVIDER);
     final Signature bcSig = Signature.getInstance("Ed25519", BOUNCYCASTLE_PROVIDER);
     final KeyPair keyPair = nativeGen.generateKeyPair();
 
     final PrivateKey privateKey = keyPair.getPrivate();
     final PublicKey publicKey = keyPair.getPublic();
+    byte[] message, signatureACCP, signatureBC;
+    Random random = new Random();
 
-    // Sign with ACCP, Verify with BouncyCastle
-    nativeSig.initSign(privateKey);
-    nativeSig.update(message, 0, message.length);
-    final byte[] signatureACCP = nativeSig.sign();
-    bcSig.initVerify(publicKey);
-    bcSig.update(message);
-    assertTrue(bcSig.verify(signatureACCP), "Native->BC: Ed25519");
+    for (int messageLength = 1; messageLength <= 1024; messageLength++) {
+      message = new byte[messageLength];
+      random.nextBytes(message);
+      // Sign with ACCP, Verify with BouncyCastle
+      nativeSig.initSign(privateKey);
+      nativeSig.update(message, 0, message.length);
+      signatureACCP = nativeSig.sign();
+      bcSig.initVerify(publicKey);
+      bcSig.update(message);
+      assertTrue(bcSig.verify(signatureACCP), "Native->BC: Ed25519");
 
-    // Sign with BouncyCastle, Verify with ACCP
-    bcSig.initSign(privateKey);
-    bcSig.update(message, 0, message.length);
-    final byte[] signatureBC = bcSig.sign();
-    nativeSig.initVerify(publicKey);
-    nativeSig.update(message);
-    assertTrue(nativeSig.verify(signatureBC), "BC->Native: Ed25519");
+      // Sign with BouncyCastle, Verify with ACCP
+      bcSig.initSign(privateKey);
+      bcSig.update(message, 0, message.length);
+      signatureBC = bcSig.sign();
+      nativeSig.initVerify(publicKey);
+      nativeSig.update(message);
+      assertTrue(nativeSig.verify(signatureBC), "BC->Native: Ed25519");
 
-    assertTrue(Arrays.equals(signatureBC, signatureACCP));
+      assertArrayEquals(signatureBC, signatureACCP);
+    }
   }
 
   @Test
@@ -189,8 +206,8 @@ public class EdDSATest {
     final byte[] pbkBC = kf.generatePublic(publicKeyX509).getEncoded();
 
     // Confirm that ACCP & BC keys are equivalent
-    assertTrue(Arrays.equals(pkACCP, pkBC));
-    assertTrue(Arrays.equals(pbkACCP, pbkBC));
+    assertArrayEquals(pkACCP, pkBC);
+    assertArrayEquals(pbkACCP, pbkBC);
   }
 
   @Test
@@ -225,11 +242,11 @@ public class EdDSATest {
 
     nativeSig.initVerify(kp.getPublic());
     nativeSig.update(message2, 0, message2.length);
-    assertTrue(!nativeSig.verify(signature));
+    assertFalse(nativeSig.verify(signature));
 
     jceSig.initVerify(kp.getPublic());
     jceSig.update(message2, 0, message2.length);
-    assertTrue(!jceSig.verify(signature));
+    assertFalse(jceSig.verify(signature));
   }
 
   @Test
@@ -256,7 +273,7 @@ public class EdDSATest {
     TestUtil.assertThrows(NullPointerException.class, () -> jceSig.update((byte[]) null));
     // Test with null signature
     jceSig.initVerify(keyPair.getPublic());
-    assertTrue(!jceSig.verify(null));
+    assertFalse(jceSig.verify(null));
 
     // Test BouncyCastle behavior
     KeyPair keyPair2 = bcGen.generateKeyPair();
