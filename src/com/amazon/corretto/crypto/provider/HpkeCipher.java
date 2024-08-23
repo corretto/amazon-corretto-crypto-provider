@@ -128,7 +128,7 @@ public class HpkeCipher extends CipherSpi {
    *     for DECRYPT and UNWRAP
    * @param params the algorithm parameters, must be an instance of HpkeParameterSpec, and may not
    *     be null.
-   * @param random a source of randomness
+   * @param random a source of randomness, which we disregard, may be null.
    */
   @Override
   protected void engineInit(int opmode, Key key, AlgorithmParameterSpec params, SecureRandom random)
