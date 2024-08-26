@@ -80,7 +80,6 @@ SecretKeyFactory:
 * HkdfWithHmacSHA256
 * HkdfWithHmacSHA384
 * HkdfWithHmacSHA512
-* ConcatenationKdfWithSHA224 (not available in FIPS builds)
 * ConcatenationKdfWithSHA256 (not available in FIPS builds)
 * ConcatenationKdfWithSHA384 (not available in FIPS builds)
 * ConcatenationKdfWithSHA512 (not available in FIPS builds)

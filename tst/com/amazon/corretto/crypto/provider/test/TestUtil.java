@@ -34,6 +34,12 @@ import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import org.apache.commons.codec.binary.Hex;
+import org.bouncycastle.crypto.Digest;
+import org.bouncycastle.crypto.digests.SHA1Digest;
+import org.bouncycastle.crypto.digests.SHA224Digest;
+import org.bouncycastle.crypto.digests.SHA256Digest;
+import org.bouncycastle.crypto.digests.SHA384Digest;
+import org.bouncycastle.crypto.digests.SHA512Digest;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assumptions;
 
@@ -808,5 +814,22 @@ public class TestUtil {
       return ascendingPattern(inputLen);
     }
     return constantPattern(inputLen, choice);
+  }
+
+  static Digest bcDigest(final String digest) {
+    switch (digest) {
+      case "SHA1":
+        return new SHA1Digest();
+      case "SHA224":
+        return new SHA224Digest();
+      case "SHA256":
+        return new SHA256Digest();
+      case "SHA384":
+        return new SHA384Digest();
+      case "SHA512":
+        return new SHA512Digest();
+      default:
+        return null;
+    }
   }
 }

@@ -53,8 +53,6 @@ EVP_MD const* digest_code_to_EVP_MD(int digestCode)
     switch (digestCode) {
     case com_amazon_corretto_crypto_provider_Utils_SHA1_CODE:
         return EVP_sha1();
-    case com_amazon_corretto_crypto_provider_Utils_SHA224_CODE:
-        return EVP_sha224();
     case com_amazon_corretto_crypto_provider_Utils_SHA256_CODE:
         return EVP_sha256();
     case com_amazon_corretto_crypto_provider_Utils_SHA384_CODE:

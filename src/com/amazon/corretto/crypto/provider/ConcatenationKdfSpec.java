@@ -13,7 +13,6 @@ import java.util.Objects;
  * <p>The algorithmName is the name of algorithm used to create SecretKeySpec.
  */
 public class ConcatenationKdfSpec implements KeySpec {
-  private static final byte[] EMPTY = new byte[0];
   private final byte[] secret;
   private final int outputLen;
   private final String algorithmName;
@@ -41,12 +40,12 @@ public class ConcatenationKdfSpec implements KeySpec {
 
   public ConcatenationKdfSpec(
       final byte[] secret, final int outputLen, final String algorithmName) {
-    this(secret, outputLen, algorithmName, EMPTY, EMPTY);
+    this(secret, outputLen, algorithmName, Utils.EMPTY_ARRAY, Utils.EMPTY_ARRAY);
   }
 
   public ConcatenationKdfSpec(
       final byte[] secret, final int outputLen, final String algorithmName, final byte[] info) {
-    this(secret, outputLen, algorithmName, info, EMPTY);
+    this(secret, outputLen, algorithmName, info, Utils.EMPTY_ARRAY);
   }
 
   public byte[] getSecret() {

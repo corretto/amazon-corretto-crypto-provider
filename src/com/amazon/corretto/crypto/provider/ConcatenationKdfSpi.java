@@ -78,7 +78,6 @@ class ConcatenationKdfSpi extends KdfSpi {
 
   private static final String CKDF = "ConcatenationKdf";
   private static final String WITH = "With";
-  static final String CKDF_WITH_SHA224 = CKDF + WITH + "SHA224";
   static final String CKDF_WITH_SHA256 = CKDF + WITH + "SHA256";
   static final String CKDF_WITH_SHA384 = CKDF + WITH + "SHA384";
   static final String CKDF_WITH_SHA512 = CKDF + WITH + "SHA512";
@@ -87,9 +86,6 @@ class ConcatenationKdfSpi extends KdfSpi {
 
   private static Map<String, ConcatenationKdfSpi> getInstances() {
     final Map<String, ConcatenationKdfSpi> kdfs = new HashMap<>();
-    kdfs.put(
-        getSpiFactoryForAlgName(CKDF_WITH_SHA224),
-        new ConcatenationKdfSpi(Utils.SHA224_CODE, true));
     kdfs.put(
         getSpiFactoryForAlgName(CKDF_WITH_SHA256),
         new ConcatenationKdfSpi(Utils.SHA256_CODE, true));

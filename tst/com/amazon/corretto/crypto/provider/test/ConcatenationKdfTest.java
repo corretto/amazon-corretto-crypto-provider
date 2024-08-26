@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.amazon.corretto.crypto.provider.test;
 
+import static com.amazon.corretto.crypto.provider.test.TestUtil.bcDigest;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.getEntriesFromFile;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -16,13 +17,7 @@ import java.security.spec.InvalidKeySpecException;
 import java.util.stream.Stream;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
-import org.bouncycastle.crypto.Digest;
 import org.bouncycastle.crypto.agreement.kdf.ConcatenationKDFGenerator;
-import org.bouncycastle.crypto.digests.SHA1Digest;
-import org.bouncycastle.crypto.digests.SHA224Digest;
-import org.bouncycastle.crypto.digests.SHA256Digest;
-import org.bouncycastle.crypto.digests.SHA384Digest;
-import org.bouncycastle.crypto.digests.SHA512Digest;
 import org.bouncycastle.crypto.params.KDFParameters;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -42,7 +37,6 @@ public class ConcatenationKdfTest {
   public void concatenationKdfsAreNotAvailableInFipsMode() {
     assumeTrue(TestUtil.isFips());
     Stream.of(
-            "ConcatenationKdfWithSHA224",
             "ConcatenationKdfWithSHA256",
             "ConcatenationKdfWithSHA384",
             "ConcatenationKdfWithSHA512",
@@ -111,7 +105,7 @@ public class ConcatenationKdfTest {
   public void concatenationKdfKatTests(final RspTestEntry entry) throws Exception {
     assumeFalse(TestUtil.isFips());
     final String digest = jceDigestName(entry.getInstance("HASH"));
-    assumeFalse("SHA1".equals(digest));
+    assumeFalse("SHA1".equals(digest) || "SHA224".equals(digest));
     final boolean digestPrf = entry.getInstance("VARIANT").equals("DIGEST");
     final byte[] expected = entry.getInstanceFromHex("EXPECT");
     final byte[] secret = entry.getInstanceFromHex("SECRET");
@@ -157,22 +151,5 @@ public class ConcatenationKdfTest {
     kdf.init(kdfParameters);
     kdf.generateBytes(result, 0, result.length);
     return result;
-  }
-
-  private static Digest bcDigest(final String digest) {
-    switch (digest) {
-      case "SHA1":
-        return new SHA1Digest();
-      case "SHA224":
-        return new SHA224Digest();
-      case "SHA256":
-        return new SHA256Digest();
-      case "SHA384":
-        return new SHA384Digest();
-      case "SHA512":
-        return new SHA512Digest();
-      default:
-        return null;
-    }
   }
 }

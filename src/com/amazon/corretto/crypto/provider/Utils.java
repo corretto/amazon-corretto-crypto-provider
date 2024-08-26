@@ -32,7 +32,6 @@ final class Utils {
   static final int SHA256_CODE = 2;
   static final int SHA384_CODE = 3;
   static final int SHA512_CODE = 4;
-  static final int SHA224_CODE = 5;
   private static final String PROPERTY_NATIVE_CONTEXT_RELEASE_STRATEGY =
       "nativeContextReleaseStrategy";
 
