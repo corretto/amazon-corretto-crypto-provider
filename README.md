@@ -87,6 +87,9 @@ SecretKeyFactory:
 * ConcatenationKdfWithSHA512 (not available in FIPS builds)
 * ConcatenationKdfWithHmacSHA256 (not available in FIPS builds)
 * ConcatenationKdfWithHmacSHA512 (not available in FIPS builds)
+* CounterKdfWithHmacSHA256 (not available in FIPS builds)
+* CounterKdfWithHmacSHA384 (not available in FIPS builds)
+* CounterKdfWithHmacSHA512 (not available in FIPS builds)
 
 SecureRandom:
 * ACCP's SecureRandom uses [AWS-LC's DRBG implementation](https://github.com/aws/aws-lc/blob/main/crypto/fipsmodule/rand/rand.c).

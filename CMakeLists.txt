@@ -285,7 +285,8 @@ if(FIPS)
 else()
     set(TEST_FIPS_PROPERTY "-DFIPS=false")
     set(C_SRC ${C_SRC}
-        csrc/concatenation_kdf.cpp)
+        csrc/concatenation_kdf.cpp
+        csrc/counter_kdf.cpp)
 endif()
 
 add_library(amazonCorrettoCryptoProvider SHARED ${C_SRC})
