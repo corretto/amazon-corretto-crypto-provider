@@ -96,6 +96,12 @@ KeyFactory:
 AlgorithmParameters:
 * EC. Please refer to [system properties](https://github.com/corretto/amazon-corretto-crypto-provider#other-system-properties) for more information.
 
+Mac algorithms with precomputed key and associated secret key factories (expert use only, refer to [HMAC with Precomputed Key](https://github.com/corretto/amazon-corretto-crypto-provider#HMAC-with-Precomputed-Key) for more information):
+* HmacSHA512WithPrecomputedKey (not available in FIPS builds)
+* HmacSHA384WithPrecomputedKey (not available in FIPS builds)
+* HmacSHA256WithPrecomputedKey (not available in FIPS builds)
+* HmacSHA1WithPrecomputedKey (not available in FIPS builds)
+* HmacMD5WithPrecomputedKey (not available in FIPS builds)
 
 # Notes on ACCP-FIPS
 ACCP-FIPS is a variation of ACCP which uses AWS-LC-FIPS 2.x as its cryptographic module. This version of AWS-LC-FIPS has completed FIPS validation testing by an accredited lab and has been submitted to NIST for certification. Refer to the [NIST Cryptographic Module Validation Program's Modules In Progress List](https://csrc.nist.gov/Projects/cryptographic-module-validation-program/modules-in-process/Modules-In-Process-List) for the latest status of the AWS-LC Cryptographic Module. We will also update our release notes and documentation to reflect any changes in FIPS certification status. We provide ACCP-FIPS for experimentation and performance testing in the interim.
@@ -374,6 +380,25 @@ Thus, these should all be set on the JVM command line using `-D`.
 * `com.amazon.corretto.crypto.provider.tmpdir`
    Allows one to set the temporary directory used by ACCP when loading native libraries.
    If this system property is not defined, the system property `java.io.tmpdir` is used.
+
+# Additional information
+
+## HMAC with Precomputed Key
+
+EXPERT use only. Most users of ACCP just need normal `HmacXXX` algorithms and not their `WithPrecomputedKey` variants.
+
+The non-standard-JCA/JCE algorithms `HmacXXXWithPrecomputedKey` (where `XXX` is the digest name, e.g., `SHA384`) implement an optimization of HMAC described in NIST-FIPS-198-1 (Section 6) and in RFC2104 (Section 4).
+They allow to generate a precomputed key for a given original key and a given HMAC algorithm, 
+and then to use this precomputed key to compute HMAC (instead of the original key).
+Only use these algorithms if you know you absolutely need them.
+
+In more detail, the secret key factories `HmacXXXWithPrecomputedKey` allow to generate a precomputed key from a normal HMAC key.
+The mac algorithms `HmacXXXWithPrecomputedKey` take a precomputed key instead of a normal HMAC key.
+Precomputed keys must implement `SecretKeySpec` with format `RAW` and algorithm `HmacXXXWithPrecomputedKey`.
+
+Implementation uses AWS-LC functions `HMAC_set_precomputed_key_export`, `HMAC_get_precomputed_key`, and `HMAC_Init_from_precomputed_key`.
+
+See [example HmacWithPrecomputedKey](./examples/lib/src/test/kotlin/com/amazon/corretto/crypto/examples/HmacWithPrecomputedKey.kt).
 
 # License
 This library is licensed under the Apache 2.0 license although portions of this

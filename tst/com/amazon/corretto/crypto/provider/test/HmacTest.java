@@ -19,8 +19,11 @@ import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.security.Provider.Service;
 import java.security.PublicKey;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.KeySpec;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -29,12 +32,15 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
+import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 import javax.crypto.Mac;
 import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import org.apache.commons.codec.binary.Hex;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.parallel.Execution;
@@ -54,7 +60,9 @@ public class HmacTest {
   static {
     List<String> macs = new ArrayList<>();
     for (final Service s : NATIVE_PROVIDER.getServices()) {
-      if (s.getType().equals("Mac") && s.getAlgorithm().startsWith("Hmac")) {
+      if (s.getType().equals("Mac")
+          && s.getAlgorithm().startsWith("Hmac")
+          && !s.getAlgorithm().endsWith("WithPrecomputedKey")) {
         macs.add(s.getAlgorithm());
       }
     }
@@ -66,8 +74,73 @@ public class HmacTest {
     }
   }
 
+  // TODO: This version needs to be updated once known.
+  private static final String MINIMUM_VERSION_WITH_PRECOMPUTED_KEY = "2.4.1";
+
+  /**
+   * Call this function before any tests that use precomputed keys.
+   *
+   * <p>TODO: This function will need to be changed once FIPS support precomputed keys.
+   */
+  private void assumePrecomputedKeySupport() {
+    TestUtil.assumeMinimumVersion(
+        MINIMUM_VERSION_WITH_PRECOMPUTED_KEY, AmazonCorrettoCryptoProvider.INSTANCE);
+    Assumptions.assumeFalse(
+        TestUtil.isFips(), "precomputed keys are only supported in non-FIPS builds");
+  }
+
+  /**
+   * Call this function before any tests that assume precomputed keys are not supported.
+   *
+   * <p>TODO: This function will need to be changed once FIPS support precomputed keys.
+   */
+  private void assumeNoPrecomputedKeySupport() {
+    Assumptions.assumeTrue(TestUtil.isFips());
+  }
+
   private static List<String> supportedHmacs() {
     return SUPPORTED_HMACS;
+  }
+
+  private int getPrecomputedKeyLength(String algorithm) {
+    int precomputedKeySize;
+    switch (algorithm) {
+      case "HmacMD5":
+        precomputedKeySize = 16;
+        break;
+      case "HmacSHA1":
+        precomputedKeySize = 20;
+        break;
+      case "HmacSHA256":
+        precomputedKeySize = 32;
+        break;
+      case "HmacSHA384":
+      case "HmacSHA512":
+        precomputedKeySize = 64;
+        break;
+      default:
+        throw new IllegalArgumentException("Unknown algorithm: " + algorithm);
+    }
+    return precomputedKeySize;
+  }
+
+  @Test
+  public void precomputedKeysAreNotAvailableInFipsMode() {
+    assumeNoPrecomputedKeySupport();
+    Stream.of(
+            "HmacMD5WithPrecomputedKey",
+            "HmacSHA1WithPrecomputedKey",
+            "HmacSHA256WithPrecomputedKey",
+            "HmacSHA384WithPrecomputedKey",
+            "HmacSHA512WithPrecomputedKey")
+        .forEach(
+            alg -> {
+              assertThrows(
+                  NoSuchAlgorithmException.class,
+                  () -> SecretKeyFactory.getInstance(alg, NATIVE_PROVIDER));
+              assertThrows(
+                  NoSuchAlgorithmException.class, () -> Mac.getInstance(alg, NATIVE_PROVIDER));
+            });
   }
 
   @Test
@@ -415,6 +488,112 @@ public class HmacTest {
     assertThrows(InvalidKeyException.class, () -> mac.init(nullFormat));
   }
 
+  @SuppressWarnings("serial")
+  @ParameterizedTest
+  @MethodSource("supportedHmacs")
+  public void engineInitErrorsWithPrecomputedKey(final String algorithm) throws Exception {
+    assumePrecomputedKeySupport();
+
+    final int precomputedKeyLength = getPrecomputedKeyLength(algorithm);
+    byte[] precomputedKey = new byte[precomputedKeyLength];
+
+    // Compare to Hmac, HmacWithPrecomputedKey requires the algorithm to be
+    // "HmacXXXWithPrecomputedKey"
+    // where XXX is the digest
+    final String keyAlgorithm = algorithm + "WithPrecomputedKey";
+
+    final SecretKey validKey = new SecretKeySpec(precomputedKey, keyAlgorithm);
+    final PublicKey pubKey =
+        new PublicKey() {
+          @Override
+          public String getFormat() {
+            return "RAW";
+          }
+
+          @Override
+          public byte[] getEncoded() {
+            return precomputedKey;
+          }
+
+          @Override
+          public String getAlgorithm() {
+            return "RAW";
+          }
+        };
+    final SecretKey badLength = new SecretKeySpec(new byte[precomputedKeyLength + 1], keyAlgorithm);
+    final SecretKey badAlgorithm = new SecretKeySpec(precomputedKey, "Generic");
+    final SecretKey badFormat =
+        new SecretKeySpec(precomputedKey, keyAlgorithm) {
+          @Override
+          public String getFormat() {
+            return "UnexpectedFormat";
+          }
+        };
+    final SecretKey nullFormat =
+        new SecretKeySpec(precomputedKey, keyAlgorithm) {
+          @Override
+          public String getFormat() {
+            return null;
+          }
+        };
+    final SecretKey nullEncoding =
+        new SecretKeySpec(precomputedKey, keyAlgorithm) {
+          @Override
+          public byte[] getEncoded() {
+            return null;
+          }
+        };
+
+    final Mac mac = Mac.getInstance(algorithm + "WithPrecomputedKey", NATIVE_PROVIDER);
+
+    assertThrows(
+        InvalidAlgorithmParameterException.class,
+        () -> mac.init(validKey, new IvParameterSpec(new byte[0])));
+    assertThrows(InvalidKeyException.class, () -> mac.init(pubKey));
+    assertThrows(InvalidKeyException.class, () -> mac.init(badFormat));
+    assertThrows(InvalidKeyException.class, () -> mac.init(badLength));
+    assertThrows(InvalidKeyException.class, () -> mac.init(badAlgorithm));
+    assertThrows(InvalidKeyException.class, () -> mac.init(nullEncoding));
+    assertThrows(InvalidKeyException.class, () -> mac.init(nullFormat));
+  }
+
+  @SuppressWarnings("serial")
+  @ParameterizedTest
+  @MethodSource("supportedHmacs")
+  public void incorrectKeySpecForKeyFactory(final String algorithm) throws Exception {
+    assumePrecomputedKeySupport();
+
+    final SecretKeyFactory skf =
+        SecretKeyFactory.getInstance(algorithm + "WithPrecomputedKey", NATIVE_PROVIDER);
+
+    final KeySpec nonSecretKeySpec = new KeySpec() {};
+    final KeySpec badFormat =
+        new SecretKeySpec("yellowsubmarine".getBytes(StandardCharsets.UTF_8), "Generic") {
+          @Override
+          public String getFormat() {
+            return "UnexpectedFormat";
+          }
+        };
+    final KeySpec nullFormat =
+        new SecretKeySpec("yellowsubmarine".getBytes(StandardCharsets.UTF_8), "Generic") {
+          @Override
+          public String getFormat() {
+            return null;
+          }
+        };
+    final KeySpec nullEncoding =
+        new SecretKeySpec("yellowsubmarine".getBytes(StandardCharsets.UTF_8), "Generic") {
+          @Override
+          public byte[] getEncoded() {
+            return null;
+          }
+        };
+
+    assertThrows(InvalidKeySpecException.class, () -> skf.generateSecret(badFormat));
+    assertThrows(InvalidKeySpecException.class, () -> skf.generateSecret(nullEncoding));
+    assertThrows(InvalidKeySpecException.class, () -> skf.generateSecret(nullFormat));
+  }
+
   @ParameterizedTest
   @MethodSource("supportedHmacs")
   public void supportsCloneable(final String algorithm) throws Exception {
@@ -534,6 +713,39 @@ public class HmacTest {
 
     assertArraysHexEquals(expected1, original.doFinal(suffix1));
     assertArraysHexEquals(expected2, duplicate.doFinal(suffix2));
+  }
+
+  @ParameterizedTest
+  @MethodSource("supportedHmacs")
+  // Suppress redundant cast warnings; they're redundant in java 9 but not java 8
+  @SuppressWarnings({"cast", "RedundantCast"})
+  public void testWithPrecomputedKey(final String algorithm) throws Exception {
+    assumePrecomputedKeySupport();
+
+    final SecretKeySpec key =
+        new SecretKeySpec("YellowSubmarine".getBytes(StandardCharsets.US_ASCII), "Generic");
+    final byte[] msg = "This is a test message".getBytes(StandardCharsets.US_ASCII);
+    final Mac jceMac = Mac.getInstance(algorithm, "SunJCE");
+    jceMac.init(key);
+    jceMac.update(msg);
+    final byte[] expected = jceMac.doFinal();
+
+    // Compute without precomputed key (sanity check)
+    Mac nativeMac = Mac.getInstance(algorithm, NATIVE_PROVIDER);
+    nativeMac.init(key);
+    nativeMac.update(msg);
+    assertArrayEquals(expected, nativeMac.doFinal());
+
+    // Compute the precomputed key
+    SecretKeyFactory skf =
+        SecretKeyFactory.getInstance(algorithm + "WithPrecomputedKey", NATIVE_PROVIDER);
+    SecretKey precomputedKey = skf.generateSecret(key);
+
+    // Check that the computation with the precomputed key matches
+    nativeMac = Mac.getInstance(algorithm + "WithPrecomputedKey", NATIVE_PROVIDER);
+    nativeMac.init(precomputedKey);
+    nativeMac.update(msg);
+    assertArrayEquals(expected, nativeMac.doFinal());
   }
 
   @ParameterizedTest

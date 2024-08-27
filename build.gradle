@@ -18,7 +18,7 @@ ext.isFips = Boolean.getBoolean('FIPS')
 if (ext.isFips) {
     ext.awsLcGitVersionId = 'AWS-LC-FIPS-2.0.13'
 } else {
-    ext.awsLcGitVersionId = 'v1.33.0'
+    ext.awsLcGitVersionId = 'v1.34.2'
 }
 
 // Check for user inputted git version ID.

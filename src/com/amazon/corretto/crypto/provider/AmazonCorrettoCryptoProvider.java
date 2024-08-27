@@ -10,6 +10,12 @@ import static com.amazon.corretto.crypto.provider.ConcatenationKdfSpi.CKDF_WITH_
 import static com.amazon.corretto.crypto.provider.ConcatenationKdfSpi.CKDF_WITH_SHA256;
 import static com.amazon.corretto.crypto.provider.ConcatenationKdfSpi.CKDF_WITH_SHA384;
 import static com.amazon.corretto.crypto.provider.ConcatenationKdfSpi.CKDF_WITH_SHA512;
+import static com.amazon.corretto.crypto.provider.EvpHmac.HMAC_MD5_WITH_PRECOMPUTED_KEY;
+import static com.amazon.corretto.crypto.provider.EvpHmac.HMAC_SHA1_WITH_PRECOMPUTED_KEY;
+import static com.amazon.corretto.crypto.provider.EvpHmac.HMAC_SHA256_WITH_PRECOMPUTED_KEY;
+import static com.amazon.corretto.crypto.provider.EvpHmac.HMAC_SHA384_WITH_PRECOMPUTED_KEY;
+import static com.amazon.corretto.crypto.provider.EvpHmac.HMAC_SHA512_WITH_PRECOMPUTED_KEY;
+import static com.amazon.corretto.crypto.provider.EvpHmac.WITH_PRECOMPUTED_KEY;
 import static com.amazon.corretto.crypto.provider.HkdfSecretKeyFactorySpi.HKDF_WITH_SHA1;
 import static com.amazon.corretto.crypto.provider.HkdfSecretKeyFactorySpi.HKDF_WITH_SHA256;
 import static com.amazon.corretto.crypto.provider.HkdfSecretKeyFactorySpi.HKDF_WITH_SHA384;
@@ -137,6 +143,43 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
     for (String hash : new String[] {"MD5", "SHA1", "SHA256", "SHA384", "SHA512"}) {
       addService("Mac", "Hmac" + hash, "EvpHmac$" + hash);
+    }
+
+    // Once these HMAC precomputed keys are supported in a FIPS branch of AWS-LC, we can remove this
+    // check and update HmacTest#assumePrecomputedKeySupport and
+    // HmacTest#assumeNoPrecomputedKeySupport.
+    if (!Loader.FIPS_BUILD) {
+      for (String hash : new String[] {"MD5", "SHA1", "SHA256", "SHA384", "SHA512"}) {
+        addService(
+            "Mac", "Hmac" + hash + WITH_PRECOMPUTED_KEY, "EvpHmac$" + hash + WITH_PRECOMPUTED_KEY);
+      }
+
+      final String hmacWithPrecomputedKeyKeyFactorySpi = "HmacWithPrecomputedKeyKeyFactorySpi";
+      addService(
+          "SecretKeyFactory",
+          HMAC_MD5_WITH_PRECOMPUTED_KEY,
+          hmacWithPrecomputedKeyKeyFactorySpi,
+          false);
+      addService(
+          "SecretKeyFactory",
+          HMAC_SHA1_WITH_PRECOMPUTED_KEY,
+          hmacWithPrecomputedKeyKeyFactorySpi,
+          false);
+      addService(
+          "SecretKeyFactory",
+          HMAC_SHA256_WITH_PRECOMPUTED_KEY,
+          hmacWithPrecomputedKeyKeyFactorySpi,
+          false);
+      addService(
+          "SecretKeyFactory",
+          HMAC_SHA384_WITH_PRECOMPUTED_KEY,
+          hmacWithPrecomputedKeyKeyFactorySpi,
+          false);
+      addService(
+          "SecretKeyFactory",
+          HMAC_SHA512_WITH_PRECOMPUTED_KEY,
+          hmacWithPrecomputedKeyKeyFactorySpi,
+          false);
     }
 
     addService(
@@ -329,6 +372,13 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
               ConcatenationKdfSpi.INSTANCES.get(ConcatenationKdfSpi.getSpiFactoryForAlgName(algo));
           if (ckdfSpi != null) {
             return ckdfSpi;
+          }
+
+          final HmacWithPrecomputedKeyKeyFactorySpi hmacWithPrecomputedKeySpi =
+              HmacWithPrecomputedKeyKeyFactorySpi.INSTANCES.get(
+                  HmacWithPrecomputedKeyKeyFactorySpi.getSpiFactoryForAlgName(algo));
+          if (hmacWithPrecomputedKeySpi != null) {
+            return hmacWithPrecomputedKeySpi;
           }
         }
 
