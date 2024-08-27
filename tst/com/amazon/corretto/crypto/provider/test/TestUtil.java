@@ -34,6 +34,12 @@ import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import org.apache.commons.codec.binary.Hex;
+import org.bouncycastle.crypto.Digest;
+import org.bouncycastle.crypto.digests.SHA1Digest;
+import org.bouncycastle.crypto.digests.SHA224Digest;
+import org.bouncycastle.crypto.digests.SHA256Digest;
+import org.bouncycastle.crypto.digests.SHA384Digest;
+import org.bouncycastle.crypto.digests.SHA512Digest;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assumptions;
 
@@ -462,14 +468,20 @@ public class TestUtil {
     }
   }
 
-  public static Stream<RspTestEntry> getEntriesFromFile(final String fileName) throws IOException {
+  public static Stream<RspTestEntry> getEntriesFromFile(
+      final String fileName, final boolean isCompressed) throws IOException {
     final File rsp = new File(System.getProperty("test.data.dir"), fileName);
-    final InputStream is = new GZIPInputStream(new FileInputStream(rsp));
+    final InputStream is =
+        isCompressed ? new GZIPInputStream(new FileInputStream(rsp)) : new FileInputStream(rsp);
     final Iterator<RspTestEntry> iterator =
         RspTestEntry.iterateOverResource(is, true); // Auto-closes stream
     final Spliterator<RspTestEntry> split =
         Spliterators.spliteratorUnknownSize(iterator, Spliterator.ORDERED);
     return StreamSupport.stream(split, false);
+  }
+
+  public static Stream<RspTestEntry> getEntriesFromFile(final String fileName) throws IOException {
+    return getEntriesFromFile(fileName, true);
   }
 
   public static int roundUp(final int i, final int m) {
@@ -802,5 +814,22 @@ public class TestUtil {
       return ascendingPattern(inputLen);
     }
     return constantPattern(inputLen, choice);
+  }
+
+  static Digest bcDigest(final String digest) {
+    switch (digest) {
+      case "SHA1":
+        return new SHA1Digest();
+      case "SHA224":
+        return new SHA224Digest();
+      case "SHA256":
+        return new SHA256Digest();
+      case "SHA384":
+        return new SHA384Digest();
+      case "SHA512":
+        return new SHA512Digest();
+      default:
+        return null;
+    }
   }
 }
