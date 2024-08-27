@@ -345,15 +345,14 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpEdPriva
         size_t bufSize;
 
         CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(key, NULL, &bufSize) == 1);
-        OPENSSL_buffer_auto privateKeyBuffer;
-        privateKeyBuffer.buf = (uint8_t*)OPENSSL_malloc(bufSize);
-        CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(key, privateKeyBuffer, &bufSize) == 1);
+        SimpleBuffer privateKeyBuffer(bufSize);
+        CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(key, privateKeyBuffer.get_buffer(), &bufSize) == 1);
 
         result = env->NewByteArray(bufSize);
         if (!result) {
             throw_java_ex(EX_OOM, "Unable to allocate private key array");
         }
-        env->SetByteArrayRegion(result, 0, bufSize, privateKeyBuffer);
+        env->SetByteArrayRegion(result, 0, bufSize, (jbyte*)privateKeyBuffer.get_buffer());
     } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);
     }
