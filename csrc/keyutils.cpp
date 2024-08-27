@@ -7,7 +7,6 @@
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/rsa.h>
-#include <iostream>
 
 namespace AmazonCorrettoCryptoProvider {
 

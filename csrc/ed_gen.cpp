@@ -7,7 +7,7 @@
 
 using namespace AmazonCorrettoCryptoProvider;
 
-void generateEdKey(raii_env* env, EVP_PKEY_auto& key)
+void generateEdKey(EVP_PKEY_auto& key)
 {
     EVP_PKEY_CTX_auto ctx = EVP_PKEY_CTX_auto::from(EVP_PKEY_CTX_new_id(EVP_PKEY_ED25519, nullptr));
     CHECK_OPENSSL(ctx.isInitialized());
@@ -20,7 +20,7 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EdGen_generateE
     try {
         raii_env env(pEnv);
         EVP_PKEY_auto key;
-        generateEdKey(&env, key);
+        generateEdKey(key);
         return reinterpret_cast<jlong>(key.take());
     } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);

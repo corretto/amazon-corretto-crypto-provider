@@ -24,12 +24,12 @@ class EdGen extends KeyPairGeneratorSpi {
     provider_ = provider;
     try {
       kf = KeyFactory.getInstance("EdDSA", "SunEC");
-    } catch (GeneralSecurityException e) {
+    } catch (final GeneralSecurityException e) {
       throw new RuntimeException("Error setting up KeyPairGenerator", e);
     }
   }
 
-  public void initialize(int keysize, SecureRandom random) {
+  public void initialize(final int keysize, final SecureRandom random) {
     throw new UnsupportedOperationException();
   }
 
@@ -45,7 +45,7 @@ class EdGen extends KeyPairGeneratorSpi {
       final PrivateKey jcePrivateKey = kf.generatePrivate(privateKeyPkcs8);
       final PublicKey jcePublicKey = kf.generatePublic(publicKeyX509);
       return new KeyPair(jcePublicKey, jcePrivateKey);
-    } catch (GeneralSecurityException e) {
+    } catch (final GeneralSecurityException e) {
       throw new RuntimeException("Error generating key pair", e);
     }
   }

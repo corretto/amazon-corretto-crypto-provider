@@ -157,7 +157,7 @@ public class EdDSATest {
 
   @Test
   public void bcInteropValidation() throws GeneralSecurityException {
-    // Generate keys with ACCP and use BC KeyFactory to get equivalent JCE Keys
+    // Generate keys with ACCP and use BC KeyFactory to get equivalent Keys
     final Signature nativeSig = Signature.getInstance("Ed25519", NATIVE_PROVIDER);
     final Signature bcSig = Signature.getInstance("Ed25519", BOUNCYCASTLE_PROVIDER);
     final KeyPair keyPair = nativeGen.generateKeyPair();
@@ -192,7 +192,7 @@ public class EdDSATest {
 
   @Test
   public void bcKeyValidation() throws GeneralSecurityException {
-    // Generate keys with ACCP and use BC KeyFactory to get equivalent JCE Keys
+    // Generate keys with ACCP and use BC KeyFactory to get equivalent Keys
     final KeyPair kp = nativeGen.generateKeyPair();
     final byte[] pkACCP = kp.getPrivate().getEncoded();
     final byte[] pbkACCP = kp.getPublic().getEncoded();

@@ -310,17 +310,18 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
     }
 
     @Override
-    protected PrivateKey engineGeneratePrivate(KeySpec keySpec) throws InvalidKeySpecException {
+    protected PrivateKey engineGeneratePrivate(final KeySpec keySpec)
+        throws InvalidKeySpecException {
       return super.engineGeneratePrivate(keySpec);
     }
 
     @Override
-    protected PublicKey engineGeneratePublic(KeySpec keySpec) throws InvalidKeySpecException {
+    protected PublicKey engineGeneratePublic(final KeySpec keySpec) throws InvalidKeySpecException {
       return super.engineGeneratePublic(keySpec);
     }
 
     @Override
-    protected <T extends KeySpec> T engineGetKeySpec(Key key, Class<T> keySpec)
+    protected <T extends KeySpec> T engineGetKeySpec(final Key key, final Class<T> keySpec)
         throws InvalidKeySpecException {
       return super.engineGetKeySpec(key, keySpec);
     }
