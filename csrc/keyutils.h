@@ -79,8 +79,11 @@ private:
     EvpKeyContext& operator=(const EvpKeyContext&) DELETE_IMPLICIT;
 };
 
-EVP_PKEY* der2EvpPrivateKey(
-    const unsigned char* der, const int derLen, const bool checkPrivateKey, const char* javaExceptionClass);
+EVP_PKEY* der2EvpPrivateKey(const unsigned char* der,
+    const int derLen,
+    const int evpType,
+    const bool checkPrivateKey,
+    const char* javaExceptionClass);
 EVP_PKEY* der2EvpPublicKey(const unsigned char* der, const int derLen, const char* javaExceptionClass);
 bool checkKey(const EVP_PKEY* key);
 static bool inline BN_null_or_zero(const BIGNUM* bn) { return nullptr == bn || BN_is_zero(bn); }

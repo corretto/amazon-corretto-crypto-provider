@@ -66,7 +66,7 @@ bool initializeContext(raii_env& env,
     EVP_PKEY_up_ref(pKey);
     ctx->setKey(pKey);
 
-    if (md != nullptr) {
+    if (md != nullptr || EVP_PKEY_id(pKey) == EVP_PKEY_ED25519) {
         if (!ctx->setDigestCtx(EVP_MD_CTX_create())) {
             throw_openssl("Unable to create MD_CTX");
         }
@@ -168,8 +168,8 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_si
             true, // true->sign
             reinterpret_cast<EVP_PKEY*>(pKey), reinterpret_cast<const EVP_MD*>(mdPtr), paddingType,
             reinterpret_cast<const EVP_MD*>(mgfMdPtr), pssSaltLen);
-        update(env, &ctx, digestSignUpdate, java_buffer::from_array(env, message, offset, length));
 
+        update(env, &ctx, digestSignUpdate, java_buffer::from_array(env, message, offset, length));
         return reinterpret_cast<jlong>(ctx.moveToHeap());
     } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);
@@ -452,8 +452,25 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatu
             paddingType, reinterpret_cast<const EVP_MD*>(mgfMdPtr), pssSaltLen);
 
         std::vector<uint8_t, SecureAlloc<uint8_t> > signature;
-        {
-            size_t sigLength;
+        size_t sigLength;
+
+        int keyType = EVP_PKEY_id(reinterpret_cast<EVP_PKEY*>(pKey));
+
+        if (keyType == EVP_PKEY_ED25519) {
+            jni_borrow message(env, messageBuf, "message");
+
+            if (!EVP_DigestSign(ctx.getDigestCtx(), NULL, &sigLength, message.data(), message.len())) {
+                throw_openssl("Signature failed");
+            }
+
+            signature.resize(sigLength);
+
+            if (!EVP_DigestSign(ctx.getDigestCtx(), &signature[0], &sigLength, message.data(), message.len())) {
+                throw_openssl("Signature failed");
+            }
+
+            signature.resize(sigLength);
+        } else {
             jni_borrow message(env, messageBuf, "message");
 
             if (EVP_PKEY_sign(ctx.getKeyCtx(), NULL, &sigLength, message.data(), message.len()) <= 0) {
@@ -472,7 +489,6 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatu
 
             signature.resize(sigLength);
         }
-
         return vecToArray(env, signature);
     } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);
@@ -508,7 +524,14 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
         jni_borrow message(env, messageBuf, "message");
         jni_borrow signature(env, signatureBuf, "signature");
 
-        int ret = EVP_PKEY_verify(ctx.getKeyCtx(), signature.data(), signature.len(), message.data(), message.len());
+        int ret;
+        int keyType = EVP_PKEY_id(reinterpret_cast<EVP_PKEY*>(pKey));
+        if (keyType == EVP_PKEY_ED25519) {
+            ret = EVP_DigestVerify(
+                ctx.getDigestCtx(), signature.data(), signature.len(), message.data(), message.len());
+        } else {
+            ret = EVP_PKEY_verify(ctx.getKeyCtx(), signature.data(), signature.len(), message.data(), message.len());
+        }
 
         if (likely(ret == 1)) {
             return true;
@@ -518,7 +541,8 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
             // Mismatched signatures are not an error case, so return false
             // instead of throwing per JCA convention.
             if (ECDSA_R_MISMATCHED_SIGNATURE == (errorCode & ECDSA_R_MISMATCHED_SIGNATURE)
-                || RSA_R_MISMATCHED_SIGNATURE == (errorCode & RSA_R_MISMATCHED_SIGNATURE)) {
+                || RSA_R_MISMATCHED_SIGNATURE == (errorCode & RSA_R_MISMATCHED_SIGNATURE)
+                || EVP_R_INVALID_SIGNATURE == (errorCode & EVP_R_INVALID_SIGNATURE)) {
                 return false;
             }
 
