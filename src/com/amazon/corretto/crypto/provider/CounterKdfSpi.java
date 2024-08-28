@@ -46,17 +46,18 @@ class CounterKdfSpi extends KdfSpi {
 
   static final Map<String, CounterKdfSpi> INSTANCES = getInstances();
 
-  private static final String CNTR_KDF = "CounterKdf";
-  private static final String WITH_HMAC = "WithHmac";
-  static final String CNTRKDF_WITH_SHA256 = CNTR_KDF + WITH_HMAC + "SHA256";
-  static final String CNTRKDF_WITH_SHA384 = CNTR_KDF + WITH_HMAC + "SHA384";
-  static final String CNTRKDF_WITH_SHA512 = CNTR_KDF + WITH_HMAC + "SHA512";
+  static final String CTR_KDF_WITH_HMAC_SHA256 = "CounterKdfWithHmacSHA256";
+  static final String CTR_KDF_WITH_HMAC_SHA384 = "CounterKdfWithHmacSHA384";
+  static final String CTR_KDF_WITH_HMAC_SHA512 = "CounterKdfWithHmacSHA512";
 
   private static Map<String, CounterKdfSpi> getInstances() {
     final Map<String, CounterKdfSpi> kdfs = new HashMap<>();
-    kdfs.put(getSpiFactoryForAlgName(CNTRKDF_WITH_SHA256), new CounterKdfSpi(Utils.SHA256_CODE));
-    kdfs.put(getSpiFactoryForAlgName(CNTRKDF_WITH_SHA384), new CounterKdfSpi(Utils.SHA384_CODE));
-    kdfs.put(getSpiFactoryForAlgName(CNTRKDF_WITH_SHA512), new CounterKdfSpi(Utils.SHA512_CODE));
+    kdfs.put(
+        getSpiFactoryForAlgName(CTR_KDF_WITH_HMAC_SHA256), new CounterKdfSpi(Utils.SHA256_CODE));
+    kdfs.put(
+        getSpiFactoryForAlgName(CTR_KDF_WITH_HMAC_SHA384), new CounterKdfSpi(Utils.SHA384_CODE));
+    kdfs.put(
+        getSpiFactoryForAlgName(CTR_KDF_WITH_HMAC_SHA512), new CounterKdfSpi(Utils.SHA512_CODE));
     return Collections.unmodifiableMap(kdfs);
   }
 
