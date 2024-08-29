@@ -24,6 +24,7 @@ public class SignatureBase {
           throws Exception {
     BenchmarkUtils.setupProvider(provider);
     final KeyPairGenerator kpg = KeyPairGenerator.getInstance(keyAlg, provider);
+    // Ed25519 in ACCP doesn't currently support initialization
     if (!keyAlg.equals("Ed25519")) {
       kpg.initialize(keyParams);
     }
