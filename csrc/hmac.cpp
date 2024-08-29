@@ -234,18 +234,21 @@ JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_HmacWithPrecompu
         JBinaryBlob result(pEnv, nullptr, jOutput);
         JBinaryBlob key(pEnv, nullptr, jKey);
 
-        bssl::ScopedHMAC_CTX ctx;
+        HMAC_CTX ctx;
+        HMAC_CTX_init(&ctx);
 
-        if (unlikely(HMAC_Init_ex(ctx.get(),
+        if (unlikely(HMAC_Init_ex(&ctx,
                          key.get(), // key
                          keyLen, // keyLen
                          reinterpret_cast<const EVP_MD*>(evpMd), // EVP_MD
                          nullptr /* ENGINE */)
                 != 1)) {
+            HMAC_CTX_cleanup(&ctx);
             throw_openssl("Unable to initialize HMAC_CTX");
         }
 
-        if (unlikely(HMAC_set_precomputed_key_export(ctx.get()) != 1)) {
+        if (unlikely(HMAC_set_precomputed_key_export(&ctx) != 1)) {
+            HMAC_CTX_cleanup(&ctx);
             throw_openssl("Unable to call HMAC_set_precomputed_key_export");
         }
 
@@ -254,12 +257,16 @@ JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_HmacWithPrecompu
         // The Java caller always selects the right buffer size, so we should not have any error.
         // But we do a sanity check that this is the case.
         size_t actualOutputLen = outputLen;
-        if (unlikely(HMAC_get_precomputed_key(ctx.get(), result.get(), &actualOutputLen) != 1)) {
+        if (unlikely(HMAC_get_precomputed_key(&ctx, result.get(), &actualOutputLen) != 1)) {
+            HMAC_CTX_cleanup(&ctx);
             throw_openssl("Unable to call HMAC_get_precomputed_key");
         }
         if (unlikely(outputLen < 0 || (size_t)outputLen != actualOutputLen)) {
+            HMAC_CTX_cleanup(&ctx);
             throw_java_ex(EX_ERROR, "THIS SHOULD NOT BE REACHABLE. invalid output precomputed key length.");
         }
+
+        HMAC_CTX_cleanup(&ctx);
 #else
         throw_java_ex(EX_ERROR, "Precomputed keys are not supported on this platform/build");
 #endif
