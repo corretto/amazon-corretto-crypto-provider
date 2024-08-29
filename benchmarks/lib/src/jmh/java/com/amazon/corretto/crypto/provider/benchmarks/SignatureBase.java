@@ -16,15 +16,17 @@ public class SignatureBase {
   protected byte[] signature;
 
   protected void setup(
-      String provider,
-      String keyAlg,
-      AlgorithmParameterSpec keyParams,
-      String sigAlg,
-      AlgorithmParameterSpec sigParams)
-      throws Exception {
+          String provider,
+          String keyAlg,
+          AlgorithmParameterSpec keyParams,
+          String sigAlg,
+          AlgorithmParameterSpec sigParams)
+          throws Exception {
     BenchmarkUtils.setupProvider(provider);
     final KeyPairGenerator kpg = KeyPairGenerator.getInstance(keyAlg, provider);
-    kpg.initialize(keyParams);
+    if (!keyAlg.equals("Ed25519")) {
+      kpg.initialize(keyParams);
+    }
     keyPair = kpg.generateKeyPair();
     signer = Signature.getInstance(sigAlg, provider);
     verifier = Signature.getInstance(sigAlg, provider);
@@ -38,7 +40,9 @@ public class SignatureBase {
     signer.update(message);
     signature = signer.sign();
     verifier.update(message);
-    assert verifier.verify(signature);
+    if (!verifier.verify(signature)) {
+      throw new RuntimeException("Verification failed in setup.");
+    }
   }
 
   protected byte[] sign() throws Exception {
