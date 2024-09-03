@@ -124,10 +124,11 @@ class HkdfSecretKeyFactorySpi extends KdfSpi {
 
   private static final String HKDF = "Hkdf";
   private static final String WITH = "With";
-  static final String HKDF_WITH_SHA1 = HKDF + WITH + "HmacSHA1";
-  static final String HKDF_WITH_SHA256 = HKDF + WITH + "HmacSHA256";
-  static final String HKDF_WITH_SHA384 = HKDF + WITH + "HmacSHA384";
-  static final String HKDF_WITH_SHA512 = HKDF + WITH + "HmacSHA512";
+  static final String HKDF_PREFIX = HKDF + WITH;
+  static final String HKDF_WITH_SHA1 = HKDF_PREFIX + "HmacSHA1";
+  static final String HKDF_WITH_SHA256 = HKDF_PREFIX + "HmacSHA256";
+  static final String HKDF_WITH_SHA384 = HKDF_PREFIX + "HmacSHA384";
+  static final String HKDF_WITH_SHA512 = HKDF_PREFIX + "HmacSHA512";
 
   private static Map<String, HkdfSecretKeyFactorySpi> getInstances() {
     final Map<String, HkdfSecretKeyFactorySpi> result = new HashMap<>();
