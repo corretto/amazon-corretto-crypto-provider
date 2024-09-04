@@ -10,6 +10,9 @@ import static com.amazon.corretto.crypto.provider.ConcatenationKdfSpi.CKDF_WITH_
 import static com.amazon.corretto.crypto.provider.ConcatenationKdfSpi.CKDF_WITH_SHA256;
 import static com.amazon.corretto.crypto.provider.ConcatenationKdfSpi.CKDF_WITH_SHA384;
 import static com.amazon.corretto.crypto.provider.ConcatenationKdfSpi.CKDF_WITH_SHA512;
+import static com.amazon.corretto.crypto.provider.CounterKdfSpi.CTR_KDF_WITH_HMAC_SHA256;
+import static com.amazon.corretto.crypto.provider.CounterKdfSpi.CTR_KDF_WITH_HMAC_SHA384;
+import static com.amazon.corretto.crypto.provider.CounterKdfSpi.CTR_KDF_WITH_HMAC_SHA512;
 import static com.amazon.corretto.crypto.provider.HkdfSecretKeyFactorySpi.HKDF_WITH_SHA1;
 import static com.amazon.corretto.crypto.provider.HkdfSecretKeyFactorySpi.HKDF_WITH_SHA256;
 import static com.amazon.corretto.crypto.provider.HkdfSecretKeyFactorySpi.HKDF_WITH_SHA384;
@@ -102,12 +105,17 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
     // Once these KDFs are added to a FIPS branch of AWS-LC, we can remove this check.
     if (!Loader.FIPS_BUILD) {
-      final String concatenationKdfSpi = "ConcatenationKdf";
+      final String concatenationKdfSpi = "ConcatenationKdfSpi";
       addService("SecretKeyFactory", CKDF_WITH_SHA256, concatenationKdfSpi, false);
       addService("SecretKeyFactory", CKDF_WITH_SHA384, concatenationKdfSpi, false);
       addService("SecretKeyFactory", CKDF_WITH_SHA512, concatenationKdfSpi, false);
       addService("SecretKeyFactory", CKDF_WITH_HMAC_SHA256, concatenationKdfSpi, false);
       addService("SecretKeyFactory", CKDF_WITH_HMAC_SHA512, concatenationKdfSpi, false);
+
+      final String counterKdfSpi = "CounterKdfSpi";
+      addService("SecretKeyFactory", CTR_KDF_WITH_HMAC_SHA256, counterKdfSpi, false);
+      addService("SecretKeyFactory", CTR_KDF_WITH_HMAC_SHA384, counterKdfSpi, false);
+      addService("SecretKeyFactory", CTR_KDF_WITH_HMAC_SHA512, counterKdfSpi, false);
     }
 
     addService("KeyPairGenerator", "RSA", "RsaGen");
@@ -341,6 +349,12 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
               ConcatenationKdfSpi.INSTANCES.get(ConcatenationKdfSpi.getSpiFactoryForAlgName(algo));
           if (ckdfSpi != null) {
             return ckdfSpi;
+          }
+
+          final CounterKdfSpi cntrKdfSpi =
+              CounterKdfSpi.INSTANCES.get(CounterKdfSpi.getSpiFactoryForAlgName(algo));
+          if (cntrKdfSpi != null) {
+            return cntrKdfSpi;
           }
         }
 

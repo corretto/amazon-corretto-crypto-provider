@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.5.0
+
+### Minor
+* [PR 397:](https://github.com/corretto/amazon-corretto-crypto-provider/pull/397) Support for Concatenation KDFs
+* [PR 399:](https://github.com/corretto/amazon-corretto-crypto-provider/pull/399) Support for Counter KDFs
+
 ## 2.4.1
 
 ### Patch

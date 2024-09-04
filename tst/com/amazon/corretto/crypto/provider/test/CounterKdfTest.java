@@ -11,14 +11,15 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
-import com.amazon.corretto.crypto.provider.ConcatenationKdfSpec;
+import com.amazon.corretto.crypto.provider.CounterKdfSpec;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 import java.util.stream.Stream;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
-import org.bouncycastle.crypto.agreement.kdf.ConcatenationKDFGenerator;
-import org.bouncycastle.crypto.params.KDFParameters;
+import org.bouncycastle.crypto.generators.KDFCounterBytesGenerator;
+import org.bouncycastle.crypto.macs.HMac;
+import org.bouncycastle.crypto.params.KDFCounterParameters;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.parallel.Execution;
@@ -31,16 +32,10 @@ import org.junit.jupiter.params.provider.MethodSource;
 @ExtendWith(TestResultLogger.class)
 @Execution(ExecutionMode.CONCURRENT)
 @ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
-public class ConcatenationKdfTest {
-
+public class CounterKdfTest {
   @Test
   public void concatenationKdfsAreNotAvailableInFipsMode() {
-    Stream.of(
-            "ConcatenationKdfWithSHA256",
-            "ConcatenationKdfWithSHA384",
-            "ConcatenationKdfWithSHA512",
-            "ConcatenationKdfWithHmacSHA256",
-            "ConcatenationKdfWithHmacSHA512")
+    Stream.of("CounterKdfWithHmacSHA256", "CounterKdfWithHmacSHA384", "CounterKdfWithHmacSHA512")
         .forEach(
             alg -> {
               try {
@@ -53,16 +48,13 @@ public class ConcatenationKdfTest {
 
   @Test
   public void secretLengthCannotBeZero() {
-    assertThrows(
-        IllegalArgumentException.class, () -> new ConcatenationKdfSpec(new byte[0], 1, "name"));
+    assertThrows(IllegalArgumentException.class, () -> new CounterKdfSpec(new byte[0], 1, "name"));
   }
 
   @Test
   public void outputLengthCannotBeZeroOrNegative() {
-    assertThrows(
-        IllegalArgumentException.class, () -> new ConcatenationKdfSpec(new byte[10], 0, "name"));
-    assertThrows(
-        IllegalArgumentException.class, () -> new ConcatenationKdfSpec(new byte[10], -1, "name"));
+    assertThrows(IllegalArgumentException.class, () -> new CounterKdfSpec(new byte[1], 0, "name"));
+    assertThrows(IllegalArgumentException.class, () -> new CounterKdfSpec(new byte[1], -1, "name"));
   }
 
   // The rest of the tests are only available in non-FIPS mode.
@@ -70,69 +62,39 @@ public class ConcatenationKdfTest {
   public void concatenationKdfExpectsConcatenationKdfSpecAsKeySpec() throws Exception {
     assumeFalse(TestUtil.isFips());
     final SecretKeyFactory skf =
-        SecretKeyFactory.getInstance("ConcatenationKdfWithSha256", TestUtil.NATIVE_PROVIDER);
+        SecretKeyFactory.getInstance("CounterKdfWithHmacSHA256", TestUtil.NATIVE_PROVIDER);
     assertThrows(
         InvalidKeySpecException.class, () -> skf.generateSecret(new PBEKeySpec(new char[4])));
   }
 
   @Test
-  public void concatenationKdfWithEmptyInfoIsFine() throws Exception {
+  public void counterKdfWithEmptyInfoIsFine() throws Exception {
     assumeFalse(TestUtil.isFips());
     final SecretKeyFactory skf =
-        SecretKeyFactory.getInstance("ConcatenationKdfWithSha256", TestUtil.NATIVE_PROVIDER);
-    final ConcatenationKdfSpec spec = new ConcatenationKdfSpec(new byte[1], 10, "name");
+        SecretKeyFactory.getInstance("CounterKdfWithHmacSHA256", TestUtil.NATIVE_PROVIDER);
+    final CounterKdfSpec spec = new CounterKdfSpec(new byte[1], 10, "name");
     assertEquals(0, spec.getInfo().length);
     assertNotNull(skf.generateSecret(spec));
   }
 
-  @Test
-  public void concatenationKdfHmacWithEmptySaltIsFine() throws Exception {
-    assumeFalse(TestUtil.isFips());
-    final SecretKeyFactory skf =
-        SecretKeyFactory.getInstance("ConcatenationKdfWithHmacSha256", TestUtil.NATIVE_PROVIDER);
-    final ConcatenationKdfSpec spec1 = new ConcatenationKdfSpec(new byte[1], 10, "name");
-    assertEquals(0, spec1.getInfo().length);
-    assertEquals(0, spec1.getSalt().length);
-    assertNotNull(skf.generateSecret(spec1));
-
-    final ConcatenationKdfSpec spec2 =
-        new ConcatenationKdfSpec(new byte[1], 10, "name", new byte[10]);
-    assertEquals(10, spec2.getInfo().length);
-    assertEquals(0, spec2.getSalt().length);
-    assertNotNull(skf.generateSecret(spec2));
-  }
-
   @ParameterizedTest(name = "{0}")
-  @MethodSource("sskdfKatTests")
-  public void concatenationKdfKatTests(final RspTestEntry entry) throws Exception {
+  @MethodSource("counterKdfKatTests")
+  public void counterKdfKatTests(final RspTestEntry entry) throws Exception {
     assumeFalse(TestUtil.isFips());
     final String digest = jceDigestName(entry.getInstance("HASH"));
-    assumeFalse("SHA1".equals(digest) || "SHA224".equals(digest));
-    final boolean digestPrf = entry.getInstance("VARIANT").equals("DIGEST");
+    assumeFalse("SHA1".equals(digest));
     final byte[] expected = entry.getInstanceFromHex("EXPECT");
     final byte[] secret = entry.getInstanceFromHex("SECRET");
     final byte[] info = entry.getInstanceFromHex("INFO");
 
-    final ConcatenationKdfSpec spec;
-    if (entry.contains("SALT")) {
-      spec =
-          new ConcatenationKdfSpec(
-              secret, expected.length, "SECRET_KEY", info, entry.getInstanceFromHex("SALT"));
-    } else {
-      spec = new ConcatenationKdfSpec(secret, expected.length, "SECRET_KEY", info);
-    }
-
-    final String alg = "ConcatenationKdfWith" + (digestPrf ? "" : "Hmac") + digest;
+    final CounterKdfSpec spec = new CounterKdfSpec(secret, info, expected.length, "SECRET_KEY");
+    final String alg = "CounterKdfWithHmac" + digest;
 
     final SecretKeyFactory skf = SecretKeyFactory.getInstance(alg, TestUtil.NATIVE_PROVIDER);
     final byte[] actual = skf.generateSecret(spec).getEncoded();
     assertArrayEquals(expected, actual);
-
-    if (digestPrf) {
-      // Bouncy Castle implements the digest variant. Here we check that ACCP is also producing the
-      // same result as BC.
-      assertArrayEquals(bcConcatenationKdf(digest, spec), actual);
-    }
+    // Checking that ACCP produces the same output as Bouncy Castle:
+    assertArrayEquals(bcCounterKdf(digest, spec), actual);
   }
 
   private static String jceDigestName(final String digest) {
@@ -142,14 +104,15 @@ public class ConcatenationKdfTest {
     return digest;
   }
 
-  private static Stream<RspTestEntry> sskdfKatTests() throws Exception {
-    return getEntriesFromFile("sskdf.txt", false);
+  private static Stream<RspTestEntry> counterKdfKatTests() throws Exception {
+    return getEntriesFromFile("kbkdf_counter.txt", false);
   }
 
-  private static byte[] bcConcatenationKdf(final String digest, final ConcatenationKdfSpec spec) {
+  private static byte[] bcCounterKdf(final String digest, final CounterKdfSpec spec) {
     final byte[] result = new byte[spec.getOutputLen()];
-    final KDFParameters kdfParameters = new KDFParameters(spec.getSecret(), spec.getInfo());
-    final ConcatenationKDFGenerator kdf = new ConcatenationKDFGenerator(bcDigest(digest));
+    final KDFCounterParameters kdfParameters =
+        new KDFCounterParameters(spec.getSecret(), spec.getInfo(), 32);
+    final KDFCounterBytesGenerator kdf = new KDFCounterBytesGenerator(new HMac(bcDigest(digest)));
     kdf.init(kdfParameters);
     kdf.generateBytes(result, 0, result.length);
     return result;
