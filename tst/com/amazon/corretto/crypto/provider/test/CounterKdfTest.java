@@ -34,7 +34,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 @ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
 public class CounterKdfTest {
   @Test
-  public void concatenationKdfsAreNotAvailableInFipsMode() {
+  public void counterKdfsAreNotAvailableInFipsMode() {
     Stream.of("CounterKdfWithHmacSHA256", "CounterKdfWithHmacSHA384", "CounterKdfWithHmacSHA512")
         .forEach(
             alg -> {
@@ -59,7 +59,7 @@ public class CounterKdfTest {
 
   // The rest of the tests are only available in non-FIPS mode.
   @Test
-  public void concatenationKdfExpectsConcatenationKdfSpecAsKeySpec() throws Exception {
+  public void counterKdfExpectsCounterKdfSpecAsKeySpec() throws Exception {
     assumeFalse(TestUtil.isFips());
     final SecretKeyFactory skf =
         SecretKeyFactory.getInstance("CounterKdfWithHmacSHA256", TestUtil.NATIVE_PROVIDER);

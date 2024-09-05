@@ -375,7 +375,7 @@ task build(overwrite:true) {
                 alias: jcecertAlias,
                 jar: "${buildDir}/cmake/AmazonCorrettoCryptoProvider.jar",
                 destDir: "${buildDir}/lib",
-                storepass: jcecertPassword,
+                storepass: "${System.env.KEYSTORE_PASSWORD}" ,
                 keystore: "${project.gradle.gradleUserHomeDir}/${jcecertJks}",
                 tsaurl: "http://timestamp.digicert.com"
             )
@@ -675,14 +675,14 @@ task fakePublish {
                 ant.signjar(
                     alias: jcecertAlias,
                     jar: "${destinationDir}/${newPrefix}-osx-x86_64.jar",
-                    storepass: jcecertPassword,
+                    storepass: "${System.env.KEYSTORE_PASSWORD}",
                     keystore: "${project.gradle.gradleUserHomeDir}/${jcecertJks}",
                     tsaurl: "http://timestamp.digicert.com"
                 )
                 ant.signjar(
                     alias: jcecertAlias,
                     jar: "${destinationDir}/${newPrefix}-osx-aarch_64.jar",
-                    storepass: jcecertPassword,
+                    storepass: "${System.env.KEYSTORE_PASSWORD}",
                     keystore: "${project.gradle.gradleUserHomeDir}/${jcecertJks}",
                     tsaurl: "http://timestamp.digicert.com"
                 )
@@ -691,14 +691,14 @@ task fakePublish {
             ant.signjar(
                 alias: jcecertAlias,
                 jar: "${destinationDir}/${newPrefix}-linux-aarch_64.jar",
-                storepass: jcecertPassword,
+                storepass: "${System.env.KEYSTORE_PASSWORD}" ,
                 keystore: "${project.gradle.gradleUserHomeDir}/${jcecertJks}",
                 tsaurl: "http://timestamp.digicert.com"
             )
             ant.signjar(
                 alias: jcecertAlias,
                 jar: "${destinationDir}/${newPrefix}-linux-x86_64.jar",
-                storepass: jcecertPassword,
+                storepass: "${System.env.KEYSTORE_PASSWORD}",
                 keystore: "${project.gradle.gradleUserHomeDir}/${jcecertJks}",
                 tsaurl: "http://timestamp.digicert.com"
             )
@@ -708,7 +708,7 @@ task fakePublish {
 
 }
 
-if (project.hasProperty('mavenUser') && project.hasProperty('jcecertAlias')) {
+if (project.hasProperty('jcecertAlias')) {
     publishing {
         publications {
             mavenJava(MavenPublication) {
