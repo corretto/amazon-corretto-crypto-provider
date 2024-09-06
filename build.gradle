@@ -14,11 +14,18 @@ plugins {
 
 group = 'software.amazon.cryptools'
 version = '2.5.0'
-ext.isFips = Boolean.getBoolean('FIPS')
-if (ext.isFips) {
-    ext.awsLcGitVersionId = 'AWS-LC-FIPS-2.0.13'
+ext.isExperimentalFips = Boolean.getBoolean('EXPERIMENTAL_FIPS')
+if (ext.isExperimentalFips) {
+    ext.isFips = true
 } else {
-    ext.awsLcGitVersionId = 'v1.33.0'
+    ext.isFips = Boolean.getBoolean('FIPS')
+}
+
+if (ext.isExperimentalFips || !ext.isFips) {
+    // Experimental FIPS uses the same AWS-LC version as non-FIPS builds.
+    ext.awsLcGitVersionId = 'v1.34.2'
+} else {
+    ext.awsLcGitVersionId = 'AWS-LC-FIPS-2.0.15'
 }
 
 // Check for user inputted git version ID.
@@ -239,9 +246,11 @@ task buildAwsLc {
                 args "-DCMAKE_INSTALL_PREFIX=${sharedObjectOutDir}"
                 args "-DCMAKE_VERBOSE_MAKEFILE:BOOL=ON"
 
+
                 if (isFips) {
                     args '-DFIPS=1'
                 }
+
                 args '.'
             }
         }
@@ -323,6 +332,9 @@ task executeCmake(type: Exec) {
     args "-DCMAKE_VERBOSE_MAKEFILE:BOOL=ON"
     if (isFips) {
         args "-DFIPS=ON"
+    }
+    if (isExperimentalFips) {
+        args '-DEXPERIMENTAL_FIPS=ON'
     }
 
     if (prebuiltJar != null) {
@@ -518,6 +530,9 @@ task coverage_cmake(type: Exec) {
     }
     if (isFips) {
         args "-DFIPS=ON"
+    }
+    if (isExperimentalFips) {
+        args '-DEXPERIMENTAL_FIPS=ON'
     }
 
     if (System.properties['JAVA_HOME'] != null) {

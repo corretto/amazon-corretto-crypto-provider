@@ -104,7 +104,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     addService("SecretKeyFactory", HKDF_WITH_SHA512, hkdfSpi, false);
 
     // Once these KDFs are added to a FIPS branch of AWS-LC, we can remove this check.
-    if (!Loader.FIPS_BUILD) {
+    if (!Loader.FIPS_BUILD || Loader.EXPERIMENTAL_FIPS_BUILD) {
       final String concatenationKdfSpi = "ConcatenationKdfSpi";
       addService("SecretKeyFactory", CKDF_WITH_SHA256, concatenationKdfSpi, false);
       addService("SecretKeyFactory", CKDF_WITH_SHA384, concatenationKdfSpi, false);
@@ -626,6 +626,17 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
   /** Returns {@code true} if and only if the underlying libcrypto library is a FIPS build */
   public boolean isFips() {
     return Loader.FIPS_BUILD;
+  }
+
+  /**
+   * ACCP-FIPS uses the FIPS branches/releases of AWS-LC. Experimental FIPS mode is to allow
+   * building ACCP and AWS-LC in FIPS mode using non-FIPS branches/release. This allows one to
+   * experiment with features that are not in FIPS branches yet.
+   *
+   * <p>Returns {@code true} if and only if the underlying ACCP is built in experimental fips mode.
+   */
+  public boolean isExperimentalFips() {
+    return Loader.EXPERIMENTAL_FIPS_BUILD;
   }
 
   /**

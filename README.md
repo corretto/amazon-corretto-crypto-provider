@@ -267,6 +267,10 @@ The FIPS builds use a different version of AWS-LC along with `FIPS=1` build flag
 AWS-LC will have FIPS certification. As a result, ACCP in FIPS mode only uses a version of AWS-LC
 that has FIPS certification or it will have in future.
 
+By providing `-DEXPERIMENTAL_FIPS=true` to `gradlew` you will cause the entire build to be for a "FIPS mode"
+build, and it uses the same version of AWS-LC as non-FIPS builds. This allows one to experiment with APIs
+and features in AWS-LC that have not yet made it into a FIPS branch/release of AWS-LC, but built in FIPS mode.
+
 When changing between FIPS and non-FIPS builds, be sure to do a full `clean` of your build environment.
 
 ##### All targets

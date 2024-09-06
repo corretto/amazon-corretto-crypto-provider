@@ -6,10 +6,12 @@ import static com.amazon.corretto.crypto.provider.test.TestUtil.bcDigest;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.getEntriesFromFile;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.amazon.corretto.crypto.provider.CounterKdfSpec;
 import java.security.NoSuchAlgorithmException;
@@ -40,8 +42,9 @@ public class CounterKdfTest {
             alg -> {
               try {
                 assertNotNull(SecretKeyFactory.getInstance(alg, TestUtil.NATIVE_PROVIDER));
+                assertTrue(TestUtil.supportsExtraKdfs());
               } catch (final NoSuchAlgorithmException e) {
-                assertTrue(TestUtil.isFips());
+                assertFalse(TestUtil.supportsExtraKdfs());
               }
             });
   }
@@ -57,10 +60,10 @@ public class CounterKdfTest {
     assertThrows(IllegalArgumentException.class, () -> new CounterKdfSpec(new byte[1], -1, "name"));
   }
 
-  // The rest of the tests are only available in non-FIPS mode.
+  // The rest of the tests are only available in non-FIPS mode, or in experimental FIPS mode.
   @Test
   public void counterKdfExpectsCounterKdfSpecAsKeySpec() throws Exception {
-    assumeFalse(TestUtil.isFips());
+    assumeTrue(TestUtil.supportsExtraKdfs());
     final SecretKeyFactory skf =
         SecretKeyFactory.getInstance("CounterKdfWithHmacSHA256", TestUtil.NATIVE_PROVIDER);
     assertThrows(
@@ -69,7 +72,7 @@ public class CounterKdfTest {
 
   @Test
   public void counterKdfWithEmptyInfoIsFine() throws Exception {
-    assumeFalse(TestUtil.isFips());
+    assumeTrue(TestUtil.supportsExtraKdfs());
     final SecretKeyFactory skf =
         SecretKeyFactory.getInstance("CounterKdfWithHmacSHA256", TestUtil.NATIVE_PROVIDER);
     final CounterKdfSpec spec = new CounterKdfSpec(new byte[1], 10, "name");
@@ -80,7 +83,7 @@ public class CounterKdfTest {
   @ParameterizedTest(name = "{0}")
   @MethodSource("counterKdfKatTests")
   public void counterKdfKatTests(final RspTestEntry entry) throws Exception {
-    assumeFalse(TestUtil.isFips());
+    assumeTrue(TestUtil.supportsExtraKdfs());
     final String digest = jceDigestName(entry.getInstance("HASH"));
     assumeFalse("SHA1".equals(digest));
     final byte[] expected = entry.getInstanceFromHex("EXPECT");
