@@ -170,7 +170,7 @@ const EVP_MD* digestFromJstring(raii_env& env, jstring digestName)
 
 RSA* new_private_RSA_key_with_no_e(BIGNUM const* n, BIGNUM const* d)
 {
-#ifdef FIPS_BUILD
+#if defined FIPS_BUILD && !defined EXPERIMENTAL_FIPS_BUILD
     // AWS-LC-FIPS doesn't have RSA_new_private_key_no_e method yet.
     // The following implementation has been copied from AWS-LC:
     // https://github.com/aws/aws-lc/blob/v1.30.1/crypto/fipsmodule/rsa/rsa.c#L147

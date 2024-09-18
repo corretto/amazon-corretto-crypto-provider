@@ -76,6 +76,8 @@ final class Loader {
   /** Indicates that libcrypto reports we are in a FIPS mode. */
   static final boolean FIPS_BUILD;
 
+  static final boolean EXPERIMENTAL_FIPS_BUILD;
+
   /**
    * Returns an InputStream associated with {@code fileName} contained in the "testdata"
    * subdirectory, relative to the location of this class file within the jar/jmod.
@@ -158,6 +160,7 @@ final class Loader {
     PROVIDER_VERSION_STR = versionStr;
     PROVIDER_VERSION = oldVersion;
     FIPS_BUILD = available && isFipsMode();
+    EXPERIMENTAL_FIPS_BUILD = available && isExperimentalFipsMode();
 
     // Check for native/java library version mismatch
     if (available) {
@@ -331,6 +334,8 @@ final class Loader {
    * @return {@code true} iff the underlying libcrypto is a FIPS build.
    */
   private static native boolean isFipsMode();
+
+  private static native boolean isExperimentalFipsMode();
 
   /** Throws an {@link AssertionError} if the java and native libraries do not match versions. */
   private static void assertVersionMatch() {
