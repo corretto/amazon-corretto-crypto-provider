@@ -168,15 +168,18 @@ public class RsaGenTest {
   public void test5120() throws GeneralSecurityException {
     final KeyPairGenerator generator = getGenerator();
     generator.initialize(5120);
-    if (TestUtil.isFips()) {
-      assertThrows(RuntimeCryptoException.class, () -> generator.generateKeyPair());
-    } else {
+    try {
       final KeyPair keyPair = generator.generateKeyPair();
       final RSAPublicKey pubKey = (RSAPublicKey) keyPair.getPublic();
       final RSAPrivateCrtKey privKey = (RSAPrivateCrtKey) keyPair.getPrivate();
       assertEquals(5120, pubKey.getModulus().bitLength());
       assertEquals(RSAKeyGenParameterSpec.F4, pubKey.getPublicExponent());
       assertConsistency(pubKey, privKey);
+    } catch (final RuntimeCryptoException e) {
+      // Starting from version v1.35.1, AWS-LC built in FIPS mode allows key sizes larger than 4096.
+      // This exception could happen if ACCP is built with a version of AWS-LC in FIPS mode that
+      // does not support key sizes larger than 4096.
+      assertTrue(TestUtil.isFips());
     }
   }
 
