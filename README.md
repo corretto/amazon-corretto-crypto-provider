@@ -104,7 +104,7 @@ AlgorithmParameters:
 
 
 # Notes on ACCP-FIPS
-ACCP-FIPS is a variation of ACCP which uses AWS-LC-FIPS 2.x as its cryptographic module. This version of AWS-LC-FIPS has completed FIPS validation testing by an accredited lab and has been submitted to NIST for certification. Refer to the [NIST Cryptographic Module Validation Program's Modules In Progress List](https://csrc.nist.gov/Projects/cryptographic-module-validation-program/modules-in-process/Modules-In-Process-List) for the latest status of the AWS-LC Cryptographic Module. We will also update our release notes and documentation to reflect any changes in FIPS certification status. We provide ACCP-FIPS for experimentation and performance testing in the interim.
+ACCP-FIPS is a variation of ACCP which uses AWS-LC-FIPS 2.x as its cryptographic module. This version of AWS-LC-FIPS has FIPS certificate [4816](https://csrc.nist.gov/projects/cryptographic-module-validation-program/certificate/4816).
 
 Version 2.3.0 is the first release of ACCP-FIPS. The Maven coordinates for
 ACCP-FIPS are the same as ACCP with one difference that ACCP-FIPS's
@@ -114,7 +114,7 @@ Notable differences between ACCP and ACCP-FIPS:
 * ACCP uses [the latest release of AWS-LC](https://github.com/aws/aws-lc/releases), whereas, ACCP-FIPS uses [the fips-2022-11-02 branch of AWS-LC](https://github.com/aws/aws-lc/tree/fips-2022-11-02).
 * ACCP-FIPS builds AWS-LC in FIPS mode by passing `-DFIPS=1` when configuring AWS-LC's build.
 * In FIPS-mode, RSA keys are limited to 2048, 3072, or 4096 bits in size with public exponent F4.
-* ACCP-FIPS does not register SecureRandom by default due to the performance of AWS-LC’s entropy source in FIPS-mode. [A system property](https://github.com/corretto/amazon-corretto-crypto-provider#other-system-properties) is available to register SecureRandom from AWS-LC if needed, and the performance differences are described in further detail under the description of that property.
+* Prior to version 2.4.0, ACCP-FIPS does not register SecureRandom by default due to the performance of AWS-LC’s entropy source in FIPS-mode. [A system property](https://github.com/corretto/amazon-corretto-crypto-provider#other-system-properties) is available to register SecureRandom from AWS-LC if needed, and the performance differences are described in further detail under the description of that property.
 * Due to the fact that an older branch of AWS-LC is used in FIPS-mode, there will be performance differences between ACCP and ACCP-FIPS. We highly recommend performing detailed performance testing of your application if you choose to experiment with ACCP-FIPS.
 
 ACCP-FIPS is only supported on the following platforms:
