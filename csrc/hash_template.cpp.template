@@ -130,7 +130,7 @@ JNIEXPORT void JNICALL JNI_NAME(updateNativeByteBuffer)(
 }
 
 JNIEXPORT void JNICALL JNI_NAME(fastDigest)(
-    JNIEnv* pEnv, jclass, jbyteArray digestArray, jbyteArray dataArray, jint dataLength)
+    JNIEnv* pEnv, jclass, jbyteArray digestArray, jbyteArray dataArray, jint bufOffset, jint dataLength)
 {
     // As this method needs to be extremely high speed, we are omitting use of java_buffer
     // to avoid the extra JNI calls it requires. Instead we are trusting that dataLength
@@ -147,14 +147,14 @@ JNIEXPORT void JNICALL JNI_NAME(fastDigest)(
         }
 
         if (static_cast<size_t>(dataLength) > scratchSize) {
-            java_buffer dataBuffer = java_buffer::from_array(env, dataArray, 0, dataLength);
+            java_buffer dataBuffer = java_buffer::from_array(env, dataArray, bufOffset, dataLength);
             jni_borrow dataBorrow(env, dataBuffer, "data");
             if (unlikely(!OP(Update)(ctx, dataBorrow.data(), dataBorrow.len()))) {
                 throw java_ex::from_openssl(EX_RUNTIME_CRYPTO, "Unable to update context");
             }
         } else {
             SecureBuffer<uint8_t, scratchSize> scratch;
-            env->GetByteArrayRegion(dataArray, 0, dataLength, reinterpret_cast<jbyte*>(scratch.buf));
+            env->GetByteArrayRegion(dataArray, bufOffset, dataLength, reinterpret_cast<jbyte*>(scratch.buf));
             if (unlikely(!OP(Update)(ctx, scratch, dataLength))) {
                 throw java_ex::from_openssl(EX_RUNTIME_CRYPTO, "Unable to update context");
             }

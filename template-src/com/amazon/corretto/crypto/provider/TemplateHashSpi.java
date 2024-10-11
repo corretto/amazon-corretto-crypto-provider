@@ -45,7 +45,7 @@ public final class TemplateHashSpi extends MessageDigestSpi implements Cloneable
      * @param buf Input buffer
      */
     // NOTE: This method trusts that all of the array lengths and bufLen are sane.
-    static native void fastDigest(byte[] digest, byte[] buf, int bufLen);
+    static native void fastDigest(byte[] digest, byte[] buf, int bufOffset, int bufLen);
 
     /**
      * @return The size of result hashes for this hash function
@@ -123,12 +123,8 @@ public final class TemplateHashSpi extends MessageDigestSpi implements Cloneable
     }
 
     private static byte[] singlePass(byte[] src, int offset, int length) {
-        if (offset != 0 || length != src.length) {
-            src = Arrays.copyOf(src, length);
-            offset = 0;
-        }
         final byte[] result = new byte[HASH_SIZE];
-        fastDigest(result, src, src.length);
+        fastDigest(result, src, offset, src.length);
         return result;
     }
 
