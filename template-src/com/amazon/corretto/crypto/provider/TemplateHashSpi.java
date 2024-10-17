@@ -124,7 +124,7 @@ public final class TemplateHashSpi extends MessageDigestSpi implements Cloneable
 
     private static byte[] singlePass(byte[] src, int offset, int length) {
         final byte[] result = new byte[HASH_SIZE];
-        fastDigest(result, src, offset, src.length);
+        fastDigest(result, src, offset, length);
         return result;
     }
 
