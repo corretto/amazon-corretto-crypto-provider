@@ -17,7 +17,8 @@ import java.util.Map;
 /** Corresponds to native constants in OpenSSL which represent keytypes. */
 enum EvpKeyType {
   RSA("RSA", 6, RSAPublicKey.class, RSAPrivateKey.class),
-  EC("EC", 408, ECPublicKey.class, ECPrivateKey.class);
+  EC("EC", 408, ECPublicKey.class, ECPrivateKey.class),
+  HPKE("HPKE", 991, EvpHpkePublicKey.class, EvpHpkePrivateKey.class);
 
   final String jceName;
   final int nativeValue;
