@@ -55,7 +55,7 @@ class ShimByteBuffer {
 
       directByteBuffer = null;
       array = byteBuffer.array();
-      offset = byteBuffer.position();
+      offset = byteBuffer.arrayOffset() + byteBuffer.position();
       return;
     }
 
