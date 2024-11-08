@@ -840,4 +840,9 @@ public class TestUtil {
         return null;
     }
   }
+
+  static boolean edKeyFactoryRegistered() {
+    return "true"
+        .equals(System.getProperty("com.amazon.corretto.crypto.provider.registerEdKeyFactory"));
+  }
 }

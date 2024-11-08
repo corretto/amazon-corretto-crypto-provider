@@ -6,6 +6,7 @@ import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.security.*;
 import java.security.spec.InvalidKeySpecException;
@@ -96,6 +97,7 @@ public class EdDSATest {
 
   @Test
   public void keyFactoryValidation() throws GeneralSecurityException {
+    assumeTrue(TestUtil.edKeyFactoryRegistered());
     final KeyPair keyPair = jceGen.generateKeyPair();
 
     final byte[] privateKeyJCE = keyPair.getPrivate().getEncoded();
@@ -211,6 +213,47 @@ public class EdDSATest {
   }
 
   @Test
+  public void jceKeyValidation() throws Exception {
+    // Generate keys with ACCP and use JCE KeyFactory to get equivalent Keys
+    final KeyPair kp = nativeGen.generateKeyPair();
+    final Class<?> edPrivateKeyCls = Class.forName("java.security.interfaces.EdECPrivateKey");
+    final Class<?> edPPublicKeyCls = Class.forName("java.security.interfaces.EdECPublicKey");
+    assertTrue(edPrivateKeyCls.isAssignableFrom(kp.getPrivate().getClass()));
+    assertTrue(edPPublicKeyCls.isAssignableFrom(kp.getPublic().getClass()));
+    final byte[] privateKeyAccpEncoding = kp.getPrivate().getEncoded();
+    final byte[] publicKeyAccpEncoding = kp.getPublic().getEncoded();
+
+    final PKCS8EncodedKeySpec privateKeyPkcs8 = new PKCS8EncodedKeySpec(privateKeyAccpEncoding);
+    final X509EncodedKeySpec publicKeyX509 = new X509EncodedKeySpec(publicKeyAccpEncoding);
+
+    final KeyFactory kf = KeyFactory.getInstance("Ed25519", "SunEC");
+
+    final PrivateKey privateKeyJce = kf.generatePrivate(privateKeyPkcs8);
+    final PublicKey publicKeyJce = kf.generatePublic(publicKeyX509);
+
+    // Confirm that ACCP & SunJCE keys are equivalent
+    assertArrayEquals(privateKeyAccpEncoding, privateKeyJce.getEncoded());
+    assertArrayEquals(publicKeyAccpEncoding, publicKeyJce.getEncoded());
+
+    // SunEC keys produced by its KeyFactory should be usable by EdDSA from ACCP
+    final Signature sigService = Signature.getInstance("EdDSA", NATIVE_PROVIDER);
+
+    for (int messageLength = 1; messageLength <= 1024; messageLength++) {
+      final byte[] message = new byte[messageLength];
+      final Random rand = new Random(messageLength);
+      rand.nextBytes(message);
+
+      sigService.initSign(privateKeyJce);
+      sigService.update(message);
+      final byte[] signature = sigService.sign();
+
+      sigService.initVerify(publicKeyJce);
+      sigService.update(message);
+      assertTrue(sigService.verify(signature));
+    }
+  }
+
+  @Test
   public void eddsaValidation() throws GeneralSecurityException {
     // Generate keys, sign, & verify with ACCP
     final byte[] message = new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
@@ -251,6 +294,7 @@ public class EdDSATest {
 
   @Test
   public void testInvalidKey() throws GeneralSecurityException {
+    assumeTrue(TestUtil.edKeyFactoryRegistered());
     byte[] invalidKeyBytes = new byte[] {};
     PKCS8EncodedKeySpec invalidPrivateKeySpec = new PKCS8EncodedKeySpec(invalidKeyBytes);
     X509EncodedKeySpec invalidPublicKeySpec = new X509EncodedKeySpec(invalidKeyBytes);
