@@ -49,6 +49,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
   private static final String PROPERTY_CACHE_SELF_TEST_RESULTS = "cacheselftestresults";
   private static final String PROPERTY_REGISTER_EC_PARAMS = "registerEcParams";
   private static final String PROPERTY_REGISTER_SECURE_RANDOM = "registerSecureRandom";
+  private static final String PROPERTY_REGISTER_ED_KEYFACTORY = "registerEdKeyFactory";
 
   private static final long serialVersionUID = 1L;
 
@@ -61,6 +62,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
   private final boolean shouldRegisterEcParams;
   private final boolean shouldRegisterSecureRandom;
   private final boolean shouldRegisterEdDSA;
+  private final boolean shouldRegisterEdKeyFactory;
   private final Utils.NativeContextReleaseStrategy nativeContextReleaseStrategy;
 
   private transient SelfTestSuite selfTestSuite = new SelfTestSuite();
@@ -91,8 +93,15 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     addService("KeyFactory", "EC", "EvpKeyFactory$EC");
 
     if (shouldRegisterEdDSA) {
-      addService("KeyFactory", "EdDSA", "EvpKeyFactory$EdDSA");
-      addService("KeyFactory", "Ed25519", "EvpKeyFactory$EdDSA");
+      // KeyFactories are used to convert key encodings to Java Key objects. ACCP's KeyFactory for
+      // Ed25519 returns keys of type EvpEdPublicKey and EvpEdPrivateKey that do not implement
+      // EdECKey interface. One should register the KeyFactories from ACCP if they only use the
+      // output of the factories with ACCP's services.
+      // Once ACCP supports multi-release jar, then this option can be removed.
+      if (shouldRegisterEdKeyFactory) {
+        addService("KeyFactory", "EdDSA", "EvpKeyFactory$EdDSA");
+        addService("KeyFactory", "Ed25519", "EvpKeyFactory$EdDSA");
+      }
       addService("KeyPairGenerator", "EdDSA", "EdGen");
       addService("KeyPairGenerator", "Ed25519", "EdGen");
     }
@@ -492,6 +501,9 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     // successfully on older versions of Java we can only register EdDSA if JDK version >= 15.
     this.shouldRegisterEdDSA = Utils.getJavaVersion() >= 15;
 
+    this.shouldRegisterEdKeyFactory =
+        Utils.getBooleanProperty(PROPERTY_REGISTER_ED_KEYFACTORY, false);
+
     this.nativeContextReleaseStrategy = Utils.getNativeContextReleaseStrategyProperty();
 
     Utils.optionsFromProperty(ExtraCheck.class, extraChecks, "extrachecks");
@@ -721,7 +733,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
           return ecFactory;
         case EdDSA:
           if (edFactory == null) {
-            edFactory = KeyFactory.getInstance(keyType.jceName, this);
+            edFactory = new EdKeyFactory(this);
           }
           return edFactory;
         default:
@@ -743,6 +755,14 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
       return (EvpKey) key;
     } else {
       return (EvpKey) getKeyFactory(keyType).translateKey(key);
+    }
+  }
+
+  // In case the user does not register Ed25519 KeyFactories by ACCP, we still need one to be used
+  // internally.
+  private static class EdKeyFactory extends KeyFactory {
+    EdKeyFactory(final AmazonCorrettoCryptoProvider provider) {
+      super(new EvpKeyFactory.EdDSA(provider), provider, "Ed25519");
     }
   }
 }

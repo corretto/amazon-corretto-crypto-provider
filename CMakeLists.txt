@@ -824,6 +824,18 @@ add_custom_target(check-install-via-properties-with-debug
 
     DEPENDS accp-jar tests-jar)
 
+add_custom_target(check-junit-edKeyFactory
+    COMMAND ${TEST_JAVA_EXECUTABLE}
+    -Dcom.amazon.corretto.crypto.provider.registerEdKeyFactory=true
+        ${TEST_RUNNER_ARGUMENTS}
+        --select-class=com.amazon.corretto.crypto.provider.test.EdDSATest
+        --select-class=com.amazon.corretto.crypto.provider.test.EvpKeyFactoryTest
+        --select-class=com.amazon.corretto.crypto.provider.test.EvpSignatureSpecificTest
+        --select-class=com.amazon.corretto.crypto.provider.test.EvpSignatureTest
+        --select-class=com.amazon.corretto.crypto.provider.test.KeyReuseThreadStormTest
+
+    DEPENDS accp-jar tests-jar)
+
 set(check_targets check-recursive-init
     check-install-via-properties
     check-install-via-properties-with-debug
@@ -832,7 +844,8 @@ set(check_targets check-recursive-init
     check-external-lib
     check-junit-AesLazy
     check-junit-AesEager
-    check-junit-DifferentTempDir)
+    check-junit-DifferentTempDir
+    check-junit-edKeyFactory)
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
   set(check_targets ${check_targets} check-with-jni-flag)
