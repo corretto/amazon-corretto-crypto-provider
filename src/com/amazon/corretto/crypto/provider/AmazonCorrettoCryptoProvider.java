@@ -10,6 +10,9 @@ import static com.amazon.corretto.crypto.provider.ConcatenationKdfSpi.CKDF_WITH_
 import static com.amazon.corretto.crypto.provider.ConcatenationKdfSpi.CKDF_WITH_SHA256;
 import static com.amazon.corretto.crypto.provider.ConcatenationKdfSpi.CKDF_WITH_SHA384;
 import static com.amazon.corretto.crypto.provider.ConcatenationKdfSpi.CKDF_WITH_SHA512;
+import static com.amazon.corretto.crypto.provider.CounterKdfSpi.CTR_KDF_WITH_HMAC_SHA256;
+import static com.amazon.corretto.crypto.provider.CounterKdfSpi.CTR_KDF_WITH_HMAC_SHA384;
+import static com.amazon.corretto.crypto.provider.CounterKdfSpi.CTR_KDF_WITH_HMAC_SHA512;
 import static com.amazon.corretto.crypto.provider.HkdfSecretKeyFactorySpi.HKDF_WITH_SHA1;
 import static com.amazon.corretto.crypto.provider.HkdfSecretKeyFactorySpi.HKDF_WITH_SHA256;
 import static com.amazon.corretto.crypto.provider.HkdfSecretKeyFactorySpi.HKDF_WITH_SHA384;
@@ -46,6 +49,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
   private static final String PROPERTY_CACHE_SELF_TEST_RESULTS = "cacheselftestresults";
   private static final String PROPERTY_REGISTER_EC_PARAMS = "registerEcParams";
   private static final String PROPERTY_REGISTER_SECURE_RANDOM = "registerSecureRandom";
+  private static final String PROPERTY_REGISTER_ED_KEYFACTORY = "registerEdKeyFactory";
 
   private static final long serialVersionUID = 1L;
 
@@ -57,6 +61,8 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
   private final boolean relyOnCachedSelfTestResults;
   private final boolean shouldRegisterEcParams;
   private final boolean shouldRegisterSecureRandom;
+  private final boolean shouldRegisterEdDSA;
+  private final boolean shouldRegisterEdKeyFactory;
   private final Utils.NativeContextReleaseStrategy nativeContextReleaseStrategy;
 
   private transient SelfTestSuite selfTestSuite = new SelfTestSuite();
@@ -86,6 +92,20 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     addService("KeyFactory", "RSA", "EvpKeyFactory$RSA");
     addService("KeyFactory", "EC", "EvpKeyFactory$EC");
 
+    if (shouldRegisterEdDSA) {
+      // KeyFactories are used to convert key encodings to Java Key objects. ACCP's KeyFactory for
+      // Ed25519 returns keys of type EvpEdPublicKey and EvpEdPrivateKey that do not implement
+      // EdECKey interface. One should register the KeyFactories from ACCP if they only use the
+      // output of the factories with ACCP's services.
+      // Once ACCP supports multi-release jar, then this option can be removed.
+      if (shouldRegisterEdKeyFactory) {
+        addService("KeyFactory", "EdDSA", "EvpKeyFactory$EdDSA");
+        addService("KeyFactory", "Ed25519", "EvpKeyFactory$EdDSA");
+      }
+      addService("KeyPairGenerator", "EdDSA", "EdGen");
+      addService("KeyPairGenerator", "Ed25519", "EdGen");
+    }
+
     final String hkdfSpi = "HkdfSecretKeyFactorySpi";
     addService("SecretKeyFactory", HKDF_WITH_SHA1, hkdfSpi, false);
     addService("SecretKeyFactory", HKDF_WITH_SHA256, hkdfSpi, false);
@@ -93,13 +113,18 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     addService("SecretKeyFactory", HKDF_WITH_SHA512, hkdfSpi, false);
 
     // Once these KDFs are added to a FIPS branch of AWS-LC, we can remove this check.
-    if (!Loader.FIPS_BUILD) {
-      final String concatenationKdfSpi = "ConcatenationKdf";
+    if (!Loader.FIPS_BUILD || Loader.EXPERIMENTAL_FIPS_BUILD) {
+      final String concatenationKdfSpi = "ConcatenationKdfSpi";
       addService("SecretKeyFactory", CKDF_WITH_SHA256, concatenationKdfSpi, false);
       addService("SecretKeyFactory", CKDF_WITH_SHA384, concatenationKdfSpi, false);
       addService("SecretKeyFactory", CKDF_WITH_SHA512, concatenationKdfSpi, false);
       addService("SecretKeyFactory", CKDF_WITH_HMAC_SHA256, concatenationKdfSpi, false);
       addService("SecretKeyFactory", CKDF_WITH_HMAC_SHA512, concatenationKdfSpi, false);
+
+      final String counterKdfSpi = "CounterKdfSpi";
+      addService("SecretKeyFactory", CTR_KDF_WITH_HMAC_SHA256, counterKdfSpi, false);
+      addService("SecretKeyFactory", CTR_KDF_WITH_HMAC_SHA384, counterKdfSpi, false);
+      addService("SecretKeyFactory", CTR_KDF_WITH_HMAC_SHA512, counterKdfSpi, false);
     }
 
     addService("KeyPairGenerator", "RSA", "RsaGen");
@@ -187,6 +212,10 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
     addService("Signature", "RSASSA-PSS", "EvpSignature$RSASSA_PSS");
     addService("Signature", "NONEwithECDSA", "EvpSignatureRaw$NONEwithECDSA");
+    if (shouldRegisterEdDSA) {
+      addService("Signature", "EdDSA", "EvpSignatureRaw$Ed25519");
+      addService("Signature", "Ed25519", "EvpSignatureRaw$Ed25519");
+    }
   }
 
   private ACCPService addService(
@@ -330,6 +359,12 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
           if (ckdfSpi != null) {
             return ckdfSpi;
           }
+
+          final CounterKdfSpi cntrKdfSpi =
+              CounterKdfSpi.INSTANCES.get(CounterKdfSpi.getSpiFactoryForAlgName(algo));
+          if (cntrKdfSpi != null) {
+            return cntrKdfSpi;
+          }
         }
 
         if ("KeyGenerator".equalsIgnoreCase(type) && "AES".equalsIgnoreCase(algo)) {
@@ -461,6 +496,13 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
     this.shouldRegisterSecureRandom =
         Utils.getBooleanProperty(PROPERTY_REGISTER_SECURE_RANDOM, true);
+
+    // The Java classes necessary for EdDSA are not included in Java versions < 15, so to compile
+    // successfully on older versions of Java we can only register EdDSA if JDK version >= 15.
+    this.shouldRegisterEdDSA = Utils.getJavaVersion() >= 15;
+
+    this.shouldRegisterEdKeyFactory =
+        Utils.getBooleanProperty(PROPERTY_REGISTER_ED_KEYFACTORY, false);
 
     this.nativeContextReleaseStrategy = Utils.getNativeContextReleaseStrategyProperty();
 
@@ -599,6 +641,17 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
   }
 
   /**
+   * ACCP-FIPS uses the FIPS branches/releases of AWS-LC. Experimental FIPS mode is to allow
+   * building ACCP and AWS-LC in FIPS mode using non-FIPS branches/release. This allows one to
+   * experiment with features that are not in FIPS branches yet.
+   *
+   * <p>Returns {@code true} if and only if the underlying ACCP is built in experimental fips mode.
+   */
+  public boolean isExperimentalFips() {
+    return Loader.EXPERIMENTAL_FIPS_BUILD;
+  }
+
+  /**
    * Register ACCP's EC-flavored AlgorithmParameters implementation
    *
    * <p>Most use-cases can and should rely on JCE-provided EC AlgorithmParameters implementation as
@@ -663,6 +716,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
   // Provider.getService logic.
   private transient volatile KeyFactory rsaFactory;
   private transient volatile KeyFactory ecFactory;
+  private transient volatile KeyFactory edFactory;
 
   KeyFactory getKeyFactory(EvpKeyType keyType) {
     try {
@@ -677,6 +731,11 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
             ecFactory = KeyFactory.getInstance(keyType.jceName, this);
           }
           return ecFactory;
+        case EdDSA:
+          if (edFactory == null) {
+            edFactory = new EdKeyFactory(this);
+          }
+          return edFactory;
         default:
           throw new AssertionError("Unsupported key type");
       }
@@ -696,6 +755,14 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
       return (EvpKey) key;
     } else {
       return (EvpKey) getKeyFactory(keyType).translateKey(key);
+    }
+  }
+
+  // In case the user does not register Ed25519 KeyFactories by ACCP, we still need one to be used
+  // internally.
+  private static class EdKeyFactory extends KeyFactory {
+    EdKeyFactory(final AmazonCorrettoCryptoProvider provider) {
+      super(new EvpKeyFactory.EdDSA(provider), provider, "Ed25519");
     }
   }
 }

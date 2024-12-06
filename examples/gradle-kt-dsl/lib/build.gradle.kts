@@ -1,4 +1,4 @@
-val accpVersion = "2.4.1"
+val accpVersion = "2.5.0"
 val accpLocalJar: String by project
 val fips: Boolean by project
 val PLATFORMS_WITHOUT_FIPS_SUPPORT = setOf("osx-x86_64", "osx-aarch_64")

@@ -94,6 +94,14 @@ public class TestUtil {
     return NATIVE_PROVIDER.isFips();
   }
 
+  public static boolean isExperimentalFips() {
+    return NATIVE_PROVIDER.isExperimentalFips();
+  }
+
+  public static boolean supportsExtraKdfs() {
+    return isExperimentalFips() || !isFips();
+  }
+
   public static byte[] intArrayToByteArray(final int[] array) {
     final byte[] result = new byte[array.length];
     for (int i = 0; i != array.length; i++) {
@@ -831,5 +839,10 @@ public class TestUtil {
       default:
         return null;
     }
+  }
+
+  static boolean edKeyFactoryRegistered() {
+    return "true"
+        .equals(System.getProperty("com.amazon.corretto.crypto.provider.registerEdKeyFactory"));
   }
 }

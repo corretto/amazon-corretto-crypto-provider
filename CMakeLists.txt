@@ -41,8 +41,14 @@ set(ENABLE_NATIVE_TEST_HOOKS NO CACHE BOOL "Enable debugging hooks in the RNG. D
 set(TEST_DATA_DIR ${PROJECT_SOURCE_DIR}/test-data/ CACHE STRING "Path to directory containing test data")
 set(ORIG_SRCROOT ${PROJECT_SOURCE_DIR} CACHE STRING "Path to root of original package")
 set(PROVIDER_VERSION_STRING "" CACHE STRING "X.Y.Z formatted version of the provider")
+set(EXPERIMENTAL_FIPS NO CACHE BOOL "Determines if this build is for FIPS mode with extra features from a non-FIPS branch of AWS-LC.")
 set(FIPS NO CACHE BOOL "Determine if this build is for FIPS mode")
 set(ALWAYS_ALLOW_EXTERNAL_LIB NO CACHE BOOL "Always permit tests to load ACCP shared objects from the library path")
+
+if (EXPERIMENTAL_FIPS)
+    set(FIPS ON)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DEXPERIMENTAL_FIPS_BUILD")
+endif()
 
 if (USE_CLANG_TIDY)
     # https://releases.llvm.org/9.0.0/tools/clang/tools/extra/docs/clang-tidy/checks/list.html
@@ -257,6 +263,7 @@ set(C_SRC
     csrc/buffer.cpp
     csrc/ec_gen.cpp
     csrc/ec_utils.cpp
+    csrc/ed_gen.cpp
     csrc/env.cpp
     csrc/hkdf.cpp
     csrc/hmac.cpp
@@ -283,8 +290,14 @@ if(FIPS)
     set(TEST_FIPS_PROPERTY "-DFIPS=true")
 else()
     set(TEST_FIPS_PROPERTY "-DFIPS=false")
+endif()
+
+# The source files under this guard should be removed and added to all builds, including FIPS,
+# once the corresponding algorithms are added to a FIPS branch of AWS-LC consumable by ACCP.
+if(EXPERIMENTAL_FIPS OR (NOT FIPS))
     set(C_SRC ${C_SRC}
-        csrc/concatenation_kdf.cpp)
+        csrc/concatenation_kdf.cpp
+        csrc/counter_kdf.cpp)
 endif()
 
 add_library(amazonCorrettoCryptoProvider SHARED ${C_SRC})
@@ -301,10 +314,8 @@ add_custom_command(
 add_custom_target(accp-jar-source DEPENDS ${ACCP_JAR_SOURCE})
 
 if(ENABLE_NATIVE_TEST_HOOKS)
-  add_executable(test_keyutils EXCLUDE_FROM_ALL
-        csrc/test_keyutils.cpp
-    )
-    link_with_openssl(test_keyutils)
+    add_executable(test_keyutils EXCLUDE_FROM_ALL csrc/test_keyutils.cpp)
+    # No need to link OpenSSL (AWS-LC)
     target_link_libraries(test_keyutils amazonCorrettoCryptoProvider)
 endif()
 
@@ -813,6 +824,18 @@ add_custom_target(check-install-via-properties-with-debug
 
     DEPENDS accp-jar tests-jar)
 
+add_custom_target(check-junit-edKeyFactory
+    COMMAND ${TEST_JAVA_EXECUTABLE}
+    -Dcom.amazon.corretto.crypto.provider.registerEdKeyFactory=true
+        ${TEST_RUNNER_ARGUMENTS}
+        --select-class=com.amazon.corretto.crypto.provider.test.EdDSATest
+        --select-class=com.amazon.corretto.crypto.provider.test.EvpKeyFactoryTest
+        --select-class=com.amazon.corretto.crypto.provider.test.EvpSignatureSpecificTest
+        --select-class=com.amazon.corretto.crypto.provider.test.EvpSignatureTest
+        --select-class=com.amazon.corretto.crypto.provider.test.KeyReuseThreadStormTest
+
+    DEPENDS accp-jar tests-jar)
+
 set(check_targets check-recursive-init
     check-install-via-properties
     check-install-via-properties-with-debug
@@ -821,7 +844,8 @@ set(check_targets check-recursive-init
     check-external-lib
     check-junit-AesLazy
     check-junit-AesEager
-    check-junit-DifferentTempDir)
+    check-junit-DifferentTempDir
+    check-junit-edKeyFactory)
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
   set(check_targets ${check_targets} check-with-jni-flag)

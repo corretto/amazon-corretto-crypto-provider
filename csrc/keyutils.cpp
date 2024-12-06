@@ -10,23 +10,23 @@
 
 namespace AmazonCorrettoCryptoProvider {
 
-EVP_PKEY* der2EvpPrivateKey(
-    const unsigned char* der, const int derLen, bool shouldCheckPrivate, const char* javaExceptionClass)
+EVP_PKEY* der2EvpPrivateKey(const unsigned char* der,
+    const int derLen,
+    const int evpType,
+    bool shouldCheckPrivate,
+    const char* javaExceptionClass)
 {
     const unsigned char* der_mutable_ptr = der; // openssl modifies the input pointer
 
-    PKCS8_PRIV_KEY_INFO* pkcs8Key = d2i_PKCS8_PRIV_KEY_INFO(NULL, &der_mutable_ptr, derLen);
+    EVP_PKEY* result = d2i_PrivateKey(evpType, NULL, &der_mutable_ptr, derLen);
+
     if (der + derLen != der_mutable_ptr) {
-        if (pkcs8Key) {
-            PKCS8_PRIV_KEY_INFO_free(pkcs8Key);
+        if (result) {
+            EVP_PKEY_free(result);
         }
         throw_openssl(javaExceptionClass, "Extra key information");
     }
-    if (!pkcs8Key) {
-        throw_openssl(javaExceptionClass, "Unable to parse DER key into PKCS8_PRIV_KEY_INFO");
-    }
-    EVP_PKEY* result = EVP_PKCS82PKEY(pkcs8Key);
-    PKCS8_PRIV_KEY_INFO_free(pkcs8Key);
+
     if (!result) {
         throw_openssl(javaExceptionClass, "Unable to convert PKCS8_PRIV_KEY_INFO to EVP_PKEY");
     }
@@ -170,7 +170,7 @@ const EVP_MD* digestFromJstring(raii_env& env, jstring digestName)
 
 RSA* new_private_RSA_key_with_no_e(BIGNUM const* n, BIGNUM const* d)
 {
-#ifdef FIPS_BUILD
+#if defined FIPS_BUILD && !defined EXPERIMENTAL_FIPS_BUILD
     // AWS-LC-FIPS doesn't have RSA_new_private_key_no_e method yet.
     // The following implementation has been copied from AWS-LC:
     // https://github.com/aws/aws-lc/blob/v1.30.1/crypto/fipsmodule/rsa/rsa.c#L147

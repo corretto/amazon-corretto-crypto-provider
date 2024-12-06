@@ -24,6 +24,8 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledForJreRange;
+import org.junit.jupiter.api.condition.JRE;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
@@ -37,12 +39,14 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 public class KeyReuseThreadStormTest {
   private static final KeyPairGenerator RSA_KEY_GEN;
   private static final KeyPairGenerator EC_KEY_GEN;
+  private static final KeyPairGenerator ED_KEY_GEN;
   private static final KeyPair PAIR_RSA_1024_OR_DEFAULT;
   private static final KeyPair PAIR_RSA_2048;
   private static final KeyPair PAIR_RSA_4096;
   private static final KeyPair PAIR_EC_P256;
   private static final KeyPair PAIR_EC_P384;
   private static final KeyPair PAIR_EC_P521;
+  private static final KeyPair PAIR_ED25519;
 
   static {
     try {
@@ -62,6 +66,11 @@ public class KeyReuseThreadStormTest {
       PAIR_EC_P384 = EC_KEY_GEN.generateKeyPair();
       EC_KEY_GEN.initialize(new ECGenParameterSpec("NIST P-521"));
       PAIR_EC_P521 = EC_KEY_GEN.generateKeyPair();
+      ED_KEY_GEN =
+          TestUtil.getJavaVersion() >= 15
+              ? KeyPairGenerator.getInstance("Ed25519", NATIVE_PROVIDER)
+              : null;
+      PAIR_ED25519 = TestUtil.getJavaVersion() >= 15 ? ED_KEY_GEN.generateKeyPair() : null;
     } catch (final GeneralSecurityException ex) {
       throw new AssertionError(ex);
     }
@@ -198,6 +207,29 @@ public class KeyReuseThreadStormTest {
       } else {
         t = new KeyAgreementThread("EcdhThread-" + x, rng, iterations, "ECDH", keys);
       }
+      threads.add(t);
+    }
+    executeThreads(threads);
+  }
+
+  @Test
+  @EnabledForJreRange(min = JRE.JAVA_15)
+  public void edThreadStorm() throws Throwable {
+    final byte[] rngSeed = TestUtil.getRandomBytes(20);
+    System.out.println("RNG Seed: " + Arrays.toString(rngSeed));
+    final SecureRandom rng = SecureRandom.getInstance("SHA1PRNG");
+    rng.setSeed(rngSeed);
+    final int iterations = 500;
+    final int threadCount = 48;
+
+    final List<TestThread> threads = new ArrayList<>();
+    for (int x = 0; x < threadCount; x++) {
+      final List<KeyPair> keys = new ArrayList<KeyPair>();
+      while (keys.size() < 2) {
+        keys.add(PAIR_ED25519);
+      }
+      final TestThread t;
+      t = new SignatureTestThread("EddsaThread-" + x, rng, iterations, "Ed25519", keys);
       threads.add(t);
     }
     executeThreads(threads);
