@@ -107,9 +107,10 @@ artifact ID is `AmazonCorrettoCryptoProvider-FIPS`.
 Notable differences between ACCP and ACCP-FIPS:
 * ACCP uses [the latest release of AWS-LC](https://github.com/aws/aws-lc/releases), whereas, ACCP-FIPS uses [the fips-2022-11-02 branch of AWS-LC](https://github.com/aws/aws-lc/tree/fips-2022-11-02).
 * ACCP-FIPS builds AWS-LC in FIPS mode by passing `-DFIPS=1` when configuring AWS-LC's build.
+* For details about the FIPS module of AWS-LC in FIPS mode, including the entropy sources used, see the [AWS-LC FIPS.md documentation](https://github.com/aws/aws-lc/blob/main/crypto/fipsmodule/FIPS.md).
 * In FIPS-mode, RSA keys are limited to 2048, 3072, or 4096 bits in size with public exponent F4.
 * Due to the fact that an older branch of AWS-LC is used in FIPS-mode, there will be performance differences between ACCP and ACCP-FIPS. We highly recommend performing detailed performance testing of your application if you choose to experiment with ACCP-FIPS.
-* Before version 2.4.0, ACCP-FIPS did not register SecureRandom by default due to the performance of AWS-LC’s entropy source in FIPS-mode, with older versions of AWS-LC. Since version 2.4.0, ACCP-FIPS behaves as ACCP: it registers SecureRandom from AWS-LC by default.
+* Between versions 2.1.0 and 2.3.3 (inclusive), ACCP-FIPS did not register SecureRandom by default due to the performance of AWS-LC’s entropy source in FIPS-mode, with older versions of AWS-LC. Since version 2.4.0, ACCP-FIPS behaves as ACCP: it registers SecureRandom from AWS-LC by default.
 
 ACCP-FIPS is only supported on the following platforms:
 
