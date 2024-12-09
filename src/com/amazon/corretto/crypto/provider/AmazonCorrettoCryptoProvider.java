@@ -10,11 +10,7 @@ import static com.amazon.corretto.crypto.provider.ConcatenationKdfSpi.CKDF_WITH_
 import static com.amazon.corretto.crypto.provider.ConcatenationKdfSpi.CKDF_WITH_SHA256;
 import static com.amazon.corretto.crypto.provider.ConcatenationKdfSpi.CKDF_WITH_SHA384;
 import static com.amazon.corretto.crypto.provider.ConcatenationKdfSpi.CKDF_WITH_SHA512;
-import static com.amazon.corretto.crypto.provider.EvpHmac.HMAC_MD5_WITH_PRECOMPUTED_KEY;
-import static com.amazon.corretto.crypto.provider.EvpHmac.HMAC_SHA1_WITH_PRECOMPUTED_KEY;
-import static com.amazon.corretto.crypto.provider.EvpHmac.HMAC_SHA256_WITH_PRECOMPUTED_KEY;
-import static com.amazon.corretto.crypto.provider.EvpHmac.HMAC_SHA384_WITH_PRECOMPUTED_KEY;
-import static com.amazon.corretto.crypto.provider.EvpHmac.HMAC_SHA512_WITH_PRECOMPUTED_KEY;
+import static com.amazon.corretto.crypto.provider.EvpHmac.HMAC_PREFIX;
 import static com.amazon.corretto.crypto.provider.EvpHmac.WITH_PRECOMPUTED_KEY;
 import static com.amazon.corretto.crypto.provider.HkdfSecretKeyFactorySpi.HKDF_WITH_SHA1;
 import static com.amazon.corretto.crypto.provider.HkdfSecretKeyFactorySpi.HKDF_WITH_SHA256;
@@ -149,37 +145,19 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     // check and update HmacTest#assumePrecomputedKeySupport and
     // HmacTest#assumeNoPrecomputedKeySupport.
     if (!Loader.FIPS_BUILD) {
+      final String hmacWithPrecomputedKeyKeyFactorySpi = "HmacWithPrecomputedKeyKeyFactorySpi";
+
       for (String hash : new String[] {"MD5", "SHA1", "SHA256", "SHA384", "SHA512"}) {
         addService(
-            "Mac", "Hmac" + hash + WITH_PRECOMPUTED_KEY, "EvpHmac$" + hash + WITH_PRECOMPUTED_KEY);
+            "Mac",
+            HMAC_PREFIX + hash + WITH_PRECOMPUTED_KEY,
+            "EvpHmac$" + hash + WITH_PRECOMPUTED_KEY);
+        addService(
+            "SecretKeyFactory",
+            HMAC_PREFIX + hash + WITH_PRECOMPUTED_KEY,
+            hmacWithPrecomputedKeyKeyFactorySpi,
+            false);
       }
-
-      final String hmacWithPrecomputedKeyKeyFactorySpi = "HmacWithPrecomputedKeyKeyFactorySpi";
-      addService(
-          "SecretKeyFactory",
-          HMAC_MD5_WITH_PRECOMPUTED_KEY,
-          hmacWithPrecomputedKeyKeyFactorySpi,
-          false);
-      addService(
-          "SecretKeyFactory",
-          HMAC_SHA1_WITH_PRECOMPUTED_KEY,
-          hmacWithPrecomputedKeyKeyFactorySpi,
-          false);
-      addService(
-          "SecretKeyFactory",
-          HMAC_SHA256_WITH_PRECOMPUTED_KEY,
-          hmacWithPrecomputedKeyKeyFactorySpi,
-          false);
-      addService(
-          "SecretKeyFactory",
-          HMAC_SHA384_WITH_PRECOMPUTED_KEY,
-          hmacWithPrecomputedKeyKeyFactorySpi,
-          false);
-      addService(
-          "SecretKeyFactory",
-          HMAC_SHA512_WITH_PRECOMPUTED_KEY,
-          hmacWithPrecomputedKeyKeyFactorySpi,
-          false);
     }
 
     addService(

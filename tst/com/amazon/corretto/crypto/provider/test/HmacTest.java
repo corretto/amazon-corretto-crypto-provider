@@ -102,26 +102,38 @@ public class HmacTest {
     return SUPPORTED_HMACS;
   }
 
+  /**
+   * Returns the precomputed key length for a given HMAC algorithm.
+   *
+   * <p>The precomputed key length for HMAC with hash algorithm XXX is defined by the aws-lc C macro
+   * HMAC_XXX_PRECOMPUTED_KEY_SIZE (e.g., HMAC_SHA384_PRECOMPUTED_KEY_SIZE). It is twice the
+   * chaining length of the hash function, where the chaining length is the output length of the
+   * hash function before any truncation (e.g., for SHA512 and SHA384, the chaining length is 32
+   * bytes and the precomputed key length is 64 bytes).
+   *
+   * @param algorithm HMAC algorithm name, e.g., HmacSHA384 (case sensitive)
+   * @return precomputed key length
+   */
   private int getPrecomputedKeyLength(String algorithm) {
-    int precomputedKeySize;
+    int precomputedKeyLength;
     switch (algorithm) {
       case "HmacMD5":
-        precomputedKeySize = 16;
+        precomputedKeyLength = 16;
         break;
       case "HmacSHA1":
-        precomputedKeySize = 20;
+        precomputedKeyLength = 20;
         break;
       case "HmacSHA256":
-        precomputedKeySize = 32;
+        precomputedKeyLength = 32;
         break;
       case "HmacSHA384":
       case "HmacSHA512":
-        precomputedKeySize = 64;
+        precomputedKeyLength = 64;
         break;
       default:
         throw new IllegalArgumentException("Unknown algorithm: " + algorithm);
     }
-    return precomputedKeySize;
+    return precomputedKeyLength;
   }
 
   @Test

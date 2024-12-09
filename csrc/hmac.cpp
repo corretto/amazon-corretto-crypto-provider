@@ -58,7 +58,6 @@ void maybe_init_ctx(raii_env& env, HMAC_CTX* ctx, jbyteArray& keyArr, jlong evpM
         }
     }
 }
-}
 
 void update_ctx(raii_env& env, HMAC_CTX* ctx, jni_borrow& input)
 {
@@ -103,6 +102,7 @@ jint get_precomputed_key_size(raii_env& env, jstring digestName)
 #endif
     return 0; // just to please the static verifier, since throw_java_ex always throws an exception
 }
+} // anonymous namespace
 
 #ifdef __cplusplus
 extern "C" {
