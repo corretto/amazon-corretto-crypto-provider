@@ -44,7 +44,7 @@ public class Hashes {
   }
 
   @Benchmark
-  public byte[] oneShotMedium_64KiB() {
+  public byte[] oneShotLarge_64KiB() {
     return digest.digest(data_64KiB);
   }
 }
