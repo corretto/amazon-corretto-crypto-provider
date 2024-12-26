@@ -259,21 +259,27 @@ If you receive one of these exceptions, then you will need to evaluate if any of
 3. Migrate to a different JDK (eg OpenJDK or CorrettoJDK) that does not require that JCE providers be signed.
 4. [Obtain your own JCE Code Signing Certificate](https://www.oracle.com/java/technologies/javase/getcodesigningcertificate.html) and sign your repackaged Jar.
 
-##### FIPS builds
-**FIPS builds are still experimental and are not yet ready for production use.**
+#### Building ACCP in FIPS mode
+There are two possible flags which can be provided to `gradlew` to build ACCP in FIPS mode:
+- `-DFIPS=true`: This causes ACCP to be built with AWS-LC-FIPS as its underlying crypto library. The exact version of AWS-LC-FIPS used is specified in our [build.gradle](https://github.com/corretto/amazon-corretto-crypto-provider/blob/main/build.gradle#L28) file. Refer to the [AWS-LC FIPS documentation](https://github.com/aws/aws-lc/blob/main/crypto/fipsmodule/FIPS.md) for the latest FIPS validation and certification status of each version.
+- `-DEXPERIMENTAL_FIPS=true`: This causes ACCP to be built with the `main` branch of AWS-LC, built in FIPS mode, as its underlying crypto library. This variation of FIPS mode allows one to experiment with the latest APIs and features in AWS-LC that have not yet made it onto a FIPS branch/release.
 
-By providing `-DFIPS=true` to `gradlew` you will cause the entire build to be for a "FIPS mode" build.
-The FIPS builds use a different version of AWS-LC along with `FIPS=1` build flag. Not all releases of
-AWS-LC will have FIPS certification. As a result, ACCP in FIPS mode only uses a version of AWS-LC
-that has FIPS certification or it will have in future.
-
-By providing `-DEXPERIMENTAL_FIPS=true` to `gradlew` you will cause the entire build to be for a "FIPS mode"
-build, and it uses the same version of AWS-LC as non-FIPS builds. This allows one to experiment with APIs
-and features in AWS-LC that have not yet made it into a FIPS branch/release of AWS-LC, but built in FIPS mode.
+The following illustration depicts the difference these FIPS mode build options.
+```
+                           -DEXPERIMENTAL_FIPS=true
+                                      |
+                                      ↓
+AWS-LC [■]───[■]───[■]───[■]───[■]───[■]  main
+                 \
+                  [■]───[■]  AWS-LC-FIPS-X.Y.Z
+                         ↑
+                         |
+                   -DFIPS=true
+```
 
 When changing between FIPS and non-FIPS builds, be sure to do a full `clean` of your build environment.
 
-##### All targets
+#### All targets
 * clean: Remove all artifacts except AWS-LC build artifacts
 * deep_clean: Remove the entire `build/` directory including build artifacts from AWS-LC dependencies
 * build: Build the library
