@@ -75,7 +75,6 @@ public class AesXtsBenchmark {
 
   @Benchmark
   @BenchmarkMode(Mode.Throughput)
-  @OutputTimeUnit(TimeUnit.MILLISECONDS)
   public final void xtsSameBuffer(BenchmarkState state, Blackhole blackhole) throws Exception {
     final byte[] cipherText = enc(state.key, state.tweak, state.data);
     final byte[] plaintext = dec(state.key, state.tweak, cipherText);
@@ -98,7 +97,6 @@ public class AesXtsBenchmark {
 
   @Benchmark
   @BenchmarkMode(Mode.Throughput)
-  @OutputTimeUnit(TimeUnit.MILLISECONDS)
   public final void xtsDiffBuffer(BenchmarkState state, Blackhole blackhole) throws Exception {
     final byte[] cipherText = encFresh(state.key, state.tweak, state.data);
     final byte[] plaintext = decFresh(state.key, state.tweak, cipherText);
