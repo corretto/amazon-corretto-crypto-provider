@@ -601,7 +601,7 @@ task coverage_cpp_report {
 }
 
 task coverage {
-    dependsOn coverage_java_report, coverage_cpp_report
+    dependsOn coverage_java_report
 }
 
 task release {
