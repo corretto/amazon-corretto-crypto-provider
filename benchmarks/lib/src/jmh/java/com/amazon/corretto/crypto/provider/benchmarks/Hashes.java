@@ -13,7 +13,7 @@ import org.openjdk.jmh.annotations.State;
 
 @State(Scope.Benchmark)
 public class Hashes {
-  @Param({"SHA-256", "SHA-384", "SHA-512"})
+  @Param({"SHA-256", "SHA-384", "SHA-512", "SHA-1", "MD5"})
   public String algorithm;
 
   @Param({AmazonCorrettoCryptoProvider.PROVIDER_NAME, "BC", "SUN"})
