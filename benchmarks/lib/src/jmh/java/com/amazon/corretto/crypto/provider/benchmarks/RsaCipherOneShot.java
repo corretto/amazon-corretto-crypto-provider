@@ -22,7 +22,7 @@ public class RsaCipherOneShot {
   @Param({AmazonCorrettoCryptoProvider.PROVIDER_NAME, "BC", "SunJCE"})
   public String provider;
 
-  @Param({"Pkcs1Padding", "OAEPWithSHA-1AndMGF1Padding"})
+  @Param({"NoPadding", "Pkcs1Padding", "OAEPPadding", "OAEPWithSHA-1AndMGF1Padding"})
   public String padding;
 
   protected KeyPair keyPair;
