@@ -110,6 +110,22 @@ Version 2.3.0 is the first release of ACCP-FIPS. The Maven coordinates for
 ACCP-FIPS are the same as ACCP with one difference that ACCP-FIPS's
 artifact ID is `AmazonCorrettoCryptoProvider-FIPS`.
 
+The table below shows which AWS-LC and AWS-LC-FIPS release versions are used in each ACCP(-FIPS) release.
+ACCP did not track a FIPS branch/release version of AWS-LC until ACCP v2.3.0. Before then, ACCP-FIPS simply built its tracked AWS-LC commit in FIPS mode.
+
+| ACCP(-FIPS) version | AWS-LC version | AWS-LC-FIPS version |
+|---------------------|----------------|---------------------|
+| 2.0.0               | 1.4.0          | ---                 |
+| 2.1.0               | 1.5.0          | ---                 |
+| 2.2.0               | 1.5.0          | ---                 |
+| 2.3.0               | 1.5.0          | 2.0.0               |
+| 2.3.1               | 1.15.0         | 2.0.0               |
+| 2.3.2               | 1.16.0         | 2.0.0               |
+| 2.3.3               | 1.17.0         | 2.0.2               |
+| 2.4.0               | 1.30.1         | 2.0.13              |
+| 2.4.1               | 1.30.1         | 2.0.13              |
+
+
 Notable differences between ACCP and ACCP-FIPS:
 * ACCP uses [the latest release of AWS-LC](https://github.com/aws/aws-lc/releases), whereas, ACCP-FIPS uses [the fips-2022-11-02 branch of AWS-LC](https://github.com/aws/aws-lc/tree/fips-2022-11-02).
 * ACCP-FIPS builds AWS-LC in FIPS mode by passing `-DFIPS=1` when configuring AWS-LC's build.
