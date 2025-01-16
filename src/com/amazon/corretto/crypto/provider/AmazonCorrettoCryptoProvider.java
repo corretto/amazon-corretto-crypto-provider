@@ -91,6 +91,10 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
     addService("KeyFactory", "RSA", "EvpKeyFactory$RSA");
     addService("KeyFactory", "EC", "EvpKeyFactory$EC");
+    addService("KeyFactory", "ML-DSA", "EvpKeyFactory$MlDSA");
+    addService("KeyFactory", "ML-DSA-44", "EvpKeyFactory$MlDSA");
+    addService("KeyFactory", "ML-DSA-65", "EvpKeyFactory$MlDSA");
+    addService("KeyFactory", "ML-DSA-87", "EvpKeyFactory$MlDSA");
 
     if (shouldRegisterEdDSA) {
       // KeyFactories are used to convert key encodings to Java Key objects. ACCP's KeyFactory for
@@ -126,6 +130,11 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
     addService("KeyPairGenerator", "RSA", "RsaGen");
     addService("KeyPairGenerator", "EC", "EcGen");
+
+    addService("KeyPairGenerator", "ML-DSA", "MlDsaGen$MlDsaGen44");
+    addService("KeyPairGenerator", "ML-DSA-44", "MlDsaGen$MlDsaGen44");
+    addService("KeyPairGenerator", "ML-DSA-65", "MlDsaGen$MlDsaGen65");
+    addService("KeyPairGenerator", "ML-DSA-87", "MlDsaGen$MlDsaGen87");
 
     addService("KeyGenerator", "AES", "keygeneratorspi.SecretKeyGenerator", false);
 
@@ -213,6 +222,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
       addService("Signature", "EdDSA", "EvpSignatureRaw$Ed25519");
       addService("Signature", "Ed25519", "EvpSignatureRaw$Ed25519");
     }
+    addService("Signature", "ML-DSA", "EvpSignatureRaw$MlDSA");
   }
 
   private ACCPService addService(
@@ -714,6 +724,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
   private transient volatile KeyFactory rsaFactory;
   private transient volatile KeyFactory ecFactory;
   private transient volatile KeyFactory edFactory;
+  private transient volatile KeyFactory mlDsaFactory;
 
   KeyFactory getKeyFactory(EvpKeyType keyType) {
     try {
@@ -733,8 +744,13 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
             edFactory = new EdKeyFactory(this);
           }
           return edFactory;
+        case MlDSA:
+          if (mlDsaFactory == null) {
+            mlDsaFactory = KeyFactory.getInstance(keyType.jceName, this);
+          }
+          return mlDsaFactory;
         default:
-          throw new AssertionError("Unsupported key type");
+          throw new AssertionError(String.format("Unsupported key type: %s", keyType.jceName));
       }
     } catch (final NoSuchAlgorithmException ex) {
       throw new AssertionError(ex);

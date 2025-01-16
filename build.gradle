@@ -23,9 +23,11 @@ if (ext.isExperimentalFips) {
 
 if (ext.isExperimentalFips || !ext.isFips) {
     // Experimental FIPS uses the same AWS-LC version as non-FIPS builds.
-    ext.awsLcGitVersionId = 'v1.42.0'
+    ext.awsLcGitVersionId = 'v1.43.0'
 } else {
-    ext.awsLcGitVersionId = 'AWS-LC-FIPS-3.0.0'
+    // TODO [childw] put this under "experimental FIPS"...
+    //ext.awsLcGitVersionId = 'AWS-LC-FIPS-3.0.0'
+    ext.awsLcGitVersionId = 'v1.43.0'
 }
 
 // Check for user inputted git version ID.
@@ -181,8 +183,8 @@ dependencies {
     testDep 'org.apiguardian:apiguardian-api:1.1.2'
     testDep 'org.junit.jupiter:junit-jupiter:5.8.2'
     testDep 'org.junit.vintage:junit-vintage-engine:5.8.2'
-    testDep 'org.bouncycastle:bcprov-debug-jdk15on:1.69'
-    testDep 'org.bouncycastle:bcpkix-jdk15on:1.69'
+    testDep 'org.bouncycastle:bcpkix-jdk18on:1.80'
+    testDep 'org.bouncycastle:bcprov-jdk18on:1.80'
     testDep 'commons-codec:commons-codec:1.12'
     testDep 'org.hamcrest:hamcrest:2.1'
     testDep 'org.jacoco:org.jacoco.core:0.8.3'
