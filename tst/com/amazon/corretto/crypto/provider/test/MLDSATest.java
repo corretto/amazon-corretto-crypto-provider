@@ -3,6 +3,7 @@
 package com.amazon.corretto.crypto.provider.test;
 
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
+import static org.junit.Assume.assumeTrue;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -10,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
+import com.amazon.corretto.crypto.provider.Utils;
 import java.security.InvalidKeyException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
@@ -34,11 +36,11 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
-@DisabledIf("com.amazon.corretto.crypto.provider.test.MLDSATest#isDisabled")
+@DisabledIf("com.amazon.corretto.crypto.provider.test.MlDSATest#isDisabled")
 @Execution(ExecutionMode.CONCURRENT)
 @ExtendWith(TestResultLogger.class)
 @ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
-public class MLDSATest {
+public class MlDSATest {
   private static final Provider NATIVE_PROVIDER = AmazonCorrettoCryptoProvider.INSTANCE;
   private static final int[] MESSAGE_LENGTHS = new int[] {0, 1, 16, 32, 2047, 2048, 2049, 4100};
 
@@ -253,5 +255,66 @@ public class MLDSATest {
             .generatePublic(new X509EncodedKeySpec(nativePair.getPublic().getEncoded()));
     nativeSignature.initVerify(bcPub);
     assertTrue(nativeSignature.verify(sigBytes));
+  }
+
+  @ParameterizedTest
+  @MethodSource("getParams")
+  public void testExtMu(TestParams params) throws Exception {
+    // Only ACCP currently supports External Mu
+    assumeTrue(params.signerProv == NATIVE_PROVIDER && params.verifierProv == NATIVE_PROVIDER);
+
+    Signature signer = Signature.getInstance("ML-DSA", NATIVE_PROVIDER);
+    Signature verifier = Signature.getInstance("ML-DSA", NATIVE_PROVIDER);
+    Signature extMuSigner = Signature.getInstance("ML-DSA-Ext-Mu", NATIVE_PROVIDER);
+    Signature extMuVerifier = Signature.getInstance("ML-DSA-Ext-Mu", NATIVE_PROVIDER);
+    PrivateKey priv = params.priv;
+    PublicKey pub = params.pub;
+
+    byte[] message = Arrays.copyOf(params.message, params.message.length);
+    byte[] mu = Utils.computeMLDSAMu(pub.getEncoded(), message);
+    assertEquals(64, mu.length);
+    byte[] fakeMu = new byte[64];
+    Arrays.fill(fakeMu, (byte) 0);
+
+    // Test with "fake mu" -- contents don't matter if we're signing and verifying mu
+    extMuSigner.initSign(priv);
+    extMuSigner.update(fakeMu);
+    byte[] signatureBytes = extMuSigner.sign();
+    extMuVerifier.initVerify(pub);
+    extMuVerifier.update(fakeMu);
+    assertTrue(extMuVerifier.verify(signatureBytes));
+
+    // Test with real mu
+    extMuSigner.initSign(priv);
+    extMuSigner.update(mu);
+    signatureBytes = extMuSigner.sign();
+    extMuVerifier.initVerify(pub);
+    extMuVerifier.update(mu);
+    assertTrue(extMuVerifier.verify(signatureBytes));
+
+    // Sign mu, verify with message
+    extMuSigner.initSign(priv);
+    extMuSigner.update(mu);
+    signatureBytes = extMuSigner.sign();
+    verifier.initVerify(pub);
+    verifier.update(message);
+    assertTrue(verifier.verify(signatureBytes));
+
+    // Sign message, verify with mu
+    signer.initSign(priv);
+    signer.update(message);
+    signatureBytes = signer.sign();
+    extMuVerifier.initVerify(pub);
+    extMuVerifier.update(mu);
+    assertTrue(extMuVerifier.verify(signatureBytes));
+
+    // Tampering the signature induces failure
+    extMuSigner.initSign(priv);
+    extMuSigner.update(mu);
+    signatureBytes = extMuSigner.sign();
+    signatureBytes[0] ^= 0xff;
+    extMuVerifier.initVerify(pub);
+    extMuVerifier.update(mu);
+    assertFalse(extMuVerifier.verify(signatureBytes));
   }
 }

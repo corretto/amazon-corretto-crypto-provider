@@ -231,6 +231,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
     if (shouldRegisterMLDSA) {
       addService("Signature", "ML-DSA", "EvpSignatureRaw$MLDSA");
+      addService("Signature", "ML-DSA-Ext-Mu", "EvpSignatureRaw$MLDSAExtMu");
     }
   }
 
