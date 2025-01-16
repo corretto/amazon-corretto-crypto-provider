@@ -43,17 +43,23 @@ if (ext.lcovIgnore == null) {
 def getDescriptionForPom(isFips) {
     if (!isFips) {
         return [
-            'The Amazon Corretto Crypto Provider (ACCP) is a collection of',
-            'high-performance cryptographic implementations exposed via the',
-            'standard JCA/JCE interfaces.'
+            'The Amazon Corretto Crypto Provider (ACCP) is a collection of high-performance',
+            'cryptographic implementations exposed via standard JCA/JCE interfaces.',
+            'ACCP uses AWS-LC to implement its cryptographic operations.',
+            'You can find the version of AWS-LC used with each version of ACCP here:',
+            'https://github.com/corretto/amazon-corretto-crypto-provider/blob/main/README.md#notes-on-accp-fips',
         ].join(" ")
     }
 
     return [
         'The Amazon Corretto Crypto Provider FIPS (ACCP-FIPS) is a collection',
-        'of high-performance cryptographic implementations exposed via the',
-        'standard JCA/JCE interfaces. ACCP-FIPS uses AWS-LC built in FIPS mode',
-        'and is provided for experimental purposes only.'
+        'of high-performance cryptographic implementations exposed via standard',
+        'JCA/JCE interfaces.',
+        'ACCP-FIPS uses AWS-LC built in FIPS mode to implement its cryptographic',
+        'operations, and is subject to the same compliance conditions as AWS-LC-FIPS.',
+        'Please refer to AWS-LC documentation and your local compliance team for guidance.',
+        'You can find the version of AWS-LC-FIPS used with each version of ACCP FIPS here:',
+        'https://github.com/corretto/amazon-corretto-crypto-provider/blob/main/README.md#notes-on-accp-fips',
     ].join(" ")
 
 }
