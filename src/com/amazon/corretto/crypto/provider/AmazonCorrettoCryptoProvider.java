@@ -112,20 +112,17 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     addService("SecretKeyFactory", HKDF_WITH_SHA384, hkdfSpi, false);
     addService("SecretKeyFactory", HKDF_WITH_SHA512, hkdfSpi, false);
 
-    // Once these KDFs are added to a FIPS branch of AWS-LC, we can remove this check.
-    if (!Loader.FIPS_BUILD || Loader.EXPERIMENTAL_FIPS_BUILD) {
-      final String concatenationKdfSpi = "ConcatenationKdfSpi";
-      addService("SecretKeyFactory", CKDF_WITH_SHA256, concatenationKdfSpi, false);
-      addService("SecretKeyFactory", CKDF_WITH_SHA384, concatenationKdfSpi, false);
-      addService("SecretKeyFactory", CKDF_WITH_SHA512, concatenationKdfSpi, false);
-      addService("SecretKeyFactory", CKDF_WITH_HMAC_SHA256, concatenationKdfSpi, false);
-      addService("SecretKeyFactory", CKDF_WITH_HMAC_SHA512, concatenationKdfSpi, false);
+    final String concatenationKdfSpi = "ConcatenationKdfSpi";
+    addService("SecretKeyFactory", CKDF_WITH_SHA256, concatenationKdfSpi, false);
+    addService("SecretKeyFactory", CKDF_WITH_SHA384, concatenationKdfSpi, false);
+    addService("SecretKeyFactory", CKDF_WITH_SHA512, concatenationKdfSpi, false);
+    addService("SecretKeyFactory", CKDF_WITH_HMAC_SHA256, concatenationKdfSpi, false);
+    addService("SecretKeyFactory", CKDF_WITH_HMAC_SHA512, concatenationKdfSpi, false);
 
-      final String counterKdfSpi = "CounterKdfSpi";
-      addService("SecretKeyFactory", CTR_KDF_WITH_HMAC_SHA256, counterKdfSpi, false);
-      addService("SecretKeyFactory", CTR_KDF_WITH_HMAC_SHA384, counterKdfSpi, false);
-      addService("SecretKeyFactory", CTR_KDF_WITH_HMAC_SHA512, counterKdfSpi, false);
-    }
+    final String counterKdfSpi = "CounterKdfSpi";
+    addService("SecretKeyFactory", CTR_KDF_WITH_HMAC_SHA256, counterKdfSpi, false);
+    addService("SecretKeyFactory", CTR_KDF_WITH_HMAC_SHA384, counterKdfSpi, false);
+    addService("SecretKeyFactory", CTR_KDF_WITH_HMAC_SHA512, counterKdfSpi, false);
 
     addService("KeyPairGenerator", "RSA", "RsaGen");
     addService("KeyPairGenerator", "EC", "EcGen");

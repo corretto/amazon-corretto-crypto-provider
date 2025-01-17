@@ -6,12 +6,9 @@ import static com.amazon.corretto.crypto.provider.test.TestUtil.bcDigest;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.getEntriesFromFile;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.amazon.corretto.crypto.provider.CounterKdfSpec;
 import java.security.NoSuchAlgorithmException;
@@ -35,16 +32,16 @@ import org.junit.jupiter.params.provider.MethodSource;
 @Execution(ExecutionMode.CONCURRENT)
 @ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
 public class CounterKdfTest {
+
   @Test
-  public void counterKdfsAreNotAvailableInFipsMode() {
+  public void counterKdfsAreAvailable() {
     Stream.of("CounterKdfWithHmacSHA256", "CounterKdfWithHmacSHA384", "CounterKdfWithHmacSHA512")
         .forEach(
             alg -> {
               try {
                 assertNotNull(SecretKeyFactory.getInstance(alg, TestUtil.NATIVE_PROVIDER));
-                assertTrue(TestUtil.supportsExtraKdfs());
               } catch (final NoSuchAlgorithmException e) {
-                assertFalse(TestUtil.supportsExtraKdfs());
+                throw new RuntimeException(e);
               }
             });
   }
@@ -63,7 +60,6 @@ public class CounterKdfTest {
   // The rest of the tests are only available in non-FIPS mode, or in experimental FIPS mode.
   @Test
   public void counterKdfExpectsCounterKdfSpecAsKeySpec() throws Exception {
-    assumeTrue(TestUtil.supportsExtraKdfs());
     final SecretKeyFactory skf =
         SecretKeyFactory.getInstance("CounterKdfWithHmacSHA256", TestUtil.NATIVE_PROVIDER);
     assertThrows(
@@ -72,7 +68,6 @@ public class CounterKdfTest {
 
   @Test
   public void counterKdfWithEmptyInfoIsFine() throws Exception {
-    assumeTrue(TestUtil.supportsExtraKdfs());
     final SecretKeyFactory skf =
         SecretKeyFactory.getInstance("CounterKdfWithHmacSHA256", TestUtil.NATIVE_PROVIDER);
     final CounterKdfSpec spec = new CounterKdfSpec(new byte[1], 10, "name");
@@ -83,7 +78,6 @@ public class CounterKdfTest {
   @ParameterizedTest(name = "{0}")
   @MethodSource("counterKdfKatTests")
   public void counterKdfKatTests(final RspTestEntry entry) throws Exception {
-    assumeTrue(TestUtil.supportsExtraKdfs());
     final String digest = jceDigestName(entry.getInstance("HASH"));
     assumeFalse("SHA1".equals(digest));
     final byte[] expected = entry.getInstanceFromHex("EXPECT");

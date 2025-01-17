@@ -6,6 +6,8 @@
 * [PR 397:](https://github.com/corretto/amazon-corretto-crypto-provider/pull/397) Support for Concatenation KDFs
 * [PR 399:](https://github.com/corretto/amazon-corretto-crypto-provider/pull/399) Support for Counter KDFs
 * [PR 394:](https://github.com/corretto/amazon-corretto-crypto-provider/pull/394) Support for Ed25519 DSA
+* Use AWS-LC [v1.42.0](https://github.com/aws/aws-lc/releases/tag/v1.42.0) for ACCP
+* Use AWS-LC [AWS-LC-FIPS-3.0.0](https://github.com/aws/aws-lc/releases/tag/AWS-LC-FIPS-3.0.0) for ACCP-FIPS
 
 ## 2.4.1
 
