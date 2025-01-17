@@ -13,6 +13,15 @@ As of 2.0.0, algorithms exposed by ACCP are primarily backed by [AWS-LC](https:/
 | Linux x86_64 | ![](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiRW4zZUhmeHlJbHRVQnNBZGZEbVJUa0pOK0J0MmtnNVB2dVZZSWhLbUtaNWYxNG96WWg4emN1SjJKL3VSUk9obFl0MnBtajBxejlVWDFiR3ppZGd3U1lrPSIsIml2UGFyYW1ldGVyU3BlYyI6IkFsUkpiMDRkRjZQb1U3Ly8iLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=main) |
 | Linux aarch64 | ![](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiMEVNSXhZYmdEOWFrcE1HdE9nQmdwVlZFZXRYVnloc05TMXhoZ0tTVUQ1ZlMzeWRrZTArSUxUdzY2RVJRbUtXak5zU2ZCamJBS3JxUEFxZFJ2ZVNkcGVNPSIsIml2UGFyYW1ldGVyU3BlYyI6Ii80UEZpYWc2RjJZLzZDQ0wiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=main) |
 
+## Performance Benchmarks
+
+We provide complete benchmarking data from our [benchmarking suite](./benchmarks/README.md) for the current tip of `main`.
+
+| Build Name | Data | EC2 Instance Type |
+| - | - | - |
+| Linux x86_64 | [link](https://d1veyo88e7gsuw.cloudfront.net/c7ixlarge/index.html) | c7i.xlarge |
+| Linux aarch64 | [link](https://d1veyo88e7gsuw.cloudfront.net/c8gxlarge/index.html) | c8g.xlarge |
+
 ## Supported Algorithms
 MessageDigest algorithms:
 * SHA-512
