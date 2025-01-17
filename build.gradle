@@ -21,7 +21,8 @@ if (ext.isExperimentalFips) {
     ext.isFips = Boolean.getBoolean('FIPS')
 }
 
-if (!ext.isFips) {
+if (ext.isExperimentalFips || !ext.isFips) {
+    // Experimental FIPS uses the same AWS-LC version as non-FIPS builds.
     ext.awsLcGitVersionId = 'v1.42.0'
 } else {
     ext.awsLcGitVersionId = 'AWS-LC-FIPS-3.0.0'

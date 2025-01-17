@@ -261,6 +261,8 @@ set(C_SRC
     csrc/agreement.cpp
     csrc/bn.cpp
     csrc/buffer.cpp
+    csrc/concatenation_kdf.cpp
+    csrc/counter_kdf.cpp
     csrc/ec_gen.cpp
     csrc/ec_utils.cpp
     csrc/ed_gen.cpp
@@ -290,14 +292,6 @@ if(FIPS)
     set(TEST_FIPS_PROPERTY "-DFIPS=true")
 else()
     set(TEST_FIPS_PROPERTY "-DFIPS=false")
-endif()
-
-# The source files under this guard should be removed and added to all builds, including FIPS,
-# once the corresponding algorithms are added to a FIPS branch of AWS-LC consumable by ACCP.
-if(EXPERIMENTAL_FIPS OR (NOT FIPS))
-    set(C_SRC ${C_SRC}
-        csrc/concatenation_kdf.cpp
-        csrc/counter_kdf.cpp)
 endif()
 
 add_library(amazonCorrettoCryptoProvider SHARED ${C_SRC})
