@@ -98,10 +98,6 @@ public class TestUtil {
     return NATIVE_PROVIDER.isExperimentalFips();
   }
 
-  public static boolean supportsExtraKdfs() {
-    return isExperimentalFips() || !isFips();
-  }
-
   public static byte[] intArrayToByteArray(final int[] array) {
     final byte[] result = new byte[array.length];
     for (int i = 0; i != array.length; i++) {
