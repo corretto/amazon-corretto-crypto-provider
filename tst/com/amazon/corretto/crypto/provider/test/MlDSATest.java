@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.DisabledIf;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
@@ -33,12 +34,19 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
+@DisabledIf("com.amazon.corretto.crypto.provider.test.MlDSATest#isDisabled")
 @Execution(ExecutionMode.CONCURRENT)
 @ExtendWith(TestResultLogger.class)
 @ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
 public class MlDSATest {
   private static final Provider NATIVE_PROVIDER = AmazonCorrettoCryptoProvider.INSTANCE;
   private static final int[] MESSAGE_LENGTHS = new int[] {0, 1, 16, 32, 2047, 2048, 2049, 4100};
+
+  // TODO: remove this disablement when ACCP consumes an AWS-LC-FIPS release with ML-DSA
+  public static boolean isDisabled() {
+    return AmazonCorrettoCryptoProvider.INSTANCE.isFips()
+        && !AmazonCorrettoCryptoProvider.INSTANCE.isExperimentalFips();
+  }
 
   private static class TestParams {
     private final Provider signerProv;

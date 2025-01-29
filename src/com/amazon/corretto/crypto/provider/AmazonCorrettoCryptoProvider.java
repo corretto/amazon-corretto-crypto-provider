@@ -91,10 +91,13 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
     addService("KeyFactory", "RSA", "EvpKeyFactory$RSA");
     addService("KeyFactory", "EC", "EvpKeyFactory$EC");
-    addService("KeyFactory", "ML-DSA", "EvpKeyFactory$MlDSA");
-    addService("KeyFactory", "ML-DSA-44", "EvpKeyFactory$MlDSA");
-    addService("KeyFactory", "ML-DSA-65", "EvpKeyFactory$MlDSA");
-    addService("KeyFactory", "ML-DSA-87", "EvpKeyFactory$MlDSA");
+
+    if (!isFips() || isExperimentalFips()) {
+      addService("KeyFactory", "ML-DSA", "EvpKeyFactory$MlDSA");
+      addService("KeyFactory", "ML-DSA-44", "EvpKeyFactory$MlDSA");
+      addService("KeyFactory", "ML-DSA-65", "EvpKeyFactory$MlDSA");
+      addService("KeyFactory", "ML-DSA-87", "EvpKeyFactory$MlDSA");
+    }
 
     if (shouldRegisterEdDSA) {
       // KeyFactories are used to convert key encodings to Java Key objects. ACCP's KeyFactory for
@@ -131,10 +134,12 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     addService("KeyPairGenerator", "RSA", "RsaGen");
     addService("KeyPairGenerator", "EC", "EcGen");
 
-    addService("KeyPairGenerator", "ML-DSA", "MlDsaGen$MlDsaGen44");
-    addService("KeyPairGenerator", "ML-DSA-44", "MlDsaGen$MlDsaGen44");
-    addService("KeyPairGenerator", "ML-DSA-65", "MlDsaGen$MlDsaGen65");
-    addService("KeyPairGenerator", "ML-DSA-87", "MlDsaGen$MlDsaGen87");
+    if (!isFips() || isExperimentalFips()) {
+      addService("KeyPairGenerator", "ML-DSA", "MlDsaGen$MlDsaGen44");
+      addService("KeyPairGenerator", "ML-DSA-44", "MlDsaGen$MlDsaGen44");
+      addService("KeyPairGenerator", "ML-DSA-65", "MlDsaGen$MlDsaGen65");
+      addService("KeyPairGenerator", "ML-DSA-87", "MlDsaGen$MlDsaGen87");
+    }
 
     addService("KeyGenerator", "AES", "keygeneratorspi.SecretKeyGenerator", false);
 
@@ -222,7 +227,10 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
       addService("Signature", "EdDSA", "EvpSignatureRaw$Ed25519");
       addService("Signature", "Ed25519", "EvpSignatureRaw$Ed25519");
     }
-    addService("Signature", "ML-DSA", "EvpSignatureRaw$MlDSA");
+
+    if (!isFips() || isExperimentalFips()) {
+      addService("Signature", "ML-DSA", "EvpSignatureRaw$MlDSA");
+    }
   }
 
   private ACCPService addService(
