@@ -93,7 +93,6 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     addService("KeyFactory", "RSA", "EvpKeyFactory$RSA");
     addService("KeyFactory", "EC", "EvpKeyFactory$EC");
 
-
     if (shouldRegisterMLDSA) {
       addService("KeyFactory", "ML-DSA", "EvpKeyFactory$MLDSA");
       addService("KeyFactory", "ML-DSA-44", "EvpKeyFactory$MLDSA");
