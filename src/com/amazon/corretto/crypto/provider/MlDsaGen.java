@@ -9,15 +9,19 @@ import java.security.spec.AlgorithmParameterSpec;
 
 class MlDsaGen extends KeyPairGeneratorSpi {
   /** Generates a new ML-DSA key and returns a pointer to it. */
-  private static native long generateEvpMlDsaKey(int nid);
+  private static native long generateEvpMlDsaKey(int level);
 
   private final AmazonCorrettoCryptoProvider provider_;
-  private int type_ = -1;
+  /**
+   * level_ corresponds to the purported NIST security level for each ML-DSA variant. It uniquely
+   * determines which NID is used to request an ML-DSA key. -1 indicates it is uninitialized.
+   */
+  private int level_ = -1;
 
-  private MlDsaGen(AmazonCorrettoCryptoProvider provider, Integer type) {
+  private MlDsaGen(AmazonCorrettoCryptoProvider provider, Integer level) {
     Loader.checkNativeLibraryAvailability();
     provider_ = provider;
-    type_ = type;
+    level_ = level;
   }
 
   MlDsaGen(AmazonCorrettoCryptoProvider provider) {
@@ -34,10 +38,10 @@ class MlDsaGen extends KeyPairGeneratorSpi {
 
   @Override
   public KeyPair generateKeyPair() {
-    if (type_ < 0) {
+    if (level_ < 0) {
       throw new IllegalStateException("Key type not set");
     }
-    long pkey_ptr = generateEvpMlDsaKey(type_);
+    long pkey_ptr = generateEvpMlDsaKey(level_);
     final EvpMlDsaPrivateKey privateKey = new EvpMlDsaPrivateKey(pkey_ptr);
     final EvpMlDsaPublicKey publicKey = privateKey.getPublicKey();
     return new KeyPair(publicKey, privateKey);

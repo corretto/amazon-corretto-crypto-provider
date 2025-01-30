@@ -34,11 +34,11 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
-@DisabledIf("com.amazon.corretto.crypto.provider.test.MlDSATest#isDisabled")
+@DisabledIf("com.amazon.corretto.crypto.provider.test.MLDSATest#isDisabled")
 @Execution(ExecutionMode.CONCURRENT)
 @ExtendWith(TestResultLogger.class)
 @ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
-public class MlDSATest {
+public class MLDSATest {
   private static final Provider NATIVE_PROVIDER = AmazonCorrettoCryptoProvider.INSTANCE;
   private static final int[] MESSAGE_LENGTHS = new int[] {0, 1, 16, 32, 2047, 2048, 2049, 4100};
 

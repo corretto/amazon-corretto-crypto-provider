@@ -2,9 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.amazon.corretto.crypto.provider.benchmarks;
 
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
-
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Param;
@@ -13,24 +10,25 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 
 @State(Scope.Benchmark)
-public class KeyGenMlDSA {
-
+public class SignatureMLDSA extends SignatureBase {
     @Param({AmazonCorrettoCryptoProvider.PROVIDER_NAME, "BC"})
     public String provider;
 
     @Param({"ML-DSA-44", "ML-DSA-65", "ML-DSA-87"})
-    public String algo;
-
-    private KeyPairGenerator kpg;
+    public String algorithm;
 
     @Setup
     public void setup() throws Exception {
-        BenchmarkUtils.setupProvider(provider);
-        kpg = KeyPairGenerator.getInstance(algo, provider);
+        super.setup(provider, algorithm, null, "ML-DSA", null);
     }
 
     @Benchmark
-    public KeyPair generate() {
-        return kpg.generateKeyPair();
+    public byte[] sign() throws Exception {
+        return super.sign();
+    }
+
+    @Benchmark
+    public boolean verify() throws Exception {
+        return super.verify();
     }
 }

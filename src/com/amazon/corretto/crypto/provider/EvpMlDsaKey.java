@@ -6,6 +6,6 @@ abstract class EvpMlDsaKey extends EvpKey {
   private static final long serialVersionUID = 1;
 
   EvpMlDsaKey(InternalKey key, final boolean isPublicKey) {
-    super(key, EvpKeyType.MlDSA, isPublicKey);
+    super(key, EvpKeyType.MLDSA, isPublicKey);
   }
 }

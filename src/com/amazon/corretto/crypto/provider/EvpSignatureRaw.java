@@ -115,9 +115,9 @@ class EvpSignatureRaw extends EvpSignatureBase {
     }
   }
 
-  static final class MlDSA extends EvpSignatureRaw {
-    MlDSA(final AmazonCorrettoCryptoProvider provider) {
-      super(provider, EvpKeyType.MlDSA, 0);
+  static final class MLDSA extends EvpSignatureRaw {
+    MLDSA(final AmazonCorrettoCryptoProvider provider) {
+      super(provider, EvpKeyType.MLDSA, 0);
     }
   }
 }
