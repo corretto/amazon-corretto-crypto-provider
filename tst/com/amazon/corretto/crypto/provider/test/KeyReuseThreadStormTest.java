@@ -47,6 +47,9 @@ public class KeyReuseThreadStormTest {
   private static final KeyPair PAIR_EC_P384;
   private static final KeyPair PAIR_EC_P521;
   private static final KeyPair PAIR_ED25519;
+  private static final KeyPair PAIR_MLDSA_44;
+  private static final KeyPair PAIR_MLDSA_65;
+  private static final KeyPair PAIR_MLDSA_87;
 
   static {
     try {
@@ -71,6 +74,9 @@ public class KeyReuseThreadStormTest {
               ? KeyPairGenerator.getInstance("Ed25519", NATIVE_PROVIDER)
               : null;
       PAIR_ED25519 = TestUtil.getJavaVersion() >= 15 ? ED_KEY_GEN.generateKeyPair() : null;
+      PAIR_MLDSA_44 = KeyPairGenerator.getInstance("ML-DSA-44", NATIVE_PROVIDER).generateKeyPair();
+      PAIR_MLDSA_65 = KeyPairGenerator.getInstance("ML-DSA-65", NATIVE_PROVIDER).generateKeyPair();
+      PAIR_MLDSA_87 = KeyPairGenerator.getInstance("ML-DSA-87", NATIVE_PROVIDER).generateKeyPair();
     } catch (final GeneralSecurityException ex) {
       throw new AssertionError(ex);
     }
@@ -230,6 +236,35 @@ public class KeyReuseThreadStormTest {
       }
       final TestThread t;
       t = new SignatureTestThread("EddsaThread-" + x, rng, iterations, "Ed25519", keys);
+      threads.add(t);
+    }
+    executeThreads(threads);
+  }
+
+  @Test
+  public void mlDsaThreadStorm() throws Throwable {
+    final byte[] rngSeed = TestUtil.getRandomBytes(20);
+    System.out.println("RNG Seed: " + Arrays.toString(rngSeed));
+    final SecureRandom rng = SecureRandom.getInstance("SHA1PRNG");
+    rng.setSeed(rngSeed);
+    final int iterations = 500;
+    final int threadCount = 48;
+    final List<TestThread> threads = new ArrayList<>();
+    for (int x = 0; x < threadCount; x++) {
+      final List<KeyPair> keys = new ArrayList<KeyPair>();
+      while (keys.size() < 2) {
+        if (rng.nextBoolean()) {
+          keys.add(PAIR_MLDSA_44);
+        }
+        if (rng.nextBoolean()) {
+          keys.add(PAIR_MLDSA_65);
+        }
+        if (rng.nextBoolean()) {
+          keys.add(PAIR_MLDSA_87);
+        }
+      }
+      final TestThread t;
+      t = new SignatureTestThread("MlDdsaThread-" + x, rng, iterations, "ML-DSA", keys);
       threads.add(t);
     }
     executeThreads(threads);
