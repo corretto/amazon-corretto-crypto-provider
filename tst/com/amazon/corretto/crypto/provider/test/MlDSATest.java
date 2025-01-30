@@ -200,7 +200,58 @@ public class MlDSATest {
   }
 
   @Test
-  public void codifyBcDifferences() {
-    // TODO [childw] hard-coded test to document de/serialization tests between ACCP and BC
+  public void documentBouncyCastleDifferences() throws Exception {
+    // ACCP and BouncyCastle both encode the public key in full form, but BC FIPS encodes the
+    // private key as its 32 byte
+    // seed while ACCP encodes the fully expanded key. Key sizes don't precisely match the spec's
+    // sizes due to X509/PKCS9 ASN.1 encoding overhead.
+    // https://openquantumsafe.org/liboqs/algorithms/sig/ml-dsa.html
+    KeyPair nativePair =
+        KeyPairGenerator.getInstance("ML-DSA-44", NATIVE_PROVIDER).generateKeyPair();
+    KeyPair bcPair =
+        KeyPairGenerator.getInstance("ML-DSA-44", TestUtil.BC_PROVIDER).generateKeyPair();
+    assertEquals(
+        nativePair.getPublic().getEncoded().length, bcPair.getPublic().getEncoded().length);
+    assertEquals(2584, nativePair.getPrivate().getEncoded().length);
+    assertEquals(52, bcPair.getPrivate().getEncoded().length);
+
+    nativePair = KeyPairGenerator.getInstance("ML-DSA-65", NATIVE_PROVIDER).generateKeyPair();
+    bcPair = KeyPairGenerator.getInstance("ML-DSA-65", TestUtil.BC_PROVIDER).generateKeyPair();
+    assertEquals(
+        nativePair.getPublic().getEncoded().length, bcPair.getPublic().getEncoded().length);
+    assertEquals(4056, nativePair.getPrivate().getEncoded().length);
+    assertEquals(52, bcPair.getPrivate().getEncoded().length);
+
+    nativePair = KeyPairGenerator.getInstance("ML-DSA-87", NATIVE_PROVIDER).generateKeyPair();
+    bcPair = KeyPairGenerator.getInstance("ML-DSA-87", TestUtil.BC_PROVIDER).generateKeyPair();
+    assertEquals(
+        nativePair.getPublic().getEncoded().length, bcPair.getPublic().getEncoded().length);
+    assertEquals(4920, nativePair.getPrivate().getEncoded().length);
+    assertEquals(52, bcPair.getPrivate().getEncoded().length);
+
+    // BouncyCastle Signatures don't accept keys from other providers
+    Signature bcSignature = Signature.getInstance("ML-DSA", TestUtil.BC_PROVIDER);
+    final KeyPair finalNativePair = nativePair;
+    assertThrows(
+        InvalidKeyException.class, () -> bcSignature.initSign(finalNativePair.getPrivate()));
+
+    // ACCP can't effectively use BouncyCastle private keys due to seed/expanded encoding difference
+    Signature nativeSignature = Signature.getInstance("ML-DSA", NATIVE_PROVIDER);
+    nativeSignature.initSign(bcPair.getPrivate());
+    byte[] sigBytes = nativeSignature.sign();
+    assertNotNull(sigBytes);
+    nativeSignature.initVerify(bcPair.getPublic());
+    assertFalse(nativeSignature.verify(sigBytes));
+
+    // However, ACCP can use BouncyCastle public keys
+    nativeSignature = Signature.getInstance("ML-DSA", NATIVE_PROVIDER);
+    nativeSignature.initSign(nativePair.getPrivate());
+    sigBytes = nativeSignature.sign();
+    assertNotNull(sigBytes);
+    PublicKey bcPub =
+        KeyFactory.getInstance("ML-DSA", TestUtil.BC_PROVIDER)
+            .generatePublic(new X509EncodedKeySpec(nativePair.getPublic().getEncoded()));
+    nativeSignature.initVerify(bcPub);
+    assertTrue(nativeSignature.verify(sigBytes));
   }
 }
