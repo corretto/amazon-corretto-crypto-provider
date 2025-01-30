@@ -5,6 +5,7 @@ package com.amazon.corretto.crypto.provider.test;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assertArraysHexEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.security.GeneralSecurityException;
 import java.security.Key;
@@ -74,12 +75,25 @@ public class KeyReuseThreadStormTest {
               ? KeyPairGenerator.getInstance("Ed25519", NATIVE_PROVIDER)
               : null;
       PAIR_ED25519 = TestUtil.getJavaVersion() >= 15 ? ED_KEY_GEN.generateKeyPair() : null;
-      PAIR_MLDSA_44 = KeyPairGenerator.getInstance("ML-DSA-44", NATIVE_PROVIDER).generateKeyPair();
-      PAIR_MLDSA_65 = KeyPairGenerator.getInstance("ML-DSA-65", NATIVE_PROVIDER).generateKeyPair();
-      PAIR_MLDSA_87 = KeyPairGenerator.getInstance("ML-DSA-87", NATIVE_PROVIDER).generateKeyPair();
+      if (canUseMlDsa()) {
+        PAIR_MLDSA_44 =
+            KeyPairGenerator.getInstance("ML-DSA-44", NATIVE_PROVIDER).generateKeyPair();
+        PAIR_MLDSA_65 =
+            KeyPairGenerator.getInstance("ML-DSA-65", NATIVE_PROVIDER).generateKeyPair();
+        PAIR_MLDSA_87 =
+            KeyPairGenerator.getInstance("ML-DSA-87", NATIVE_PROVIDER).generateKeyPair();
+      } else {
+        PAIR_MLDSA_44 = null;
+        PAIR_MLDSA_65 = null;
+        PAIR_MLDSA_87 = null;
+      }
     } catch (final GeneralSecurityException ex) {
       throw new AssertionError(ex);
     }
+  }
+
+  private static boolean canUseMlDsa() {
+    return (!NATIVE_PROVIDER.isFips() || NATIVE_PROVIDER.isExperimentalFips());
   }
 
   @Test
@@ -243,6 +257,7 @@ public class KeyReuseThreadStormTest {
 
   @Test
   public void mlDsaThreadStorm() throws Throwable {
+    assumeTrue(canUseMlDsa());
     final byte[] rngSeed = TestUtil.getRandomBytes(20);
     System.out.println("RNG Seed: " + Arrays.toString(rngSeed));
     final SecureRandom rng = SecureRandom.getInstance("SHA1PRNG");
