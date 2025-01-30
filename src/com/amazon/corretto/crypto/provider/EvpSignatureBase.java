@@ -103,8 +103,11 @@ abstract class EvpSignatureBase extends SignatureSpi {
     }
 
     if (untranslatedKey_ != privateKey) {
-      if (!keyType_.jceName.equalsIgnoreCase(privateKey.getAlgorithm())) {
-        throw new InvalidKeyException();
+      if (!keyType_.jceName.equalsIgnoreCase(privateKey.getAlgorithm())
+          && !privateKey.getAlgorithm().startsWith(keyType_.jceName)) {
+        throw new InvalidKeyException(
+            String.format(
+                "Invalid algorithm: %s, expected %s", privateKey.getAlgorithm(), keyType_.jceName));
       }
       keyUsageCount_ = 0;
       untranslatedKey_ = privateKey;
@@ -125,7 +128,8 @@ abstract class EvpSignatureBase extends SignatureSpi {
     }
 
     if (untranslatedKey_ != publicKey) {
-      if (!keyType_.jceName.equalsIgnoreCase(publicKey.getAlgorithm())) {
+      if (!keyType_.jceName.equalsIgnoreCase(publicKey.getAlgorithm())
+          && !publicKey.getAlgorithm().startsWith(keyType_.jceName)) {
         throw new InvalidKeyException();
       }
       keyUsageCount_ = 0;

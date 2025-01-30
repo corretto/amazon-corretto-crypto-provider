@@ -63,6 +63,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
   private final boolean shouldRegisterSecureRandom;
   private final boolean shouldRegisterEdDSA;
   private final boolean shouldRegisterEdKeyFactory;
+  private final boolean shouldRegisterMLDSA;
   private final Utils.NativeContextReleaseStrategy nativeContextReleaseStrategy;
 
   private transient SelfTestSuite selfTestSuite = new SelfTestSuite();
@@ -91,6 +92,13 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
     addService("KeyFactory", "RSA", "EvpKeyFactory$RSA");
     addService("KeyFactory", "EC", "EvpKeyFactory$EC");
+
+    if (shouldRegisterMLDSA) {
+      addService("KeyFactory", "ML-DSA", "EvpKeyFactory$MLDSA");
+      addService("KeyFactory", "ML-DSA-44", "EvpKeyFactory$MLDSA");
+      addService("KeyFactory", "ML-DSA-65", "EvpKeyFactory$MLDSA");
+      addService("KeyFactory", "ML-DSA-87", "EvpKeyFactory$MLDSA");
+    }
 
     if (shouldRegisterEdDSA) {
       // KeyFactories are used to convert key encodings to Java Key objects. ACCP's KeyFactory for
@@ -126,6 +134,13 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
     addService("KeyPairGenerator", "RSA", "RsaGen");
     addService("KeyPairGenerator", "EC", "EcGen");
+
+    if (shouldRegisterMLDSA) {
+      addService("KeyPairGenerator", "ML-DSA", "MlDsaGen$MlDsaGen44");
+      addService("KeyPairGenerator", "ML-DSA-44", "MlDsaGen$MlDsaGen44");
+      addService("KeyPairGenerator", "ML-DSA-65", "MlDsaGen$MlDsaGen65");
+      addService("KeyPairGenerator", "ML-DSA-87", "MlDsaGen$MlDsaGen87");
+    }
 
     addService("KeyGenerator", "AES", "keygeneratorspi.SecretKeyGenerator", false);
 
@@ -212,6 +227,10 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     if (shouldRegisterEdDSA) {
       addService("Signature", "EdDSA", "EvpSignatureRaw$Ed25519");
       addService("Signature", "Ed25519", "EvpSignatureRaw$Ed25519");
+    }
+
+    if (shouldRegisterMLDSA) {
+      addService("Signature", "ML-DSA", "EvpSignatureRaw$MLDSA");
     }
   }
 
@@ -501,6 +520,8 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     this.shouldRegisterEdKeyFactory =
         Utils.getBooleanProperty(PROPERTY_REGISTER_ED_KEYFACTORY, false);
 
+    this.shouldRegisterMLDSA = (!isFips() || isExperimentalFips());
+
     this.nativeContextReleaseStrategy = Utils.getNativeContextReleaseStrategyProperty();
 
     Utils.optionsFromProperty(ExtraCheck.class, extraChecks, "extrachecks");
@@ -714,6 +735,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
   private transient volatile KeyFactory rsaFactory;
   private transient volatile KeyFactory ecFactory;
   private transient volatile KeyFactory edFactory;
+  private transient volatile KeyFactory mlDsaFactory;
 
   KeyFactory getKeyFactory(EvpKeyType keyType) {
     try {
@@ -733,8 +755,13 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
             edFactory = new EdKeyFactory(this);
           }
           return edFactory;
+        case MLDSA:
+          if (mlDsaFactory == null) {
+            mlDsaFactory = KeyFactory.getInstance(keyType.jceName, this);
+          }
+          return mlDsaFactory;
         default:
-          throw new AssertionError("Unsupported key type");
+          throw new AssertionError(String.format("Unsupported key type: %s", keyType.jceName));
       }
     } catch (final NoSuchAlgorithmException ex) {
       throw new AssertionError(ex);

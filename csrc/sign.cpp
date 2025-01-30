@@ -66,7 +66,11 @@ bool initializeContext(raii_env& env,
     EVP_PKEY_up_ref(pKey);
     ctx->setKey(pKey);
 
+#if defined(FIPS_BUILD) && !defined(EXPERIMENTAL_FIPS_BUILD)
     if (md != nullptr || EVP_PKEY_id(pKey) == EVP_PKEY_ED25519) {
+#else
+    if (md != nullptr || EVP_PKEY_id(pKey) == EVP_PKEY_ED25519 || EVP_PKEY_id(pKey) == EVP_PKEY_PQDSA) {
+#endif
         if (!ctx->setDigestCtx(EVP_MD_CTX_create())) {
             throw_openssl("Unable to create MD_CTX");
         }
@@ -456,7 +460,11 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatu
 
         int keyType = EVP_PKEY_id(reinterpret_cast<EVP_PKEY*>(pKey));
 
+#if defined(FIPS_BUILD) && !defined(EXPERIMENTAL_FIPS_BUILD)
         if (keyType == EVP_PKEY_ED25519) {
+#else
+        if (keyType == EVP_PKEY_ED25519 || keyType == EVP_PKEY_PQDSA) {
+#endif
             jni_borrow message(env, messageBuf, "message");
 
             if (!EVP_DigestSign(ctx.getDigestCtx(), NULL, &sigLength, message.data(), message.len())) {
@@ -526,7 +534,11 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
 
         int ret;
         int keyType = EVP_PKEY_id(reinterpret_cast<EVP_PKEY*>(pKey));
+#if defined(FIPS_BUILD) && !defined(EXPERIMENTAL_FIPS_BUILD)
         if (keyType == EVP_PKEY_ED25519) {
+#else
+        if (keyType == EVP_PKEY_ED25519 || keyType == EVP_PKEY_PQDSA) {
+#endif
             ret = EVP_DigestVerify(
                 ctx.getDigestCtx(), signature.data(), signature.len(), message.data(), message.len());
         } else {

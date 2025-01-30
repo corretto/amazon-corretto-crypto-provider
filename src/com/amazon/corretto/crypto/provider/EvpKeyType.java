@@ -18,7 +18,8 @@ import java.util.Map;
 enum EvpKeyType {
   RSA("RSA", 6, RSAPublicKey.class, RSAPrivateKey.class),
   EC("EC", 408, ECPublicKey.class, ECPrivateKey.class),
-  EdDSA("EdDSA", 949, PublicKey.class, PrivateKey.class);
+  EdDSA("EdDSA", 949, PublicKey.class, PrivateKey.class),
+  MLDSA("ML-DSA", 993, PublicKey.class, PrivateKey.class);
 
   final String jceName;
   final int nativeValue;
@@ -58,6 +59,8 @@ enum EvpKeyType {
         return new EvpEcPrivateKey(fn.applyAsLong(der.getEncoded(), nativeValue));
       case EdDSA:
         return new EvpEdPrivateKey(fn.applyAsLong(der.getEncoded(), nativeValue));
+      case MLDSA:
+        return new EvpMlDsaPrivateKey(fn.applyAsLong(der.getEncoded(), nativeValue));
       default:
         throw new AssertionError("Unsupported key type");
     }
@@ -73,6 +76,8 @@ enum EvpKeyType {
         return new EvpEcPublicKey(fn.applyAsLong(der.getEncoded(), nativeValue));
       case EdDSA:
         return new EvpEdPublicKey(fn.applyAsLong(der.getEncoded(), nativeValue));
+      case MLDSA:
+        return new EvpMlDsaPublicKey(fn.applyAsLong(der.getEncoded(), nativeValue));
       default:
         throw new AssertionError("Unsupported key type");
     }

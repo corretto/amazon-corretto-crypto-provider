@@ -128,8 +128,9 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
   }
 
   protected boolean keyNeedsConversion(Key key) throws InvalidKeyException {
-    if (!type.jceName.equalsIgnoreCase(key.getAlgorithm())) {
-      throw new InvalidKeyException("Incorrect key algorithm: " + key.getAlgorithm());
+    if (key.getAlgorithm() == null || !key.getAlgorithm().startsWith(type.jceName)) {
+      throw new InvalidKeyException(
+          "Incorrect key algorithm: " + key.getAlgorithm() + ". Expected: " + type.jceName);
     }
     return !(key instanceof EvpKey);
   }
@@ -303,10 +304,9 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
     }
   }
 
-  static class EdDSA extends EvpKeyFactory {
-
-    EdDSA(AmazonCorrettoCryptoProvider provider) {
-      super(EvpKeyType.EdDSA, provider);
+  private abstract static class StandardEvpKeyFactory extends EvpKeyFactory {
+    StandardEvpKeyFactory(EvpKeyType type, AmazonCorrettoCryptoProvider provider) {
+      super(type, provider);
     }
 
     @Override
@@ -324,6 +324,18 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
     protected <T extends KeySpec> T engineGetKeySpec(final Key key, final Class<T> keySpec)
         throws InvalidKeySpecException {
       return super.engineGetKeySpec(key, keySpec);
+    }
+  }
+
+  static class EdDSA extends StandardEvpKeyFactory {
+    EdDSA(AmazonCorrettoCryptoProvider provider) {
+      super(EvpKeyType.EdDSA, provider);
+    }
+  }
+
+  static class MLDSA extends StandardEvpKeyFactory {
+    MLDSA(AmazonCorrettoCryptoProvider provider) {
+      super(EvpKeyType.MLDSA, provider);
     }
   }
 }
