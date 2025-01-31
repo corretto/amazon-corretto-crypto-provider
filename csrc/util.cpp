@@ -1,7 +1,6 @@
 // Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 #include "generated-headers.h"
-#include <openssl/bytestring.h>
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <cassert>
@@ -13,7 +12,6 @@
 #include <stddef.h>
 #include <string>
 
-#include "auto_free.h"
 #include "env.h"
 #include "util.h"
 
