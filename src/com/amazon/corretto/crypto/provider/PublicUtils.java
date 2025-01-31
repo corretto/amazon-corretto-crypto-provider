@@ -20,7 +20,7 @@ public class PublicUtils {
    * @return a byte[] of length 64 containing mu
    */
   public static byte[] computeMLDSAMu(PublicKey publicKey, byte[] message) {
-    if (!"ML-DSA".equals(publicKey.getAlgorithm()) || message == null) {
+    if (publicKey == null || !publicKey.getAlgorithm().startsWith("ML-DSA") || message == null) {
       throw new IllegalArgumentException();
     }
     return computeMLDSAMuInternal(publicKey.getEncoded(), message);
