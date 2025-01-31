@@ -659,7 +659,9 @@ public final class EvpSignatureSpecificTest {
       if (!service.getType().equals("Signature") || "RSASSA-PSS".equals(algorithm)) {
         continue;
       }
-      if (algorithm.equals("Ed25519") || algorithm.equals("EdDSA") || algorithm.equals("ML-DSA")) {
+      if (algorithm.equals("Ed25519")
+          || algorithm.equals("EdDSA")
+          || algorithm.startsWith("ML-DSA")) {
         continue;
       }
       String bcAlgorithm = algorithm;

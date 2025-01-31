@@ -281,6 +281,7 @@ set(C_SRC
     csrc/sha384.cpp
     csrc/sha512.cpp
     csrc/sign.cpp
+    csrc/test_util.cpp
     csrc/testhooks.cpp
     csrc/util.cpp
     csrc/util_class.cpp

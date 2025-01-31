@@ -3,6 +3,7 @@
 package com.amazon.corretto.crypto.provider.test;
 
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
+import static org.junit.Assume.assumeTrue;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -253,5 +254,84 @@ public class MLDSATest {
             .generatePublic(new X509EncodedKeySpec(nativePair.getPublic().getEncoded()));
     nativeSignature.initVerify(bcPub);
     assertTrue(nativeSignature.verify(sigBytes));
+  }
+
+  @ParameterizedTest
+  @MethodSource("getParams")
+  public void testExtMu(TestParams params) throws Exception {
+    // Only ACCP currently supports External Mu
+    assumeTrue(params.signerProv == NATIVE_PROVIDER && params.verifierProv == NATIVE_PROVIDER);
+
+    Signature signer = Signature.getInstance("ML-DSA", NATIVE_PROVIDER);
+    Signature verifier = Signature.getInstance("ML-DSA", NATIVE_PROVIDER);
+    Signature extMuSigner = Signature.getInstance("ML-DSA-ExtMu", NATIVE_PROVIDER);
+    Signature extMuVerifier = Signature.getInstance("ML-DSA-ExtMu", NATIVE_PROVIDER);
+    PrivateKey priv = params.priv;
+    PublicKey pub = params.pub;
+
+    byte[] message = Arrays.copyOf(params.message, params.message.length);
+    byte[] mu = TestUtil.computeMLDSAMu(pub, message);
+    assertEquals(64, mu.length);
+    byte[] fakeMu = new byte[64];
+    Arrays.fill(fakeMu, (byte) 0);
+
+    // Test with "fake mu" -- contents don't matter if we're signing and verifying mu
+    extMuSigner.initSign(priv);
+    extMuSigner.update(fakeMu);
+    byte[] signatureBytes = extMuSigner.sign();
+    extMuVerifier.initVerify(pub);
+    extMuVerifier.update(fakeMu);
+    assertTrue(extMuVerifier.verify(signatureBytes));
+
+    // Test with real mu
+    extMuSigner.initSign(priv);
+    extMuSigner.update(mu);
+    signatureBytes = extMuSigner.sign();
+    extMuVerifier.initVerify(pub);
+    extMuVerifier.update(mu);
+    assertTrue(extMuVerifier.verify(signatureBytes));
+
+    // Sign mu, verify with message
+    extMuSigner.initSign(priv);
+    extMuSigner.update(mu);
+    signatureBytes = extMuSigner.sign();
+    verifier.initVerify(pub);
+    verifier.update(message);
+    assertTrue(verifier.verify(signatureBytes));
+
+    // Sign message, verify with mu
+    signer.initSign(priv);
+    signer.update(message);
+    signatureBytes = signer.sign();
+    extMuVerifier.initVerify(pub);
+    extMuVerifier.update(mu);
+    assertTrue(extMuVerifier.verify(signatureBytes));
+
+    // Tampering the signature induces failure
+    extMuSigner.initSign(priv);
+    extMuSigner.update(mu);
+    signatureBytes = extMuSigner.sign();
+    signatureBytes[0] ^= 0xff;
+    extMuVerifier.initVerify(pub);
+    extMuVerifier.update(mu);
+    assertFalse(extMuVerifier.verify(signatureBytes));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"ML-DSA-44", "ML-DSA-65", "ML-DSA-87"})
+  public void testComputeMLDSAExtMu(String algorithm) throws Exception {
+    KeyPair keyPair = KeyPairGenerator.getInstance(algorithm, NATIVE_PROVIDER).generateKeyPair();
+    PublicKey nativePub = keyPair.getPublic();
+    KeyFactory bcKf = KeyFactory.getInstance("ML-DSA", TestUtil.BC_PROVIDER);
+    PublicKey bcPub = bcKf.generatePublic(new X509EncodedKeySpec(nativePub.getEncoded()));
+
+    byte[] message = new byte[256];
+    Arrays.fill(message, (byte) 0x41);
+    byte[] mu = TestUtil.computeMLDSAMu(nativePub, message);
+    assertEquals(64, mu.length);
+    // We don't have any other implementations of mu calculation to test against, so just assert
+    // that mu is equivalent
+    // generated from both ACCP and BouncyCastle keys.
+    assertArrayEquals(mu, TestUtil.computeMLDSAMu(bcPub, message));
   }
 }
