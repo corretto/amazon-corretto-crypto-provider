@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
-import com.amazon.corretto.crypto.provider.Utils;
+import com.amazon.corretto.crypto.provider.PublicUtils;
 import java.security.InvalidKeyException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
@@ -36,11 +36,11 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
-@DisabledIf("com.amazon.corretto.crypto.provider.test.MlDSATest#isDisabled")
+@DisabledIf("com.amazon.corretto.crypto.provider.test.MLDSATest#isDisabled")
 @Execution(ExecutionMode.CONCURRENT)
 @ExtendWith(TestResultLogger.class)
 @ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
-public class MlDSATest {
+public class MLDSATest {
   private static final Provider NATIVE_PROVIDER = AmazonCorrettoCryptoProvider.INSTANCE;
   private static final int[] MESSAGE_LENGTHS = new int[] {0, 1, 16, 32, 2047, 2048, 2049, 4100};
 
@@ -271,7 +271,7 @@ public class MlDSATest {
     PublicKey pub = params.pub;
 
     byte[] message = Arrays.copyOf(params.message, params.message.length);
-    byte[] mu = Utils.computeMLDSAMu(pub.getEncoded(), message);
+    byte[] mu = PublicUtils.computeMLDSAMu(pub.getEncoded(), message);
     assertEquals(64, mu.length);
     byte[] fakeMu = new byte[64];
     Arrays.fill(fakeMu, (byte) 0);

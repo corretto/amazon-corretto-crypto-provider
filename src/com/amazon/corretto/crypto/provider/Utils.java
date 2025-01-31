@@ -27,9 +27,7 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 
 /** Miscellaneous utility methods. */
-// TODO [childw] make this package-private and final, move ExtMu function to other public utils
-// class
-public class Utils {
+final class Utils {
   static final int SHA1_CODE = 1;
   static final int SHA256_CODE = 2;
   static final int SHA384_CODE = 3;
@@ -653,7 +651,4 @@ public class Utils {
     }
     return encodedKey;
   }
-
-  // TODO [childw] document
-  public static native byte[] computeMLDSAMu(byte[] pubKeyEncoded, byte[] message);
 }
