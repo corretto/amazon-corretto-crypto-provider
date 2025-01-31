@@ -264,8 +264,8 @@ public class MLDSATest {
 
     Signature signer = Signature.getInstance("ML-DSA", NATIVE_PROVIDER);
     Signature verifier = Signature.getInstance("ML-DSA", NATIVE_PROVIDER);
-    Signature extMuSigner = Signature.getInstance("ML-DSA-Ext-Mu", NATIVE_PROVIDER);
-    Signature extMuVerifier = Signature.getInstance("ML-DSA-Ext-Mu", NATIVE_PROVIDER);
+    Signature extMuSigner = Signature.getInstance("ML-DSA-ExtMu", NATIVE_PROVIDER);
+    Signature extMuVerifier = Signature.getInstance("ML-DSA-ExtMu", NATIVE_PROVIDER);
     PrivateKey priv = params.priv;
     PublicKey pub = params.pub;
 
