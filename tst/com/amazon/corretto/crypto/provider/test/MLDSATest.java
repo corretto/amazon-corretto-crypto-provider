@@ -271,7 +271,7 @@ public class MLDSATest {
     PublicKey pub = params.pub;
 
     byte[] message = Arrays.copyOf(params.message, params.message.length);
-    byte[] mu = PublicUtils.computeMLDSAMu(pub.getEncoded(), message);
+    byte[] mu = PublicUtils.computeMLDSAMu(pub, message);
     assertEquals(64, mu.length);
     byte[] fakeMu = new byte[64];
     Arrays.fill(fakeMu, (byte) 0);

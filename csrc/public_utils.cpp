@@ -11,10 +11,10 @@ namespace AmazonCorrettoCryptoProvider {
 
 /*
  * Class:     com_amazon_corretto_crypto_provider_Utils
- * Method:    computeMLDSAMu
+ * Method:    computeMLDSAMuInternal
  * Signature: ([B[B)[B
  */
-extern "C" JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_PublicUtils_computeMLDSAMu(
+extern "C" JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_PublicUtils_computeMLDSAMuInternal(
     JNIEnv* pEnv, jclass, jbyteArray pubKeyEncodedArr, jbyteArray messageArr)
 {
     try {
