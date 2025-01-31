@@ -11,7 +11,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
-import com.amazon.corretto.crypto.provider.PublicUtils;
 import java.security.InvalidKeyException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
@@ -271,7 +270,7 @@ public class MLDSATest {
     PublicKey pub = params.pub;
 
     byte[] message = Arrays.copyOf(params.message, params.message.length);
-    byte[] mu = PublicUtils.computeMLDSAMu(pub, message);
+    byte[] mu = TestUtil.computeMLDSAMu(pub, message);
     assertEquals(64, mu.length);
     byte[] fakeMu = new byte[64];
     Arrays.fill(fakeMu, (byte) 0);
@@ -316,5 +315,23 @@ public class MLDSATest {
     extMuVerifier.initVerify(pub);
     extMuVerifier.update(mu);
     assertFalse(extMuVerifier.verify(signatureBytes));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"ML-DSA-44", "ML-DSA-65", "ML-DSA-87"})
+  public void testComputeMLDSAExtMu(String algorithm) throws Exception {
+    KeyPair keyPair = KeyPairGenerator.getInstance(algorithm, NATIVE_PROVIDER).generateKeyPair();
+    PublicKey nativePub = keyPair.getPublic();
+    KeyFactory bcKf = KeyFactory.getInstance("ML-DSA", TestUtil.BC_PROVIDER);
+    PublicKey bcPub = bcKf.generatePublic(new X509EncodedKeySpec(nativePub.getEncoded()));
+
+    byte[] message = new byte[256];
+    Arrays.fill(message, (byte) 0x41);
+    byte[] mu = TestUtil.computeMLDSAMu(nativePub, message);
+    assertEquals(64, mu.length);
+    // We don't have any other implementations of mu calculation to test against, so just assert
+    // that mu is equivalent
+    // generated from both ACCP and BouncyCastle keys.
+    assertArrayEquals(mu, TestUtil.computeMLDSAMu(bcPub, message));
   }
 }

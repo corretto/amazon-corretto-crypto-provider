@@ -274,7 +274,6 @@ set(C_SRC
     csrc/libcrypto_rng.cpp
     csrc/loader.cpp
     csrc/md5.cpp
-    csrc/public_utils.cpp
     csrc/rsa_cipher.cpp
     csrc/rsa_gen.cpp
     csrc/sha1.cpp
@@ -282,6 +281,7 @@ set(C_SRC
     csrc/sha384.cpp
     csrc/sha512.cpp
     csrc/sign.cpp
+    csrc/test_util.cpp
     csrc/testhooks.cpp
     csrc/util.cpp
     csrc/util_class.cpp
