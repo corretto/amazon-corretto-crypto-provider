@@ -70,7 +70,7 @@ bool initializeContext(raii_env& env,
 #if defined(FIPS_BUILD) && !defined(EXPERIMENTAL_FIPS_BUILD)
     if (md != nullptr || EVP_PKEY_id(pKey) == EVP_PKEY_ED25519) {
 #else
-    if (md != nullptr || EVP_PKEY_id(pKey) == EVP_PKEY_ED25519 || (EVP_PKEY_id(pKey) == EVP_PKEY_PQDSA && !preHash)) {
+    if (md != nullptr || (!preHash && (EVP_PKEY_id(pKey) == EVP_PKEY_ED25519 || EVP_PKEY_id(pKey) == EVP_PKEY_PQDSA))) {
 #endif
         if (!ctx->setDigestCtx(EVP_MD_CTX_create())) {
             throw_openssl("Unable to create MD_CTX");
@@ -465,7 +465,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatu
 #if defined(FIPS_BUILD) && !defined(EXPERIMENTAL_FIPS_BUILD)
         if (keyType == EVP_PKEY_ED25519) {
 #else
-        if (!preHash && (keyType == EVP_PKEY_ED25519 || keyType == EVP_PKEY_PQDSA) {
+        if (!preHash && (keyType == EVP_PKEY_ED25519 || keyType == EVP_PKEY_PQDSA)) {
 #endif
             jni_borrow message(env, messageBuf, "message");
 
@@ -483,16 +483,16 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatu
         } else {
             jni_borrow message(env, messageBuf, "message");
 
+// TODO [childw] DELETEME when EVP_PKEY_ED25519PH is supported
 #define EVP_PKEY_ED25519PH EVP_PKEY_ED25519
             if (keyType == EVP_PKEY_ED25519) {
-                // TODO [childw] convert key per sean's instructions. make sure to free temp key after signing and upon
-                // error (maybe we can use EVP_PKEY_CTX_auto?)
-                // https://quip-amazon.com/dis4Ah2gOL4N/Ed25519-EVP-Key-Type-and-HashEdDSA-Support-in-AWS-LC#temp:C:TIUc356167e7d9a44238b4f10623
                 size_t raw_len;
-                EVP_PKEY_get_raw_private_key(ctx.getKey(), nullptr, &raw_len);
+                CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(ctx.getKey(), nullptr, &raw_len));
                 std::vector<uint8_t> raw_bytes(raw_len);
-                EVP_PKEY_get_raw_private_key(ctx.getKey(), raw_bytes, &raw_len);
-                ctx.setKeyCtx();
+                CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(ctx.getKey(), raw_bytes.data(), &raw_len));
+                CHECK_OPENSSL(
+                    ctx.setKey(EVP_PKEY_new_raw_private_key(EVP_PKEY_ED25519PH, nullptr, raw_bytes.data(), raw_len)));
+                CHECK_OPENSSL(ctx.setKeyCtx(EVP_PKEY_CTX_new(ctx.getKey(), nullptr)));
             }
 
             if (EVP_PKEY_sign(ctx.getKeyCtx(), NULL, &sigLength, message.data(), message.len()) <= 0) {
@@ -552,11 +552,20 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
 #if defined(FIPS_BUILD) && !defined(EXPERIMENTAL_FIPS_BUILD)
         if (keyType == EVP_PKEY_ED25519) {
 #else
-        if (keyType == EVP_PKEY_ED25519 || (keyType == EVP_PKEY_PQDSA && !preHash)) {
+        if (!preHash && (keyType == EVP_PKEY_ED25519 || keyType == EVP_PKEY_PQDSA)) {
 #endif
             ret = EVP_DigestVerify(
                 ctx.getDigestCtx(), signature.data(), signature.len(), message.data(), message.len());
         } else {
+            if (keyType == EVP_PKEY_ED25519) {
+                size_t raw_len;
+                CHECK_OPENSSL(EVP_PKEY_get_raw_public_key(ctx.getKey(), nullptr, &raw_len));
+                std::vector<uint8_t> raw_bytes(raw_len);
+                CHECK_OPENSSL(EVP_PKEY_get_raw_public_key(ctx.getKey(), raw_bytes.data(), &raw_len));
+                CHECK_OPENSSL(
+                    ctx.setKey(EVP_PKEY_new_raw_public_key(EVP_PKEY_ED25519PH, nullptr, raw_bytes.data(), raw_len)));
+                CHECK_OPENSSL(ctx.setKeyCtx(EVP_PKEY_CTX_new(ctx.getKey(), nullptr)));
+            }
             ret = EVP_PKEY_verify(ctx.getKeyCtx(), signature.data(), signature.len(), message.data(), message.len());
         }
 
