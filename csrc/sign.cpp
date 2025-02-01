@@ -465,7 +465,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatu
 #if defined(FIPS_BUILD) && !defined(EXPERIMENTAL_FIPS_BUILD)
         if (keyType == EVP_PKEY_ED25519) {
 #else
-        if (keyType == EVP_PKEY_ED25519 || (keyType == EVP_PKEY_PQDSA && !preHash)) {
+        if (!preHash && (keyType == EVP_PKEY_ED25519 || keyType == EVP_PKEY_PQDSA) {
 #endif
             jni_borrow message(env, messageBuf, "message");
 
@@ -482,6 +482,18 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatu
             signature.resize(sigLength);
         } else {
             jni_borrow message(env, messageBuf, "message");
+
+#define EVP_PKEY_ED25519PH EVP_PKEY_ED25519
+            if (keyType == EVP_PKEY_ED25519) {
+                // TODO [childw] convert key per sean's instructions. make sure to free temp key after signing and upon
+                // error (maybe we can use EVP_PKEY_CTX_auto?)
+                // https://quip-amazon.com/dis4Ah2gOL4N/Ed25519-EVP-Key-Type-and-HashEdDSA-Support-in-AWS-LC#temp:C:TIUc356167e7d9a44238b4f10623
+                size_t raw_len;
+                EVP_PKEY_get_raw_private_key(ctx.getKey(), nullptr, &raw_len);
+                std::vector<uint8_t> raw_bytes(raw_len);
+                EVP_PKEY_get_raw_private_key(ctx.getKey(), raw_bytes, &raw_len);
+                ctx.setKeyCtx();
+            }
 
             if (EVP_PKEY_sign(ctx.getKeyCtx(), NULL, &sigLength, message.data(), message.len()) <= 0) {
                 throw_openssl("Signature failed");
