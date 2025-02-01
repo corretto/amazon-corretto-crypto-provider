@@ -88,8 +88,10 @@ public class EvpKeyFactoryTest {
     for (String algorithm : ALGORITHMS) {
       KeyPairGenerator kpg;
       if (algorithm.startsWith("ML-DSA")) {
-        // JCE doesn't support ML-DSA until JDK24, so use BouncyCastle until then
-        kpg = KeyPairGenerator.getInstance(algorithm, TestUtil.BC_PROVIDER);
+        // JCE doesn't support ML-DSA until JDK24, and BouncyCastle currently
+        // serializes ML-DSA private keys via seeds. TODO: switch to
+        // BouncyCastle once we support deserializing private keys from seed.
+        kpg = KeyPairGenerator.getInstance(algorithm, NATIVE_PROVIDER);
       } else {
         kpg = KeyPairGenerator.getInstance(algorithm);
       }
@@ -234,8 +236,10 @@ public class EvpKeyFactoryTest {
     final KeyFactory nativeFactory = KeyFactory.getInstance(algorithm, NATIVE_PROVIDER);
     final KeyFactory jceFactory;
     if (algorithm.startsWith("ML-DSA")) {
-      // JCE doesn't support ML-DSA until JDK24, so use BouncyCastle until then
-      jceFactory = KeyFactory.getInstance(algorithm, TestUtil.BC_PROVIDER);
+      // JCE doesn't support ML-DSA until JDK24, and BouncyCastle currently
+      // serializes ML-DSA private keys via seeds. TODO: switch to
+      // BouncyCastle once we support deserializing private keys from seed.
+      jceFactory = KeyFactory.getInstance(algorithm, NATIVE_PROVIDER);
     } else {
       jceFactory = KeyFactory.getInstance(algorithm);
     }
@@ -309,8 +313,10 @@ public class EvpKeyFactoryTest {
     final KeyFactory nativeFactory = KeyFactory.getInstance(algorithm, NATIVE_PROVIDER);
     final KeyFactory jceFactory;
     if (algorithm.startsWith("ML-DSA")) {
-      // JCE doesn't support ML-DSA until JDK24, so use BouncyCastle until then
-      jceFactory = KeyFactory.getInstance(algorithm, TestUtil.BC_PROVIDER);
+      // JCE doesn't support ML-DSA until JDK24, and BouncyCastle currently
+      // serializes ML-DSA private keys via seeds. TODO: switch to
+      // BouncyCastle once we support deserializing private keys from seed.
+      jceFactory = KeyFactory.getInstance(algorithm, NATIVE_PROVIDER);
     } else {
       jceFactory = KeyFactory.getInstance(algorithm);
     }
