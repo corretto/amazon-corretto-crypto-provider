@@ -3,7 +3,9 @@
 package com.amazon.corretto.crypto.provider.test;
 
 import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.getJavaVersion;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.versionCompare;
+import static org.junit.Assume.assumeTrue;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -64,8 +66,34 @@ public class AESGenerativeTest {
   }
 
   @Test
+  public void testEncrypt91() throws Exception {
+    // The implementation of javax.crypto.CipherSpi::bufferCrypt in JDK 10
+    // has an issue that has been resolved in the following PR:
+    // https://github.com/openjdk/jdk/commit/c3a97b27e244f97c80a14388aea4fc425006a87e
+    // We disable this test for JDK 10.
+
+    // To replicate the error for other JDKs, copy-paste the buggy implementation into
+    // AesGcmSpi.java
+    // and run `./gradlew cmake_clean single_test
+    // -DSINGLE_TEST=com.amazon.corretto.crypto.provider.test.AESGenerativeTest`
+    // The buggy implementation is available here:
+    // https://github.com/openjdk/jdk/blob/f98aad58dea1d0b818706215166bcbbc349d1c6d/src/java.base/share/classes/javax/crypto/CipherSpi.java#L736-L857
+    assumeTrue(getJavaVersion() != 10);
+    try {
+      testEncrypt(91, 10);
+    } catch (Throwable t) {
+      throw new AssertionError("Seed: 91", t);
+    }
+  }
+
+  @Test
   public void testEncryptRandomly() throws Exception {
     for (int i = 0; i < 100; i++) {
+      // when i == 91, the test case fails for JDK 10. This case is tested in another method:
+      // testEncrypt91
+      if (i == 91) {
+        continue;
+      }
       try {
         testEncrypt(i, 10);
       } catch (Throwable t) {
@@ -253,7 +281,9 @@ public class AESGenerativeTest {
       case 0:
         {
           jceCipherEncrypt.updateAAD(buf.duplicate());
-          amzCipherEncrypt.updateAAD(buf.duplicate());
+          final ByteBuffer amzBuf = buf.duplicate();
+          amzCipherEncrypt.updateAAD(amzBuf);
+          assertByteBufferEmpty(amzBuf);
 
           Channels.newChannel(aadData).write(buf);
 
@@ -337,7 +367,9 @@ public class AESGenerativeTest {
           Channels.newChannel(jceResult).write(outBuf);
 
           outBuf = ByteBuffer.allocate(amzCipherEncrypt.getOutputSize(buf.remaining()));
-          amzCipherEncrypt.update(buf.duplicate(), outBuf);
+          final ByteBuffer amzBuf = buf.duplicate();
+          amzCipherEncrypt.update(amzBuf, outBuf);
+          assertByteBufferEmpty(amzBuf);
           outBuf.flip();
           Channels.newChannel(amzResult).write(outBuf);
 
@@ -437,6 +469,7 @@ public class AESGenerativeTest {
           ByteBuffer output = mungeBuffer(r, false, new byte[resultSize], 0, resultSize);
 
           cipher.doFinal(input, output);
+          assertByteBufferEmpty(input);
 
           output.flip();
 
@@ -476,6 +509,7 @@ public class AESGenerativeTest {
           ByteBuffer output = mungeBuffer(r, false, new byte[resultSize], 0, resultSize);
 
           cipher.update(input, output);
+          assertByteBufferEmpty(input);
 
           output.flip();
 
@@ -493,7 +527,9 @@ public class AESGenerativeTest {
         break;
       case 1:
         // Apply wrapped byte buffer
-        cipher.updateAAD(mungeBuffer(r, true, aadData, start, end - start));
+        final ByteBuffer mungedBuffer = mungeBuffer(r, true, aadData, start, end - start);
+        cipher.updateAAD(mungedBuffer);
+        assertByteBufferEmpty(mungedBuffer);
         break;
       case 2:
         // Apply byte array copy
@@ -559,7 +595,9 @@ public class AESGenerativeTest {
         nativeOutput
             ? ByteBuffer.allocate(cipher.getOutputSize(finalData.remaining()))
             : ByteBuffer.allocateDirect(cipher.getOutputSize(finalData.remaining()));
-    cipher.doFinal(finalData.duplicate(), out);
+    final ByteBuffer workingBuf = finalData.duplicate();
+    cipher.doFinal(workingBuf, out);
+    assertByteBufferEmpty(workingBuf);
     out.flip();
     Channels.newChannel(ciphertextStream).write(out);
   }
@@ -582,5 +620,12 @@ public class AESGenerativeTest {
     buf.duplicate().put(randBuf);
 
     return isReadOnly ? buf.asReadOnlyBuffer() : buf;
+  }
+
+  private static void assertByteBufferEmpty(final ByteBuffer buff) {
+    assertEquals(
+        buff.limit(),
+        buff.position(),
+        "ByteBuffer has remaining data when it should all be processed.");
   }
 }

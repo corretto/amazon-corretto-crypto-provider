@@ -5,6 +5,7 @@ package com.amazon.corretto.crypto.provider.test;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assertArraysHexEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.security.GeneralSecurityException;
 import java.security.Key;
@@ -24,6 +25,8 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledForJreRange;
+import org.junit.jupiter.api.condition.JRE;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
@@ -37,12 +40,17 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 public class KeyReuseThreadStormTest {
   private static final KeyPairGenerator RSA_KEY_GEN;
   private static final KeyPairGenerator EC_KEY_GEN;
+  private static final KeyPairGenerator ED_KEY_GEN;
   private static final KeyPair PAIR_RSA_1024_OR_DEFAULT;
   private static final KeyPair PAIR_RSA_2048;
   private static final KeyPair PAIR_RSA_4096;
   private static final KeyPair PAIR_EC_P256;
   private static final KeyPair PAIR_EC_P384;
   private static final KeyPair PAIR_EC_P521;
+  private static final KeyPair PAIR_ED25519;
+  private static final KeyPair PAIR_MLDSA_44;
+  private static final KeyPair PAIR_MLDSA_65;
+  private static final KeyPair PAIR_MLDSA_87;
 
   static {
     try {
@@ -62,9 +70,30 @@ public class KeyReuseThreadStormTest {
       PAIR_EC_P384 = EC_KEY_GEN.generateKeyPair();
       EC_KEY_GEN.initialize(new ECGenParameterSpec("NIST P-521"));
       PAIR_EC_P521 = EC_KEY_GEN.generateKeyPair();
+      ED_KEY_GEN =
+          TestUtil.getJavaVersion() >= 15
+              ? KeyPairGenerator.getInstance("Ed25519", NATIVE_PROVIDER)
+              : null;
+      PAIR_ED25519 = TestUtil.getJavaVersion() >= 15 ? ED_KEY_GEN.generateKeyPair() : null;
+      if (canUseMlDsa()) {
+        PAIR_MLDSA_44 =
+            KeyPairGenerator.getInstance("ML-DSA-44", NATIVE_PROVIDER).generateKeyPair();
+        PAIR_MLDSA_65 =
+            KeyPairGenerator.getInstance("ML-DSA-65", NATIVE_PROVIDER).generateKeyPair();
+        PAIR_MLDSA_87 =
+            KeyPairGenerator.getInstance("ML-DSA-87", NATIVE_PROVIDER).generateKeyPair();
+      } else {
+        PAIR_MLDSA_44 = null;
+        PAIR_MLDSA_65 = null;
+        PAIR_MLDSA_87 = null;
+      }
     } catch (final GeneralSecurityException ex) {
       throw new AssertionError(ex);
     }
+  }
+
+  private static boolean canUseMlDsa() {
+    return (!NATIVE_PROVIDER.isFips() || NATIVE_PROVIDER.isExperimentalFips());
   }
 
   @Test
@@ -198,6 +227,59 @@ public class KeyReuseThreadStormTest {
       } else {
         t = new KeyAgreementThread("EcdhThread-" + x, rng, iterations, "ECDH", keys);
       }
+      threads.add(t);
+    }
+    executeThreads(threads);
+  }
+
+  @Test
+  @EnabledForJreRange(min = JRE.JAVA_15)
+  public void edThreadStorm() throws Throwable {
+    final byte[] rngSeed = TestUtil.getRandomBytes(20);
+    System.out.println("RNG Seed: " + Arrays.toString(rngSeed));
+    final SecureRandom rng = SecureRandom.getInstance("SHA1PRNG");
+    rng.setSeed(rngSeed);
+    final int iterations = 500;
+    final int threadCount = 48;
+
+    final List<TestThread> threads = new ArrayList<>();
+    for (int x = 0; x < threadCount; x++) {
+      final List<KeyPair> keys = new ArrayList<KeyPair>();
+      while (keys.size() < 2) {
+        keys.add(PAIR_ED25519);
+      }
+      final TestThread t;
+      t = new SignatureTestThread("EddsaThread-" + x, rng, iterations, "Ed25519", keys);
+      threads.add(t);
+    }
+    executeThreads(threads);
+  }
+
+  @Test
+  public void mlDsaThreadStorm() throws Throwable {
+    assumeTrue(canUseMlDsa());
+    final byte[] rngSeed = TestUtil.getRandomBytes(20);
+    System.out.println("RNG Seed: " + Arrays.toString(rngSeed));
+    final SecureRandom rng = SecureRandom.getInstance("SHA1PRNG");
+    rng.setSeed(rngSeed);
+    final int iterations = 500;
+    final int threadCount = 48;
+    final List<TestThread> threads = new ArrayList<>();
+    for (int x = 0; x < threadCount; x++) {
+      final List<KeyPair> keys = new ArrayList<KeyPair>();
+      while (keys.size() < 2) {
+        if (rng.nextBoolean()) {
+          keys.add(PAIR_MLDSA_44);
+        }
+        if (rng.nextBoolean()) {
+          keys.add(PAIR_MLDSA_65);
+        }
+        if (rng.nextBoolean()) {
+          keys.add(PAIR_MLDSA_87);
+        }
+      }
+      final TestThread t;
+      t = new SignatureTestThread("MlDdsaThread-" + x, rng, iterations, "ML-DSA", keys);
       threads.add(t);
     }
     executeThreads(threads);

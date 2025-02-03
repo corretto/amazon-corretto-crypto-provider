@@ -10,13 +10,29 @@ plugins {
     id "com.diffplug.spotless" version "6.18.0"
     id "com.google.osdetector" version "1.7.0"
     id "io.github.gradle-nexus.publish-plugin" version "1.1.0"
-    id "io.morethan.jmhreport" version "0.9.0"
-    id "me.champeau.jmh" version "0.6.7"
 }
 
 group = 'software.amazon.cryptools'
-version = '2.0.0'
-ext.isFips = Boolean.getBoolean('FIPS')
+version = '2.5.0'
+ext.isExperimentalFips = Boolean.getBoolean('EXPERIMENTAL_FIPS')
+if (ext.isExperimentalFips) {
+    ext.isFips = true
+} else {
+    ext.isFips = Boolean.getBoolean('FIPS')
+}
+
+if (ext.isExperimentalFips || !ext.isFips) {
+    // Experimental FIPS uses the same AWS-LC version as non-FIPS builds.
+    ext.awsLcGitVersionId = 'v1.44.0'
+} else {
+    ext.awsLcGitVersionId = 'AWS-LC-FIPS-3.0.0'
+}
+
+// Check for user inputted git version ID.
+if (System.properties["AWSLC_GITVERSION"]) {
+    ext.awsLcGitVersionId = System.properties["AWSLC_GITVERSION"]
+}
+
 ext.isLegacyBuild = Boolean.getBoolean('LEGACY_BUILD')
 ext.allowFipsTestBreak = Boolean.getBoolean('ALLOW_FIPS_TEST_BREAK')
 
@@ -24,55 +40,47 @@ if (allowFipsTestBreak && !isFips) {
     throw new GradleException("ALLOW_FIPS_TEST_BREAK can only be set if FIPS is also set to true")
 }
 
-jmh {
-    fork = 1
-    benchmarkMode = ['thrpt']
-    threads = 1
-    timeUnit = 's'
-    iterations = 5
-    timeOnIteration = '3s'
-    warmup = '1s'
-    warmupForks = 1
-    warmupIterations = 3
-    resultFormat = 'JSON'
-    duplicateClassesStrategy = DuplicatesStrategy.WARN
-    jvmArgs = [
-        "-Djava.library.path=${rootDir}/build/cmake:" + System.getProperty("java.library.path"),
-        "-DversionStr=${version}",
-    ]
-
-    sourceSets {
-        jmh.java.srcDirs += files(["${rootDir}/build/cmake"])
-        main.java.srcDirs += files(["${rootDir}/src/com/amazon/corretto/crypto/provider"])
-    }
+ext.lcovIgnore = System.properties['LCOV_IGNORE']
+if (ext.lcovIgnore == null) {
+    ext.lcovIgnore = 'source'
 }
 
-jmhReport {
-    jmhResultPath = project.file('build/results/jmh/results.json')
-    jmhReportOutput = project.file('build/results/jmh')
+def getDescriptionForPom(isFips) {
+    if (!isFips) {
+        return [
+            'The Amazon Corretto Crypto Provider (ACCP) is a collection of high-performance',
+            'cryptographic implementations exposed via standard JCA/JCE interfaces.',
+            'ACCP uses AWS-LC to implement its cryptographic operations.',
+            'You can find the version of AWS-LC used with each version of ACCP here:',
+            'https://github.com/corretto/amazon-corretto-crypto-provider/blob/main/README.md#notes-on-accp-fips',
+        ].join(" ")
+    }
+
+    return [
+        'The Amazon Corretto Crypto Provider FIPS (ACCP-FIPS) is a collection',
+        'of high-performance cryptographic implementations exposed via standard',
+        'JCA/JCE interfaces.',
+        'ACCP-FIPS uses AWS-LC built in FIPS mode to implement its cryptographic',
+        'operations, and is subject to the same compliance conditions as AWS-LC-FIPS.',
+        'Please refer to AWS-LC documentation and your local compliance team for guidance.',
+        'You can find the version of AWS-LC-FIPS used with each version of ACCP FIPS here:',
+        'https://github.com/corretto/amazon-corretto-crypto-provider/blob/main/README.md#notes-on-accp-fips',
+    ].join(" ")
+
 }
 
 spotless {
   java {
     target 'src/**/*.java', 'tst/**/*.java'
-
-    // Exclude files which contain JML syntax since they conflict with Google Formatter rules
-    def jml_syntax_excludes = [
-        'src/com/amazon/corretto/crypto/provider/AccessibleByteArrayOutputStream.java',
-        'src/com/amazon/corretto/crypto/provider/InputBuffer.java',
-        'src/com/amazon/corretto/crypto/provider/Janitor.java'
-    ]
-    targetExclude(*jml_syntax_excludes)
-
     licenseHeaderFile 'build-tools/license-headers/LicenseHeader.java'
-
     googleJavaFormat().reflowLongStrings()
   }
 
   // clang-format is difficult to configure across all of our platforms so we
-  // avoid being really strict about enforcing it in our build for now.
+  // avoid being really strict about enforcing it in our build for now. version
+  // 17.x has a bug, so skip that version.
   def clangFormatVersion = getClangFormatVersion()
-  if (!clangFormatVersion.equals('')) {
+  if (!clangFormatVersion.equals('') && clangFormatVersion.indexOf('17') < 0) {
     cpp {
         target 'csrc/*'
         licenseHeaderFile 'build-tools/license-headers/LicenseHeader.h'
@@ -105,6 +113,11 @@ def getClangFormatVersion() {
 }
 
 def awslcSrcPath = "${projectDir}/aws-lc/"
+
+// Check for user inputted AWS-LC source directory. 
+if (System.properties["AWSLC_SRC_DIR"]) {
+    awslcSrcPath = System.properties["AWSLC_SRC_DIR"]
+}
 
 // Execute cmake3 command to see if it exists. Mainly to support AL2.
 def detect_cmake3 = {
@@ -170,13 +183,11 @@ dependencies {
     // Separate so we can extract the jar for the runner specifically
     testRunner group: 'org.junit.platform', name: 'junit-platform-console-standalone', version: '1.8.2'
 
-    jmh 'org.bouncycastle:bcprov-debug-jdk15on:1.69'
-
     testDep 'org.apiguardian:apiguardian-api:1.1.2'
     testDep 'org.junit.jupiter:junit-jupiter:5.8.2'
     testDep 'org.junit.vintage:junit-vintage-engine:5.8.2'
-    testDep 'org.bouncycastle:bcprov-debug-jdk15on:1.69'
-    testDep 'org.bouncycastle:bcpkix-jdk15on:1.69'
+    testDep 'org.bouncycastle:bcpkix-jdk18on:1.80'
+    testDep 'org.bouncycastle:bcprov-jdk18on:1.80'
     testDep 'commons-codec:commons-codec:1.12'
     testDep 'org.hamcrest:hamcrest:2.1'
     testDep 'org.jacoco:org.jacoco.core:0.8.3'
@@ -192,7 +203,22 @@ task buildAwsLc {
 
     doFirst {
         if (file(awslcSrcPath).list().size() == 0) {
-            throw new GradleException("aws-lc dir empty! run 'git submodule update --init --recursive' to populate.")
+            if (System.properties["AWSLC_SRC_DIR"]) {
+                throw new GradleException("aws-lc dir empty! specify another directory or populate with aws-lc source files.")
+            } else {
+                throw new GradleException("aws-lc dir empty! run 'git submodule update --init --recursive' to populate.")
+            }
+        }
+
+        if (!isLegacyBuild) {
+            exec {
+                workingDir awslcSrcPath
+                commandLine "git", "fetch", "--tags"
+            }
+            exec {
+                workingDir awslcSrcPath
+                commandLine "git", "checkout", awsLcGitVersionId
+            }
         }
         mkdir "${buildDir}/awslc"
         mkdir sharedObjectOutDir
@@ -215,9 +241,9 @@ task buildAwsLc {
                 args "-DMY_ASSEMBLER_IS_TOO_OLD_FOR_AVX=ON"
                 args "-std=gnu99"
                 args "-fgnu89-inline"
-                args '-DBUILD_SHARED_LIBS=ON'
                 args "-DCMAKE_INSTALL_PREFIX=${sharedObjectOutDir}"
                 args "-DCMAKE_VERBOSE_MAKEFILE:BOOL=ON"
+                args "-DLEGACY_BUILD=ON"
 
                 args "${awslcSrcPath}"
             }
@@ -227,10 +253,10 @@ task buildAwsLc {
                 workingDir awslcSrcPath
                 executable cmakeBin
                 args "-B${cMakeBuildDir}"
-                args '-DBUILD_SHARED_LIBS=ON'
                 args '-DCMAKE_BUILD_TYPE=RelWithDebInfo'
                 args "-DCMAKE_INSTALL_PREFIX=${sharedObjectOutDir}"
                 args "-DCMAKE_VERBOSE_MAKEFILE:BOOL=ON"
+
 
                 if (isFips) {
                     println "Building AWS-LC in FIPS mode"
@@ -248,6 +274,35 @@ task buildAwsLc {
             workingDir awslcSrcPath
             commandLine 'make', '-j', Runtime.runtime.availableProcessors(), '-C', "${cMakeBuildDir}", 'install'
         }
+    }
+}
+
+def getStagedArtifact(platformClassifier, destDir) {
+    def projectName = isFips ? project.name + "-FIPS" : project.name
+    def prebuiltJarFileName = "${projectName}-${version}-${platformClassifier}.jar"
+
+    println "Platform " + platformClassifier
+    def stagingProperties = new Properties()
+    if (isFips) {
+        stagingProperties.load(new java.io.FileInputStream("${System.env.CODEBUILD_SRC_DIR_Stage_FIPS}/fake_maven/staging.properties"));
+    } else {
+        stagingProperties.load(new java.io.FileInputStream("${System.env.CODEBUILD_SRC_DIR_Stage}/fake_maven/staging.properties"));
+    }
+
+    println "Loaded staging id is " + stagingProperties['staging.id']
+    def repoBase = "https://aws.oss.sonatype.org/content/repositories/" + stagingProperties['staging.id']
+    mkdir "${destDir}"
+    exec {
+        workingDir "${destDir}"
+        commandLine 'wget', "${repoBase}/software/amazon/cryptools/${projectName}/${version}/${prebuiltJarFileName}"
+    }
+
+    return assertJceSigned("${destDir}/${prebuiltJarFileName}")
+}
+
+task downloadStagedJar() {
+    doLast {
+        getStagedArtifact(project.property('platform'), project.property('destDir'))
     }
 }
 
@@ -270,22 +325,7 @@ task executeCmake(type: Exec) {
     def projectName = isFips ? project.name + "-FIPS" : project.name
     def prebuiltJarFileName = "${projectName}-${version}-${osdetector.classifier}.jar"
     if (System.properties['stagingProperties'] != null) {
-        def stagingProperties = new Properties()
-        if (isFips) {
-            stagingProperties.load(
-                new java.io.FileInputStream("${System.env.CODEBUILD_SRC_DIR_Stage_FIPS}/fake_maven/staging.properties"));
-        } else {
-            stagingProperties.load(
-                new java.io.FileInputStream("${System.env.CODEBUILD_SRC_DIR_Stage}/fake_maven/staging.properties"));
-        }
-        println "Loaded staging id is " + stagingProperties['staging.id']
-        def repoBase = "https://aws.oss.sonatype.org/content/repositories/" + stagingProperties['staging.id']
-        mkdir "${buildDir}/tmp"
-        exec {
-            workingDir "${buildDir}/tmp"
-            commandLine 'wget', "${repoBase}/software/amazon/cryptools/${projectName}/${version}/${prebuiltJarFileName}"
-        }
-        prebuiltJar = assertJceSigned("${buildDir}/tmp/${prebuiltJarFileName}")
+        prebuiltJar = getStagedArtifact(osdetector.classifier, "${buildDir}/tmp")
     } else if (System.properties['prebuiltJar'] != null) {
         prebuiltJar = "${projectDir}/" + System.properties['prebuiltJar']
     } else if (System.properties['fakeMaven'] != null) {
@@ -297,6 +337,8 @@ task executeCmake(type: Exec) {
         }
         fakeMavenBase = "${fakeMavenBase}/fake_maven"
         prebuiltJar = "${fakeMavenBase}/${prebuiltJarFileName}"
+    } else if (System.properties['downloadedStagedJar'] != null) {
+        prebuiltJar = "${System.properties['downloadedStagedJar']}/${prebuiltJarFileName}"
     }
 
     executable cmakeBin
@@ -306,6 +348,9 @@ task executeCmake(type: Exec) {
     args "-DCMAKE_VERBOSE_MAKEFILE:BOOL=ON"
     if (isFips) {
         args "-DFIPS=ON"
+    }
+    if (isExperimentalFips) {
+        args '-DEXPERIMENTAL_FIPS=ON'
     }
 
     if (prebuiltJar != null) {
@@ -358,7 +403,7 @@ task build(overwrite:true) {
                 alias: jcecertAlias,
                 jar: "${buildDir}/cmake/AmazonCorrettoCryptoProvider.jar",
                 destDir: "${buildDir}/lib",
-                storepass: jcecertPassword,
+                storepass: "${System.env.KEYSTORE_PASSWORD}" ,
                 keystore: "${project.gradle.gradleUserHomeDir}/${jcecertJks}",
                 tsaurl: "http://timestamp.digicert.com"
             )
@@ -372,7 +417,6 @@ task build(overwrite:true) {
         }
     }
 }
-compileJmhJava.dependsOn build
 
 task emptyJar(type: Jar) {
     archiveFileName = 'empty.jar'
@@ -473,22 +517,6 @@ task test_integration_extra_checks(type: Exec) {
     commandLine 'make', 'check-integration-extra-checks'
 }
 
-task dieharder(type: Exec) {
-    dependsOn executeCmake
-    workingDir "${buildDir}/cmake"
-    commandLine 'make', 'check-dieharder'
-}
-
-task dieharder_threads(type: Exec) {
-    dependsOn executeCmake
-    workingDir "${buildDir}/cmake"
-    commandLine 'make', 'check-dieharder-threads'
-}
-
-task dieharder_all {
-    dependsOn dieharder, dieharder_threads
-}
-
 task coverage_clean(type: Delete) {
     delete fileTree("${buildDir}/cmake-coverage") {
         include '**/*.gcda'
@@ -513,8 +541,14 @@ task coverage_cmake(type: Exec) {
     args '-DPROVIDER_VERSION_STRING=' + version, projectDir
     args "-DTEST_RUNNER_JAR=${configurations.testRunner.singleFile}"
     args "-DCMAKE_VERBOSE_MAKEFILE:BOOL=ON"
+    if (isLegacyBuild) {
+        args "-DLEGACY_BUILD=ON"
+    }
     if (isFips) {
         args "-DFIPS=ON"
+    }
+    if (isExperimentalFips) {
+        args '-DEXPERIMENTAL_FIPS=ON'
     }
 
     if (System.properties['JAVA_HOME'] != null) {
@@ -556,7 +590,7 @@ task coverage_cpp_report {
     doLast {
         exec {
             workingDir "${buildDir}/cmake-coverage"
-            commandLine 'lcov', '--capture', '--directory', "${buildDir}/cmake-coverage/CMakeFiles/amazonCorrettoCryptoProvider.dir/csrc", '--output-file', "${buildDir}/cmake-coverage/coverage.info", '--rc', 'lcov_branch_coverage=1'
+            commandLine 'lcov', '--capture', '--directory', "${buildDir}/cmake-coverage/CMakeFiles/amazonCorrettoCryptoProvider.dir/csrc", '--output-file', "${buildDir}/cmake-coverage/coverage.info", '--rc', 'lcov_branch_coverage=1', '--ignore-errors', lcovIgnore
         }
         // Convert absolute to relative paths
         exec {
@@ -567,7 +601,7 @@ task coverage_cpp_report {
         // polluting our metrics with unused STL code.
         exec {
             workingDir "${buildDir}/cmake-coverage"
-            commandLine 'lcov', '-e', "${buildDir}/cmake-coverage/coverage.info", 'csrc/*', '--rc', 'lcov_branch_coverage=1'
+            commandLine 'lcov', '-e', "${buildDir}/cmake-coverage/coverage.info", 'csrc/*', '--rc', 'lcov_branch_coverage=1', '--ignore-errors', lcovIgnore
             standardOutput = new FileOutputStream("${buildDir}/reports/cpp/coverage.info")
         }
         exec {
@@ -577,13 +611,13 @@ task coverage_cpp_report {
         }
         exec {
              workingDir projectDir
-             commandLine 'genhtml', '-o', "${buildDir}/reports/cpp", '--rc', 'genhtml_branch_coverage=1', "${buildDir}/reports/cpp/coverage.info"
+             commandLine 'genhtml', '-o', "${buildDir}/reports/cpp", '--rc', 'genhtml_branch_coverage=1', "${buildDir}/reports/cpp/coverage.info", '--ignore-errors', lcovIgnore
         }
     }
 }
 
 task coverage {
-    dependsOn coverage_java_report, coverage_cpp_report
+    dependsOn coverage_java_report
 }
 
 task release {
@@ -595,7 +629,7 @@ task release {
 }
 
 task overkill {
-    dependsOn test, test_extra_checks, test_integration, test_integration_extra_checks, dieharder_all
+    dependsOn test, test_extra_checks, test_integration, test_integration_extra_checks
 }
 
 task fakePublish {
@@ -604,19 +638,31 @@ task fakePublish {
 
     def x64Base = "${System.env.CODEBUILD_SRC_DIR_Linux_x64_Artifacts}/lib"
     def aarch64Base = "${System.env.CODEBUILD_SRC_DIR_Linux_aarch64_Artifacts}/lib"
+    def osxX64Base = "${System.env.CODEBUILD_SRC_DIR_Osx_x64_Artifacts}/lib"
+    def osxAarch64Base = "${System.env.CODEBUILD_SRC_DIR_Osx_aarch64_Artifacts}/lib"
     def newPrefix = "AmazonCorrettoCryptoProvider-${version}"
     if (isFips) {
+        newPrefix = "AmazonCorrettoCryptoProvider-FIPS-${version}"
         x64Base = "${System.env.CODEBUILD_SRC_DIR_Linux_x64_Artifacts_FIPS}/lib"
         aarch64Base = "${System.env.CODEBUILD_SRC_DIR_Linux_aarch64_Artifacts_FIPS}/lib"
-        newPrefix = "AmazonCorrettoCryptoProvider-FIPS-${version}"
+        osxX64Base = null
+        osxAarch64Base = null
     }
     def x86Jar = "${x64Base}/AmazonCorrettoCryptoProvider.jar"
     def aarch64Jar = "${aarch64Base}/AmazonCorrettoCryptoProvider.jar"
+    def osxX64Jar = "${osxX64Base}/AmazonCorrettoCryptoProvider.jar"
+    def osxAarch64Jar = "${osxAarch64Base}/AmazonCorrettoCryptoProvider.jar"
     def sourceJar = "${x64Base}/AmazonCorrettoCryptoProvider-sources.jar"
     def javadocJar = "${x64Base}/AmazonCorrettoCryptoProvider-javadoc.jar"
 
     doLast {
         println "Running on " + osdetector.classifier
+        if (!isFips) {
+            println osxX64Jar
+            println file(osxX64Jar).file
+            println osxAarch64Jar
+            println file(osxAarch64Jar).file
+        }
         println aarch64Jar
         println file(aarch64Jar).file
         println x86Jar
@@ -627,6 +673,18 @@ task fakePublish {
         println file(javadocJar).file
 
         def destinationDir = "${buildDir}/fake_maven"
+        if (!isFips) {
+            copy {
+                from osxX64Jar
+                rename 'AmazonCorrettoCryptoProvider.jar', "${newPrefix}-osx-x86_64.jar"
+                into "${destinationDir}"
+            }
+            copy {
+                from osxAarch64Jar
+                rename 'AmazonCorrettoCryptoProvider.jar', "${newPrefix}-osx-aarch_64.jar"
+                into "${destinationDir}"
+            }
+        }
         copy {
             from aarch64Jar
             rename 'AmazonCorrettoCryptoProvider.jar', "${newPrefix}-linux-aarch_64.jar"
@@ -644,17 +702,34 @@ task fakePublish {
             into "${destinationDir}"
         }
         if (project.hasProperty('jcecertAlias')) {
+            if (!isFips) {
+                ant.signjar(
+                    alias: jcecertAlias,
+                    jar: "${destinationDir}/${newPrefix}-osx-x86_64.jar",
+                    storepass: "${System.env.KEYSTORE_PASSWORD}",
+                    keystore: "${project.gradle.gradleUserHomeDir}/${jcecertJks}",
+                    tsaurl: "http://timestamp.digicert.com"
+                )
+                ant.signjar(
+                    alias: jcecertAlias,
+                    jar: "${destinationDir}/${newPrefix}-osx-aarch_64.jar",
+                    storepass: "${System.env.KEYSTORE_PASSWORD}",
+                    keystore: "${project.gradle.gradleUserHomeDir}/${jcecertJks}",
+                    tsaurl: "http://timestamp.digicert.com"
+                )
+
+            }
             ant.signjar(
                 alias: jcecertAlias,
                 jar: "${destinationDir}/${newPrefix}-linux-aarch_64.jar",
-                storepass: jcecertPassword,
+                storepass: "${System.env.KEYSTORE_PASSWORD}" ,
                 keystore: "${project.gradle.gradleUserHomeDir}/${jcecertJks}",
                 tsaurl: "http://timestamp.digicert.com"
             )
             ant.signjar(
                 alias: jcecertAlias,
                 jar: "${destinationDir}/${newPrefix}-linux-x86_64.jar",
-                storepass: jcecertPassword,
+                storepass: "${System.env.KEYSTORE_PASSWORD}",
                 keystore: "${project.gradle.gradleUserHomeDir}/${jcecertJks}",
                 tsaurl: "http://timestamp.digicert.com"
             )
@@ -664,7 +739,7 @@ task fakePublish {
 
 }
 
-if (project.hasProperty('mavenUser') && project.hasProperty('jcecertAlias')) {
+if (project.hasProperty('jcecertAlias')) {
     publishing {
         publications {
             mavenJava(MavenPublication) {
@@ -678,17 +753,23 @@ if (project.hasProperty('mavenUser') && project.hasProperty('jcecertAlias')) {
                 def fakeMavenBase = "${buildDir}/fake_maven/${artifactId}-${version}-"
                 def x86Jar = "${fakeMavenBase}linux-x86_64.jar"
                 def aarch64Jar = "${fakeMavenBase}linux-aarch_64.jar"
+                def osxX64Jar = "${fakeMavenBase}osx-x86_64.jar"
+                def osxAarch64Jar = "${fakeMavenBase}osx-aarch_64.jar"
                 def sourceJar = "${fakeMavenBase}sources.jar"
                 def javadocJar = "${fakeMavenBase}javadoc.jar"
                 artifact source: file(x86Jar),classifier:"linux-x86_64",extension:"jar"
                 artifact source: file(aarch64Jar),classifier:"linux-aarch_64",extension:"jar"
+                if (!isFips) {
+                    artifact source: file(osxX64Jar),classifier:"osx-x86_64",extension:"jar"
+                    artifact source: file(osxAarch64Jar),classifier:"osx-aarch_64",extension:"jar"
+                }
                 artifact emptyJar
                 artifact source: file(javadocJar),classifier:"javadoc",extension:"jar"
                 artifact source: file(sourceJar),classifier:"sources",extension:"jar"
 
                 pom {
                     name = pomName
-                    description = 'The Amazon Corretto Crypto Provider (ACCP) is a collection of high-performance cryptographic implementations exposed via the standard JCA/JCE interfaces.'
+                    description = getDescriptionForPom(isFips)
                     url = 'https://github.com/corretto/amazon-corretto-crypto-provider'
                     licenses {
                         license {
@@ -717,8 +798,8 @@ if (project.hasProperty('mavenUser') && project.hasProperty('jcecertAlias')) {
         repositories {
             sonatype {
                 nexusUrl = uri('https://aws.oss.sonatype.org/service/local/')
-                username = mavenUser
-                password = mavenPassword
+                username = "${System.env.ORG_GRADLE_PROJECT_sonatypeUsername}"
+                password = "${System.env.ORG_GRADLE_PROJECT_sonatypePassword}"
             }
         }
     }

@@ -5,6 +5,7 @@ package com.amazon.corretto.crypto.provider.test;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assumeMinimumVersion;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.getJavaVersion;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.versionCompare;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -30,10 +31,12 @@ import java.security.Provider;
 import java.security.PublicKey;
 import java.security.Signature;
 import java.security.SignatureException;
+import java.security.interfaces.ECPrivateKey;
 import java.security.interfaces.ECPublicKey;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.ECGenParameterSpec;
+import java.security.spec.ECParameterSpec;
 import java.security.spec.MGF1ParameterSpec;
 import java.security.spec.PSSParameterSpec;
 import java.security.spec.RSAKeyGenParameterSpec;
@@ -446,6 +449,18 @@ public final class EvpSignatureSpecificTest {
             signature.setParameter(
                 new PSSParameterSpec("SHA-1", "MGF1", MGF1ParameterSpec.SHA1, 4096, 1)));
 
+    // Assert compatibility with JCE on setting null parameter. BC doesn't throw. The test is
+    // skipped for JDK 10. SunRsaSign in JDK 10 doesn't support RSASSA-PSS signature algorithm, and
+    // it throws "java.security.NoSuchAlgorithmException: no such algorithm: RSASSA-PSS for provider
+    // SunRsaSign".
+    assertThrows(InvalidAlgorithmParameterException.class, () -> signature.setParameter(null));
+    if (getJavaVersion() != 10) {
+      assertThrows(
+          InvalidAlgorithmParameterException.class,
+          () -> Signature.getInstance("RSASSA-PSS", "SunRsaSign").setParameter(null));
+    }
+    Signature.getInstance("RSASSA-PSS", TestUtil.BC_PROVIDER).setParameter(null);
+
     // "1" should be only valid trailer value.
     for (int ii = -10; ii < 11; ii++) {
       if (ii == 1) {
@@ -476,14 +491,6 @@ public final class EvpSignatureSpecificTest {
 
     signature = Signature.getInstance("RSASSA-PSS", NATIVE_PROVIDER);
     signature.initVerify(pair.getPublic());
-    spec = getPssParams(signature);
-    assertEquals("SHA-1", spec.getDigestAlgorithm());
-    assertEquals("SHA-1", ((MGF1ParameterSpec) spec.getMGFParameters()).getDigestAlgorithm());
-
-    // setting null params OK, shouldn't change from default
-    signature = Signature.getInstance("RSASSA-PSS", NATIVE_PROVIDER);
-    signature.setParameter(null);
-    signature.initSign(pair.getPrivate());
     spec = getPssParams(signature);
     assertEquals("SHA-1", spec.getDigestAlgorithm());
     assertEquals("SHA-1", ((MGF1ParameterSpec) spec.getMGFParameters()).getDigestAlgorithm());
@@ -652,6 +659,11 @@ public final class EvpSignatureSpecificTest {
       if (!service.getType().equals("Signature") || "RSASSA-PSS".equals(algorithm)) {
         continue;
       }
+      if (algorithm.equals("Ed25519")
+          || algorithm.equals("EdDSA")
+          || algorithm.startsWith("ML-DSA")) {
+        continue;
+      }
       String bcAlgorithm = algorithm;
       AlgorithmParameterSpec keyGenSpec = null;
       String keyGenAlgorithm = null;
@@ -766,6 +778,47 @@ public final class EvpSignatureSpecificTest {
     } catch (SignatureException ex) {
       throw new AssertionError(algorithm, ex);
     }
+  }
+
+  @Test
+  public void ecdsaRejectsNullParams() throws Exception {
+    final Signature signer = Signature.getInstance("SHA384withECDSA", NATIVE_PROVIDER);
+    signer.initSign(ECDSA_PAIR.getPrivate());
+    assertThrows(InvalidAlgorithmParameterException.class, () -> signer.setParameter(null));
+    signer.update(MESSAGE);
+    final byte[] signature = signer.sign();
+    signer.initVerify(ECDSA_PAIR.getPublic());
+    assertThrows(InvalidAlgorithmParameterException.class, () -> signer.setParameter(null));
+    signer.update(MESSAGE);
+    assertTrue(signer.verify(signature));
+  }
+
+  @Test
+  public void ecdsaAcceptsKeyParams() throws Exception {
+    // Some java programs try to set parameters equal to those encoded in the key.
+    final ECParameterSpec params = ((ECPrivateKey) ECDSA_PAIR.getPrivate()).getParams();
+    final Signature signer = Signature.getInstance("SHA384withECDSA", NATIVE_PROVIDER);
+    signer.initSign(ECDSA_PAIR.getPrivate());
+    signer.setParameter(params);
+    signer.update(MESSAGE);
+    final byte[] signature = signer.sign();
+    signer.initVerify(ECDSA_PAIR.getPublic());
+    signer.setParameter(params);
+    signer.update(MESSAGE);
+    assertTrue(signer.verify(signature));
+  }
+
+  @Test
+  public void ecdsaRejectsKeyParams() throws Exception {
+    // Some java programs try to set parameters equal to those encoded in the key.
+    // If these don't match then they must be rejected.
+    // NOTE: If the curve of ECDSA_PAIR changes to P-256 it will invalidate this test.
+    final AlgorithmParameters algParams = AlgorithmParameters.getInstance("EC");
+    algParams.init(new ECGenParameterSpec("secp256r1"));
+    final ECParameterSpec params = algParams.getParameterSpec(ECParameterSpec.class);
+    final Signature signer = Signature.getInstance("SHA384withECDSA", NATIVE_PROVIDER);
+    signer.initSign(ECDSA_PAIR.getPrivate());
+    assertThrows(InvalidAlgorithmParameterException.class, () -> signer.setParameter(params));
   }
 
   @SuppressWarnings("serial")

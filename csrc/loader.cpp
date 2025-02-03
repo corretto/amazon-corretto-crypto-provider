@@ -32,9 +32,6 @@ void initialize()
     CRYPTO_library_init();
     ERR_load_crypto_strings();
     OpenSSL_add_all_digests();
-
-    // seed the PRNG
-    RAND_poll();
 }
 
 }
@@ -48,6 +45,15 @@ jint JNI_OnLoad(JavaVM* vm, void* reserved)
 JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_Loader_isFipsMode(JNIEnv*, jclass)
 {
     return FIPS_mode() == 1 ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_Loader_isExperimentalFipsMode(JNIEnv*, jclass)
+{
+#ifdef EXPERIMENTAL_FIPS_BUILD
+    return JNI_TRUE;
+#else
+    return JNI_FALSE;
+#endif
 }
 
 JNIEXPORT jstring JNICALL Java_com_amazon_corretto_crypto_provider_Loader_getNativeLibraryVersion(JNIEnv* pEnv, jclass)

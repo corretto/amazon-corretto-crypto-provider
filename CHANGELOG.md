@@ -1,5 +1,109 @@
 # Changelog
 
+## 2.5.0
+
+### Minor
+* [PR 397:](https://github.com/corretto/amazon-corretto-crypto-provider/pull/397) Support for Concatenation KDFs
+* [PR 399:](https://github.com/corretto/amazon-corretto-crypto-provider/pull/399) Support for Counter KDFs
+* [PR 394:](https://github.com/corretto/amazon-corretto-crypto-provider/pull/394) Support for Ed25519 DSA
+* [PR 421:](https://github.com/corretto/amazon-corretto-crypto-provider/pull/421) Bump AWS-LC version to 1.42.0 and AWS-LC-FIPS version to 3.0.0
+* [PR 422:](https://github.com/corretto/amazon-corretto-crypto-provider/pull/422) Support "pure" ML-DSA, Bump AWS-LC version to 1.43.0
+* [PR 423:](https://github.com/corretto/amazon-corretto-crypto-provider/pull/423) Support "External Mu" ML-DSA
+* [PR 424:](https://github.com/corretto/amazon-corretto-crypto-provider/pull/424) Use ACCP for ML-DSA in EvpKeyFactoryTest (for now)
+
+## 2.4.1
+
+### Patch
+* [PR 388: Revert PR 376](https://github.com/corretto/amazon-corretto-crypto-provider/pull/388)
+
+## 2.4.0
+
+### Minor
+* [PR 380:](https://github.com/corretto/amazon-corretto-crypto-provider/pull/380) Support for AES-CBC with NoPadding, PKCS5Padding, PKCS7Padding
+* [PR 381:](https://github.com/corretto/amazon-corretto-crypto-provider/pull/381) Support for AES-CBC with ISO10126Padding
+
+### Patch
+* [PR 353: Static linking to libcrypto](https://github.com/corretto/amazon-corretto-crypto-provider/pull/353)
+* [PR 356: Match SunRsaSign's behavior when setting null params](https://github.com/corretto/amazon-corretto-crypto-provider/pull/356)
+* [PR 362: Fix IllegalArgumentException upon GCM decryption failure](https://github.com/corretto/amazon-corretto-crypto-provider/pull/362)
+* [PR 363: Fix NullPointerException on invalid keys](https://github.com/corretto/amazon-corretto-crypto-provider/pull/363)
+* [PR 361: Allow configuration of tmpdir to avoid issues with noexec on java.io.tmpdir](https://github.com/corretto/amazon-corretto-crypto-provider/pull/361)
+
+## 2.3.3
+
+### Overview
+Starting from this version, build artifacts for MacOS AARCH64 (Arm64) are released.
+The corresponding Jar is identified by `osx-aarch_64` classifier.
+Please note that ACCP-FIPS does not have `osx-aarch_64` artifacts and `osx-aarch_64`
+is only available for non-FIPS builds.
+
+### Patch
+* Use AWS-LC [v1.17.0](https://github.com/aws/aws-lc/releases/tag/v1.17.0) for ACCP
+* Use AWS-LC [AWS-LC-FIPS-2.0.2](https://github.com/aws/aws-lc/releases/tag/AWS-LC-FIPS-2.0.2) for ACCP-FIPS
+* [PR 335: Do not destroy linked public keys](https://github.com/corretto/amazon-corretto-crypto-provider/pull/335)
+* [PR 329: Allow users to control the release of EVP context for AES-GCM](https://github.com/corretto/amazon-corretto-crypto-provider/pull/329)
+
+## 2.3.2
+
+### Overview
+Starting from this version, build artifacts for MacOS X86-64 are released.
+The corresponding Jar is identified by `osx-x86_64` classifier.
+Please note that ACCP-FIPS does not have `osx-x86_64` artifacts and `osx-x86_64`
+is only available for non-FIPS builds.
+
+### Patch
+* Use AWS-LC [v1.16.0](https://github.com/aws/aws-lc/releases/tag/v1.16.0) for ACCP
+* Use [fips-2022-11-02](https://github.com/aws/aws-lc/tree/fips-2022-11-02) branch of AWS-LC at commit ID `329d23ce93d42b9017502ac24ca073ebdaa7660f` for ACCP-FIPS
+* [PR 338: Avoid buffering cipher text for one-shot AES-GCM decrypt](https://github.com/corretto/amazon-corretto-crypto-provider/pull/338)
+* [PR 336: Fix ByteBuffer position handling](https://github.com/corretto/amazon-corretto-crypto-provider/pull/336)
+* [PR 333: Replace MessageDigest.isEqual with our own implementation](https://github.com/corretto/amazon-corretto-crypto-provider/pull/333)
+* [PR 334: Let ECDSA Signature objects accept parameters](https://github.com/corretto/amazon-corretto-crypto-provider/pull/334)
+* [PR 327: Github issue 326, NPE](https://github.com/corretto/amazon-corretto-crypto-provider/pull/327)
+
+## 2.3.1
+
+### Patches
+* Use AWS-LC [v1.15.0](https://github.com/aws/aws-lc/releases/tag/v1.15.0) for ACCP
+  * RSA performance on Graviton 2 has improved in version v1.15.0 of AWS-LC.
+  * For more details, please refer to [the release notes for v1.15.0](https://github.com/aws/aws-lc/releases/tag/v1.15.0)
+* Use [fips-2022-11-02](https://github.com/aws/aws-lc/tree/fips-2022-11-02) branch of AWS-LC at commit ID `d780e5e025c47cd782fd3d5d70a033e59fe80166` for ACCP-FIPS
+* Round RSA key sizes up when generating keys for ACCP [PR 321](https://github.com/corretto/amazon-corretto-crypto-provider/pull/321)
+* Throwing exceptions for too-short signatures [PR 320](https://github.com/corretto/amazon-corretto-crypto-provider/pull/320)
+
+## 2.3.0
+
+### Overview
+
+Starting from this version, build artifacts for ACCP-FIPS are also released for
+experimental purposes. This version of ACCP-FIPS uses
+[fips-2022-11-02](https://github.com/aws/aws-lc/tree/fips-2022-11-02) branch of
+AWS-LC at commit ID `993c6ff33a2d709ddc25d1557cd96261217bf1fd`.
+
+### Minor changes
+* Support HKDF [PR 310, 312]
+
+## 2.2.0
+
+### Minor changes
+* Support AES-XTS [PR 306]
+  * AesXts.kt shows how AES-XTS can be used.
+* Serialization for EvpKeys [PR 304]
+
+## 2.1.0
+
+### Minor changes
+* Support AlgorithmParameters for EC [PR 274]
+* Support KeyGenerator for AES [PR 279]
+* Register LibCryptoRng by default in non-FIPS mode [PR 286]
+* Use FIPS approved API of AWS-LC for RSA key generation in FIPS mode [PR 301]
+* Include AWS-LC's self tests as part of ACCP's self tests [PR 283]
+
+### Patches
+* Fixed bug in output buffer size check [PR 297]
+* Improved the performance of AES-GCM [PRs 296, 298, 300, 302]
+* Added code formatting and style checking to the build scripts [PRs 287, 292]
+* Renamed branches on GitHub
+
 ## 2.0.0
 
 ### Overview

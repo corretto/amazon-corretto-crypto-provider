@@ -9,12 +9,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import com.amazon.corretto.crypto.provider.test.TestResultLogger;
+import java.net.ConnectException;
+import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.security.Security;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
+import java.util.HashSet;
+import java.util.Set;
 import javax.crypto.Cipher;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
@@ -56,6 +61,9 @@ public class ExternalHTTPSIntegrationTest {
         "https://rsa2048.badssl.com/",
         "https://rsa8192.badssl.com/"
       };
+
+  private static final Set<String> ignorableDomains =
+      new HashSet<>(Arrays.asList("https://example.com"));
 
   public static Object[][] data() {
     ArrayList<Object[]> cases = new ArrayList<>();
@@ -153,6 +161,11 @@ public class ExternalHTTPSIntegrationTest {
       assertTrue(
           connection.getResponseCode() > 0,
           "Retrieved non-sensical response code: " + connection.getResponseCode());
+    } catch (ConnectException | SocketTimeoutException e) {
+      // For some domains, we ignore these exceptions due to outages.
+      if (!ignorableDomains.contains(urlStr)) {
+        throw e;
+      }
     } finally {
       try {
         connection.getInputStream().close();

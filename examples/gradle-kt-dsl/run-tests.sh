@@ -1,13 +1,13 @@
 #!/bin/sh
 
-# Retry the build for 30 minutes, every 10 seconds
-NUMBER_OF_RETRIES=180
+# Retry the build for 5 hours, every 10 seconds
+NUMBER_OF_RETRIES=1800
 DELAY_BETWEEN_RETRIES=10
 
 for i in $(seq 1 ${NUMBER_OF_RETRIES})
 do
     echo "Iteration ${i}"
-    ./gradlew lib:test
+    ./gradlew lib:test && ./gradlew -Pfips lib:test
     result=$?
     if [[ $result -eq 0 ]]
     then

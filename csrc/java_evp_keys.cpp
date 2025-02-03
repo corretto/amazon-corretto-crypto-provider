@@ -93,7 +93,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpKey_enc
  * Signature: ([BI)J
  */
 JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_pkcs82Evp(
-    JNIEnv* pEnv, jclass, jbyteArray pkcs8der, jint nativeValue, jboolean shouldCheckPrivate)
+    JNIEnv* pEnv, jclass, jbyteArray pkcs8der, jint evpType, jboolean shouldCheckPrivate)
 {
     try {
         raii_env env(pEnv);
@@ -104,8 +104,8 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_p
 
         {
             jni_borrow borrow = jni_borrow(env, pkcs8Buff, "pkcs8Buff");
-            result.set(der2EvpPrivateKey(borrow, derLen, shouldCheckPrivate, EX_INVALID_KEY_SPEC));
-            if (EVP_PKEY_base_id(result) != nativeValue) {
+            result.set(der2EvpPrivateKey(borrow, derLen, evpType, shouldCheckPrivate, EX_INVALID_KEY_SPEC));
+            if (EVP_PKEY_base_id(result) != evpType) {
                 throw_java_ex(EX_INVALID_KEY_SPEC, "Incorrect key type");
             }
         }
@@ -122,7 +122,7 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_p
  * Signature: ([BI)J
  */
 JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_x5092Evp(
-    JNIEnv* pEnv, jclass, jbyteArray x509der, jint nativeValue)
+    JNIEnv* pEnv, jclass, jbyteArray x509der, jint evpType)
 {
     try {
         raii_env env(pEnv);
@@ -134,7 +134,7 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_x
         {
             jni_borrow borrow = jni_borrow(env, x509Buff, "x509Buff");
             result.set(der2EvpPublicKey(borrow, derLen, EX_INVALID_KEY_SPEC));
-            if (EVP_PKEY_base_id(result) != nativeValue) {
+            if (EVP_PKEY_base_id(result) != evpType) {
                 throw_java_ex(EX_INVALID_KEY_SPEC, "Incorrect key type");
             }
         }
@@ -328,6 +328,37 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpEcPriva
     }
 }
 
+/*
+ * Class:     com_amazon_corretto_crypto_provider_EvpEdPrivateKey
+ * Method:    getPrivateKey
+ */
+JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpEdPrivateKey_getPrivateKey(
+    JNIEnv* pEnv, jclass, jlong keyHandle)
+{
+    jbyteArray result = NULL;
+
+    try {
+        raii_env env(pEnv);
+
+        EVP_PKEY* key = reinterpret_cast<EVP_PKEY*>(keyHandle);
+
+        size_t bufSize;
+
+        CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(key, NULL, &bufSize) == 1);
+        SimpleBuffer privateKeyBuffer(bufSize);
+        CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(key, privateKeyBuffer.get_buffer(), &bufSize) == 1);
+
+        result = env->NewByteArray(bufSize);
+        if (!result) {
+            throw_java_ex(EX_OOM, "Unable to allocate private key array");
+        }
+        env->SetByteArrayRegion(result, 0, bufSize, (jbyte*)privateKeyBuffer.get_buffer());
+    } catch (java_ex& ex) {
+        ex.throw_to_java(pEnv);
+    }
+    return result;
+}
+
 JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpRsaKey_getModulus(
     JNIEnv* pEnv, jclass, jlong keyHandle)
 {
@@ -496,22 +527,19 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_r
         if (privateExponentArr) {
             BigNumObj privExp = BigNumObj::fromJavaArray(env, privateExponentArr);
 
-            int res;
             if (BN_is_zero(pubExp)) {
-                // RSA blinding can't be performed without |e|; 0 indicates |e|'s absence.
-                rsa->flags |= RSA_FLAG_NO_BLINDING;
-                res = RSA_set0_key(rsa, modulus, NULL, privExp);
+                // RSA blinding can't be performed without |e|.
+                rsa.set(new_private_RSA_key_with_no_e(modulus, privExp));
+                // new_private_RSA_key_with_no_e does not take the ownership of its arguments
             } else {
-                res = RSA_set0_key(rsa, modulus, pubExp, privExp);
+                if (RSA_set0_key(rsa, modulus, pubExp, privExp) != 1) {
+                    throw_openssl(EX_RUNTIME_CRYPTO, "Unable to set RSA values");
+                }
+                // RSA_set0_key takes ownership
+                modulus.releaseOwnership();
+                pubExp.releaseOwnership();
+                privExp.releaseOwnership();
             }
-
-            if (res != 1) {
-                throw_openssl(EX_RUNTIME_CRYPTO, "Unable to set RSA values");
-            }
-            // RSA_set0_key takes ownership
-            modulus.releaseOwnership();
-            pubExp.releaseOwnership();
-            privExp.releaseOwnership();
         } else {
             if (RSA_set0_key(rsa, modulus, pubExp, NULL) != 1) {
                 throw_openssl(EX_RUNTIME_CRYPTO, "Unable to set RSA values");

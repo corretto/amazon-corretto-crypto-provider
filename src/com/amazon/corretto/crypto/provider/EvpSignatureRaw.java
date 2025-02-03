@@ -8,12 +8,22 @@ import java.security.SignatureException;
 class EvpSignatureRaw extends EvpSignatureBase {
   private AccessibleByteArrayOutputStream buffer =
       new AccessibleByteArrayOutputStream(64, 1024 * 1024);
+  private final boolean preHash_;
 
   private EvpSignatureRaw(
       final AmazonCorrettoCryptoProvider provider,
       final EvpKeyType keyType,
       final int paddingType) {
+    this(provider, keyType, paddingType, false);
+  }
+
+  private EvpSignatureRaw(
+      final AmazonCorrettoCryptoProvider provider,
+      final EvpKeyType keyType,
+      final int paddingType,
+      final boolean preHash) {
     super(provider, keyType, paddingType, 0 /* No digest */);
+    preHash_ = preHash;
   }
 
   @Override
@@ -40,8 +50,10 @@ class EvpSignatureRaw extends EvpSignatureBase {
   @Override
   protected byte[] engineSign() throws SignatureException {
     try {
+      ensureInitialized(true);
       return key_.use(
-          ptr -> signRaw(ptr, paddingType_, 0, 0, buffer.getDataBuffer(), 0, buffer.size()));
+          ptr ->
+              signRaw(ptr, paddingType_, preHash_, 0, 0, buffer.getDataBuffer(), 0, buffer.size()));
     } finally {
       engineReset();
     }
@@ -56,11 +68,14 @@ class EvpSignatureRaw extends EvpSignatureBase {
   protected boolean engineVerify(final byte[] sigBytes, final int offset, final int length)
       throws SignatureException {
     try {
+      ensureInitialized(false);
+      sniffTest(sigBytes, offset, length);
       return key_.use(
           ptr ->
               verifyRaw(
                   ptr,
                   paddingType_,
+                  preHash_,
                   0,
                   0,
                   buffer.getDataBuffer(),
@@ -81,6 +96,7 @@ class EvpSignatureRaw extends EvpSignatureBase {
   private static native byte[] signRaw(
       long privateKey,
       int paddingType,
+      boolean preHash,
       long mgfMd,
       int saltLen,
       byte[] message,
@@ -90,6 +106,7 @@ class EvpSignatureRaw extends EvpSignatureBase {
   private static native boolean verifyRaw(
       long publicKey,
       int paddingType,
+      boolean preHash,
       long mgfMd,
       int saltLen,
       byte[] message,
@@ -103,6 +120,24 @@ class EvpSignatureRaw extends EvpSignatureBase {
   static final class NONEwithECDSA extends EvpSignatureRaw {
     NONEwithECDSA(AmazonCorrettoCryptoProvider provider) {
       super(provider, EvpKeyType.EC, 0);
+    }
+  }
+
+  static final class Ed25519 extends EvpSignatureRaw {
+    Ed25519(AmazonCorrettoCryptoProvider provider) {
+      super(provider, EvpKeyType.EdDSA, 0);
+    }
+  }
+
+  static final class MLDSA extends EvpSignatureRaw {
+    MLDSA(final AmazonCorrettoCryptoProvider provider) {
+      super(provider, EvpKeyType.MLDSA, 0);
+    }
+  }
+
+  static final class MLDSAExtMu extends EvpSignatureRaw {
+    MLDSAExtMu(final AmazonCorrettoCryptoProvider provider) {
+      super(provider, EvpKeyType.MLDSA, 0, /*preHash*/ true);
     }
   }
 }

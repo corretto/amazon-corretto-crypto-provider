@@ -12,7 +12,7 @@ These differences are those most likely to be noticed by a consuming application
 The official documentation does not fully specify when the [Signature](https://docs.oracle.com/javase/8/docs/api/java/security/Signature.html) object is expected to throw a [SignatureException](https://docs.oracle.com/javase/8/docs/api/java/security/SignatureException.html).
 Having multiple different ways to reject a signature (such as `signature.verify() == false` and throwing a `SignatureException`) is an anti-pattern and we should try to avoid it.
 ACCP throws a `SignatureException` from `Signature.verify()` only when not throwing would introduce compatibility issues (such as with the [JCK](https://en.wikipedia.org/wiki/Technology_Compatibility_Kit#TCK_for_the_Java_platform).)
-Currently, ACCP will throw a `SignatureException` only when verifying an EDSA signature that is not properly encoded.
+Currently, ACCP will throw a `SignatureException` only when verifying an EDSA signature that is not properly encoded or an RSA signature which is an invalid length.
 In all other cases, ACCP will return `false` from `Signature.verify()` when given an invalid signature.
 This is different from the default OpenJDK implementation, which also inspects the inner structure of RSA signatures and rejects them with a `SignatureException` if they are improperly encoded.
 ACCP follows the guidance provided in [PKCS #1 section 8.2.2](https://tools.ietf.org/html/rfc8017#section-8.2.2) in that it does not parse the inner structure but, instead, does a binary comparison against the expected value.
@@ -39,6 +39,14 @@ ACCP cannot make any promises that its default key sizes match the defaults of *
 
 Because no providers have guarantees around the uninitialized behavior of `KeyPairGenerators` it is generally fragile for your application to use a `KeyPairGenerator` without initialization.
 For this reason, even if you don't use ACCP, we recommend that you always call the [KeyPairGenerator.initialize(AlgorithmParameterSpec params)](https://docs.oracle.com/javase/8/docs/api/java/security/KeyPairGenerator.html#initialize-java.security.spec.AlgorithmParameterSpec-) prior to generating a key pair.
+
+## Supported RSA key sizes for generation.
+Aws-lc (our underlying cryptographic implementation) does not support generating arbitrary RSA key sizes.
+Specifically, it requires that [bit-lengths are a multiple of 128](https://github.com/aws/aws-lc/blob/25260d785f6e2eaf3c5f5dce83cf92c272f0a8b1/crypto/fipsmodule/rsa/rsa_impl.c#L1168-L1171).
+For better compatibility with applications, when in *non-FIPS mode*, ACCP will round bit-lengths up to the nearest multiple of 128.
+This way we will not throw exceptions at runtime and will give our callers at least as much security as requested.
+This is different from the default JDK provider which will attempt to generate a key of the exact requested bit-length.
+In FIPS mode will will only return keys of the exact requested length.
 
 ## Elliptic Curve KeyPairGeneration by curve size
 Neither the JCE nor the default OpenJDK provider for Elliptic Curve Cryptography (SunEC) specify the effect of calling `KeyPairGenerator.initialize(int keysize)` with an arbitrary value.

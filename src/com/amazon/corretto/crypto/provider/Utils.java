@@ -28,6 +28,13 @@ import javax.crypto.spec.SecretKeySpec;
 
 /** Miscellaneous utility methods. */
 final class Utils {
+  static final int SHA1_CODE = 1;
+  static final int SHA256_CODE = 2;
+  static final int SHA384_CODE = 3;
+  static final int SHA512_CODE = 4;
+  private static final String PROPERTY_NATIVE_CONTEXT_RELEASE_STRATEGY =
+      "nativeContextReleaseStrategy";
+
   private Utils() {
     // Prevent instantiation
   }
@@ -58,6 +65,10 @@ final class Utils {
   static native long getEvpMdFromName(String digestName);
   /** Returns the output length for a digest in bytes specified by {@code evpMd}. */
   static native int getDigestLength(long evpMd);
+
+  static int getDigestLength(final String digestName) {
+    return getDigestLength(getEvpMdFromName(digestName));
+  }
 
   static String jceDigestNameToAwsLcName(final String jceName) {
     if (jceName == null) {
@@ -95,77 +106,76 @@ final class Utils {
   }
 
   /**
-   * Returns false if the two bytebuffers given definitely don't overlap; true if they do overlap,
-   * or if we're unable to determine whether they overlap. Unfortunately it's not possible to
-   * determine whether certain bytebuffers overlap (notably, if one buffer is a RO buffer and the
-   * other is an array-backed buffer, we cannot check for overlap without empirically modifying the
-   * array-backed buffer).
+   * Returns false if there is no chance of the output buffer overwriting unread input; true if we
+   * determine that unsafe overwriting input is possible.
    *
    * <p>Overlap is determined based on buffer position and limit.
    */
-  static boolean buffersMaybeOverlap(ByteBuffer a, ByteBuffer b) {
-    boolean directA = a.isDirect();
-    boolean directB = b.isDirect();
-    boolean arrayA = a.hasArray();
-    boolean arrayB = b.hasArray();
+  static boolean outputClobbersInput(ByteBuffer inputBuffer, ByteBuffer outputBuffer) {
+    boolean inputIsDirect = inputBuffer.isDirect();
+    boolean outputIsDirect = outputBuffer.isDirect();
+    boolean inputHasArray = inputBuffer.hasArray();
+    boolean outputHasArray = outputBuffer.hasArray();
 
-    if ((directA || directB) && (directA != directB)) {
+    if ((inputIsDirect || outputIsDirect) && (inputIsDirect != outputIsDirect)) {
       // One is direct and the other isn't; there can be no overlap
       return false;
     }
 
-    if (directA && directB) {
+    if (inputIsDirect && outputIsDirect) {
       // By slicing the buffers, we can avoid having to think about the native pointer and
-      // position(); the
-      // position will simply be added into the native pointer.
+      // position(); the position will simply be added into the native pointer.
 
       // This will also allow getNativeBufferOffset to fully determine whether the buffers overlap
-      // in native code,
-      // by factoring the limit() into the buffer capacity.
-      return getNativeBufferOffset(a.slice(), b.slice()) <= Integer.MAX_VALUE;
+      // in native code, by factoring the limit() into the buffer capacity.
+      return getNativeBufferOffset(inputBuffer.slice(), outputBuffer.slice()) <= Integer.MAX_VALUE;
     }
 
     // At this point we'll need to check array() and arrayOffset(), but to do this we need both to
     // hasArray().
-    if (!(arrayA && arrayB)) {
+    if (!(inputHasArray && outputHasArray)) {
       // One doesn't hasArray, so we're prevented from checking for overlap. Return true to assume
       // overlap.
       return true;
     }
 
-    if (a.array() != b.array()) {
-      // different arrays, so no overlap
-      return false;
-    }
-
-    // Same array, check for overlap within array
-    long a_offset = (long) a.arrayOffset() + (long) a.position();
-    long b_offset = (long) b.arrayOffset() + (long) b.position();
-
-    if (a_offset > b_offset) {
-      return b_offset + (long) b.limit() > a_offset;
-    } else {
-      return a_offset + (long) a.limit() > b_offset;
-    }
+    // We've got two arrays, check if there's a chance for clobbering.
+    int inputOffset = inputBuffer.arrayOffset() + inputBuffer.position();
+    int outputOffset = outputBuffer.arrayOffset() + outputBuffer.position();
+    return outputClobbersInput(
+        inputBuffer.array(),
+        inputOffset,
+        inputBuffer.remaining(),
+        outputBuffer.array(),
+        outputOffset);
   }
 
   /**
-   * Returns true if a length-bytes region after offset o1 in a1 overlaps with a length-bytes region
-   * after offset o2 in a2.
+   * @return True if the output will overwrite portions of the input before it gets processed.
    */
-  static boolean arraysOverlap(byte[] a1, int o1, byte[] a2, int o2, int length) {
-    // We can't delegate to byffersMaybeOverlap directly as the length may be too long for one of
-    // the two input
-    // arrays
-
-    if (a1 != a2) return false;
-
-    if (o1 > o2) {
-      // swap the two arrays to simplify logic
-      return arraysOverlap(a2, o2, a1, o1, length);
+  static boolean outputClobbersInput(
+      byte[] input, int inputOffset, int inputLength, byte[] output, int outputOffset) {
+    // If these are different arrays they don't overlap
+    if (input != output) {
+      return false;
     }
 
-    return (long) o1 + length > (long) o2;
+    // We can tolerate the output overlapping the input as long as the output starts at the same
+    // point or earlier. This is because the block cipher implementation operates block by block and
+    // is built to overwrite the input block in-place. If the output offset leads the input offset,
+    // the output of the current block will overwrite the input of the next block and it will break
+    // the operation.
+    if (outputOffset <= inputOffset) {
+      return false;
+    }
+
+    // If the output starts after the input ends, then we're not clobbering anything.
+    int inputEnd = inputOffset + inputLength;
+    if (outputOffset >= inputEnd) {
+      return false;
+    }
+
+    return true;
   }
 
   static byte[] encodeForWrapping(final AmazonCorrettoCryptoProvider provider, final Key key)
@@ -192,6 +202,10 @@ final class Utils {
     }
   }
 
+  static byte[] encodeForWrapping(final Key key) throws InvalidKeyException {
+    return encodeForWrapping(AmazonCorrettoCryptoProvider.INSTANCE, key);
+  }
+
   static Key buildUnwrappedKey(
       final AmazonCorrettoCryptoProvider provider,
       final byte[] rawKey,
@@ -208,6 +222,11 @@ final class Utils {
       default:
         throw new IllegalArgumentException("Unexpected key type: " + keyType);
     }
+  }
+
+  static Key buildUnwrappedKey(final byte[] rawKey, final String algorithm, final int keyType)
+      throws NoSuchAlgorithmException, InvalidKeySpecException {
+    return buildUnwrappedKey(AmazonCorrettoCryptoProvider.INSTANCE, rawKey, algorithm, keyType);
   }
 
   static SecretKey buildUnwrappedSecretKey(final byte[] rawKey, final String algorithm) {
@@ -545,5 +564,91 @@ final class Utils {
       return defaultValue;
     }
     return Boolean.parseBoolean(propertyStr);
+  }
+
+  static void checkArrayLimits(final byte[] bytes, final int offset, final int length) {
+    if (bytes == null) {
+      throw new IllegalArgumentException("Bad argument: bytes cannot be null.");
+    }
+
+    if (offset < 0 || length < 0) {
+      throw new ArrayIndexOutOfBoundsException("Negative offset or length");
+    }
+
+    if ((long) offset + (long) length > bytes.length) {
+      throw new ArrayIndexOutOfBoundsException(
+          "Requested range is outside of buffer limits"
+              + bytes.length
+              + ":"
+              + offset
+              + ":"
+              + length);
+    }
+  }
+
+  static <T> T requireNonNull(final T obj, final String message) {
+    if (obj == null) throw new IllegalArgumentException(message);
+    return obj;
+  }
+
+  static String requireNonNullString(final String s, final String message) {
+    return requireNonNull(s, message);
+  }
+
+  enum NativeContextReleaseStrategy {
+    HYBRID,
+    LAZY,
+    EAGER
+  }
+
+  private static NativeContextReleaseStrategy getNativeContextReleaseStrategyProperty(
+      final String propertyName) {
+    final String propertyStr = Loader.getProperty(propertyName, "HYBRID").toUpperCase();
+    if (propertyStr.equals("LAZY")) {
+      return NativeContextReleaseStrategy.LAZY;
+    }
+    if (propertyStr.equals("EAGER")) {
+      return NativeContextReleaseStrategy.EAGER;
+    }
+    if (!propertyStr.equals("HYBRID")) {
+      LOG.warning(
+          String.format(
+              "Valid values for %s are HYBRID, LAZY, EAGER, with HYBRID as default", propertyName));
+    }
+    return NativeContextReleaseStrategy.HYBRID;
+  }
+
+  static NativeContextReleaseStrategy getNativeContextReleaseStrategyProperty() {
+    return getNativeContextReleaseStrategyProperty(PROPERTY_NATIVE_CONTEXT_RELEASE_STRATEGY);
+  }
+
+  static native void releaseEvpCipherCtx(long ctxPtr);
+
+  public static byte[] checkAesKey(final Key key) throws InvalidKeyException {
+    if (key == null) {
+      throw new InvalidKeyException("Key can't be null");
+    }
+    if (!(key instanceof SecretKey)) {
+      throw new InvalidKeyException("Need a SecretKey");
+    }
+    if (!"RAW".equalsIgnoreCase(key.getFormat())) {
+      throw new InvalidKeyException("Need a raw format key");
+    }
+    if (!"AES".equalsIgnoreCase(key.getAlgorithm())) {
+      throw new InvalidKeyException("Expected an AES key");
+    }
+
+    final byte[] encodedKey = key.getEncoded();
+    if (encodedKey == null) {
+      throw new InvalidKeyException("Key doesn't support encoding");
+    }
+
+    if (encodedKey.length != 128 / 8
+        && encodedKey.length != 192 / 8
+        && encodedKey.length != 256 / 8) {
+      throw new InvalidKeyException(
+          "Bad key length of " + (encodedKey.length * 8) + " bits; expected 128, 192, or 256 bits");
+    }
+    return encodedKey;
   }
 }

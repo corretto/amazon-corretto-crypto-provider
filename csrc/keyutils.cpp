@@ -1,6 +1,8 @@
 // Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 #include "keyutils.h"
+#include "auto_free.h"
+#include "bn.h"
 #include <openssl/ec.h>
 #include <openssl/err.h>
 #include <openssl/evp.h>
@@ -8,23 +10,23 @@
 
 namespace AmazonCorrettoCryptoProvider {
 
-EVP_PKEY* der2EvpPrivateKey(
-    const unsigned char* der, const int derLen, bool shouldCheckPrivate, const char* javaExceptionClass)
+EVP_PKEY* der2EvpPrivateKey(const unsigned char* der,
+    const int derLen,
+    const int evpType,
+    bool shouldCheckPrivate,
+    const char* javaExceptionClass)
 {
     const unsigned char* der_mutable_ptr = der; // openssl modifies the input pointer
 
-    PKCS8_PRIV_KEY_INFO* pkcs8Key = d2i_PKCS8_PRIV_KEY_INFO(NULL, &der_mutable_ptr, derLen);
+    EVP_PKEY* result = d2i_PrivateKey(evpType, NULL, &der_mutable_ptr, derLen);
+
     if (der + derLen != der_mutable_ptr) {
-        if (pkcs8Key) {
-            PKCS8_PRIV_KEY_INFO_free(pkcs8Key);
+        if (result) {
+            EVP_PKEY_free(result);
         }
         throw_openssl(javaExceptionClass, "Extra key information");
     }
-    if (!pkcs8Key) {
-        throw_openssl(javaExceptionClass, "Unable to parse DER key into PKCS8_PRIV_KEY_INFO");
-    }
-    EVP_PKEY* result = EVP_PKCS82PKEY(pkcs8Key);
-    PKCS8_PRIV_KEY_INFO_free(pkcs8Key);
+
     if (!result) {
         throw_openssl(javaExceptionClass, "Unable to convert PKCS8_PRIV_KEY_INFO to EVP_PKEY");
     }
@@ -50,7 +52,7 @@ EVP_PKEY* der2EvpPrivateKey(
             // If blinding is set and any of the parameters required for blinding
             // are NULL, rebuild to turn blinding off. Otherwise, rebuild if any
             // of the params are 0-valued to NULL them out.
-            if (((rsa->flags & RSA_FLAG_NO_BLINDING) == 0) && (!e || !p || !q)) {
+            if ((RSA_test_flags(rsa, RSA_FLAG_NO_BLINDING) == 0) && (!e || !p || !q)) {
                 need_rebuild = true;
             } else if (e && BN_is_zero(e)) {
                 need_rebuild = true;
@@ -68,22 +70,18 @@ EVP_PKEY* der2EvpPrivateKey(
 
             if (need_rebuild) {
                 // This key likely only has (n, d) set. Very weird, but it happens in java sometimes.
-                RSA* nulled_rsa = RSA_new();
-
-                // Blinding requires |e| and the prime factors |p| and |q|, which we may not have here.
-                nulled_rsa->flags |= RSA_FLAG_NO_BLINDING;
-
-                // |e| might be NULL here, so swap in 0 when calling awslc and
-                // re-NULL it afterwards.
-                if (!RSA_set0_key(nulled_rsa, BN_dup(n), e ? BN_dup(e) : BN_new(), BN_dup(d))) {
-                    throw_openssl(javaExceptionClass, "Unable to set RSA key parameters");
-                }
-                if (BN_is_zero(nulled_rsa->e)) {
-                    BN_free(nulled_rsa->e);
-                    nulled_rsa->e = NULL;
+                RSA_auto nulled_rsa;
+                // No need to copy n or d since new_private_RSA_key_with_no_e does not take ownership.
+                nulled_rsa.set(new_private_RSA_key_with_no_e(n, d));
+                if (e != nullptr && !BN_is_zero(e)) {
+                    // Need to copy e since RSA_set0_key takes ownership.
+                    BigNumObj e_copy = BigNumObj::fromBIGNUM(e);
+                    if (!RSA_set0_key(nulled_rsa, nullptr, e_copy, nullptr)) {
+                        throw_openssl("Unable to set e for RSA");
+                    }
+                    e_copy.releaseOwnership();
                 }
                 EVP_PKEY_set1_RSA(result, nulled_rsa);
-                RSA_free(nulled_rsa); // Decrement reference counter
                 shouldCheckPrivate = false; // We cannot check private keys without CRT parameters
             }
         }
@@ -169,4 +167,16 @@ const EVP_MD* digestFromJstring(raii_env& env, jstring digestName)
 
     return result;
 }
+
+RSA* new_private_RSA_key_with_no_e(BIGNUM const* n, BIGNUM const* d)
+{
+    RSA* result = ::RSA_new_private_key_no_e(n, d);
+
+    if (result == nullptr) {
+        throw_openssl("RSA_new_private_key_no_e failed.");
+    }
+
+    return result;
+}
+
 }

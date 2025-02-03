@@ -92,6 +92,16 @@ public:
         return result;
     }
 
+    static BigNumObj fromBIGNUM(BIGNUM const* pBN)
+    {
+        BigNumObj result;
+        result.ensure_init();
+        if (!BN_copy(result, pBN)) {
+            throw_openssl("Failed to copy bignum");
+        }
+        return result;
+    }
+
 #ifdef HAVE_CPP11
     BigNumObj(const BigNumObj&) = delete;
     BigNumObj& operator=(const BigNumObj&) = delete;
@@ -128,6 +138,9 @@ public:
 };
 
 inline BigNumObj bn_zero() { return BigNumObj(); }
+
+// Frees the data referenced by *dst, if any, and copies src to *dst.
+void bn_dup_into(BIGNUM** dst, BIGNUM const* src);
 
 } // namespace AmazonCorrettoCryptoProvider
 

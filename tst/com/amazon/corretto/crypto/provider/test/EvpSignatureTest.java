@@ -87,10 +87,14 @@ public class EvpSignatureTest {
       this.paramSpec = paramSpec;
 
       signer = getNativeSigner();
-      signer.setParameter(paramSpec);
+      if (paramSpec != null) {
+        signer.setParameter(paramSpec);
+      }
       signer.initSign(keyPair.getPrivate());
       verifier = getNativeSigner();
-      verifier.setParameter(paramSpec);
+      if (paramSpec != null) {
+        verifier.setParameter(paramSpec);
+      }
       verifier.initVerify(keyPair.getPublic());
 
       jceVerifier = getJceSigner();
@@ -304,6 +308,28 @@ public class EvpSignatureTest {
 
   @ParameterizedTest
   @MethodSource("params")
+  public void exceptionCausesReset(TestParams params) throws GeneralSecurityException {
+    final byte[] shortArray = new byte[2];
+    params.signer.update(params.message);
+    assertThrows(SignatureException.class, () -> params.signer.sign(new byte[1], 0, 1));
+
+    // The above should reset the signature.
+    params.signer.update(params.message);
+    final byte[] goodSignature = params.signer.sign();
+    params.verifier.update(params.message);
+    assertTrue(params.verifier.verify(goodSignature));
+
+    // Now, have verification fail
+    params.verifier.update(params.message);
+    assertThrows(SignatureException.class, () -> params.verifier.verify(shortArray));
+
+    // The above should reset state
+    params.verifier.update(params.message);
+    assertTrue(params.verifier.verify(goodSignature));
+  }
+
+  @ParameterizedTest
+  @MethodSource("params")
   public void signSinglePass(TestParams params) throws GeneralSecurityException {
     params.signer.update(params.message);
     params.jceVerifier.update(params.message);
@@ -412,17 +438,20 @@ public class EvpSignatureTest {
   @MethodSource("params")
   public void verifyTruncatedSignature(TestParams params) throws GeneralSecurityException {
     params.verifier.update(params.message);
-    byte[] badSignature = Arrays.copyOf(params.goodSignature, params.goodSignature.length - 1);
-    // Truncated signatures will sometime return false and sometimes throw an exception. Both are
-    // acceptable
-    try {
-      assertFalse(params.verifier.verify(badSignature));
-    } catch (final SignatureException ex) {
-      if (params.algorithm.contains("RSA")) {
-        // RSA is not allowed to fail with an exception
-        throw ex;
-      }
-    }
+    final byte[] badSignature =
+        Arrays.copyOf(params.goodSignature, params.goodSignature.length - 1);
+    // Truncated signatures always throw now.
+    assertThrows(SignatureException.class, () -> params.verifier.verify(badSignature));
+  }
+
+  @ParameterizedTest
+  @MethodSource("params")
+  public void verifyExtendedSignature(TestParams params) throws GeneralSecurityException {
+    params.verifier.update(params.message);
+    final byte[] badSignature =
+        Arrays.copyOf(params.goodSignature, params.goodSignature.length + 1);
+    // Extended signatures always throw now.
+    assertThrows(SignatureException.class, () -> params.verifier.verify(badSignature));
   }
 
   // Modification of body of the message only works
