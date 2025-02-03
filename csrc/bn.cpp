@@ -68,4 +68,13 @@ jbyteArray bn2jarr(raii_env& env, const BIGNUM* bn)
     return jarr;
 }
 
+void bn_dup_into(BIGNUM** dst, BIGNUM const* src)
+{
+    BN_free(*dst);
+    *dst = BN_dup(src);
+    if (*dst == nullptr) {
+        throw_openssl("BN_dup failed.");
+    }
+}
+
 } // namespace AmazonCorrettoCryptoProvider

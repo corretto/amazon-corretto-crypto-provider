@@ -6,6 +6,7 @@
 #include "compiler.h"
 #include "config.h"
 #include "util.h"
+#include <openssl/mem.h>
 #include <cassert>
 #include <cstdlib> // abort()
 #include <iostream>
@@ -295,7 +296,7 @@ template <class T> struct SecureAlloc {
     void deallocate(T* p, std::size_t n) noexcept
     {
         if (p != nullptr && n > 0) {
-            secureZero(p, n * sizeof(T));
+            OPENSSL_cleanse(p, n * sizeof(T));
         }
         ::operator delete(p);
     }

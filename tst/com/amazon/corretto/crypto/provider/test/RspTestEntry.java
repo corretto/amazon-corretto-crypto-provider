@@ -60,6 +60,15 @@ public class RspTestEntry {
   }
 
   /**
+   * Returns true if the specific entry has the provided field.
+   *
+   * @see {@link #getInstance()}
+   */
+  public boolean contains(final String field) {
+    return getInstance().containsKey(field);
+  }
+
+  /**
    * Returns a specific entry from this test case after interpreting it as hex-encoded binary.
    *
    * @see {@link #getInstance(String)}

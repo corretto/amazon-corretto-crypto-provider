@@ -14,12 +14,33 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.nio.ByteBuffer;
 import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
+import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Random;
+import java.util.Spliterator;
+import java.util.Spliterators;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
+import java.util.zip.GZIPInputStream;
+import javax.crypto.Cipher;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 import org.apache.commons.codec.binary.Hex;
+import org.bouncycastle.crypto.Digest;
+import org.bouncycastle.crypto.digests.SHA1Digest;
+import org.bouncycastle.crypto.digests.SHA224Digest;
+import org.bouncycastle.crypto.digests.SHA256Digest;
+import org.bouncycastle.crypto.digests.SHA384Digest;
+import org.bouncycastle.crypto.digests.SHA512Digest;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assumptions;
 
@@ -33,6 +54,16 @@ public class TestUtil {
    * "READ_WRITE" lock.
    */
   public static final String RESOURCE_GLOBAL = "GLOBAL_TEST_LOCK";
+
+  static final byte[] EMPTY_ARRAY = new byte[0];
+
+  static SecretKeyFactory getHkdfSecretKeyFactory(final String digest) {
+    try {
+      return SecretKeyFactory.getInstance("HkdfWith" + digest, TestUtil.NATIVE_PROVIDER);
+    } catch (NoSuchAlgorithmException e) {
+      throw new RuntimeException(e);
+    }
+  }
 
   public static final BouncyCastleProvider BC_PROVIDER = new BouncyCastleProvider();
   public static final AmazonCorrettoCryptoProvider NATIVE_PROVIDER =
@@ -60,8 +91,36 @@ public class TestUtil {
         new String[] {"secp256k1", "1.3.132.0.10"},
       };
 
-  public static final boolean isFips() {
+  public static boolean isFips() {
     return NATIVE_PROVIDER.isFips();
+  }
+
+  public static boolean isExperimentalFips() {
+    return NATIVE_PROVIDER.isExperimentalFips();
+  }
+
+  public static byte[] intArrayToByteArray(final int[] array) {
+    final byte[] result = new byte[array.length];
+    for (int i = 0; i != array.length; i++) {
+      if (array[i] < 0 || array[i] > 255) {
+        throw new IllegalArgumentException("The byte value must be in rage of [0, 256).");
+      }
+      result[i] = (byte) array[i];
+    }
+    return result;
+  }
+
+  public static boolean intArrayIsEqualToByteArray(final int[] expected, final byte[] actual) {
+    if (expected.length != actual.length) {
+      return false;
+    }
+    for (int i = 0; i != expected.length; i++) {
+      final int v = actual[i] & 0xFF;
+      if (expected[i] != v) {
+        return false;
+      }
+    }
+    return true;
   }
 
   public static String getCurveOid(String nameOrOid) {
@@ -182,6 +241,11 @@ public class TestUtil {
 
   public static int sneakyInvoke_int(Object o, String methodName, Object... args) throws Throwable {
     return (Integer) sneakyInvoke(o, methodName, args);
+  }
+
+  public static boolean sneakyInvoke_boolean(Object o, String methodName, Object... args)
+      throws Throwable {
+    return (Boolean) sneakyInvoke(o, methodName, args);
   }
 
   public static <T> T sneakyInvoke(Object o, String methodName, Object... args) throws Throwable {
@@ -407,5 +471,393 @@ public class TestUtil {
     for (Provider provider : providers) {
       Security.addProvider(provider);
     }
+  }
+
+  public static Stream<RspTestEntry> getEntriesFromFile(
+      final String fileName, final boolean isCompressed) throws IOException {
+    final File rsp = new File(System.getProperty("test.data.dir"), fileName);
+    final InputStream is =
+        isCompressed ? new GZIPInputStream(new FileInputStream(rsp)) : new FileInputStream(rsp);
+    final Iterator<RspTestEntry> iterator =
+        RspTestEntry.iterateOverResource(is, true); // Auto-closes stream
+    final Spliterator<RspTestEntry> split =
+        Spliterators.spliteratorUnknownSize(iterator, Spliterator.ORDERED);
+    return StreamSupport.stream(split, false);
+  }
+
+  public static Stream<RspTestEntry> getEntriesFromFile(final String fileName) throws IOException {
+    return getEntriesFromFile(fileName, true);
+  }
+
+  public static int roundUp(final int i, final int m) {
+    final int d = m - (i % m);
+    return d == m ? i : (i + d);
+  }
+
+  public static byte[] genData(final long seed, final int len) {
+    final byte[] result = new byte[len];
+    final Random rand = new Random(seed);
+    rand.nextBytes(result);
+    return result;
+  }
+
+  public static ByteBuffer genData(
+      final long seed, final int offset, final int len, boolean isDirect) {
+    final byte[] data = genData(seed, offset + len);
+    final ByteBuffer result =
+        isDirect ? ByteBuffer.allocateDirect(data.length) : ByteBuffer.allocate(data.length);
+    return (ByteBuffer) result.put(data).position(offset);
+  }
+
+  public static ByteBuffer genData(final long seed, final int len, boolean isDirect) {
+    return genData(seed, 0, len, isDirect);
+  }
+
+  public static IvParameterSpec genIv(final long seed, final int len) {
+    return new IvParameterSpec(genData(seed, len));
+  }
+
+  public static SecretKeySpec genAesKey(final long seed, final int len) {
+    return new SecretKeySpec(genData(seed, len / 8), "AES");
+  }
+
+  public static boolean byteBuffersAreEqual(final ByteBuffer a, final ByteBuffer b) {
+    return byteBuffersAreEqual(a, Arrays.asList(b));
+  }
+
+  public static boolean byteBuffersAreEqual(final ByteBuffer a, final List<ByteBuffer> chunks) {
+    final int chunksTotalLen =
+        chunks.stream().map(c -> c == null ? 0 : c.remaining()).reduce(0, Integer::sum);
+
+    if (a.remaining() != chunksTotalLen) {
+      return false;
+    }
+    int aIndex = a.position();
+    for (final ByteBuffer chunk : chunks) {
+      if (chunk == null) continue;
+      for (int chunkIndex = chunk.position(); chunkIndex != chunk.limit(); chunkIndex++) {
+        if (a.get(aIndex) != chunk.get(chunkIndex)) return false;
+        aIndex++;
+      }
+    }
+    return true;
+  }
+
+  public static byte[] mergeByteArrays(final List<byte[]> chunks) {
+    final int len = chunks.stream().map(c -> c == null ? 0 : c.length).reduce(0, Integer::sum);
+
+    final byte[] result = new byte[len];
+
+    int offset = 0;
+    for (final byte[] chunk : chunks) {
+      if (chunk == null) continue;
+      System.arraycopy(chunk, 0, result, offset, chunk.length);
+      offset += chunk.length;
+    }
+
+    return result;
+  }
+
+  public static ByteBuffer mergeByteBuffers(final List<ByteBuffer> chunks) {
+    final int len = chunks.stream().map(c -> c == null ? 0 : c.remaining()).reduce(0, Integer::sum);
+
+    final ByteBuffer result = ByteBuffer.allocate(len);
+
+    for (final ByteBuffer chunk : chunks) {
+      if (chunk == null) continue;
+      result.put(chunk);
+    }
+
+    result.flip();
+
+    return result;
+  }
+
+  public static List<Integer> constantPattern(final int inputLen, final int c) {
+    final List<Integer> result = new ArrayList<>();
+    int total = 0;
+    while (total < inputLen) {
+      result.add(c);
+      total += c;
+    }
+    return result;
+  }
+
+  public static List<Integer> ascendingPattern(final int inputLen) {
+    final List<Integer> result = new ArrayList<>();
+    int i = 0;
+    int total = 0;
+    while (total < inputLen) {
+      result.add(i);
+      i++;
+      total += i;
+    }
+    return result;
+  }
+
+  public static List<Integer> randomPattern(final int inputLen, final long seed) {
+    final List<Integer> result = new ArrayList<>();
+    final Random random = new Random(seed);
+    int total = 0;
+    while (total < inputLen) {
+      final int c = random.nextInt(inputLen + 1);
+      result.add(c);
+      total += c;
+    }
+    return result;
+  }
+
+  public static ByteBuffer multiStepArray(
+      final Cipher cipher, final List<Integer> process, final byte[] input) throws Exception {
+    return multiStepArray(cipher, process, input, input.length);
+  }
+
+  public static ByteBuffer multiStepArray(
+      final Cipher cipher, final List<Integer> process, final byte[] input, final int inputLen)
+      throws Exception {
+
+    final byte[] output = new byte[cipher.getOutputSize(inputLen)];
+
+    int inputOffset = 0;
+    int outputOffset = 0;
+
+    for (final Integer p : process) {
+      if (inputOffset == inputLen) break;
+      final int toBeProcessed = (p + inputOffset) > inputLen ? (inputLen - inputOffset) : p;
+      outputOffset += cipher.update(input, inputOffset, toBeProcessed, output, outputOffset);
+      inputOffset += toBeProcessed;
+    }
+
+    if (inputOffset == inputLen) {
+      outputOffset += cipher.doFinal(output, outputOffset);
+    } else {
+      outputOffset +=
+          cipher.doFinal(input, inputOffset, inputLen - inputOffset, output, outputOffset);
+    }
+
+    return ByteBuffer.wrap(output, 0, outputOffset);
+  }
+
+  public static List<ByteBuffer> multiStepArrayMultiAllocationImplicit(
+      final Cipher cipher, final List<Integer> process, final byte[] input) throws Exception {
+    final List<ByteBuffer> outputChunks = new ArrayList<>();
+
+    int inputOffset = 0;
+
+    for (final Integer p : process) {
+      if (inputOffset == input.length) break;
+      final int toBeProcessed = (p + inputOffset) > input.length ? (input.length - inputOffset) : p;
+      final byte[] chunk = cipher.update(input, inputOffset, toBeProcessed);
+      // If input.length == 0, then javax.crypto.Cipher::update returns null.
+      if (chunk != null) {
+        outputChunks.add(ByteBuffer.wrap(chunk));
+      }
+      inputOffset += toBeProcessed;
+    }
+
+    if (inputOffset == input.length) {
+      outputChunks.add(ByteBuffer.wrap(cipher.doFinal()));
+    } else {
+      outputChunks.add(
+          ByteBuffer.wrap(cipher.doFinal(input, inputOffset, input.length - inputOffset)));
+    }
+    return outputChunks;
+  }
+
+  public static List<ByteBuffer> multiStepArrayMultiAllocationExplicit(
+      final Cipher cipher, final List<Integer> process, final byte[] input) throws Exception {
+    final List<ByteBuffer> outputChunks = new ArrayList<>();
+
+    int inputOffset = 0;
+
+    for (final Integer p : process) {
+      if (inputOffset == input.length) break;
+      final int toBeProcessed = (p + inputOffset) > input.length ? (input.length - inputOffset) : p;
+      final byte[] temp = new byte[cipher.getOutputSize(toBeProcessed)];
+      final int outputLen = cipher.update(input, inputOffset, toBeProcessed, temp, 0);
+      outputChunks.add(ByteBuffer.wrap(temp, 0, outputLen));
+      inputOffset += toBeProcessed;
+    }
+
+    final byte[] temp = new byte[cipher.getOutputSize(input.length - inputOffset)];
+
+    final int outputLen;
+    if (inputOffset == input.length) {
+      outputLen = cipher.doFinal(temp, 0);
+    } else {
+      outputLen = cipher.doFinal(input, inputOffset, input.length - inputOffset, temp, 0);
+    }
+    outputChunks.add(ByteBuffer.wrap(temp, 0, outputLen));
+
+    return outputChunks;
+  }
+
+  public static ByteBuffer oneShotByteBuffer(final Cipher cipher, final ByteBuffer input)
+      throws Exception {
+    final ByteBuffer output = ByteBuffer.allocate(cipher.getOutputSize(input.remaining()));
+    cipher.doFinal(input, output);
+    output.flip();
+    return output;
+  }
+
+  public static ByteBuffer multiStepByteBuffer(
+      final Cipher cipher,
+      final List<Integer> process,
+      final ByteBuffer input,
+      final boolean outputDirect)
+      throws Exception {
+    final int cipherSize = cipher.getOutputSize(input.remaining());
+
+    final ByteBuffer output =
+        outputDirect ? ByteBuffer.allocateDirect(cipherSize) : ByteBuffer.allocate(cipherSize);
+
+    for (final Integer p : process) {
+      if (!input.hasRemaining()) break;
+      final int toBeProcessed = p > input.remaining() ? input.remaining() : p;
+      final ByteBuffer temp = input.duplicate();
+      temp.limit(input.position() + toBeProcessed);
+      cipher.update(temp, output);
+      input.position(input.position() + toBeProcessed);
+    }
+
+    cipher.doFinal(input, output);
+
+    output.flip();
+
+    return output;
+  }
+
+  public static List<ByteBuffer> multiStepByteBufferMultiAllocation(
+      final Cipher cipher,
+      final List<Integer> process,
+      final ByteBuffer input,
+      final boolean outputDirect)
+      throws Exception {
+
+    final List<ByteBuffer> outputChunks = new ArrayList<>();
+
+    for (final Integer p : process) {
+      if (!input.hasRemaining()) break;
+      final int toBeProcessed = p > input.remaining() ? input.remaining() : p;
+      final int cipherSize = cipher.getOutputSize(toBeProcessed);
+      final ByteBuffer output =
+          outputDirect ? ByteBuffer.allocateDirect(cipherSize) : ByteBuffer.allocate(cipherSize);
+      final ByteBuffer temp = input.duplicate();
+      temp.limit(input.position() + toBeProcessed);
+      cipher.update(temp, output);
+      output.flip();
+      outputChunks.add(output);
+      input.position(input.position() + toBeProcessed);
+    }
+
+    final int cipherSize = cipher.getOutputSize(input.remaining());
+    final ByteBuffer output =
+        outputDirect ? ByteBuffer.allocateDirect(cipherSize) : ByteBuffer.allocate(cipherSize);
+    cipher.doFinal(input, output);
+    output.flip();
+    outputChunks.add(output);
+
+    return outputChunks;
+  }
+
+  public static ByteBuffer multiStepByteBufferInPlace(
+      final Cipher cipher, final List<Integer> process, final ByteBuffer input) throws Exception {
+
+    final ByteBuffer output = input.duplicate();
+    output.limit(output.capacity());
+
+    for (final Integer p : process) {
+      if (!input.hasRemaining()) break;
+      final int toBeProcessed = p > input.remaining() ? input.remaining() : p;
+      final ByteBuffer temp = input.duplicate();
+      temp.limit(input.position() + toBeProcessed);
+      cipher.update(temp, output);
+      input.position(input.position() + toBeProcessed);
+    }
+
+    cipher.doFinal(input, output);
+
+    output.flip();
+
+    return output;
+  }
+  // Returns the length of the output.
+  public static int multiStepInPlaceArray(
+      final Cipher cipher,
+      final List<Integer> process,
+      final byte[] inputOutput,
+      final int inputLen)
+      throws Exception {
+
+    int inputOffset = 0;
+    int outputOffset = 0;
+
+    for (final Integer p : process) {
+      if (inputOffset == inputLen) break;
+      final int toBeProcessed = (p + inputOffset) > inputLen ? (inputLen - inputOffset) : p;
+      outputOffset +=
+          cipher.update(inputOutput, inputOffset, toBeProcessed, inputOutput, outputOffset);
+      inputOffset += toBeProcessed;
+    }
+
+    if (inputOffset == inputLen) {
+      outputOffset += cipher.doFinal(inputOutput, outputOffset);
+    } else {
+      outputOffset +=
+          cipher.doFinal(
+              inputOutput, inputOffset, inputLen - inputOffset, inputOutput, outputOffset);
+    }
+
+    return outputOffset;
+  }
+
+  public static List<Integer> genPattern(final long seed, final int choice, final int inputLen) {
+    if (choice < 0) {
+      return randomPattern(inputLen, seed);
+    }
+    if (choice == 0) {
+      return ascendingPattern(inputLen);
+    }
+    return constantPattern(inputLen, choice);
+  }
+
+  static Digest bcDigest(final String digest) {
+    switch (digest) {
+      case "SHA1":
+        return new SHA1Digest();
+      case "SHA224":
+        return new SHA224Digest();
+      case "SHA256":
+        return new SHA256Digest();
+      case "SHA384":
+        return new SHA384Digest();
+      case "SHA512":
+        return new SHA512Digest();
+      default:
+        return null;
+    }
+  }
+
+  static boolean edKeyFactoryRegistered() {
+    return "true"
+        .equals(System.getProperty("com.amazon.corretto.crypto.provider.registerEdKeyFactory"));
+  }
+
+  private static native byte[] computeMLDSAMuInternal(byte[] pubKeyEncoded, byte[] message);
+
+  /**
+   * Computes mu as defined on line 6 of Algorithm 7 and line 7 of Algorithm 8 in NIST FIPS 204.
+   *
+   * <p>See <a href="https://csrc.nist.gov/pubs/fips/204/final">FIPS 204</a>
+   *
+   * @param publicKey ML-DSA public key
+   * @param message byte array of the message over which to compute mu
+   * @return a byte[] of length 64 containing mu
+   */
+  static byte[] computeMLDSAMu(PublicKey publicKey, byte[] message) {
+    if (publicKey == null || !publicKey.getAlgorithm().startsWith("ML-DSA") || message == null) {
+      throw new IllegalArgumentException();
+    }
+    return computeMLDSAMuInternal(publicKey.getEncoded(), message);
   }
 }

@@ -1,1 +1,0 @@
-../../../../../../../../../extra-jar-files/com/amazon/corretto/crypto/provider/testdata/hmac.txt

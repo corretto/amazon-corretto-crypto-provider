@@ -4,6 +4,7 @@ package com.amazon.corretto.crypto.provider.test;
 
 import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assumeMinimumVersion;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyGetField;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -14,8 +15,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.amazon.corretto.crypto.provider.ExtraCheck;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.NotSerializableException;
+import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.math.BigInteger;
 import java.security.GeneralSecurityException;
@@ -84,7 +86,15 @@ public class EvpKeyFactoryTest {
     }
 
     for (String algorithm : ALGORITHMS) {
-      KeyPairGenerator kpg = KeyPairGenerator.getInstance(algorithm);
+      KeyPairGenerator kpg;
+      if (algorithm.startsWith("ML-DSA")) {
+        // JCE doesn't support ML-DSA until JDK24, and BouncyCastle currently
+        // serializes ML-DSA private keys via seeds. TODO: switch to
+        // BouncyCastle once we support deserializing private keys from seed.
+        kpg = KeyPairGenerator.getInstance(algorithm, NATIVE_PROVIDER);
+      } else {
+        kpg = KeyPairGenerator.getInstance(algorithm);
+      }
       List<Arguments> keys = new ArrayList<>();
       if (algorithm.equals("EC")) {
         // Different curves can excercise different areas of ASN.1/DER and so should all be tested.
@@ -177,6 +187,46 @@ public class EvpKeyFactoryTest {
     return result;
   }
 
+  static long getRawPointer(final Object evpKey) throws Exception {
+    final Object internalKey = sneakyGetField(evpKey, "internalKey");
+    final Object cell = sneakyGetField(internalKey, "cell");
+    return (long) sneakyGetField(cell, "ptr");
+  }
+
+  @ParameterizedTest(name = "{1}")
+  @MethodSource("allPairs")
+  public void keysSerialize(final KeyPair keyPair, final String testName) throws Exception {
+    final KeyFactory kf =
+        KeyFactory.getInstance(keyPair.getPrivate().getAlgorithm(), NATIVE_PROVIDER);
+    final Key privateKey = kf.translateKey(keyPair.getPrivate());
+    final Key publicKey = kf.translateKey(keyPair.getPublic());
+
+    final ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    try (ObjectOutputStream dos = new ObjectOutputStream(baos)) {
+      dos.writeObject(publicKey);
+      dos.writeObject(privateKey);
+    }
+    try (ObjectInputStream ois =
+        new ObjectInputStream(new ByteArrayInputStream(baos.toByteArray()))) {
+      Object newPublicKey = ois.readObject();
+      Object newPrivateKey = ois.readObject();
+      assertEquals(publicKey, newPublicKey);
+      assertEquals(publicKey.getClass(), newPublicKey.getClass());
+      assertEquals(privateKey, newPrivateKey);
+      assertEquals(privateKey.getClass(), newPrivateKey.getClass());
+
+      // We want to ensure the internal pointers are different so that the objects point to
+      // different native objects
+      long oldPubPtr = getRawPointer(publicKey);
+      long oldPrivPtr = getRawPointer(privateKey);
+      long newPubPtr = getRawPointer(newPublicKey);
+      long newPrivPtr = getRawPointer(newPrivateKey);
+
+      assertNotEquals(oldPubPtr, newPubPtr);
+      assertNotEquals(oldPrivPtr, newPrivPtr);
+    }
+  }
+
   @ParameterizedTest(name = "{1}")
   @MethodSource("allPairs")
   public void testX509Encoding(final KeyPair keyPair, final String testName) throws Exception {
@@ -184,7 +234,15 @@ public class EvpKeyFactoryTest {
     final String algorithm = pubKey.getAlgorithm();
 
     final KeyFactory nativeFactory = KeyFactory.getInstance(algorithm, NATIVE_PROVIDER);
-    final KeyFactory jceFactory = KeyFactory.getInstance(algorithm);
+    final KeyFactory jceFactory;
+    if (algorithm.startsWith("ML-DSA")) {
+      // JCE doesn't support ML-DSA until JDK24, and BouncyCastle currently
+      // serializes ML-DSA private keys via seeds. TODO: switch to
+      // BouncyCastle once we support deserializing private keys from seed.
+      jceFactory = KeyFactory.getInstance(algorithm, NATIVE_PROVIDER);
+    } else {
+      jceFactory = KeyFactory.getInstance(algorithm);
+    }
 
     final X509EncodedKeySpec nativeSpec =
         nativeFactory.getKeySpec(pubKey, X509EncodedKeySpec.class);
@@ -209,12 +267,59 @@ public class EvpKeyFactoryTest {
 
   @ParameterizedTest(name = "{1}")
   @MethodSource("allPairs")
+  public void nullAlgorithm(final KeyPair keyPair, final String testName) throws Exception {
+    final KeyFactory nativeFactory =
+        KeyFactory.getInstance(keyPair.getPublic().getAlgorithm(), NATIVE_PROVIDER);
+    final Key nullPublicKey = new NullDataKey(keyPair.getPublic(), true, false, false);
+    final Key nullPrivateKey = new NullDataKey(keyPair.getPrivate(), true, false, false);
+
+    assertThrows(InvalidKeyException.class, () -> nativeFactory.translateKey(nullPublicKey));
+
+    assertThrows(InvalidKeyException.class, () -> nativeFactory.translateKey(nullPrivateKey));
+  }
+
+  @ParameterizedTest(name = "{1}")
+  @MethodSource("allPairs")
+  public void nullFormat(final KeyPair keyPair, final String testName) throws Exception {
+    final KeyFactory nativeFactory =
+        KeyFactory.getInstance(keyPair.getPublic().getAlgorithm(), NATIVE_PROVIDER);
+    final Key nullPublicKey = new NullDataKey(keyPair.getPublic(), false, true, false);
+    final Key nullPrivateKey = new NullDataKey(keyPair.getPrivate(), false, true, false);
+
+    assertThrows(InvalidKeyException.class, () -> nativeFactory.translateKey(nullPublicKey));
+
+    assertThrows(InvalidKeyException.class, () -> nativeFactory.translateKey(nullPrivateKey));
+  }
+
+  @ParameterizedTest(name = "{1}")
+  @MethodSource("allPairs")
+  public void nullEncoding(final KeyPair keyPair, final String testName) throws Exception {
+    final KeyFactory nativeFactory =
+        KeyFactory.getInstance(keyPair.getPublic().getAlgorithm(), NATIVE_PROVIDER);
+    final Key nullPublicKey = new NullDataKey(keyPair.getPublic(), false, false, true);
+    final Key nullPrivateKey = new NullDataKey(keyPair.getPrivate(), false, false, true);
+
+    assertThrows(InvalidKeyException.class, () -> nativeFactory.translateKey(nullPublicKey));
+
+    assertThrows(InvalidKeyException.class, () -> nativeFactory.translateKey(nullPrivateKey));
+  }
+
+  @ParameterizedTest(name = "{1}")
+  @MethodSource("allPairs")
   public void testPKCS8Encoding(final KeyPair keyPair, final String testName) throws Exception {
     final PrivateKey privKey = keyPair.getPrivate();
     final String algorithm = privKey.getAlgorithm();
 
     final KeyFactory nativeFactory = KeyFactory.getInstance(algorithm, NATIVE_PROVIDER);
-    final KeyFactory jceFactory = KeyFactory.getInstance(algorithm);
+    final KeyFactory jceFactory;
+    if (algorithm.startsWith("ML-DSA")) {
+      // JCE doesn't support ML-DSA until JDK24, and BouncyCastle currently
+      // serializes ML-DSA private keys via seeds. TODO: switch to
+      // BouncyCastle once we support deserializing private keys from seed.
+      jceFactory = KeyFactory.getInstance(algorithm, NATIVE_PROVIDER);
+    } else {
+      jceFactory = KeyFactory.getInstance(algorithm);
+    }
 
     final PKCS8EncodedKeySpec nativeSpec =
         nativeFactory.getKeySpec(privKey, PKCS8EncodedKeySpec.class);
@@ -474,21 +579,6 @@ public class EvpKeyFactoryTest {
     assertThrows(InvalidKeyException.class, () -> nativeFactory.translateKey(privateKey));
   }
 
-  @ParameterizedTest(name = "{1}")
-  @MethodSource("allPairs")
-  public void cannotSerializeKeys(final KeyPair pair, final String testName) throws Exception {
-    final KeyFactory nativeFactory =
-        KeyFactory.getInstance(pair.getPublic().getAlgorithm(), NATIVE_PROVIDER);
-    final Key publicKey = nativeFactory.translateKey(pair.getPublic());
-    final Key privateKey = nativeFactory.translateKey(pair.getPrivate());
-    try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        ObjectOutputStream out = new ObjectOutputStream(baos)) {
-
-      assertThrows(NotSerializableException.class, () -> out.writeObject(publicKey));
-      assertThrows(NotSerializableException.class, () -> out.writeObject(privateKey));
-    }
-  }
-
   @SuppressWarnings("unchecked")
   private static <T extends Key> Samples<T> getSamples(
       final KeyPair pair, final boolean isPrivate, final boolean isTranslated)
@@ -641,6 +731,40 @@ public class EvpKeyFactoryTest {
     Samples(T nativeSample, T jceSample) {
       this.nativeSample = nativeSample;
       this.jceSample = jceSample;
+    }
+  }
+
+  public static class NullDataKey implements Key {
+    private static final long serialVersionUID = 1;
+    private final Key delegate;
+    private final boolean nullAlgorithm;
+    private final boolean nullFormat;
+    private final boolean nullEncoded;
+
+    public NullDataKey(
+        final Key delegate,
+        final boolean nullAlgorithm,
+        final boolean nullFormat,
+        final boolean nullEncoded) {
+      this.delegate = delegate;
+      this.nullAlgorithm = nullAlgorithm;
+      this.nullFormat = nullFormat;
+      this.nullEncoded = nullEncoded;
+    }
+
+    @Override
+    public String getAlgorithm() {
+      return nullAlgorithm ? null : delegate.getAlgorithm();
+    }
+
+    @Override
+    public String getFormat() {
+      return nullFormat ? null : delegate.getFormat();
+    }
+
+    @Override
+    public byte[] getEncoded() {
+      return nullEncoded ? null : delegate.getEncoded();
     }
   }
 }

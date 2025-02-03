@@ -18,7 +18,8 @@ import javax.net.ssl.SSLContext;
 
 /**
  * This is a special stand-alone test case which asserts that AmazonCorrettoCryptoProvider is
- * installed as the highest priority provider and is functional.
+ * installed as the highest priority provider, has expected default behavior (the unit test suite is
+ * not necessarily configured with ACCP's defaults), and is functional.
  */
 public final class SecurityPropertyTester {
   public static void main(String[] args) throws Exception {
@@ -42,9 +43,8 @@ public final class SecurityPropertyTester {
     @SuppressWarnings("unused")
     KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC", "SunEC");
 
-    // Ensure we properly configured ourselves as "strong" instance of SecureRandom
-    // Applications should never use getInstanceStrong as it is an anti-pattern.
     final SecureRandom strongRng = SecureRandom.getInstanceStrong();
+    assertEquals(NATIVE_PROVIDER.getName(), new SecureRandom().getProvider().getName());
     assertEquals(NATIVE_PROVIDER.getName(), strongRng.getProvider().getName());
 
     // Ensure that we can successfully generate an AES key, regardless of FIPS

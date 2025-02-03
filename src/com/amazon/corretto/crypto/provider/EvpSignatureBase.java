@@ -17,6 +17,7 @@ import java.security.SignatureSpi;
 import java.security.interfaces.ECKey;
 import java.security.interfaces.RSAKey;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.spec.ECParameterSpec;
 import java.security.spec.MGF1ParameterSpec;
 import java.security.spec.PSSParameterSpec;
 import java.util.Arrays;
@@ -102,8 +103,11 @@ abstract class EvpSignatureBase extends SignatureSpi {
     }
 
     if (untranslatedKey_ != privateKey) {
-      if (!keyType_.jceName.equalsIgnoreCase(privateKey.getAlgorithm())) {
-        throw new InvalidKeyException();
+      if (!keyType_.jceName.equalsIgnoreCase(privateKey.getAlgorithm())
+          && !privateKey.getAlgorithm().startsWith(keyType_.jceName)) {
+        throw new InvalidKeyException(
+            String.format(
+                "Invalid algorithm: %s, expected %s", privateKey.getAlgorithm(), keyType_.jceName));
       }
       keyUsageCount_ = 0;
       untranslatedKey_ = privateKey;
@@ -124,7 +128,8 @@ abstract class EvpSignatureBase extends SignatureSpi {
     }
 
     if (untranslatedKey_ != publicKey) {
-      if (!keyType_.jceName.equalsIgnoreCase(publicKey.getAlgorithm())) {
+      if (!keyType_.jceName.equalsIgnoreCase(publicKey.getAlgorithm())
+          && !publicKey.getAlgorithm().startsWith(keyType_.jceName)) {
         throw new InvalidKeyException();
       }
       keyUsageCount_ = 0;
@@ -216,7 +221,18 @@ abstract class EvpSignatureBase extends SignatureSpi {
         throw new IllegalArgumentException("PSS salt length invalid");
       }
       internalSetParams(pssParams);
-    } else if (params != null) {
+    } else if (params instanceof ECParameterSpec) {
+      // Some applications set the EC Parameters for ECDSA algorithms.
+      // This doesn't change behavior, but we need to ensure it is correct.
+      if (keyType_ != EvpKeyType.EC) {
+        throw new InvalidAlgorithmParameterException("ECParameterSpec only supported with EC keys");
+      }
+      final ECParameterSpec expectedParams = ((ECKey) key_).getParams();
+      if (!EcUtils.ecParameterSpecsAreEqual(expectedParams, (ECParameterSpec) params)) {
+        throw new InvalidAlgorithmParameterException("Algorithm parameters do not match key");
+      }
+      // Check passes, no actual changes needed
+    } else {
       throw new InvalidAlgorithmParameterException(
           "Specified parameters supported by this algorithm");
     }
@@ -412,5 +428,21 @@ abstract class EvpSignatureBase extends SignatureSpi {
     System.arraycopy(signature, rStart, result, numLen - rLen, rLen);
     System.arraycopy(signature, sStart, result, numLen + numLen - sLen, sLen);
     return result;
+  }
+
+  /**
+   * Does an initial check of the signature seeing if it is of the proper format and size. This lets
+   * us quickly reject invalid signatures in a way that the JDK expects.
+   */
+  protected void sniffTest(final byte[] signature, final int offset, final int length)
+      throws SignatureException {
+    // Right now we only check RSA signatures to ensure they are the proper length
+    if (key_ instanceof RSAKey) {
+      final RSAKey rsaKey = (RSAKey) key_;
+      final int expectedLength = (rsaKey.getModulus().bitLength() + 7) / 8;
+      if (length != expectedLength) {
+        throw new SignatureException("RSA Signature of invalid length. Expected " + expectedLength);
+      }
+    }
   }
 }

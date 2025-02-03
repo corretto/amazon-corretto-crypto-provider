@@ -220,6 +220,18 @@ final class EcUtils {
     return name;
   }
 
+  static boolean ecParameterSpecsAreEqual(final ECParameterSpec a, final ECParameterSpec b) {
+    if (a == b) {
+      return true;
+    } else if (a == null || b == null) {
+      return false;
+    }
+    return a.getCofactor() == b.getCofactor()
+        && a.getOrder().equals(b.getOrder())
+        && a.getCurve().equals(b.getCurve())
+        && a.getGenerator().equals(b.getGenerator());
+  }
+
   static final class ECInfo {
     private final ThreadLocal<NativeGroup> group =
         new ThreadLocal<NativeGroup>() {

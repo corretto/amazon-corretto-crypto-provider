@@ -28,7 +28,7 @@
 
 using namespace AmazonCorrettoCryptoProvider;
 
-static void initContext(raii_env& env, raii_cipher_ctx& ctx, jint opMode, java_buffer key, java_buffer iv)
+static void initContext(raii_env& env, raii_cipher_ctx& ctx, jint opMode, java_buffer& key, java_buffer& iv)
 {
     const EVP_CIPHER* cipher;
 
@@ -63,6 +63,43 @@ static void initContext(raii_env& env, raii_cipher_ctx& ctx, jint opMode, java_b
 
     if (unlikely(!EVP_CipherInit_ex(ctx, NULL, NULL, keybuf, ivBorrow.data(), opMode))) {
         throw java_ex::from_openssl(EX_RUNTIME_CRYPTO, "Final cipher init failed");
+    }
+}
+
+static void initializeContext(raii_env& env,
+    jlong ctxPtr,
+    raii_cipher_ctx& ctx,
+    jboolean sameKey,
+    jbyteArray keyArray,
+    jbyteArray ivArray,
+    int enc)
+{
+    // There are three possible cases:
+    // 1) there is no context: in this case, we need to create a context and initialize both key and iv
+    // 2) there is a context, and the key is the same: in this case, we borrow the context and only initialize iv
+    // 3) there is a context, but the key is not the same: in this case, we borrow the context and intialize it with
+    // both key and iv
+    if (ctxPtr == 0) {
+        // Case 1
+        ctx.init();
+        EVP_CIPHER_CTX_init(ctx);
+    } else {
+        // Case 2 or 3
+        ctx.borrow(reinterpret_cast<EVP_CIPHER_CTX*>(ctxPtr));
+    }
+
+    java_buffer iv = java_buffer::from_array(env, ivArray);
+
+    if (ctxPtr != 0 && sameKey == JNI_TRUE) {
+        // Case 2
+        jni_borrow ivBorrow(env, iv, "iv");
+        if (unlikely(!EVP_CipherInit_ex(ctx, NULL, NULL, NULL, ivBorrow.data(), enc))) {
+            throw java_ex::from_openssl(EX_RUNTIME_CRYPTO, "Failed to set IV");
+        }
+    } else {
+        // Case 1 or 3
+        java_buffer key = java_buffer::from_array(env, keyArray);
+        initContext(env, ctx, enc, key, iv);
     }
 }
 
@@ -145,6 +182,7 @@ static int cryptFinish(raii_env& env, int opMode, java_buffer resultBuf, unsigne
 JNIEXPORT int JNICALL Java_com_amazon_corretto_crypto_provider_AesGcmSpi_oneShotEncrypt(JNIEnv* pEnv,
     jclass,
     jlong ctxPtr,
+    jboolean sameKey,
     jlongArray ctxOut,
     jbyteArray inputArray,
     jint inoffset,
@@ -157,25 +195,12 @@ JNIEXPORT int JNICALL Java_com_amazon_corretto_crypto_provider_AesGcmSpi_oneShot
 {
     try {
         raii_env env(pEnv);
+        raii_cipher_ctx ctx;
+
+        initializeContext(env, ctxPtr, ctx, sameKey, keyArray, ivArray, NATIVE_MODE_ENCRYPT);
 
         java_buffer input = java_buffer::from_array(env, inputArray, inoffset, inlen);
         java_buffer result = java_buffer::from_array(env, resultArray, resultOffset);
-        java_buffer iv = java_buffer::from_array(env, ivArray);
-
-        raii_cipher_ctx ctx;
-        if (ctxPtr) {
-            ctx.borrow(reinterpret_cast<EVP_CIPHER_CTX*>(ctxPtr));
-
-            jni_borrow ivBorrow(env, iv, "iv");
-            if (unlikely(!EVP_CipherInit_ex(ctx, NULL, NULL, NULL, ivBorrow.data(), NATIVE_MODE_ENCRYPT))) {
-                throw java_ex::from_openssl(EX_RUNTIME_CRYPTO, "Failed to set IV");
-            }
-        } else {
-            ctx.init();
-            EVP_CIPHER_CTX_init(ctx);
-            java_buffer key = java_buffer::from_array(env, keyArray);
-            initContext(env, ctx, NATIVE_MODE_ENCRYPT, key, iv);
-        }
 
         int outoffset = updateLoop(env, result, input, ctx);
         if (outoffset < 0)
@@ -197,41 +222,16 @@ JNIEXPORT int JNICALL Java_com_amazon_corretto_crypto_provider_AesGcmSpi_oneShot
     }
 }
 
-JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_AesGcmSpi_encryptInit__J_3B(
-    JNIEnv* pEnv, jclass, jlong ctxPtr, jbyteArray ivArray)
-{
-    try {
-        raii_env env(pEnv);
-
-        if (!ctxPtr)
-            throw java_ex(EX_NPE, "Null context");
-
-        EVP_CIPHER_CTX* ctx = reinterpret_cast<EVP_CIPHER_CTX*>(ctxPtr);
-        java_buffer iv = java_buffer::from_array(env, ivArray);
-
-        jni_borrow ivBorrow(env, iv, "iv");
-        if (unlikely(!EVP_CipherInit_ex(ctx, NULL, NULL, NULL, ivBorrow.data(), NATIVE_MODE_ENCRYPT))) {
-            throw java_ex::from_openssl(EX_RUNTIME_CRYPTO, "Failed to set IV");
-        }
-    } catch (java_ex& ex) {
-        ex.throw_to_java(pEnv);
-    }
-}
-
-JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_AesGcmSpi_encryptInit___3B_3B(
-    JNIEnv* pEnv, jclass, jbyteArray keyArray, jbyteArray ivArray)
+JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_AesGcmSpi_encryptInit(
+    JNIEnv* pEnv, jclass, jlong ctxPtr, jboolean sameKey, jbyteArray keyArray, jbyteArray ivArray)
 {
     raii_cipher_ctx ctx;
-    ctx.init();
-    EVP_CIPHER_CTX_init(ctx);
 
     try {
         raii_env env(pEnv);
+        raii_cipher_ctx ctx;
 
-        java_buffer key = java_buffer::from_array(env, keyArray);
-        java_buffer iv = java_buffer::from_array(env, ivArray);
-
-        initContext(env, ctx, NATIVE_MODE_ENCRYPT, key, iv);
+        initializeContext(env, ctxPtr, ctx, sameKey, keyArray, ivArray, NATIVE_MODE_ENCRYPT);
 
         return (jlong)ctx.take();
     } catch (java_ex& ex) {
@@ -239,13 +239,6 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_AesGcmSpi_encry
 
         return 0;
     }
-}
-
-JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_AesGcmSpi_releaseContext(JNIEnv*, jclass, jlong ctxPtr)
-{
-    EVP_CIPHER_CTX* ctx = (EVP_CIPHER_CTX*)ctxPtr;
-
-    EVP_CIPHER_CTX_free(ctx);
 }
 
 JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesGcmSpi_encryptUpdate(JNIEnv* pEnv,
@@ -348,6 +341,7 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesGcmSpi_encryp
 JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesGcmSpi_oneShotDecrypt(JNIEnv* pEnv,
     jclass,
     jlong ctxPtr,
+    jboolean sameKey,
     jlongArray ctxOut,
     jbyteArray inputArray,
     jint inoffset,
@@ -362,25 +356,12 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesGcmSpi_oneSho
 {
     try {
         raii_env env(pEnv);
+        raii_cipher_ctx ctx;
+
+        initializeContext(env, ctxPtr, ctx, sameKey, keyArray, ivArray, NATIVE_MODE_DECRYPT);
 
         java_buffer input = java_buffer::from_array(env, inputArray, inoffset, inlen);
         java_buffer result = java_buffer::from_array(env, resultArray, resultOffset);
-        java_buffer iv = java_buffer::from_array(env, ivArray);
-
-        raii_cipher_ctx ctx;
-        if (ctxPtr) {
-            ctx.borrow(reinterpret_cast<EVP_CIPHER_CTX*>(ctxPtr));
-
-            jni_borrow ivBorrow(env, iv, "iv");
-            if (unlikely(!EVP_CipherInit_ex(ctx, NULL, NULL, NULL, ivBorrow.data(), NATIVE_MODE_DECRYPT))) {
-                throw java_ex::from_openssl(EX_RUNTIME_CRYPTO, "Failed to set IV");
-            }
-        } else {
-            ctx.init();
-            EVP_CIPHER_CTX_init(ctx);
-            java_buffer key = java_buffer::from_array(env, keyArray);
-            initContext(env, ctx, NATIVE_MODE_DECRYPT, key, iv);
-        }
 
         // Decrypt mode: Set the tag before we decrypt
         if (unlikely(tagLen > 16 || tagLen < 0)) {

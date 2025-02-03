@@ -3,17 +3,22 @@
 package com.amazon.corretto.crypto.provider;
 
 import java.io.IOException;
+import java.io.InvalidObjectException;
 import java.io.NotSerializableException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.ObjectStreamException;
+import java.io.Serializable;
 import java.math.BigInteger;
 import java.security.AlgorithmParameters;
 import java.security.GeneralSecurityException;
 import java.security.Key;
-import java.security.MessageDigest;
+import java.security.KeyFactory;
 import java.security.PublicKey;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
 import java.util.Arrays;
 import java.util.Base64;
 import javax.security.auth.Destroyable;
@@ -24,8 +29,18 @@ abstract class EvpKey implements Key, Destroyable {
   protected final InternalKey internalKey;
   protected final EvpKeyType type;
   protected final boolean isPublicKey;
+  /**
+   * Indicates that the backing native key is used by another java object and thus must not be
+   * released by this one.
+   */
+  protected boolean sharedKey = false;
+  /**
+   * Indicates that this key is entirely managed within ACCP controlled code and thus we know when
+   * we're done with it and can release it.
+   */
   protected boolean ephemeral = false;
 
+  private volatile boolean isDestroyed = false;
   protected volatile byte[] encoded;
   protected volatile Integer cachedHashCode;
 
@@ -61,11 +76,13 @@ abstract class EvpKey implements Key, Destroyable {
   // @CheckReturnValue // Restore once replacement for JSR-305 available
   <T, X extends Throwable> T use(final MiscInterfaces.ThrowingLongFunction<T, X> function)
       throws X {
+    assertNotDestroyed();
     return internalKey.use(function);
   }
 
   <X extends Throwable> void useVoid(final MiscInterfaces.ThrowingLongConsumer<X> function)
       throws X {
+    assertNotDestroyed();
     internalKey.useVoid(function);
   }
 
@@ -86,6 +103,7 @@ abstract class EvpKey implements Key, Destroyable {
   }
 
   protected byte[] internalGetEncoded() {
+    assertNotDestroyed();
     byte[] result = encoded;
     if (result == null) {
       synchronized (this) {
@@ -113,15 +131,20 @@ abstract class EvpKey implements Key, Destroyable {
       return params.getParameterSpec(paramSpec);
     } catch (final GeneralSecurityException | IOException ex) {
       throw new RuntimeCryptoException(
-          "Unable to deserialize parameters: " + Base64.getEncoder().encodeToString(encoded), ex);
+          "Unable to deserialize parameters: " + Base64.getEncoder().encodeToString(encodedParams),
+          ex);
     }
   }
 
   /**
-   * This method will be called by @{link #destroy()} after calling @{code internalKey.release()}.
+   * This method will be called by @{link #destroy()} after possibly calling @{code
+   * internalKey.release()}.
    */
   protected synchronized void destroyJavaState() {
-    // NOP
+    if (encoded != null) {
+      Arrays.fill(encoded, (byte) 0);
+    }
+    encoded = null;
   }
 
   @Override
@@ -153,7 +176,7 @@ abstract class EvpKey implements Key, Destroyable {
     }
 
     // Constant time equality check
-    return MessageDigest.isEqual(internalGetEncoded(), otherEncoded);
+    return ConstantTime.equals(internalGetEncoded(), otherEncoded);
   }
 
   @Override
@@ -192,17 +215,24 @@ abstract class EvpKey implements Key, Destroyable {
     return result;
   }
 
+  protected void assertNotDestroyed() {
+    if (isDestroyed) {
+      throw new IllegalStateException("Key has been destroyed");
+    }
+  }
+
   @Override
   public boolean isDestroyed() {
-    return internalKey.isReleased();
+    return isDestroyed;
   }
 
   @Override
   public synchronized void destroy() {
-    if (isDestroyed()) {
-      throw new IllegalStateException("Already destroyed");
+    assertNotDestroyed();
+    isDestroyed = true;
+    if (!sharedKey) {
+      internalKey.release();
     }
-    internalKey.release();
     destroyJavaState();
   }
 
@@ -216,24 +246,79 @@ abstract class EvpKey implements Key, Destroyable {
     T getPublicKey();
   }
 
-  // The Key interface requires us to be serializable.
-  // However, we are not easily serializable because we have native state which won't be captured.
-  // So, we prevent any attempt to serialize ourselves by throwing an exception.
-  // If we discover that we actually need to support this functionality, we can manage it through
-  // serializing an
-  // encoded copy of the key and decoding that upon deserialization.
-  // Doing that will require changing out InternalKey from being a final field to a transient one
-  // and this feels
-  // like a bad tradeoff if we can avoid it.
+  /*
+   * Java Keys are Serializable but we cannot use the trivial serialization of an EvpKey.
+   * - They contain a pointer to native memory (and associated native memory).
+   *   This obviously cannot remain valid after being serialized/deserialized.
+   * - The pointer to native memory is final to ensure there is no risk of it being invalid.
+   *   This means that we cannot just fix it up when deserializing.
+   *
+   * The trivial solution would be to make the pointer non-final, but that introduces a greater risk of serious bugs.
+   *
+   * Instead, we use writeReplace() and readResolve() to store our information in a dedicated format for serialization.
+   * - writeReplace() on the object to be serialized (an EvpKey) returns the *real* object to be serialized.
+   *   In our case, we return an instance of SerializedKey which contains the minimal information to properly save and retrieve a key.
+   * - readResolve() is called on the object which is *actually* serialized (and thus being deserialized) and returns the object that users care about.
+   *   In our case, SeralizedKey.readResolve() returns an appropriate instance of EvpKey.
+   *
+   * So, the entire (hidden from the user) flow goes like this.
+   * 1.  User tries to serialize an EvpKey
+   * 2.  Java detects that EvpKey.writeReplace() exists and calls it
+   * 3.  EvpKey.writeReplace() returns an instance of SerializedKey
+   * 4.  Java actually serializes SerializedKey
+   * 5.  (Some time passes)
+   * 6.  User tries to deserialize the bytes
+   * 7.  Java detects that the bytes contain a serialized SerializedKey and so deserializes it.
+   * 8.  Java detects that SerializedKey.readResolve() exists and calls it
+   * 9.  SerializedKey.readResolve() creates and returns an instance of EvpKey
+   * 10. User gets an instance of EvpKey and never realizes that the above complexity exists
+   */
+  Object writeReplace() throws ObjectStreamException {
+    return new SerializedKey(type, isPublicKey, internalGetEncoded());
+  }
+
+  // This object must never be serialized directly
   private void writeObject(final ObjectOutputStream out) throws IOException {
     throw new NotSerializableException("EvpKey");
   }
 
+  // This object must never be deserialized directly
   private void readObject(final ObjectInputStream in) throws IOException, ClassNotFoundException {
     throw new NotSerializableException("EvpKey");
   }
 
+  // This object must never be deserialized directly
   private void readObjectNoData() throws ObjectStreamException {
     throw new NotSerializableException("EvpKey");
+  }
+
+  /**
+   * Minimal information needed to serialize/deserialize any instance of EvpKey. Contains the key
+   * type, whether it is a public key, and the appropriate encoding of it.
+   */
+  private static class SerializedKey implements Serializable {
+    private static final long serialVersionUID = 1;
+    private final EvpKeyType type;
+    private final boolean isPublicKey;
+    private final byte[] encoded;
+
+    public SerializedKey(final EvpKeyType type, final boolean isPublicKey, final byte[] encoded) {
+      this.type = type;
+      this.isPublicKey = isPublicKey;
+      this.encoded = encoded;
+    }
+
+    private Object readResolve() throws ObjectStreamException {
+      try {
+        final KeyFactory kf = AmazonCorrettoCryptoProvider.INSTANCE.getKeyFactory(type);
+        if (isPublicKey) {
+          return kf.generatePublic(new X509EncodedKeySpec(encoded));
+        } else {
+          return kf.generatePrivate(new PKCS8EncodedKeySpec(encoded));
+        }
+      } catch (final InvalidKeySpecException ex) {
+        throw new InvalidObjectException(ex.getMessage());
+      }
+    }
   }
 }

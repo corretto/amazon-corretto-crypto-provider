@@ -165,7 +165,7 @@ static const uint8_t validPKCS8ECKey[DER_LENGTH] = {
 
 void test_deserialize_valid_key()
 {
-    EVP_PKEY* result = der2EvpPrivateKey(validPKCS8ECKey, DER_LENGTH, false, EX_INVALID_KEY);
+    EVP_PKEY* result = der2EvpPrivateKey(validPKCS8ECKey, DER_LENGTH, EVP_PKEY_EC, false, EX_INVALID_KEY);
     TEST_ASSERT(result);
     EVP_PKEY_free(result);
 }
@@ -178,7 +178,7 @@ void test_deserialize_invalid_der()
     // This makes the private key invalid
     invalidKey[34] = 0;
     try {
-        der2EvpPrivateKey(invalidKey, DER_LENGTH, false, EX_INVALID_KEY);
+        der2EvpPrivateKey(invalidKey, DER_LENGTH, EVP_PKEY_EC, false, EX_INVALID_KEY);
         FAIL();
     } catch (...) {
         // Expected
@@ -190,7 +190,7 @@ void test_deserialize_empty()
     // This makes the DER encoding invalid for a PKCS8 key but still the right length
     uint8_t emptyKey[1] = { 0x00 };
     try {
-        der2EvpPrivateKey(emptyKey, 0, false, EX_INVALID_KEY);
+        der2EvpPrivateKey(emptyKey, 0, EVP_PKEY_EC, false, EX_INVALID_KEY);
         FAIL();
     } catch (...) {
         // Expected
@@ -205,7 +205,7 @@ void test_deserialize_extra_data()
     // This sets the der to have 0 elements but still has data and will hit the extra key info
     invalidKey[0] = 0;
     try {
-        der2EvpPrivateKey(invalidKey, DER_LENGTH, false, EX_INVALID_KEY);
+        der2EvpPrivateKey(invalidKey, DER_LENGTH, EVP_PKEY_EC, false, EX_INVALID_KEY);
         FAIL();
     } catch (...) {
         // Expected

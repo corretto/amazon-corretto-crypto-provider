@@ -441,20 +441,21 @@ class EvpSignature extends EvpSignatureBase {
   protected synchronized boolean engineVerify(final byte[] sigBytes, final int off, final int len)
       throws SignatureException {
     ensureInitialized(false);
-    byte[] tempSig = maybeConvertSignatureToVerify(sigBytes, off, len);
-    final byte[] finalSigBytes;
-    final int finalOff;
-    final int finalLen;
-    if (tempSig != null) {
-      finalSigBytes = tempSig;
-      finalOff = 0;
-      finalLen = finalSigBytes.length;
-    } else {
-      finalSigBytes = sigBytes;
-      finalOff = off;
-      finalLen = len;
-    }
     try {
+      byte[] tempSig = maybeConvertSignatureToVerify(sigBytes, off, len);
+      final byte[] finalSigBytes;
+      final int finalOff;
+      final int finalLen;
+      if (tempSig != null) {
+        finalSigBytes = tempSig;
+        finalOff = 0;
+        finalLen = finalSigBytes.length;
+      } else {
+        finalSigBytes = sigBytes;
+        finalOff = off;
+        finalLen = len;
+      }
+      sniffTest(finalSigBytes, finalOff, finalLen);
       return verifyingBuffer
           .withDoFinal((ctx) -> verifyFinish(ctx.take(), finalSigBytes, finalOff, finalLen))
           .withSinglePass(

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "generated-headers.h"
 #include <openssl/err.h>
+#include <openssl/evp.h>
 #include <cassert>
 #include <cerrno>
 #include <cstdio>
@@ -40,4 +41,27 @@ std::string formatOpensslError(unsigned long errCode, const char* fallback)
         return std::string(fallback);
     }
 }
+
+extern "C" JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_Utils_releaseEvpCipherCtx(
+    JNIEnv*, jclass, jlong ctxPtr)
+{
+    EVP_CIPHER_CTX_free(reinterpret_cast<EVP_CIPHER_CTX*>(ctxPtr));
+}
+
+EVP_MD const* digest_code_to_EVP_MD(int digestCode)
+{
+    switch (digestCode) {
+    case com_amazon_corretto_crypto_provider_Utils_SHA1_CODE:
+        return EVP_sha1();
+    case com_amazon_corretto_crypto_provider_Utils_SHA256_CODE:
+        return EVP_sha256();
+    case com_amazon_corretto_crypto_provider_Utils_SHA384_CODE:
+        return EVP_sha384();
+    case com_amazon_corretto_crypto_provider_Utils_SHA512_CODE:
+        return EVP_sha512();
+    default:
+        throw java_ex(EX_ERROR, "THIS SHOULD NOT BE REACHABLE.");
+    }
+}
+
 } // namespace

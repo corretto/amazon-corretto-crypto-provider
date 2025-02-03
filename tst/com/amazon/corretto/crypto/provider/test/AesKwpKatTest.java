@@ -7,19 +7,11 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import com.amazon.corretto.crypto.provider.RuntimeCryptoException;
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.security.GeneralSecurityException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
-import java.util.Iterator;
-import java.util.Spliterator;
-import java.util.Spliterators;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
-import java.util.zip.GZIPInputStream;
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
@@ -38,38 +30,28 @@ import org.junit.jupiter.params.provider.MethodSource;
 @ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
 public final class AesKwpKatTest {
 
-  private static Stream<RspTestEntry> getEntriesFromFile(final String fileName) throws IOException {
-    final File rsp = new File(System.getProperty("test.data.dir"), fileName);
-    final InputStream is = new GZIPInputStream(new FileInputStream(rsp));
-    final Iterator<RspTestEntry> iterator =
-        RspTestEntry.iterateOverResource(is, true); // Auto-closes stream
-    final Spliterator<RspTestEntry> split =
-        Spliterators.spliteratorUnknownSize(iterator, Spliterator.ORDERED);
-    return StreamSupport.stream(split, false);
-  }
-
   public static Stream<RspTestEntry> encrypt128Params() throws IOException {
-    return getEntriesFromFile("kwpEncrypt128.rsp.gz");
+    return TestUtil.getEntriesFromFile("kwpEncrypt128.rsp.gz");
   }
 
   public static Stream<RspTestEntry> decrypt128Params() throws IOException {
-    return getEntriesFromFile("kwpDecrypt128.rsp.gz");
+    return TestUtil.getEntriesFromFile("kwpDecrypt128.rsp.gz");
   }
 
   public static Stream<RspTestEntry> encrypt192Params() throws IOException {
-    return getEntriesFromFile("kwpEncrypt192.rsp.gz");
+    return TestUtil.getEntriesFromFile("kwpEncrypt192.rsp.gz");
   }
 
   public static Stream<RspTestEntry> decrypt192Params() throws IOException {
-    return getEntriesFromFile("kwpDecrypt192.rsp.gz");
+    return TestUtil.getEntriesFromFile("kwpDecrypt192.rsp.gz");
   }
 
   public static Stream<RspTestEntry> encrypt256Params() throws IOException {
-    return getEntriesFromFile("kwpEncrypt256.rsp.gz");
+    return TestUtil.getEntriesFromFile("kwpEncrypt256.rsp.gz");
   }
 
   public static Stream<RspTestEntry> decrypt256Params() throws IOException {
-    return getEntriesFromFile("kwpDecrypt256.rsp.gz");
+    return TestUtil.getEntriesFromFile("kwpDecrypt256.rsp.gz");
   }
 
   @ParameterizedTest(name = "{0}")

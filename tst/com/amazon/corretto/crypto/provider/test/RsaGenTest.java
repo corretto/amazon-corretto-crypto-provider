@@ -8,6 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import com.amazon.corretto.crypto.provider.RuntimeCryptoException;
@@ -133,6 +135,23 @@ public class RsaGenTest {
     assertConsistency(pubKey, privKey);
   }
 
+  // We want to ensure that when we ask for a strange keylength we get something of at least that
+  // strength.
+  @Test
+  public void test3073() throws GeneralSecurityException {
+    assumeFalse(
+        AmazonCorrettoCryptoProvider.INSTANCE.isFips(),
+        "Keysize of 3073 is not supported with FIPS");
+    final KeyPairGenerator generator = getGenerator();
+    generator.initialize(3073);
+    final KeyPair keyPair = generator.generateKeyPair();
+    final RSAPublicKey pubKey = (RSAPublicKey) keyPair.getPublic();
+    final RSAPrivateCrtKey privKey = (RSAPrivateCrtKey) keyPair.getPrivate();
+    assertTrue(3073 <= pubKey.getModulus().bitLength());
+    assertEquals(RSAKeyGenParameterSpec.F4, pubKey.getPublicExponent());
+    assertConsistency(pubKey, privKey);
+  }
+
   @Test
   public void test4096() throws GeneralSecurityException {
     final KeyPairGenerator generator = getGenerator();
@@ -149,15 +168,18 @@ public class RsaGenTest {
   public void test5120() throws GeneralSecurityException {
     final KeyPairGenerator generator = getGenerator();
     generator.initialize(5120);
-    if (TestUtil.isFips()) {
-      assertThrows(RuntimeCryptoException.class, () -> generator.generateKeyPair());
-    } else {
+    try {
       final KeyPair keyPair = generator.generateKeyPair();
       final RSAPublicKey pubKey = (RSAPublicKey) keyPair.getPublic();
       final RSAPrivateCrtKey privKey = (RSAPrivateCrtKey) keyPair.getPrivate();
       assertEquals(5120, pubKey.getModulus().bitLength());
       assertEquals(RSAKeyGenParameterSpec.F4, pubKey.getPublicExponent());
       assertConsistency(pubKey, privKey);
+    } catch (final RuntimeCryptoException e) {
+      // Starting from version v1.35.1, AWS-LC built in FIPS mode allows key sizes larger than 4096.
+      // This exception could happen if ACCP is built with a version of AWS-LC in FIPS mode that
+      // does not support key sizes larger than 4096.
+      assertTrue(TestUtil.isFips());
     }
   }
 
@@ -228,6 +250,38 @@ public class RsaGenTest {
       }
       throw ex;
     }
+  }
+
+  @Test
+  public void separateDestruction() throws Exception {
+    final KeyPairGenerator generator = getGenerator();
+    generator.initialize(2048);
+    final KeyPair keyPair = generator.generateKeyPair();
+    testSeparateDestruction(keyPair);
+  }
+
+  static void testSeparateDestruction(final KeyPair kp) throws Exception {
+    // Make sure that the keys are backed by the same native object.
+    // Otherwise the test is invalid.
+    assertEquals(
+        EvpKeyFactoryTest.getRawPointer(kp.getPublic()),
+        EvpKeyFactoryTest.getRawPointer(kp.getPrivate()),
+        "Keys must be backed by same native object for test to be valid");
+    // Destroy the private key
+    kp.getPrivate().destroy();
+    // Getting encoded private key must fail and mention destruction
+    try {
+      kp.getPrivate().getEncoded();
+      fail("Expected exception");
+    } catch (final IllegalStateException ex) {
+      assertTrue(ex.getMessage().contains("destroy"), ex.getMessage());
+    }
+    // We must still be able to retrieve the public key
+    final byte[] encoded = kp.getPublic().getEncoded();
+    assertNotNull(encoded);
+    assertTrue(encoded.length > 0);
+    // Leading byte of an encoded key will never be zero
+    assertTrue(encoded[0] != 0);
   }
 
   private static void assertConsistency(final RSAPublicKey pub, final RSAPrivateCrtKey priv)

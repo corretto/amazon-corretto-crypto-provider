@@ -3,6 +3,7 @@
 package com.amazon.corretto.crypto.provider.test;
 
 import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.assertArraysHexEquals;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assumeMinimumVersion;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyConstruct;
@@ -706,7 +707,7 @@ public class AesTest {
         spi, "engineInit", Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, randomIV()), rnd);
     assertThrows(
         ShortBufferException.class,
-        () -> sneakyInvoke(spi, "engineDoFinal", new byte[1], 0, 1, new byte[0], 0));
+        () -> sneakyInvoke(spi, "engineDoFinal", new byte[2], 0, 2, new byte[1], 0));
 
     sneakyInvoke(
         spi, "engineInit", Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, randomIV()), rnd);
@@ -774,6 +775,12 @@ public class AesTest {
     sneakyInvoke(
         spi, "engineInit", Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, randomIV()), rnd);
     assertThrows(
+        ArrayIndexOutOfBoundsException.class,
+        () -> sneakyInvoke(spi, "engineUpdate", new byte[16], 0, 16, new byte[32], 32));
+
+    sneakyInvoke(
+        spi, "engineInit", Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, randomIV()), rnd);
+    assertThrows(
         ShortBufferException.class,
         () -> sneakyInvoke(spi, "engineUpdate", new byte[1024], 0, 1024, new byte[32], 0));
     sneakyInvoke(
@@ -820,6 +827,11 @@ public class AesTest {
     assertThrows(
         ArrayIndexOutOfBoundsException.class,
         () -> sneakyInvoke(spi, "engineUpdateAAD", new byte[16], 0xFFFFFFF0, 0x20));
+
+    // Output buffer without space for the tag succeeds on update
+    sneakyInvoke(
+        spi, "engineInit", Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, randomIV()), rnd);
+    sneakyInvoke(spi, "engineUpdate", new byte[16], 0, 16, new byte[16], 0);
   }
 
   @Test
@@ -1110,11 +1122,65 @@ public class AesTest {
   }
 
   @Test
+  public void safeCipherReuse() throws Exception {
+    Cipher c1 = Cipher.getInstance(ALGO_NAME, NATIVE_PROVIDER);
+    Cipher c2 = Cipher.getInstance(ALGO_NAME, NATIVE_PROVIDER);
+    GCMParameterSpec spec1 = new GCMParameterSpec(128, randomIV());
+    GCMParameterSpec spec2 = new GCMParameterSpec(128, randomIV());
+    SecretKey key1 = new SecretKeySpec(TestUtil.getRandomBytes(16), "AES");
+    SecretKey key2 = new SecretKeySpec(TestUtil.getRandomBytes(16), "AES");
+    byte[] aad = TestUtil.getRandomBytes(100);
+    String message = "hello world!";
+
+    c1.init(Cipher.ENCRYPT_MODE, key1, spec1);
+    c1.updateAAD(aad);
+    byte[] cipherText1 = c1.doFinal(message.getBytes());
+    c1.init(Cipher.DECRYPT_MODE, key1, spec1);
+    c1.updateAAD(aad);
+    assertEquals(message, new String(c1.doFinal(cipherText1)));
+
+    c1.init(Cipher.ENCRYPT_MODE, key2, spec2);
+    c1.updateAAD(aad);
+    byte[] cipherText2 = c1.doFinal(message.getBytes());
+    // Let's use a different context for decrypt
+    c2.init(Cipher.DECRYPT_MODE, key2, spec2);
+    c2.updateAAD(aad);
+    assertEquals(message, new String(c2.doFinal(cipherText2)));
+
+    // Let's set AAD for encrypt but ignore it by another init
+    c1.init(Cipher.ENCRYPT_MODE, key2, spec1);
+    c1.updateAAD(aad);
+    // Initializing again and doFinal immediately after.
+    c1.init(Cipher.ENCRYPT_MODE, key2, spec2);
+    byte[] cipherText3 = c1.doFinal(message.getBytes());
+    c2.init(Cipher.DECRYPT_MODE, key2, spec2);
+    assertEquals(message, new String(c2.doFinal(cipherText3)));
+
+    // Let's set AAD for decrypt but ignore it by another init
+    c1.init(Cipher.ENCRYPT_MODE, key2, spec1);
+    byte[] cipherText4 = c1.doFinal(message.getBytes());
+    c2.init(Cipher.DECRYPT_MODE, key2, spec1);
+    c2.updateAAD(aad);
+    c2.init(Cipher.DECRYPT_MODE, key2, spec1);
+    assertEquals(message, new String(c2.doFinal(cipherText4)));
+  }
+
+  private static boolean saveNativeContext(final Object obj) throws Throwable {
+    return ((Boolean) sneakyInvoke(obj, "saveNativeContext")).booleanValue();
+  }
+
+  private static void assertNativeContextOk(final Object spi) throws Throwable {
+    if (saveNativeContext(spi)) {
+      assertNotNull(sneakyGetField(spi, "context"));
+    } else {
+      assertNull(sneakyGetField(spi, "context"));
+    }
+  }
+
+  @Test
   public void safeReuse() throws Throwable {
     Cipher c = Cipher.getInstance(ALGO_NAME, NATIVE_PROVIDER);
     final Object spi = sneakyGetField(c, "spi");
-    final int keyReuseThreshold = (int) sneakyGetField(spi.getClass(), "KEY_REUSE_THRESHOLD");
-    assertEquals(1, keyReuseThreshold, "Test must be re-written for KEY_REUSE_THRESHOLD != 1");
 
     GCMParameterSpec spec1 = new GCMParameterSpec(128, randomIV());
     GCMParameterSpec spec2 = new GCMParameterSpec(128, randomIV());
@@ -1131,61 +1197,207 @@ public class AesTest {
     assertFalse((boolean) sneakyGetField(spi, "contextInitialized"));
     assertNull(sneakyGetField(spi, "context"));
     byte[] ciphertext1 = c.doFinal(plaintext1);
+    assertNativeContextOk(spi);
     c.init(Cipher.ENCRYPT_MODE, key, spec2);
     assertFalse((boolean) sneakyGetField(spi, "contextInitialized"));
-    assertNull(sneakyGetField(spi, "context"));
     byte[] ciphertext2 = c.doFinal(plaintext2);
+    assertNativeContextOk(spi);
     c.init(Cipher.ENCRYPT_MODE, key, spec3);
     assertFalse((boolean) sneakyGetField(spi, "contextInitialized"));
-    assertNotNull(sneakyGetField(spi, "context"));
     byte[] ciphertext3 = c.doFinal(plaintext3);
-
     c.init(Cipher.DECRYPT_MODE, key, spec1);
     assertFalse((boolean) sneakyGetField(spi, "contextInitialized"));
-    assertNotNull(sneakyGetField(spi, "context"));
     assertArrayEquals(plaintext1, c.doFinal(ciphertext1));
+    assertNativeContextOk(spi);
+
     c.init(Cipher.DECRYPT_MODE, key, spec2);
     assertFalse((boolean) sneakyGetField(spi, "contextInitialized"));
-    assertNotNull(sneakyGetField(spi, "context"));
     assertArrayEquals(plaintext2, c.doFinal(ciphertext2));
+    assertNativeContextOk(spi);
+
     assertFalse((boolean) sneakyGetField(spi, "contextInitialized"));
-    assertNotNull(sneakyGetField(spi, "context"));
     c.init(Cipher.DECRYPT_MODE, key, spec3);
     assertArrayEquals(plaintext3, c.doFinal(ciphertext3));
+    assertNativeContextOk(spi);
 
     // Interleaved
     c.init(Cipher.ENCRYPT_MODE, key, spec1);
     assertFalse((boolean) sneakyGetField(spi, "contextInitialized"));
-    assertNotNull(sneakyGetField(spi, "context"));
     ciphertext1 = c.doFinal(plaintext1);
+    assertNativeContextOk(spi);
     c.init(Cipher.DECRYPT_MODE, key, spec1);
     assertFalse((boolean) sneakyGetField(spi, "contextInitialized"));
-    assertNotNull(sneakyGetField(spi, "context"));
     assertArrayEquals(plaintext1, c.doFinal(ciphertext1));
+    assertNativeContextOk(spi);
 
     c.init(Cipher.ENCRYPT_MODE, key, spec2);
     assertFalse((boolean) sneakyGetField(spi, "contextInitialized"));
-    assertNotNull(sneakyGetField(spi, "context"));
     ciphertext2 = c.doFinal(plaintext2);
+    assertNativeContextOk(spi);
     c.init(Cipher.DECRYPT_MODE, key, spec2);
     assertFalse((boolean) sneakyGetField(spi, "contextInitialized"));
-    assertNotNull(sneakyGetField(spi, "context"));
     assertArrayEquals(plaintext2, c.doFinal(ciphertext2));
+    assertNativeContextOk(spi);
 
     c.init(Cipher.ENCRYPT_MODE, key, spec3);
     assertFalse((boolean) sneakyGetField(spi, "contextInitialized"));
-    assertNotNull(sneakyGetField(spi, "context"));
     ciphertext3 = c.doFinal(plaintext3);
+    assertNativeContextOk(spi);
     c.init(Cipher.DECRYPT_MODE, key, spec3);
     assertFalse((boolean) sneakyGetField(spi, "contextInitialized"));
-    assertNotNull(sneakyGetField(spi, "context"));
     assertArrayEquals(plaintext3, c.doFinal(ciphertext3));
+    assertNativeContextOk(spi);
 
     // Try a decrypt with the same key bytes but a different key object
     c.init(Cipher.DECRYPT_MODE, new SecretKeySpec(key.getEncoded(), key.getAlgorithm()), spec2);
     assertFalse((boolean) sneakyGetField(spi, "contextInitialized"));
-    assertNotNull(sneakyGetField(spi, "context"));
     assertArrayEquals(plaintext2, c.doFinal(ciphertext2));
+    assertNativeContextOk(spi);
+  }
+
+  @Test
+  public void badInplaceDecryptZeroizes() throws Exception {
+    final int offset = 32;
+    final int ciphertextLength = 8;
+    final int tagLength = 16;
+
+    final byte[] expectedRandomCiphertext = TestUtil.getRandomBytes(64);
+    final byte[] invalidCiphertext = expectedRandomCiphertext.clone();
+
+    final byte[] expectedPrefix = Arrays.copyOfRange(expectedRandomCiphertext, 0, offset);
+    final byte[] expectedMiddle = new byte[ciphertextLength]; // Doesn't include the tag
+    final byte[] expectedSuffix =
+        Arrays.copyOfRange(expectedRandomCiphertext, offset + ciphertextLength, 64);
+
+    final Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding", NATIVE_PROVIDER);
+    cipher.init(
+        Cipher.DECRYPT_MODE,
+        new SecretKeySpec(new byte[16], "AES"),
+        new GCMParameterSpec(128, new byte[12]));
+
+    // Decrypt in the middle of things so we can detect if something is wrong
+    assertThrows(
+        AEADBadTagException.class,
+        () ->
+            cipher.doFinal(
+                invalidCiphertext,
+                offset,
+                ciphertextLength + tagLength,
+                invalidCiphertext,
+                offset));
+
+    // Prefix should be unchanged
+    final byte[] actualPrefix = Arrays.copyOfRange(invalidCiphertext, 0, offset);
+    final byte[] actualMiddle =
+        Arrays.copyOfRange(invalidCiphertext, offset, offset + ciphertextLength);
+    final byte[] actualSuffix =
+        Arrays.copyOfRange(invalidCiphertext, offset + ciphertextLength, 64);
+
+    assertArrayEquals(expectedPrefix, actualPrefix);
+    assertArrayEquals(expectedMiddle, actualMiddle);
+    assertArrayEquals(expectedSuffix, actualSuffix);
+  }
+
+  // Per the documentation of Cipher.getParameters(),
+  // when we haven't been initialized we should return default/random parameters.
+  @Test
+  public void unintCipherReturnsParameters() throws GeneralSecurityException {
+    final Cipher cipher = Cipher.getInstance(ALGO_NAME, NATIVE_PROVIDER);
+    final AlgorithmParameters params = cipher.getParameters();
+    final GCMParameterSpec spec = params.getParameterSpec(GCMParameterSpec.class);
+    // Default tag length is 128
+    assertEquals(128, spec.getTLen());
+
+    final byte[] iv = spec.getIV();
+    assertNotNull(iv);
+    assertEquals(12, iv.length); // Default is 96 bits / 12 bytes
+    // The IV must be random. Stating it isn't all zero is good enough.
+    assertFalse(Arrays.equals(new byte[12], iv));
+  }
+
+  @Test
+  public void shortBufferDoesNotResetDecrypt() throws GeneralSecurityException {
+    final GCMParameterSpec spec = new GCMParameterSpec(128, randomIV());
+    amznC.init(Cipher.ENCRYPT_MODE, key, spec);
+    final byte[] plaintext = new byte[32];
+    final byte[] ciphertext = amznC.doFinal(plaintext);
+
+    amznC.init(Cipher.DECRYPT_MODE, key, spec);
+    amznC.update(ciphertext, 0, 16);
+
+    assertThrows(ShortBufferException.class, () -> amznC.doFinal(ciphertext, 8, 8, new byte[4]));
+
+    assertArraysHexEquals(plaintext, amznC.doFinal(ciphertext, 16, ciphertext.length - 16));
+  }
+
+  @Test
+  public void arrayIndexDoesNotResetDecrypt() throws GeneralSecurityException {
+    final GCMParameterSpec spec = new GCMParameterSpec(128, randomIV());
+    amznC.init(Cipher.ENCRYPT_MODE, key, spec);
+    final byte[] plaintext = new byte[32];
+    final byte[] ciphertext = amznC.doFinal(plaintext);
+
+    amznC.init(Cipher.DECRYPT_MODE, key, spec);
+    amznC.update(ciphertext, 0, 16);
+
+    assertThrows(
+        ArrayIndexOutOfBoundsException.class,
+        () -> amznC.doFinal(ciphertext, 8, 8, new byte[32], 36));
+
+    assertArraysHexEquals(plaintext, amznC.doFinal(ciphertext, 16, ciphertext.length - 16));
+  }
+
+  @Test
+  public void shortBufferDoesNotResetEncrypt() throws Exception {
+    final GCMParameterSpec spec = new GCMParameterSpec(128, randomIV());
+    amznC.init(Cipher.ENCRYPT_MODE, key, spec);
+    final byte[] plaintext = new byte[32];
+    final ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    baos.write(amznC.update(plaintext, 0, 16));
+
+    assertThrows(ShortBufferException.class, () -> amznC.doFinal(plaintext, 16, 16, new byte[4]));
+    baos.write(amznC.doFinal(plaintext, 16, 16));
+    final byte[] ciphertext = baos.toByteArray();
+
+    amznC.init(Cipher.DECRYPT_MODE, key, spec);
+
+    assertArraysHexEquals(plaintext, amznC.doFinal(ciphertext));
+  }
+
+  @Test
+  public void arrayIndexDoesNotResetEncrypt() throws Exception {
+    final GCMParameterSpec spec = new GCMParameterSpec(128, randomIV());
+    amznC.init(Cipher.ENCRYPT_MODE, key, spec);
+    final byte[] plaintext = new byte[32];
+    final ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    baos.write(amznC.update(plaintext, 0, 16));
+
+    assertThrows(
+        ArrayIndexOutOfBoundsException.class,
+        () -> amznC.doFinal(plaintext, 16, 16, new byte[32], 36));
+    baos.write(amznC.doFinal(plaintext, 16, 16));
+    final byte[] ciphertext = baos.toByteArray();
+
+    amznC.init(Cipher.DECRYPT_MODE, key, spec);
+
+    assertArraysHexEquals(plaintext, amznC.doFinal(ciphertext));
+  }
+
+  @Test
+  public void emptyPlaintextAtEndOfArray() throws GeneralSecurityException {
+    final GCMParameterSpec spec = new GCMParameterSpec(128, randomIV());
+    amznC.init(Cipher.ENCRYPT_MODE, key, spec);
+    final byte[] ciphertext = amznC.doFinal();
+
+    // Decrypt into empty array
+    amznC.init(Cipher.DECRYPT_MODE, key, spec);
+    assertEquals(0, amznC.doFinal(ciphertext, 0, ciphertext.length, new byte[0], 0));
+
+    // Decrypt into non-empty array
+    assertEquals(0, amznC.doFinal(ciphertext, 0, ciphertext.length, new byte[16], 0));
+
+    // Decrypt to end of non-empty array
+    assertEquals(0, amznC.doFinal(ciphertext, 0, ciphertext.length, new byte[16], 16));
   }
 
   private byte[] randomIV() {

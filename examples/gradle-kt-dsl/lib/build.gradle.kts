@@ -1,4 +1,7 @@
-val accpVersion = "2.0.0"
+val accpVersion = "2.5.0"
+val accpLocalJar: String by project
+val fips: Boolean by project
+val PLATFORMS_WITHOUT_FIPS_SUPPORT = setOf("osx-x86_64", "osx-aarch_64")
 
 plugins {
     // Apply the org.jetbrains.kotlin.jvm Plugin to add support for Kotlin.
@@ -27,5 +30,27 @@ dependencies {
     // Use the Kotlin JUnit integration.
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit")
 
-    testImplementation("software.amazon.cryptools:AmazonCorrettoCryptoProvider:$accpVersion:${osdetector.classifier}")
+    // For some plaforms, ACCP does not have FIPS artifacts; in such cases, ignore "fips" property.
+    val accpArtifactId =
+        if (project.hasProperty("fips") && osdetector.classifier !in PLATFORMS_WITHOUT_FIPS_SUPPORT)
+            "AmazonCorrettoCryptoProvider-FIPS"
+        else
+            "AmazonCorrettoCryptoProvider"
+
+    if (!project.hasProperty("useBundledAccp")) {
+        if (project.hasProperty("accpLocalJar")) {
+            testImplementation(files(accpLocalJar))
+        } else {
+            testImplementation("software.amazon.cryptools:${accpArtifactId}:$accpVersion:${osdetector.classifier}")
+        }
+    }
+
+    testImplementation("com.amazonaws:aws-encryption-sdk-java:2.4.0")
+}
+
+tasks.withType<Test> {
+    systemProperties(System.getProperties().toMap() as Map<String, Object>)
+    this.testLogging {
+        this.showStandardStreams = true
+    }
 }

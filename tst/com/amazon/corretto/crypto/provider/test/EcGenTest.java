@@ -46,6 +46,8 @@ import org.junit.jupiter.params.provider.ValueSource;
 public class EcGenTest {
   public static final ECParameterSpec EXPLICIT_CURVE;
   private static final KeyFactory KEY_FACTORY;
+  // We use some methods from it in our tests
+  private static final Class<?> EC_UTILS_CLASS;
 
   static {
     final BigInteger a =
@@ -79,7 +81,8 @@ public class EcGenTest {
     EXPLICIT_CURVE = new ECParameterSpec(curve, g, order, 1);
     try {
       KEY_FACTORY = KeyFactory.getInstance("EC", NATIVE_PROVIDER);
-    } catch (final NoSuchAlgorithmException ex) {
+      EC_UTILS_CLASS = Class.forName(TestUtil.NATIVE_PROVIDER_PACKAGE + ".EcUtils");
+    } catch (final Exception ex) {
       throw new AssertionError(ex);
     }
   }
@@ -291,6 +294,12 @@ public class EcGenTest {
   }
 
   @Test
+  public void separateDestruction() throws Exception {
+    final KeyPair keyPair = nativeGen.generateKeyPair();
+    RsaGenTest.testSeparateDestruction(keyPair);
+  }
+
+  @Test
   public void threadStorm() throws Throwable {
     final byte[] rngSeed = TestUtil.getRandomBytes(20);
     System.out.println("RNG Seed: " + Arrays.toString(rngSeed));
@@ -358,10 +367,13 @@ public class EcGenTest {
 
   public static void assertECEquals(
       final String message, final ECParameterSpec expected, final ECParameterSpec actual) {
-    assertEquals(expected.getCofactor(), actual.getCofactor(), message);
-    assertEquals(expected.getOrder(), actual.getOrder(), message);
-    assertEquals(expected.getGenerator(), actual.getGenerator(), message);
-    assertEquals(expected.getCurve(), actual.getCurve(), message);
+    boolean result = false;
+    try {
+      result = TestUtil.sneakyInvoke(EC_UTILS_CLASS, "ecParameterSpecsAreEqual", expected, actual);
+    } catch (final Throwable t) {
+      throw new AssertionError(message, t);
+    }
+    assertTrue(result, message);
   }
 
   public static void assertECEquals(

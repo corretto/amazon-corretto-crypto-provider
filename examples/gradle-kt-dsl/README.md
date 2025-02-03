@@ -6,3 +6,8 @@
  ./gradlew lib:test
  ```
 
+To use the locally built ACCP JAR, use the following command
+
+```bash
+ ./gradlew -PaccpLocalJar="../../../build/cmake/AmazonCorrettoCryptoProvider.jar" lib:test
+```
