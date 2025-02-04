@@ -17,6 +17,7 @@ import static com.amazon.corretto.crypto.provider.HkdfSecretKeyFactorySpi.HKDF_W
 import static com.amazon.corretto.crypto.provider.HkdfSecretKeyFactorySpi.HKDF_WITH_SHA256;
 import static com.amazon.corretto.crypto.provider.HkdfSecretKeyFactorySpi.HKDF_WITH_SHA384;
 import static com.amazon.corretto.crypto.provider.HkdfSecretKeyFactorySpi.HKDF_WITH_SHA512;
+import static com.amazon.corretto.crypto.provider.Loader.FIPS_BUILD;
 import static com.amazon.corretto.crypto.provider.Loader.PROVIDER_VERSION;
 import static com.amazon.corretto.crypto.provider.Loader.PROVIDER_VERSION_STR;
 import static java.lang.String.format;
@@ -70,8 +71,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
   static {
     if (!Loader.IS_AVAILABLE && DebugFlag.VERBOSELOGS.isEnabled()) {
-      getLogger("AmazonCorrettoCryptoProvider")
-          .fine("Native JCE libraries are unavailable - disabling");
+      getLogger(PROVIDER_NAME).fine("Native JCE libraries are unavailable - disabling");
     }
     INSTANCE = new AmazonCorrettoCryptoProvider();
   }
@@ -461,7 +461,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
         case FAILED:
           synchronized (this) {
             if (!failMessagePrinted) {
-              getLogger("AmazonCorrettoCryptoProvider")
+              getLogger(PROVIDER_NAME)
                   .severe(
                       "Self tests failed - disabling. "
                           + "Detailed results: "
@@ -500,13 +500,15 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     selfTestSuite.resetAllSelfTests();
   }
 
-  // The superconstructor taking a double version is deprecated in java 9. However, the replacement
-  // for it is
-  // unavailable in java 8, so to build on both with warnings on our only choice is suppress
-  // deprecation warnings.
+  // The super constructor taking a double version is deprecated in java 9. However, the alternate
+  // constructor taking a string version is unavailable in java 8. So to build on both with
+  // warnings on, our only choice is to suppress deprecation warnings.
   @SuppressWarnings({"deprecation"})
   public AmazonCorrettoCryptoProvider() {
-    super("AmazonCorrettoCryptoProvider", PROVIDER_VERSION, "");
+    super(
+        PROVIDER_NAME,
+        PROVIDER_VERSION,
+        PROVIDER_NAME + ' ' + PROVIDER_VERSION_STR + (FIPS_BUILD ? "-FIPS" : ""));
     this.relyOnCachedSelfTestResults =
         Utils.getBooleanProperty(PROPERTY_CACHE_SELF_TEST_RESULTS, true);
     this.shouldRegisterEcParams = Utils.getBooleanProperty(PROPERTY_REGISTER_EC_PARAMS, false);
@@ -529,8 +531,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
     if (!Loader.IS_AVAILABLE) {
       if (DebugFlag.VERBOSELOGS.isEnabled()) {
-        getLogger("AmazonCorrettoCryptoProvider")
-            .fine("Native JCE libraries are unavailable - disabling");
+        getLogger(PROVIDER_NAME).fine("Native JCE libraries are unavailable - disabling");
       }
 
       // If Loading failed, do not register any algorithms
@@ -567,10 +568,8 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     selfTestSuite.addSelfTest(EvpHmac.MD5.SELF_TEST);
 
     // Kick off self-tests in the background. It's vitally important that we don't actually _wait_
-    // for these to
-    // complete, as if we do we'll end up recursing through some JCE internals back to attempts to
-    // use
-    // AmazonCorrettoCryptoProvider in some configurations.
+    // for these to complete, as if we do we'll end up recursing through some JCE internals back to
+    // attempts to use AmazonCorrettoCryptoProvider in some configurations.
     ForkJoinPool.commonPool().submit(selfTestSuite::runTests);
   }
 
