@@ -5,6 +5,7 @@ package com.amazon.corretto.crypto.provider.test;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.security.AlgorithmParameters;
 import java.security.KeyPairGenerator;
@@ -27,6 +28,15 @@ public final class SecurityPropertyTester {
     final boolean fipsMode = Boolean.getBoolean("FIPS");
     System.out.println("FIPS? " + NATIVE_PROVIDER.isFips());
     assertEquals(fipsMode, NATIVE_PROVIDER.isFips());
+
+    String infoStr = NATIVE_PROVIDER.getInfo();
+    System.out.println("Security Provider : " + infoStr);
+    assertTrue(infoStr.startsWith(NATIVE_PROVIDER.getName()));
+    if (NATIVE_PROVIDER.isFips()) {
+      assertTrue(infoStr.endsWith(NATIVE_PROVIDER.getVersionStr() + "-FIPS"));
+    } else {
+      assertTrue(infoStr.endsWith(NATIVE_PROVIDER.getVersionStr()));
+    }
 
     final Provider provider = Security.getProviders()[0];
     assertEquals(NATIVE_PROVIDER.getName(), provider.getName());
