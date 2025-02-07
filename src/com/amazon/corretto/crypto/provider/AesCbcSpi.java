@@ -18,6 +18,7 @@ import java.security.spec.InvalidParameterSpecException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.function.Predicate;
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.CipherSpi;
@@ -96,7 +97,7 @@ class AesCbcSpi extends CipherSpi {
 
   // State
   private CipherState cipherState;
-  private final int padding;
+  private int padding;
   // CBC processes data one block at a time. There are two scenarios where not all the input passed
   // to engineUpdate is processed:
   //     1. Input length is not a multiple of the block size,
@@ -142,14 +143,29 @@ class AesCbcSpi extends CipherSpi {
 
   @Override
   protected void engineSetMode(final String mode) throws NoSuchAlgorithmException {
-    // no op. One only needs to provide an implementation if the same Spi class instance can be used
-    // for different modes.
+    if (!"CBC".equalsIgnoreCase(mode)) {
+      throw new NoSuchAlgorithmException("Only CBC mode is supported.");
+    }
   }
 
   @Override
   protected void engineSetPadding(final String padding) throws NoSuchPaddingException {
-    // no op. One only needs to provide an implementation if the same Spi class instance is used for
-    // different paddings.
+    if (padding == null) {
+      throw new NoSuchPaddingException("Padding cannot be null.");
+    }
+    if (!inputIsEmpty) {
+      throw new NoSuchPaddingException("Padding cannot be set during an operation.");
+    }
+    Predicate<String> paddingPredicate = n -> n.split("/")[2].equalsIgnoreCase(padding);
+    if (AES_CBC_ISO10126_PADDING_NAMES.stream().anyMatch(paddingPredicate)) {
+      this.padding = ISO10126_PADDING;
+    } else if (AES_CBC_PKCS7_PADDING_NAMES.stream().anyMatch(paddingPredicate)) {
+      this.padding = PKCS7_PADDING;
+    } else if (AES_CBC_NO_PADDING_NAMES.stream().anyMatch(paddingPredicate)) {
+      this.padding = NO_PADDING;
+    } else {
+      throw new NoSuchPaddingException(String.format("%s is not a supported padding.", padding));
+    }
   }
 
   @Override
