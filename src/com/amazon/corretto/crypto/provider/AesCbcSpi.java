@@ -277,8 +277,12 @@ class AesCbcSpi extends CipherSpi {
   private static byte[] checkAesCbcIv(final AlgorithmParameterSpec params)
       throws InvalidAlgorithmParameterException {
     if (!(params instanceof IvParameterSpec)) {
-      throw new InvalidAlgorithmParameterException(
-          "Unknown AlgorithmParameterSpec: " + params.getClass());
+      if (params == null) {
+        throw new InvalidAlgorithmParameterException("AlgorithmParameterSpec cannot be null.");
+      } else {
+        throw new InvalidAlgorithmParameterException(
+            "Unknown AlgorithmParameterSpec: " + params.getClass());
+      }
     }
 
     final IvParameterSpec ivParameterSpec = (IvParameterSpec) params;
