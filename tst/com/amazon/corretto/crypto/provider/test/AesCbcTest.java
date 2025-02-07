@@ -1268,4 +1268,14 @@ public class AesCbcTest {
     assertTrue(
         Arrays.equals(encryptShiftedSlices(buffer, key, iv, isPaddingEnabled), expectedOutput));
   }
+
+  @Test
+  public void testNullParamSpec() {
+    Cipher cipher = accpAesCbcCipher(false);
+    SecretKeySpec key = genAesKey(1, 128);
+    AlgorithmParameterSpec nullParam = null;
+    TestUtil.assertThrows(
+        InvalidAlgorithmParameterException.class,
+        () -> cipher.init(Cipher.ENCRYPT_MODE, key, nullParam));
+  }
 }
