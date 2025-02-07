@@ -48,6 +48,7 @@ final class Loader {
   private static final String TEMP_DIR_PREFIX = "amazonCorrettoCryptoProviderNativeLibraries.";
   private static final String JNI_LIBRARY_NAME = "amazonCorrettoCryptoProvider";
   private static final String PROPERTY_VERSION_STR = "versionStr";
+  private static final String PROPERTY_AWS_LC_VERSION_STR = "awsLcVersionStr";
 
   private static final String PROPERTY_TMP_DIR = "tmpdir";
   private static final String[] JAR_RESOURCES = {JNI_LIBRARY_NAME};
@@ -72,6 +73,8 @@ final class Loader {
   static final double PROVIDER_VERSION;
 
   static final String PROVIDER_VERSION_STR;
+
+  static final String AWS_LC_VERSION_STR;
 
   /** Indicates that libcrypto reports we are in a FIPS mode. */
   static final boolean FIPS_BUILD;
@@ -117,7 +120,7 @@ final class Loader {
   static {
     boolean available = false;
     Throwable error = null;
-    String versionStr = null;
+    String versionStr = null, awsLcVersionStr = null;
     double oldVersion = 0;
 
     try {
@@ -153,6 +156,20 @@ final class Loader {
                     tryLoadLibrary();
                     return true;
                   });
+
+      awsLcVersionStr =
+          AccessController.doPrivileged(
+              (PrivilegedExceptionAction<String>)
+                  () -> {
+                    try (InputStream is = Loader.class.getResourceAsStream("version.properties")) {
+                      if (is == null) {
+                        return System.getProperty(PROPERTY_AWS_LC_VERSION_STR);
+                      }
+                      Properties p = new Properties();
+                      p.load(is);
+                      return p.getProperty(PROPERTY_AWS_LC_VERSION_STR);
+                    }
+                  });
     } catch (final Throwable t) {
       available = false;
       error = t;
@@ -161,6 +178,7 @@ final class Loader {
     PROVIDER_VERSION = oldVersion;
     FIPS_BUILD = available && isFipsMode();
     EXPERIMENTAL_FIPS_BUILD = available && isExperimentalFipsMode();
+    AWS_LC_VERSION_STR = awsLcVersionStr;
 
     // Check for native/java library version mismatch
     if (available) {

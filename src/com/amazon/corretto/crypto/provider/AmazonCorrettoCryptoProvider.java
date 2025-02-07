@@ -17,6 +17,8 @@ import static com.amazon.corretto.crypto.provider.HkdfSecretKeyFactorySpi.HKDF_W
 import static com.amazon.corretto.crypto.provider.HkdfSecretKeyFactorySpi.HKDF_WITH_SHA256;
 import static com.amazon.corretto.crypto.provider.HkdfSecretKeyFactorySpi.HKDF_WITH_SHA384;
 import static com.amazon.corretto.crypto.provider.HkdfSecretKeyFactorySpi.HKDF_WITH_SHA512;
+import static com.amazon.corretto.crypto.provider.Loader.AWS_LC_VERSION_STR;
+import static com.amazon.corretto.crypto.provider.Loader.EXPERIMENTAL_FIPS_BUILD;
 import static com.amazon.corretto.crypto.provider.Loader.FIPS_BUILD;
 import static com.amazon.corretto.crypto.provider.Loader.PROVIDER_VERSION;
 import static com.amazon.corretto.crypto.provider.Loader.PROVIDER_VERSION_STR;
@@ -508,7 +510,14 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     super(
         PROVIDER_NAME,
         PROVIDER_VERSION,
-        PROVIDER_NAME + ' ' + PROVIDER_VERSION_STR + (FIPS_BUILD ? "-FIPS" : ""));
+        PROVIDER_NAME
+            + ' '
+            + PROVIDER_VERSION_STR
+            + (FIPS_BUILD ? "+FIPS" : "")
+            + (EXPERIMENTAL_FIPS_BUILD ? "+EXP" : "")
+            + " ("
+            + AWS_LC_VERSION_STR
+            + ")");
     this.relyOnCachedSelfTestResults =
         Utils.getBooleanProperty(PROPERTY_CACHE_SELF_TEST_RESULTS, true);
     this.shouldRegisterEcParams = Utils.getBooleanProperty(PROPERTY_REGISTER_EC_PARAMS, false);
@@ -576,6 +585,10 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
   // Override annotation omitted so that it works/compiles in Java8
   public String getVersionStr() {
     return PROVIDER_VERSION_STR;
+  }
+
+  public String getAwsLcVersionStr() {
+    return AWS_LC_VERSION_STR;
   }
 
   /**
