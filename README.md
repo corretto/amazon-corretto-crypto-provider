@@ -138,9 +138,10 @@ ACCP did not track a FIPS branch/release version of AWS-LC until ACCP v2.3.0. Be
 Notable differences between ACCP and ACCP-FIPS:
 * ACCP uses [the latest release of AWS-LC](https://github.com/aws/aws-lc/releases), whereas, ACCP-FIPS uses [the fips-2022-11-02 branch of AWS-LC](https://github.com/aws/aws-lc/tree/fips-2022-11-02).
 * ACCP-FIPS builds AWS-LC in FIPS mode by passing `-DFIPS=1` when configuring AWS-LC's build.
+* For details about the FIPS module of AWS-LC in FIPS mode, including the entropy sources used, see the [AWS-LC FIPS.md documentation](https://github.com/aws/aws-lc/blob/main/crypto/fipsmodule/FIPS.md).
 * In FIPS-mode, RSA keys are limited to 2048, 3072, or 4096 bits in size with public exponent F4.
-* Prior to version 2.4.0, ACCP-FIPS does not register SecureRandom by default due to the performance of AWS-LC’s entropy source in FIPS-mode. [A system property](https://github.com/corretto/amazon-corretto-crypto-provider#other-system-properties) is available to register SecureRandom from AWS-LC if needed, and the performance differences are described in further detail under the description of that property.
 * Due to the fact that an older branch of AWS-LC is used in FIPS-mode, there will be performance differences between ACCP and ACCP-FIPS. We highly recommend performing detailed performance testing of your application if you choose to experiment with ACCP-FIPS.
+* Between versions 2.1.0 and 2.3.3 (inclusive), ACCP-FIPS does not register SecureRandom by default due to the performance of AWS-LC’s entropy source in FIPS-mode, with older versions of AWS-LC. Since version 2.4.0, ACCP-FIPS behaves as ACCP: it registers SecureRandom from AWS-LC by default. [A system property](https://github.com/corretto/amazon-corretto-crypto-provider#other-system-properties) is available to change the default behavior.
 
 ACCP-FIPS is only supported on the following platforms:
 
@@ -395,8 +396,9 @@ Thus, these should all be set on the JVM command line using `-D`.
   Callers can choose to register ACCP's implementation at runtime with a call to `AmazonCorrettoCryptoProvider.registerEcParams()`
 * `com.amazon.corretto.crypto.provider.registerSecureRandom`
   Takes in `true` or `false` (defaults to `true`).
-  If `true`, then ACCP will register a SecureRandom implementation (`LibCryptoRng`) backed by AWS-LC
+  If `true`, then ACCP will register a SecureRandom implementation (`LibCryptoRng`) backed by AWS-LC.
   Else, ACCP will not register a SecureRandom implementation, meaning that the JCA will source SecureRandom instances from another registered provider. AWS-LC will still use its internal DRBG for key generation and other operations requiring secure pseudo-randomness.
+  Before version 2.4.0, default was `false` for FIPS builds.
 * `com.amazon.corretto.crypto.provider.nativeContextReleaseStrategy`
   Takes in `HYBRID`, `LAZY`, or `EAGER` (defaults to `HYBRID`). This property only affects
   AES-GCM cipher for now. AES-GCM associates a native object of type `EVP_CIPHER_CTX`
