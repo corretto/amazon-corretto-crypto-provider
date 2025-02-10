@@ -14,16 +14,16 @@ plugins {
 
 group = 'software.amazon.cryptools'
 version = '2.5.0'
-awsLcMainTag = 'v1.44.0'
-awsLcFipsTag = 'AWS-LC-FIPS-3.0.0'
+ext.awsLcMainTag = 'v1.44.0'
+ext.awsLcFipsTag = 'AWS-LC-FIPS-3.0.0'
 ext.isExperimentalFips = Boolean.getBoolean('EXPERIMENTAL_FIPS')
 ext.isFips = ext.isExperimentalFips || Boolean.getBoolean('FIPS')
 
 if (ext.isExperimentalFips || !ext.isFips) {
     // Experimental FIPS uses the same AWS-LC version as non-FIPS builds.
-    ext.awsLcGitVersionId = awsLcMainTag
+    ext.awsLcGitVersionId = ext.awsLcMainTag
 } else {
-    ext.awsLcGitVersionId = awsLcFipsTag
+    ext.awsLcGitVersionId = ext.awsLcFipsTag
 }
 
 // Check for user inputted git version ID.
