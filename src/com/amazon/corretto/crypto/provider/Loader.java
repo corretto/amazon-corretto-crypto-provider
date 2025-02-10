@@ -186,7 +186,8 @@ final class Loader {
    * Loads a properties file and reads the value for the given key. If file is unavailable, falls
    * back to {@link System#getProperty(String)}.
    */
-  private static String readProperty(String propertyFile, String propertyKey) throws PrivilegedActionException {
+  private static String readProperty(String propertyFile, String propertyKey)
+      throws PrivilegedActionException {
     return AccessController.doPrivileged(
         (PrivilegedExceptionAction<String>)
             () -> {
