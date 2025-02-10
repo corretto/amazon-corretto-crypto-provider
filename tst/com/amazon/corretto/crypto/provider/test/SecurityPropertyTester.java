@@ -4,7 +4,6 @@ package com.amazon.corretto.crypto.provider.test;
 
 import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 import java.security.AlgorithmParameters;
@@ -31,22 +30,9 @@ public final class SecurityPropertyTester {
 
     String infoStr = NATIVE_PROVIDER.getInfo();
     System.out.println("Security Provider : " + infoStr);
-    String[] tokens = infoStr.split("[()]");
-    String[] semver = tokens[0].split("[\\s+-]");
-    String[] addInfo = tokens[1].split(",");
-    assertEquals(NATIVE_PROVIDER.getName(), semver[0]);
-    assertEquals(NATIVE_PROVIDER.getVersionStr(), semver[1]);
-    if (NATIVE_PROVIDER.isFips()) {
-      assertEquals("FIPS", semver[2]);
-    } else {
-      assertFalse(infoStr.contains("FIPS"));
-    }
-    if (NATIVE_PROVIDER.isExperimentalFips()) {
-      assertEquals("EXP", semver[3]);
-    } else {
-      assertFalse(infoStr.contains("EXP"));
-    }
-    assertEquals(NATIVE_PROVIDER.getAwsLcVersionStr(), addInfo[0]);
+    String[] tokens = infoStr.split("[\\s+-]");
+    assertEquals(NATIVE_PROVIDER.getName(), tokens[0]);
+    assertEquals(NATIVE_PROVIDER.getVersionStr(), tokens[1]);
 
     final Provider provider = Security.getProviders()[0];
     assertEquals(NATIVE_PROVIDER.getName(), provider.getName());

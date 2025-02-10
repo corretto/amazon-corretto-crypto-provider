@@ -510,14 +510,13 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     super(
         PROVIDER_NAME,
         PROVIDER_VERSION,
-        PROVIDER_NAME
-            + ' '
-            + PROVIDER_VERSION_STR
-            + (FIPS_BUILD ? "+FIPS" : "")
-            + (EXPERIMENTAL_FIPS_BUILD ? "+EXP" : "")
-            + " ("
-            + AWS_LC_VERSION_STR
-            + ")");
+        String.format(
+            "%s %s%s%s (%s)",
+            PROVIDER_NAME,
+            PROVIDER_VERSION_STR,
+            FIPS_BUILD ? "+FIPS" : "",
+            EXPERIMENTAL_FIPS_BUILD ? "+EXP" : "",
+            AWS_LC_VERSION_STR));
     this.relyOnCachedSelfTestResults =
         Utils.getBooleanProperty(PROPERTY_CACHE_SELF_TEST_RESULTS, true);
     this.shouldRegisterEcParams = Utils.getBooleanProperty(PROPERTY_REGISTER_EC_PARAMS, false);
