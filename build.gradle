@@ -15,11 +15,7 @@ plugins {
 group = 'software.amazon.cryptools'
 version = '2.5.0'
 ext.isExperimentalFips = Boolean.getBoolean('EXPERIMENTAL_FIPS')
-if (ext.isExperimentalFips) {
-    ext.isFips = true
-} else {
-    ext.isFips = Boolean.getBoolean('FIPS')
-}
+ext.isFips = ext.isExperimentalFips || Boolean.getBoolean('FIPS')
 
 if (ext.isExperimentalFips || !ext.isFips) {
     // Experimental FIPS uses the same AWS-LC version as non-FIPS builds.
@@ -336,6 +332,7 @@ task executeCmake(type: Exec) {
     args "-DOPENSSL_ROOT_DIR=${buildDir}/awslc/bin", '-DCMAKE_BUILD_TYPE=Release', '-DPROVIDER_VERSION_STRING=' + version
     args "-DTEST_RUNNER_JAR=${configurations.testRunner.singleFile}"
     args "-DCMAKE_VERBOSE_MAKEFILE:BOOL=ON"
+    args "-DAWS_LC_VERSION_STRING=" + awsLcGitVersionId
     if (isFips) {
         args "-DFIPS=ON"
     }
@@ -486,6 +483,12 @@ task single_test(type: Exec) {
     commandLine 'make', 'check-junit-single'
 }
 
+task test_install_via_properties(type: Exec) {
+    dependsOn executeCmake
+    workingDir "${buildDir}/cmake"
+    commandLine 'make', 'check-install-via-properties'
+}
+
 task test_integration_exec(type: Exec) {
     dependsOn executeCmake
     workingDir "${buildDir}/cmake"
@@ -531,6 +534,7 @@ task coverage_cmake(type: Exec) {
     args '-DPROVIDER_VERSION_STRING=' + version, projectDir
     args "-DTEST_RUNNER_JAR=${configurations.testRunner.singleFile}"
     args "-DCMAKE_VERBOSE_MAKEFILE:BOOL=ON"
+    args "-DAWS_LC_VERSION_STRING=" + awsLcGitVersionId
     if (isLegacyBuild) {
         args "-DLEGACY_BUILD=ON"
     }
@@ -883,11 +887,6 @@ task generateEclipseClasspath {
                     }
                 }
                 classpathentry('kind': 'src', 'output': 'build/eclipse/src', 'path': 'build/cmake/generated-java') {
-                    attributes {
-                        attribute('name': 'optional', 'value': 'true')
-                    }
-                }
-                classpathentry('kind': 'src', 'output': 'build/eclipse/src', 'path': 'build/coverage-cmake/generated-java') {
                     attributes {
                         attribute('name': 'optional', 'value': 'true')
                     }

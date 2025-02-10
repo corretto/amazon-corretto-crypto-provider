@@ -44,6 +44,7 @@ set(PROVIDER_VERSION_STRING "" CACHE STRING "X.Y.Z formatted version of the prov
 set(EXPERIMENTAL_FIPS NO CACHE BOOL "Determines if this build is for FIPS mode with extra features from a non-FIPS branch of AWS-LC.")
 set(FIPS NO CACHE BOOL "Determine if this build is for FIPS mode")
 set(ALWAYS_ALLOW_EXTERNAL_LIB NO CACHE BOOL "Always permit tests to load ACCP shared objects from the library path")
+set(AWS_LC_VERSION_STRING "" CACHE STRING "Git version of AWS-LC used in this build")
 
 if (EXPERIMENTAL_FIPS)
     set(FIPS ON)
@@ -139,7 +140,12 @@ set(VERSION_PROPERTIES_FILE ${GENERATED_JAVA_DIR}/version.properties)
 add_custom_command(
     OUTPUT ${VERSION_PROPERTIES_FILE}
     COMMAND ${CMAKE_COMMAND} -E echo versionStr=${PROVIDER_VERSION_STRING} > ${VERSION_PROPERTIES_FILE}
-    COMMENT "Generation version properties file"
+    COMMAND if [ EXPERIMENTAL_FIPS || ! FIPS ]\; then
+        ${CMAKE_COMMAND} -E echo awsLcVersionStr=AWS-LC ${AWS_LC_VERSION_STRING} >> ${VERSION_PROPERTIES_FILE} \;
+    else
+        ${CMAKE_COMMAND} -E echo awsLcVersionStr=${AWS_LC_VERSION_STRING} >> ${VERSION_PROPERTIES_FILE} \;
+    fi
+    COMMENT "Generated version.properties file"
 )
 
 add_custom_command(
