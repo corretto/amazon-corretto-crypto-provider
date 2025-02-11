@@ -35,9 +35,9 @@ class AesCbcSpi extends CipherSpi {
   public static final int ISO10126_PADDING = 2;
 
   enum Padding {
-    NONE(AesCbcSpi.NO_PADDING),
-    PKCS7(AesCbcSpi.PKCS7_PADDING),
-    ISO10126(AesCbcSpi.ISO10126_PADDING);
+    NONE(NO_PADDING),
+    PKCS7(PKCS7_PADDING),
+    ISO10126(ISO10126_PADDING);
     private final int value;
 
     Padding(final int value) {
@@ -97,7 +97,7 @@ class AesCbcSpi extends CipherSpi {
 
   // State
   private CipherState cipherState;
-  private int padding;
+  private Padding paddingScheme;
   // CBC processes data one block at a time. There are two scenarios where not all the input passed
   // to engineUpdate is processed:
   //     1. Input length is not a multiple of the block size,
@@ -125,7 +125,7 @@ class AesCbcSpi extends CipherSpi {
   private boolean inputIsEmpty;
 
   AesCbcSpi(final Padding padding, final boolean saveContext) {
-    this.padding = padding.getValue();
+    this.paddingScheme = padding;
     this.cipherState = CipherState.NEEDS_INITIALIZATION;
     this.unprocessedInput = 0;
     this.opMode = MODE_NOT_SET;
@@ -138,7 +138,7 @@ class AesCbcSpi extends CipherSpi {
   }
 
   private boolean noPadding() {
-    return padding == NO_PADDING;
+    return paddingScheme.equals(Padding.NONE);
   }
 
   @Override
@@ -158,11 +158,11 @@ class AesCbcSpi extends CipherSpi {
     }
     Predicate<String> paddingPredicate = n -> n.split("/")[2].equalsIgnoreCase(padding);
     if (AES_CBC_ISO10126_PADDING_NAMES.stream().anyMatch(paddingPredicate)) {
-      this.padding = ISO10126_PADDING;
+      this.paddingScheme = Padding.ISO10126;
     } else if (AES_CBC_PKCS7_PADDING_NAMES.stream().anyMatch(paddingPredicate)) {
-      this.padding = PKCS7_PADDING;
+      this.paddingScheme = Padding.PKCS7;
     } else if (AES_CBC_NO_PADDING_NAMES.stream().anyMatch(paddingPredicate)) {
-      this.padding = NO_PADDING;
+      this.paddingScheme = Padding.NONE;
     } else {
       throw new NoSuchPaddingException(String.format("%s is not a supported padding.", padding));
     }
@@ -271,7 +271,7 @@ class AesCbcSpi extends CipherSpi {
   }
 
   private void initLastBlock() {
-    if ((padding != ISO10126_PADDING) || (opMode != DEC_MODE)) {
+    if ((!paddingScheme.equals(Padding.ISO10126)) || (opMode != DEC_MODE)) {
       return;
     }
     // We only need this buffer decrypting a cipher text that was encrypted with ISO10126Padding.
@@ -407,6 +407,7 @@ class AesCbcSpi extends CipherSpi {
     final long[] ctxContainer = new long[] {0};
     try {
       final int result;
+      final int evpPaddingValue = paddingScheme.getValue();
       if (cipherState == CipherState.INITIALIZED) {
         if (nativeCtx != null) {
           result =
@@ -414,7 +415,7 @@ class AesCbcSpi extends CipherSpi {
                   ctxPtr ->
                       nInitUpdate(
                           opMode,
-                          padding,
+                          evpPaddingValue,
                           key,
                           key.length,
                           iv,
@@ -432,7 +433,7 @@ class AesCbcSpi extends CipherSpi {
           result =
               nInitUpdate(
                   opMode,
-                  padding,
+                  evpPaddingValue,
                   key,
                   key.length,
                   iv,
@@ -456,7 +457,7 @@ class AesCbcSpi extends CipherSpi {
                 ctxPtr ->
                     nUpdate(
                         opMode,
-                        padding,
+                        evpPaddingValue,
                         ctxPtr,
                         lastBlock,
                         inputDirect,
@@ -591,6 +592,7 @@ class AesCbcSpi extends CipherSpi {
     final long[] ctxContainer = new long[] {0};
     try {
       final int result;
+      final int evpPaddingValue = paddingScheme.getValue();
       if (saveContext) {
         if (cipherState == CipherState.INITIALIZED) {
           if (nativeCtx != null) {
@@ -599,7 +601,7 @@ class AesCbcSpi extends CipherSpi {
                     ctxPtr ->
                         nInitUpdateFinal(
                             opMode,
-                            padding,
+                            evpPaddingValue,
                             key,
                             key.length,
                             iv,
@@ -618,7 +620,7 @@ class AesCbcSpi extends CipherSpi {
             result =
                 nInitUpdateFinal(
                     opMode,
-                    padding,
+                    evpPaddingValue,
                     key,
                     key.length,
                     iv,
@@ -644,7 +646,7 @@ class AesCbcSpi extends CipherSpi {
                   ctxPtr ->
                       nUpdateFinal(
                           opMode,
-                          padding,
+                          evpPaddingValue,
                           ctxPtr,
                           true,
                           lastBlock,
@@ -665,7 +667,7 @@ class AesCbcSpi extends CipherSpi {
           result =
               nInitUpdateFinal(
                   opMode,
-                  padding,
+                  evpPaddingValue,
                   key,
                   key.length,
                   iv,
@@ -685,7 +687,7 @@ class AesCbcSpi extends CipherSpi {
           result =
               nUpdateFinal(
                   opMode,
-                  padding,
+                  evpPaddingValue,
                   ctxPtr,
                   false,
                   lastBlock,
