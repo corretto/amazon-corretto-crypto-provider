@@ -13,7 +13,7 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 
 @State(Scope.Benchmark)
-public class SignatureRsa extends SignatureBase {
+public class SignatureRsassaPss extends SignatureBase {
   @Param({"SHA-1"})
   public String hash;
 

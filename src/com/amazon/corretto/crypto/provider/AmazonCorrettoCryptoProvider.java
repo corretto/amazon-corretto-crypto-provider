@@ -17,6 +17,9 @@ import static com.amazon.corretto.crypto.provider.HkdfSecretKeyFactorySpi.HKDF_W
 import static com.amazon.corretto.crypto.provider.HkdfSecretKeyFactorySpi.HKDF_WITH_SHA256;
 import static com.amazon.corretto.crypto.provider.HkdfSecretKeyFactorySpi.HKDF_WITH_SHA384;
 import static com.amazon.corretto.crypto.provider.HkdfSecretKeyFactorySpi.HKDF_WITH_SHA512;
+import static com.amazon.corretto.crypto.provider.Loader.AWS_LC_VERSION_STR;
+import static com.amazon.corretto.crypto.provider.Loader.EXPERIMENTAL_FIPS_BUILD;
+import static com.amazon.corretto.crypto.provider.Loader.FIPS_BUILD;
 import static com.amazon.corretto.crypto.provider.Loader.PROVIDER_VERSION;
 import static com.amazon.corretto.crypto.provider.Loader.PROVIDER_VERSION_STR;
 import static java.lang.String.format;
@@ -63,14 +66,14 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
   private final boolean shouldRegisterSecureRandom;
   private final boolean shouldRegisterEdDSA;
   private final boolean shouldRegisterEdKeyFactory;
+  private final boolean shouldRegisterMLDSA;
   private final Utils.NativeContextReleaseStrategy nativeContextReleaseStrategy;
 
   private transient SelfTestSuite selfTestSuite = new SelfTestSuite();
 
   static {
     if (!Loader.IS_AVAILABLE && DebugFlag.VERBOSELOGS.isEnabled()) {
-      getLogger("AmazonCorrettoCryptoProvider")
-          .fine("Native JCE libraries are unavailable - disabling");
+      getLogger(PROVIDER_NAME).fine("Native JCE libraries are unavailable - disabling");
     }
     INSTANCE = new AmazonCorrettoCryptoProvider();
   }
@@ -92,6 +95,13 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     addService("KeyFactory", "RSA", "EvpKeyFactory$RSA");
     addService("KeyFactory", "EC", "EvpKeyFactory$EC");
 
+    if (shouldRegisterMLDSA) {
+      addService("KeyFactory", "ML-DSA", "EvpKeyFactory$MLDSA");
+      addService("KeyFactory", "ML-DSA-44", "EvpKeyFactory$MLDSA");
+      addService("KeyFactory", "ML-DSA-65", "EvpKeyFactory$MLDSA");
+      addService("KeyFactory", "ML-DSA-87", "EvpKeyFactory$MLDSA");
+    }
+
     if (shouldRegisterEdDSA) {
       // KeyFactories are used to convert key encodings to Java Key objects. ACCP's KeyFactory for
       // Ed25519 returns keys of type EvpEdPublicKey and EvpEdPrivateKey that do not implement
@@ -112,23 +122,27 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     addService("SecretKeyFactory", HKDF_WITH_SHA384, hkdfSpi, false);
     addService("SecretKeyFactory", HKDF_WITH_SHA512, hkdfSpi, false);
 
-    // Once these KDFs are added to a FIPS branch of AWS-LC, we can remove this check.
-    if (!Loader.FIPS_BUILD || Loader.EXPERIMENTAL_FIPS_BUILD) {
-      final String concatenationKdfSpi = "ConcatenationKdfSpi";
-      addService("SecretKeyFactory", CKDF_WITH_SHA256, concatenationKdfSpi, false);
-      addService("SecretKeyFactory", CKDF_WITH_SHA384, concatenationKdfSpi, false);
-      addService("SecretKeyFactory", CKDF_WITH_SHA512, concatenationKdfSpi, false);
-      addService("SecretKeyFactory", CKDF_WITH_HMAC_SHA256, concatenationKdfSpi, false);
-      addService("SecretKeyFactory", CKDF_WITH_HMAC_SHA512, concatenationKdfSpi, false);
+    final String concatenationKdfSpi = "ConcatenationKdfSpi";
+    addService("SecretKeyFactory", CKDF_WITH_SHA256, concatenationKdfSpi, false);
+    addService("SecretKeyFactory", CKDF_WITH_SHA384, concatenationKdfSpi, false);
+    addService("SecretKeyFactory", CKDF_WITH_SHA512, concatenationKdfSpi, false);
+    addService("SecretKeyFactory", CKDF_WITH_HMAC_SHA256, concatenationKdfSpi, false);
+    addService("SecretKeyFactory", CKDF_WITH_HMAC_SHA512, concatenationKdfSpi, false);
 
-      final String counterKdfSpi = "CounterKdfSpi";
-      addService("SecretKeyFactory", CTR_KDF_WITH_HMAC_SHA256, counterKdfSpi, false);
-      addService("SecretKeyFactory", CTR_KDF_WITH_HMAC_SHA384, counterKdfSpi, false);
-      addService("SecretKeyFactory", CTR_KDF_WITH_HMAC_SHA512, counterKdfSpi, false);
-    }
+    final String counterKdfSpi = "CounterKdfSpi";
+    addService("SecretKeyFactory", CTR_KDF_WITH_HMAC_SHA256, counterKdfSpi, false);
+    addService("SecretKeyFactory", CTR_KDF_WITH_HMAC_SHA384, counterKdfSpi, false);
+    addService("SecretKeyFactory", CTR_KDF_WITH_HMAC_SHA512, counterKdfSpi, false);
 
     addService("KeyPairGenerator", "RSA", "RsaGen");
     addService("KeyPairGenerator", "EC", "EcGen");
+
+    if (shouldRegisterMLDSA) {
+      addService("KeyPairGenerator", "ML-DSA", "MlDsaGen$MlDsaGen44");
+      addService("KeyPairGenerator", "ML-DSA-44", "MlDsaGen$MlDsaGen44");
+      addService("KeyPairGenerator", "ML-DSA-65", "MlDsaGen$MlDsaGen65");
+      addService("KeyPairGenerator", "ML-DSA-87", "MlDsaGen$MlDsaGen87");
+    }
 
     addService("KeyGenerator", "AES", "keygeneratorspi.SecretKeyGenerator", false);
 
@@ -215,6 +229,11 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     if (shouldRegisterEdDSA) {
       addService("Signature", "EdDSA", "EvpSignatureRaw$Ed25519");
       addService("Signature", "Ed25519", "EvpSignatureRaw$Ed25519");
+    }
+
+    if (shouldRegisterMLDSA) {
+      addService("Signature", "ML-DSA", "EvpSignatureRaw$MLDSA");
+      addService("Signature", "ML-DSA-ExtMu", "EvpSignatureRaw$MLDSAExtMu");
     }
   }
 
@@ -444,7 +463,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
         case FAILED:
           synchronized (this) {
             if (!failMessagePrinted) {
-              getLogger("AmazonCorrettoCryptoProvider")
+              getLogger(PROVIDER_NAME)
                   .severe(
                       "Self tests failed - disabling. "
                           + "Detailed results: "
@@ -483,13 +502,21 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     selfTestSuite.resetAllSelfTests();
   }
 
-  // The superconstructor taking a double version is deprecated in java 9. However, the replacement
-  // for it is
-  // unavailable in java 8, so to build on both with warnings on our only choice is suppress
-  // deprecation warnings.
+  // The super constructor taking a double version is deprecated in java 9. However, the alternate
+  // constructor taking a string version is unavailable in java 8. So to build on both with
+  // warnings on, our only choice is to suppress deprecation warnings.
   @SuppressWarnings({"deprecation"})
   public AmazonCorrettoCryptoProvider() {
-    super("AmazonCorrettoCryptoProvider", PROVIDER_VERSION, "");
+    super(
+        PROVIDER_NAME,
+        PROVIDER_VERSION,
+        String.format(
+            "%s %s%s%s (%s)",
+            PROVIDER_NAME,
+            PROVIDER_VERSION_STR,
+            FIPS_BUILD ? "+FIPS" : "",
+            EXPERIMENTAL_FIPS_BUILD ? "+EXP" : "",
+            AWS_LC_VERSION_STR));
     this.relyOnCachedSelfTestResults =
         Utils.getBooleanProperty(PROPERTY_CACHE_SELF_TEST_RESULTS, true);
     this.shouldRegisterEcParams = Utils.getBooleanProperty(PROPERTY_REGISTER_EC_PARAMS, false);
@@ -504,14 +531,15 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     this.shouldRegisterEdKeyFactory =
         Utils.getBooleanProperty(PROPERTY_REGISTER_ED_KEYFACTORY, false);
 
+    this.shouldRegisterMLDSA = (!isFips() || isExperimentalFips());
+
     this.nativeContextReleaseStrategy = Utils.getNativeContextReleaseStrategyProperty();
 
     Utils.optionsFromProperty(ExtraCheck.class, extraChecks, "extrachecks");
 
     if (!Loader.IS_AVAILABLE) {
       if (DebugFlag.VERBOSELOGS.isEnabled()) {
-        getLogger("AmazonCorrettoCryptoProvider")
-            .fine("Native JCE libraries are unavailable - disabling");
+        getLogger(PROVIDER_NAME).fine("Native JCE libraries are unavailable - disabling");
       }
 
       // If Loading failed, do not register any algorithms
@@ -548,16 +576,18 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     selfTestSuite.addSelfTest(EvpHmac.MD5.SELF_TEST);
 
     // Kick off self-tests in the background. It's vitally important that we don't actually _wait_
-    // for these to
-    // complete, as if we do we'll end up recursing through some JCE internals back to attempts to
-    // use
-    // AmazonCorrettoCryptoProvider in some configurations.
+    // for these to complete, as if we do we'll end up recursing through some JCE internals back to
+    // attempts to use AmazonCorrettoCryptoProvider in some configurations.
     ForkJoinPool.commonPool().submit(selfTestSuite::runTests);
   }
 
   // Override annotation omitted so that it works/compiles in Java8
   public String getVersionStr() {
     return PROVIDER_VERSION_STR;
+  }
+
+  public String getAwsLcVersionStr() {
+    return AWS_LC_VERSION_STR;
   }
 
   /**
@@ -717,6 +747,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
   private transient volatile KeyFactory rsaFactory;
   private transient volatile KeyFactory ecFactory;
   private transient volatile KeyFactory edFactory;
+  private transient volatile KeyFactory mlDsaFactory;
 
   KeyFactory getKeyFactory(EvpKeyType keyType) {
     try {
@@ -736,8 +767,13 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
             edFactory = new EdKeyFactory(this);
           }
           return edFactory;
+        case MLDSA:
+          if (mlDsaFactory == null) {
+            mlDsaFactory = KeyFactory.getInstance(keyType.jceName, this);
+          }
+          return mlDsaFactory;
         default:
-          throw new AssertionError("Unsupported key type");
+          throw new AssertionError(String.format("Unsupported key type: %s", keyType.jceName));
       }
     } catch (final NoSuchAlgorithmException ex) {
       throw new AssertionError(ex);

@@ -59,14 +59,19 @@ bool initializeContext(raii_env& env,
     const EVP_MD* md,
     jint paddingType,
     const EVP_MD* mgfMdPtr,
-    jint pssSaltLen)
+    jint pssSaltLen,
+    bool preHash)
 {
     EVP_PKEY_CTX* pctx; // Logically owned by the ctx so doesn't need to be freed separately
 
     EVP_PKEY_up_ref(pKey);
     ctx->setKey(pKey);
 
+#if defined(FIPS_BUILD) && !defined(EXPERIMENTAL_FIPS_BUILD)
     if (md != nullptr || EVP_PKEY_id(pKey) == EVP_PKEY_ED25519) {
+#else
+    if (md != nullptr || EVP_PKEY_id(pKey) == EVP_PKEY_ED25519 || (EVP_PKEY_id(pKey) == EVP_PKEY_PQDSA && !preHash)) {
+#endif
         if (!ctx->setDigestCtx(EVP_MD_CTX_create())) {
             throw_openssl("Unable to create MD_CTX");
         }
@@ -167,7 +172,7 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_si
         initializeContext(env, &ctx,
             true, // true->sign
             reinterpret_cast<EVP_PKEY*>(pKey), reinterpret_cast<const EVP_MD*>(mdPtr), paddingType,
-            reinterpret_cast<const EVP_MD*>(mgfMdPtr), pssSaltLen);
+            reinterpret_cast<const EVP_MD*>(mgfMdPtr), pssSaltLen, false);
 
         update(env, &ctx, digestSignUpdate, java_buffer::from_array(env, message, offset, length));
         return reinterpret_cast<jlong>(ctx.moveToHeap());
@@ -188,7 +193,7 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_si
         initializeContext(env, &ctx,
             true, // true->sign
             reinterpret_cast<EVP_PKEY*>(pKey), reinterpret_cast<const EVP_MD*>(mdPtr), paddingType,
-            reinterpret_cast<const EVP_MD*>(mgfMdPtr), pssSaltLen);
+            reinterpret_cast<const EVP_MD*>(mgfMdPtr), pssSaltLen, false);
         update(env, &ctx, digestSignUpdate, java_buffer::from_direct(env, message));
 
         return reinterpret_cast<jlong>(ctx.moveToHeap());
@@ -217,7 +222,7 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_ve
         initializeContext(env, &ctx,
             false, // false->verify
             reinterpret_cast<EVP_PKEY*>(pKey), reinterpret_cast<const EVP_MD*>(mdPtr), paddingType,
-            reinterpret_cast<const EVP_MD*>(mgfMdPtr), pssSaltLen);
+            reinterpret_cast<const EVP_MD*>(mgfMdPtr), pssSaltLen, false);
         update(env, &ctx, digestVerifyUpdate, java_buffer::from_array(env, message, offset, length));
 
         return reinterpret_cast<jlong>(ctx.moveToHeap());
@@ -238,7 +243,7 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_ve
         initializeContext(env, &ctx,
             false, // false->verify
             reinterpret_cast<EVP_PKEY*>(pKey), reinterpret_cast<const EVP_MD*>(mdPtr), paddingType,
-            reinterpret_cast<const EVP_MD*>(mgfMdPtr), pssSaltLen);
+            reinterpret_cast<const EVP_MD*>(mgfMdPtr), pssSaltLen, false);
         update(env, &ctx, digestVerifyUpdate, java_buffer::from_direct(env, message));
 
         return reinterpret_cast<jlong>(ctx.moveToHeap());
@@ -434,6 +439,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatu
     jclass clazz,
     jlong pKey,
     jint paddingType,
+    jboolean preHash,
     jlong mgfMdPtr,
     jint pssSaltLen,
     jbyteArray messageArr,
@@ -449,14 +455,18 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatu
             true, // true->sign
             reinterpret_cast<EVP_PKEY*>(pKey),
             nullptr, // No message digest
-            paddingType, reinterpret_cast<const EVP_MD*>(mgfMdPtr), pssSaltLen);
+            paddingType, reinterpret_cast<const EVP_MD*>(mgfMdPtr), pssSaltLen, preHash);
 
         std::vector<uint8_t, SecureAlloc<uint8_t> > signature;
         size_t sigLength;
 
         int keyType = EVP_PKEY_id(reinterpret_cast<EVP_PKEY*>(pKey));
 
+#if defined(FIPS_BUILD) && !defined(EXPERIMENTAL_FIPS_BUILD)
         if (keyType == EVP_PKEY_ED25519) {
+#else
+        if (keyType == EVP_PKEY_ED25519 || (keyType == EVP_PKEY_PQDSA && !preHash)) {
+#endif
             jni_borrow message(env, messageBuf, "message");
 
             if (!EVP_DigestSign(ctx.getDigestCtx(), NULL, &sigLength, message.data(), message.len())) {
@@ -500,6 +510,7 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
     jclass clazz,
     jlong pKey,
     jint paddingType,
+    jboolean preHash,
     jlong mgfMdPtr,
     jint pssSaltLen,
     jbyteArray messageArr,
@@ -519,14 +530,18 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
             false, // false->verify
             reinterpret_cast<EVP_PKEY*>(pKey),
             nullptr, // no message digest
-            paddingType, reinterpret_cast<const EVP_MD*>(mgfMdPtr), pssSaltLen);
+            paddingType, reinterpret_cast<const EVP_MD*>(mgfMdPtr), pssSaltLen, preHash);
 
         jni_borrow message(env, messageBuf, "message");
         jni_borrow signature(env, signatureBuf, "signature");
 
         int ret;
         int keyType = EVP_PKEY_id(reinterpret_cast<EVP_PKEY*>(pKey));
+#if defined(FIPS_BUILD) && !defined(EXPERIMENTAL_FIPS_BUILD)
         if (keyType == EVP_PKEY_ED25519) {
+#else
+        if (keyType == EVP_PKEY_ED25519 || (keyType == EVP_PKEY_PQDSA && !preHash)) {
+#endif
             ret = EVP_DigestVerify(
                 ctx.getDigestCtx(), signature.data(), signature.len(), message.data(), message.len());
         } else {

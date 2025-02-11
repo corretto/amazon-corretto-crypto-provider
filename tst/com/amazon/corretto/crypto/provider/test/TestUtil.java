@@ -17,6 +17,7 @@ import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
+import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.util.ArrayList;
@@ -96,10 +97,6 @@ public class TestUtil {
 
   public static boolean isExperimentalFips() {
     return NATIVE_PROVIDER.isExperimentalFips();
-  }
-
-  public static boolean supportsExtraKdfs() {
-    return isExperimentalFips() || !isFips();
   }
 
   public static byte[] intArrayToByteArray(final int[] array) {
@@ -844,5 +841,23 @@ public class TestUtil {
   static boolean edKeyFactoryRegistered() {
     return "true"
         .equals(System.getProperty("com.amazon.corretto.crypto.provider.registerEdKeyFactory"));
+  }
+
+  private static native byte[] computeMLDSAMuInternal(byte[] pubKeyEncoded, byte[] message);
+
+  /**
+   * Computes mu as defined on line 6 of Algorithm 7 and line 7 of Algorithm 8 in NIST FIPS 204.
+   *
+   * <p>See <a href="https://csrc.nist.gov/pubs/fips/204/final">FIPS 204</a>
+   *
+   * @param publicKey ML-DSA public key
+   * @param message byte array of the message over which to compute mu
+   * @return a byte[] of length 64 containing mu
+   */
+  static byte[] computeMLDSAMu(PublicKey publicKey, byte[] message) {
+    if (publicKey == null || !publicKey.getAlgorithm().startsWith("ML-DSA") || message == null) {
+      throw new IllegalArgumentException();
+    }
+    return computeMLDSAMuInternal(publicKey.getEncoded(), message);
   }
 }

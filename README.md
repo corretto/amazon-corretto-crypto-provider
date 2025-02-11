@@ -13,6 +13,15 @@ As of 2.0.0, algorithms exposed by ACCP are primarily backed by [AWS-LC](https:/
 | Linux x86_64 | ![](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiRW4zZUhmeHlJbHRVQnNBZGZEbVJUa0pOK0J0MmtnNVB2dVZZSWhLbUtaNWYxNG96WWg4emN1SjJKL3VSUk9obFl0MnBtajBxejlVWDFiR3ppZGd3U1lrPSIsIml2UGFyYW1ldGVyU3BlYyI6IkFsUkpiMDRkRjZQb1U3Ly8iLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=main) |
 | Linux aarch64 | ![](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiMEVNSXhZYmdEOWFrcE1HdE9nQmdwVlZFZXRYVnloc05TMXhoZ0tTVUQ1ZlMzeWRrZTArSUxUdzY2RVJRbUtXak5zU2ZCamJBS3JxUEFxZFJ2ZVNkcGVNPSIsIml2UGFyYW1ldGVyU3BlYyI6Ii80UEZpYWc2RjJZLzZDQ0wiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=main) |
 
+## Performance Benchmarks
+
+We provide complete benchmarking data from our [benchmarking suite](./benchmarks/README.md) for the current tip of `main`.
+
+| Build Name | Data | EC2 Instance Type |
+| - | - | - |
+| Linux x86_64 | [link](https://d1veyo88e7gsuw.cloudfront.net/c7ixlarge/index.html) | c7i.xlarge |
+| Linux aarch64 | [link](https://d1veyo88e7gsuw.cloudfront.net/c8gxlarge/index.html) | c8g.xlarge |
+
 ## Supported Algorithms
 MessageDigest algorithms:
 * SHA-512
@@ -109,6 +118,22 @@ ACCP-FIPS is a variation of ACCP which uses AWS-LC-FIPS 2.x as its cryptographic
 Version 2.3.0 is the first release of ACCP-FIPS. The Maven coordinates for
 ACCP-FIPS are the same as ACCP with one difference that ACCP-FIPS's
 artifact ID is `AmazonCorrettoCryptoProvider-FIPS`.
+
+The table below shows which AWS-LC and AWS-LC-FIPS release versions are used in each ACCP(-FIPS) release.
+ACCP did not track a FIPS branch/release version of AWS-LC until ACCP v2.3.0. Before then, ACCP-FIPS simply built its tracked AWS-LC commit in FIPS mode.
+
+| ACCP(-FIPS) version | AWS-LC version | AWS-LC-FIPS version |
+|---------------------|----------------|---------------------|
+| 2.0.0               | 1.4.0          | ---                 |
+| 2.1.0               | 1.5.0          | ---                 |
+| 2.2.0               | 1.5.0          | ---                 |
+| 2.3.0               | 1.5.0          | 2.0.0               |
+| 2.3.1               | 1.15.0         | 2.0.0               |
+| 2.3.2               | 1.16.0         | 2.0.0               |
+| 2.3.3               | 1.17.0         | 2.0.2               |
+| 2.4.0               | 1.30.1         | 2.0.13              |
+| 2.4.1               | 1.30.1         | 2.0.13              |
+| 2.5.0               | 1.44.0         | 3.0.0               |
 
 Notable differences between ACCP and ACCP-FIPS:
 * ACCP uses [the latest release of AWS-LC](https://github.com/aws/aws-lc/releases), whereas, ACCP-FIPS uses [the fips-2022-11-02 branch of AWS-LC](https://github.com/aws/aws-lc/tree/fips-2022-11-02).

@@ -28,6 +28,12 @@ public final class SecurityPropertyTester {
     System.out.println("FIPS? " + NATIVE_PROVIDER.isFips());
     assertEquals(fipsMode, NATIVE_PROVIDER.isFips());
 
+    String infoStr = NATIVE_PROVIDER.getInfo();
+    System.out.println("Security Provider : " + infoStr);
+    String[] tokens = infoStr.split("[\\s+-]");
+    assertEquals(NATIVE_PROVIDER.getName(), tokens[0]);
+    assertEquals(NATIVE_PROVIDER.getVersionStr(), tokens[1]);
+
     final Provider provider = Security.getProviders()[0];
     assertEquals(NATIVE_PROVIDER.getName(), provider.getName());
 

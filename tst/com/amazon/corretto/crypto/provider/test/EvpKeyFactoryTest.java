@@ -86,7 +86,15 @@ public class EvpKeyFactoryTest {
     }
 
     for (String algorithm : ALGORITHMS) {
-      KeyPairGenerator kpg = KeyPairGenerator.getInstance(algorithm);
+      KeyPairGenerator kpg;
+      if (algorithm.startsWith("ML-DSA")) {
+        // JCE doesn't support ML-DSA until JDK24, and BouncyCastle currently
+        // serializes ML-DSA private keys via seeds. TODO: switch to
+        // BouncyCastle once we support deserializing private keys from seed.
+        kpg = KeyPairGenerator.getInstance(algorithm, NATIVE_PROVIDER);
+      } else {
+        kpg = KeyPairGenerator.getInstance(algorithm);
+      }
       List<Arguments> keys = new ArrayList<>();
       if (algorithm.equals("EC")) {
         // Different curves can excercise different areas of ASN.1/DER and so should all be tested.
@@ -226,7 +234,15 @@ public class EvpKeyFactoryTest {
     final String algorithm = pubKey.getAlgorithm();
 
     final KeyFactory nativeFactory = KeyFactory.getInstance(algorithm, NATIVE_PROVIDER);
-    final KeyFactory jceFactory = KeyFactory.getInstance(algorithm);
+    final KeyFactory jceFactory;
+    if (algorithm.startsWith("ML-DSA")) {
+      // JCE doesn't support ML-DSA until JDK24, and BouncyCastle currently
+      // serializes ML-DSA private keys via seeds. TODO: switch to
+      // BouncyCastle once we support deserializing private keys from seed.
+      jceFactory = KeyFactory.getInstance(algorithm, NATIVE_PROVIDER);
+    } else {
+      jceFactory = KeyFactory.getInstance(algorithm);
+    }
 
     final X509EncodedKeySpec nativeSpec =
         nativeFactory.getKeySpec(pubKey, X509EncodedKeySpec.class);
@@ -295,7 +311,15 @@ public class EvpKeyFactoryTest {
     final String algorithm = privKey.getAlgorithm();
 
     final KeyFactory nativeFactory = KeyFactory.getInstance(algorithm, NATIVE_PROVIDER);
-    final KeyFactory jceFactory = KeyFactory.getInstance(algorithm);
+    final KeyFactory jceFactory;
+    if (algorithm.startsWith("ML-DSA")) {
+      // JCE doesn't support ML-DSA until JDK24, and BouncyCastle currently
+      // serializes ML-DSA private keys via seeds. TODO: switch to
+      // BouncyCastle once we support deserializing private keys from seed.
+      jceFactory = KeyFactory.getInstance(algorithm, NATIVE_PROVIDER);
+    } else {
+      jceFactory = KeyFactory.getInstance(algorithm);
+    }
 
     final PKCS8EncodedKeySpec nativeSpec =
         nativeFactory.getKeySpec(privKey, PKCS8EncodedKeySpec.class);

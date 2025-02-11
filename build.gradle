@@ -14,18 +14,16 @@ plugins {
 
 group = 'software.amazon.cryptools'
 version = '2.5.0'
+ext.awsLcMainTag = 'v1.44.0'
+ext.awsLcFipsTag = 'AWS-LC-FIPS-3.0.0'
 ext.isExperimentalFips = Boolean.getBoolean('EXPERIMENTAL_FIPS')
-if (ext.isExperimentalFips) {
-    ext.isFips = true
-} else {
-    ext.isFips = Boolean.getBoolean('FIPS')
-}
+ext.isFips = ext.isExperimentalFips || Boolean.getBoolean('FIPS')
 
 if (ext.isExperimentalFips || !ext.isFips) {
     // Experimental FIPS uses the same AWS-LC version as non-FIPS builds.
-    ext.awsLcGitVersionId = 'v1.36.0'
+    ext.awsLcGitVersionId = ext.awsLcMainTag
 } else {
-    ext.awsLcGitVersionId = 'AWS-LC-FIPS-2.0.15'
+    ext.awsLcGitVersionId = ext.awsLcFipsTag
 }
 
 // Check for user inputted git version ID.
@@ -43,17 +41,23 @@ if (ext.lcovIgnore == null) {
 def getDescriptionForPom(isFips) {
     if (!isFips) {
         return [
-            'The Amazon Corretto Crypto Provider (ACCP) is a collection of',
-            'high-performance cryptographic implementations exposed via the',
-            'standard JCA/JCE interfaces.'
+            'The Amazon Corretto Crypto Provider (ACCP) is a collection of high-performance',
+            'cryptographic implementations exposed via standard JCA/JCE interfaces.',
+            'ACCP uses AWS-LC to implement its cryptographic operations.',
+            'You can find the version of AWS-LC used with each version of ACCP here:',
+            'https://github.com/corretto/amazon-corretto-crypto-provider/blob/main/README.md#notes-on-accp-fips',
         ].join(" ")
     }
 
     return [
         'The Amazon Corretto Crypto Provider FIPS (ACCP-FIPS) is a collection',
-        'of high-performance cryptographic implementations exposed via the',
-        'standard JCA/JCE interfaces. ACCP-FIPS uses AWS-LC built in FIPS mode',
-        'and is provided for experimental purposes only.'
+        'of high-performance cryptographic implementations exposed via standard',
+        'JCA/JCE interfaces.',
+        'ACCP-FIPS uses AWS-LC built in FIPS mode to implement its cryptographic',
+        'operations, and is subject to the same compliance conditions as AWS-LC-FIPS.',
+        'Please refer to AWS-LC documentation and your local compliance team for guidance.',
+        'You can find the version of AWS-LC-FIPS used with each version of ACCP FIPS here:',
+        'https://github.com/corretto/amazon-corretto-crypto-provider/blob/main/README.md#notes-on-accp-fips',
     ].join(" ")
 
 }
@@ -175,8 +179,8 @@ dependencies {
     testDep 'org.apiguardian:apiguardian-api:1.1.2'
     testDep 'org.junit.jupiter:junit-jupiter:5.8.2'
     testDep 'org.junit.vintage:junit-vintage-engine:5.8.2'
-    testDep 'org.bouncycastle:bcprov-debug-jdk15on:1.69'
-    testDep 'org.bouncycastle:bcpkix-jdk15on:1.69'
+    testDep 'org.bouncycastle:bcpkix-jdk18on:1.80'
+    testDep 'org.bouncycastle:bcprov-jdk18on:1.80'
     testDep 'commons-codec:commons-codec:1.12'
     testDep 'org.hamcrest:hamcrest:2.1'
     testDep 'org.jacoco:org.jacoco.core:0.8.3'
@@ -330,6 +334,7 @@ task executeCmake(type: Exec) {
     args "-DOPENSSL_ROOT_DIR=${buildDir}/awslc/bin", '-DCMAKE_BUILD_TYPE=Release', '-DPROVIDER_VERSION_STRING=' + version
     args "-DTEST_RUNNER_JAR=${configurations.testRunner.singleFile}"
     args "-DCMAKE_VERBOSE_MAKEFILE:BOOL=ON"
+    args "-DAWS_LC_VERSION_STRING=" + awsLcGitVersionId
     if (isFips) {
         args "-DFIPS=ON"
     }
@@ -480,6 +485,12 @@ task single_test(type: Exec) {
     commandLine 'make', 'check-junit-single'
 }
 
+task test_install_via_properties(type: Exec) {
+    dependsOn executeCmake
+    workingDir "${buildDir}/cmake"
+    commandLine 'make', 'check-install-via-properties'
+}
+
 task test_integration_exec(type: Exec) {
     dependsOn executeCmake
     workingDir "${buildDir}/cmake"
@@ -525,6 +536,7 @@ task coverage_cmake(type: Exec) {
     args '-DPROVIDER_VERSION_STRING=' + version, projectDir
     args "-DTEST_RUNNER_JAR=${configurations.testRunner.singleFile}"
     args "-DCMAKE_VERBOSE_MAKEFILE:BOOL=ON"
+    args "-DAWS_LC_VERSION_STRING=" + awsLcGitVersionId
     if (isLegacyBuild) {
         args "-DLEGACY_BUILD=ON"
     }
@@ -877,11 +889,6 @@ task generateEclipseClasspath {
                     }
                 }
                 classpathentry('kind': 'src', 'output': 'build/eclipse/src', 'path': 'build/cmake/generated-java') {
-                    attributes {
-                        attribute('name': 'optional', 'value': 'true')
-                    }
-                }
-                classpathentry('kind': 'src', 'output': 'build/eclipse/src', 'path': 'build/coverage-cmake/generated-java') {
                     attributes {
                         attribute('name': 'optional', 'value': 'true')
                     }
