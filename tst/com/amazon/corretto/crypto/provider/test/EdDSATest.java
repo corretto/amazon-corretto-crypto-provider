@@ -255,14 +255,15 @@ public class EdDSATest {
 
   @Test
   public void eddsaValidation() throws GeneralSecurityException {
-    testEdDSAValidation("EdDSA");
-    testEdDSAValidation("Ed25519");
-    testEdDSAValidation("Ed25519ph");
+    final byte[] message = new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+    final byte[] preHash = MessageDigest.getInstance("SHA-512").digest(message);
+    testEdDSAValidation("EdDSA", message);
+    testEdDSAValidation("Ed25519", message);
+    testEdDSAValidation("Ed25519ph", preHash);
   }
 
-  private void testEdDSAValidation(String algorithm) throws GeneralSecurityException {
+  private void testEdDSAValidation(String algorithm, byte[] message) throws GeneralSecurityException {
     // Generate keys, sign, & verify with ACCP
-    final byte[] message = new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
     final Signature eddsa = Signature.getInstance(algorithm, NATIVE_PROVIDER);
     final KeyPair keyPair = nativeGen.generateKeyPair();
 
@@ -274,7 +275,6 @@ public class EdDSATest {
     eddsa.update(message, 0, message.length);
     assertTrue(eddsa.verify(signature));
   }
-
 
   @Test
   public void mismatchSignature() throws GeneralSecurityException {
