@@ -37,6 +37,11 @@ public class EdDSATest {
   private KeyPairGenerator bcGen;
   private static final BouncyCastleProvider BOUNCYCASTLE_PROVIDER = new BouncyCastleProvider();
 
+  // TODO: remove this disablement when ACCP consumes an AWS-LC-FIPS release with Ed25519ph
+  public static boolean ed25519phIsEnabled() {
+    return !NATIVE_PROVIDER.isFips() || NATIVE_PROVIDER.isExperimentalFips();
+  }
+
   @BeforeEach
   public void setup() throws GeneralSecurityException {
     nativeGen = KeyPairGenerator.getInstance("Ed25519", NATIVE_PROVIDER);
@@ -256,9 +261,14 @@ public class EdDSATest {
   @Test
   public void eddsaValidation() throws GeneralSecurityException {
     final byte[] message = new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-    final byte[] preHash = MessageDigest.getInstance("SHA-512").digest(message);
     testEdDSAValidation("EdDSA", message);
     testEdDSAValidation("Ed25519", message);
+  }
+
+  @Test
+  public void ed25519phValidation() throws GeneralSecurityException {
+    assumeTrue(ed25519phIsEnabled());
+    final byte[] preHash = MessageDigest.getInstance("SHA-512").digest(new byte[10]);
     testEdDSAValidation("Ed25519ph", preHash);
   }
 

@@ -64,18 +64,13 @@ bool initializeContext(raii_env& env,
 {
     EVP_PKEY_CTX* pctx; // Logically owned by the ctx so doesn't need to be freed separately
 
-    // NOTE: only use |pKey| to initialize |ctx| here. use ctx->getKey()
-    //       thereafter as |ctx|'s key may change when used by raw operations.
     EVP_PKEY_up_ref(pKey);
     ctx->setKey(pKey);
 
-    int keyType = EVP_PKEY_id(ctx->getKey());
-    // TODO: remove ifdefs below, in signRaw, and in signVerify when our
-    //       AWS-LC-FIPS dependency supports ML-DSA and Ed25519ph
-#if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
-    if (md != nullptr || (!preHash && (keyType == EVP_PKEY_ED25519 || keyType == EVP_PKEY_PQDSA))) {
+#if defined(FIPS_BUILD) && !defined(EXPERIMENTAL_FIPS_BUILD)
+    if (md != nullptr || EVP_PKEY_id(pKey) == EVP_PKEY_ED25519) {
 #else
-    if (md != nullptr || keyType == EVP_PKEY_ED25519) {
+    if (md != nullptr || EVP_PKEY_id(pKey) == EVP_PKEY_ED25519 || (EVP_PKEY_id(pKey) == EVP_PKEY_PQDSA && !preHash)) {
 #endif
         if (!ctx->setDigestCtx(EVP_MD_CTX_create())) {
             throw_openssl("Unable to create MD_CTX");
@@ -90,32 +85,6 @@ bool initializeContext(raii_env& env,
         if (result != 1) {
             throw_openssl("Unable to initialize signature");
         }
-#if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
-    } else if (preHash && EVP_PKEY_base_id(ctx->getKey()) == EVP_PKEY_ED25519) {
-        // ED25519 and ED25519PH (pre-hash) have different NIDs, but share an
-        // OID, so we treat them as a common EvpKeyType in the java layer. If
-        // requested |preHash|, we need to replace |ctx|'s EVP_PKEY* with a
-        // ED25519PH (pre-hash) newly constructed from the current key's key
-        // material. This only TODO [childw]
-        size_t raw_len;
-        if (signMode) {
-            CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(ctx->getKey(), nullptr, &raw_len));
-            std::vector<uint8_t> raw_bytes(raw_len);
-            CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(ctx->getKey(), raw_bytes.data(), &raw_len));
-            CHECK_OPENSSL(
-                ctx->setKey(EVP_PKEY_new_raw_private_key(EVP_PKEY_ED25519PH, nullptr, raw_bytes.data(), raw_len)));
-            CHECK_OPENSSL(ctx->setKeyCtx(EVP_PKEY_CTX_new(ctx->getKey(), nullptr)));
-            CHECK_OPENSSL(EVP_PKEY_sign_init(ctx->getKeyCtx()));
-        } else {
-            CHECK_OPENSSL(EVP_PKEY_get_raw_public_key(ctx->getKey(), nullptr, &raw_len));
-            std::vector<uint8_t> raw_bytes(raw_len);
-            CHECK_OPENSSL(EVP_PKEY_get_raw_public_key(ctx->getKey(), raw_bytes.data(), &raw_len));
-            CHECK_OPENSSL(
-                ctx->setKey(EVP_PKEY_new_raw_public_key(EVP_PKEY_ED25519PH, nullptr, raw_bytes.data(), raw_len)));
-            CHECK_OPENSSL(ctx->setKeyCtx(EVP_PKEY_CTX_new(ctx->getKey(), nullptr)));
-            CHECK_OPENSSL(EVP_PKEY_verify_init(ctx->getKeyCtx()));
-        }
-#endif
     } else {
         pctx = ctx->setKeyCtx(EVP_PKEY_CTX_new(ctx->getKey(), NULL));
         if (!pctx) {
@@ -481,7 +450,6 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatu
         raii_env env(pEnv);
         java_buffer messageBuf = java_buffer::from_array(env, messageArr, offset, length);
 
-        // NOTE: only use |pKey| for |initializeContext| in signRaw, use |ctx| thereafeter.
         EvpKeyContext ctx;
         initializeContext(env, &ctx,
             true, // true->sign
@@ -492,7 +460,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatu
         std::vector<uint8_t, SecureAlloc<uint8_t> > signature;
         size_t sigLength;
 
-        int keyType = EVP_PKEY_id(ctx.getKey());
+        int keyType = EVP_PKEY_id(reinterpret_cast<EVP_PKEY*>(pKey));
 
 #if defined(FIPS_BUILD) && !defined(EXPERIMENTAL_FIPS_BUILD)
         if (keyType == EVP_PKEY_ED25519) {
@@ -515,6 +483,23 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatu
         } else {
             jni_borrow message(env, messageBuf, "message");
 
+#if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
+            if (preHash && EVP_PKEY_base_id(ctx.getKey()) == EVP_PKEY_ED25519) {
+                // ED25519 and ED25519PH (pre-hash) have different NIDs, but share an
+                // OID, so we treat them as a common EvpKeyType in the java layer. If
+                // requested |preHash|, we need to replace |ctx|'s EVP_PKEY* with a
+                // ED25519PH (pre-hash) newly constructed from the current key's key
+                // material. This only TODO [childw]
+                size_t raw_len;
+                CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(ctx.getKey(), nullptr, &raw_len));
+                std::vector<uint8_t> raw_bytes(raw_len);
+                CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(ctx.getKey(), raw_bytes.data(), &raw_len));
+                CHECK_OPENSSL(
+                    ctx.setKey(EVP_PKEY_new_raw_private_key(EVP_PKEY_ED25519PH, nullptr, raw_bytes.data(), raw_len)));
+                CHECK_OPENSSL(ctx.setKeyCtx(EVP_PKEY_CTX_new(ctx.getKey(), nullptr)));
+                CHECK_OPENSSL(EVP_PKEY_sign_init(ctx.getKeyCtx()));
+            }
+#endif
             if (EVP_PKEY_sign(ctx.getKeyCtx(), NULL, &sigLength, message.data(), message.len()) <= 0) {
                 throw_openssl("Signature failed");
             }
@@ -558,7 +543,6 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
         java_buffer signatureBuf = java_buffer::from_array(env, signatureArr, sigOff, sigLen);
 
         EvpKeyContext ctx;
-        // NOTE: only use |pKey| for |initializeContext| in verifyRaw, use |ctx| thereafeter.
         initializeContext(env, &ctx,
             false, // false->verify
             reinterpret_cast<EVP_PKEY*>(pKey),
@@ -569,7 +553,7 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
         jni_borrow signature(env, signatureBuf, "signature");
 
         int ret;
-        int keyType = EVP_PKEY_id(ctx.getKey());
+        int keyType = EVP_PKEY_id(reinterpret_cast<EVP_PKEY*>(pKey));
 #if defined(FIPS_BUILD) && !defined(EXPERIMENTAL_FIPS_BUILD)
         if (keyType == EVP_PKEY_ED25519) {
 #else
@@ -578,6 +562,23 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
             ret = EVP_DigestVerify(
                 ctx.getDigestCtx(), signature.data(), signature.len(), message.data(), message.len());
         } else {
+#if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
+            if (preHash && keyType == EVP_PKEY_ED25519) {
+                // ED25519 and ED25519PH (pre-hash) have different NIDs, but share an
+                // OID, so we treat them as a common EvpKeyType in the java layer. If
+                // requested |preHash|, we need to replace |ctx|'s EVP_PKEY* with a
+                // ED25519PH (pre-hash) newly constructed from the current key's key
+                // material. This only TODO [childw]
+                size_t raw_len;
+                CHECK_OPENSSL(EVP_PKEY_get_raw_public_key(ctx.getKey(), nullptr, &raw_len));
+                std::vector<uint8_t> raw_bytes(raw_len);
+                CHECK_OPENSSL(EVP_PKEY_get_raw_public_key(ctx.getKey(), raw_bytes.data(), &raw_len));
+                CHECK_OPENSSL(
+                    ctx.setKey(EVP_PKEY_new_raw_public_key(EVP_PKEY_ED25519PH, nullptr, raw_bytes.data(), raw_len)));
+                CHECK_OPENSSL(ctx.setKeyCtx(EVP_PKEY_CTX_new(ctx.getKey(), nullptr)));
+                CHECK_OPENSSL(EVP_PKEY_verify_init(ctx.getKeyCtx()));
+            }
+#endif
             ret = EVP_PKEY_verify(ctx.getKeyCtx(), signature.data(), signature.len(), message.data(), message.len());
         }
 
