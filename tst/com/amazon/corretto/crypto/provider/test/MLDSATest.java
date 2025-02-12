@@ -236,21 +236,11 @@ public class MLDSATest {
     assertThrows(
         InvalidKeyException.class, () -> bcSignature.initSign(finalNativePair.getPrivate()));
 
-    // ACCP can't use BouncyCastle private keys due to seed/expanded encoding difference
-    Signature finalNativeSignature = Signature.getInstance("ML-DSA", NATIVE_PROVIDER);
-    final KeyPair finalBcPair = bcPair;
-    assertThrows(
-        InvalidKeyException.class, () -> finalNativeSignature.initSign(finalBcPair.getPrivate()));
-
-    // However, ACCP can use BouncyCastle public keys
+    // However, ACCP can use BouncyCastle KeyPairs with seed-encoded  PrivateKeys
     Signature nativeSignature = Signature.getInstance("ML-DSA", NATIVE_PROVIDER);
-    nativeSignature.initSign(nativePair.getPrivate());
+    nativeSignature.initSign(bcPair.getPrivate());
     byte[] sigBytes = nativeSignature.sign();
-    assertNotNull(sigBytes);
-    PublicKey bcPub =
-        KeyFactory.getInstance("ML-DSA", TestUtil.BC_PROVIDER)
-            .generatePublic(new X509EncodedKeySpec(nativePair.getPublic().getEncoded()));
-    nativeSignature.initVerify(bcPub);
+    nativeSignature.initVerify(bcPair.getPublic());
     assertTrue(nativeSignature.verify(sigBytes));
   }
 
