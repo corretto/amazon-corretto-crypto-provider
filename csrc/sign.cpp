@@ -70,10 +70,12 @@ bool initializeContext(raii_env& env,
     ctx->setKey(pKey);
 
     int keyType = EVP_PKEY_id(ctx->getKey());
-#if defined(FIPS_BUILD) && !defined(EXPERIMENTAL_FIPS_BUILD)
-    if (md != nullptr || keyType == EVP_PKEY_ED25519) {
-#else
+    // TODO: remove ifdefs below, in signRaw, and in signVerify when our
+    //       AWS-LC-FIPS dependency supports ML-DSA and Ed25519ph
+#if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
     if (md != nullptr || (!preHash && (keyType == EVP_PKEY_ED25519 || keyType == EVP_PKEY_PQDSA))) {
+#else
+    if (md != nullptr || keyType == EVP_PKEY_ED25519) {
 #endif
         if (!ctx->setDigestCtx(EVP_MD_CTX_create())) {
             throw_openssl("Unable to create MD_CTX");
@@ -88,6 +90,7 @@ bool initializeContext(raii_env& env,
         if (result != 1) {
             throw_openssl("Unable to initialize signature");
         }
+#if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
     } else if (preHash && EVP_PKEY_base_id(ctx->getKey()) == EVP_PKEY_ED25519) {
         // ED25519 and ED25519PH (pre-hash) have different NIDs, but share an
         // OID, so we treat them as a common EvpKeyType in the java layer. If
@@ -112,6 +115,7 @@ bool initializeContext(raii_env& env,
             CHECK_OPENSSL(ctx->setKeyCtx(EVP_PKEY_CTX_new(ctx->getKey(), nullptr)));
             CHECK_OPENSSL(EVP_PKEY_verify_init(ctx->getKeyCtx()));
         }
+#endif
     } else {
         pctx = ctx->setKeyCtx(EVP_PKEY_CTX_new(ctx->getKey(), NULL));
         if (!pctx) {

@@ -262,7 +262,8 @@ public class EdDSATest {
     testEdDSAValidation("Ed25519ph", preHash);
   }
 
-  private void testEdDSAValidation(String algorithm, byte[] message) throws GeneralSecurityException {
+  private void testEdDSAValidation(String algorithm, byte[] message)
+      throws GeneralSecurityException {
     // Generate keys, sign, & verify with ACCP
     final Signature eddsa = Signature.getInstance(algorithm, NATIVE_PROVIDER);
     final KeyPair keyPair = nativeGen.generateKeyPair();
