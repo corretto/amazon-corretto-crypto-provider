@@ -125,22 +125,60 @@ public class EdDSATest {
   }
 
   @Test
+  public void selfValidation() throws GeneralSecurityException {
+    final Signature nativeSignerSig = Signature.getInstance("Ed25519", NATIVE_PROVIDER);
+    final Signature nativeVerifierSig = Signature.getInstance("Ed25519", NATIVE_PROVIDER);
+    testInteropValidation(nativeSignerSig, nativeVerifierSig, false);
+    testInteropValidation(nativeVerifierSig, nativeSignerSig, false);
+  }
+
+  @Test
   public void jceInteropValidation() throws GeneralSecurityException {
     final Signature nativeSig = Signature.getInstance("Ed25519", NATIVE_PROVIDER);
     final Signature jceSig = Signature.getInstance("Ed25519", "SunEC");
-    testInteropValidation(nativeSig, jceSig);
-    testInteropValidation(jceSig, nativeSig);
+    testInteropValidation(nativeSig, jceSig, false);
+    testInteropValidation(jceSig, nativeSig, false);
   }
 
   @Test
   public void bcInteropValidation() throws GeneralSecurityException {
     final Signature nativeSig = Signature.getInstance("Ed25519", NATIVE_PROVIDER);
     final Signature bcSig = Signature.getInstance("Ed25519", BOUNCYCASTLE_PROVIDER);
-    testInteropValidation(nativeSig, bcSig);
-    testInteropValidation(bcSig, nativeSig);
+    testInteropValidation(nativeSig, bcSig, false);
+    testInteropValidation(bcSig, nativeSig, false);
   }
 
-  public void testInteropValidation(Signature signer, Signature verifier) throws GeneralSecurityException {
+  @Test
+  public void selfValidationPh() throws GeneralSecurityException {
+    assumeTrue(ed25519phIsEnabled());
+    final Signature nativeSignerSig = Signature.getInstance("Ed25519ph", NATIVE_PROVIDER);
+    final Signature nativeVerifierSig = Signature.getInstance("Ed25519ph", NATIVE_PROVIDER);
+    testInteropValidation(nativeSignerSig, nativeVerifierSig, true);
+    testInteropValidation(nativeVerifierSig, nativeSignerSig, true);
+  }
+
+  @Test
+  public void jceInteropValidationPh() throws GeneralSecurityException {
+    assumeTrue(ed25519phIsEnabled());
+    final Signature nativeSig = Signature.getInstance("Ed25519ph", NATIVE_PROVIDER);
+    final Signature jceSig = Signature.getInstance("Ed25519", "SunEC");
+    makeInteropSignaturePh(jceSig);
+    testInteropValidation(nativeSig, jceSig, true);
+    testInteropValidation(jceSig, nativeSig, true);
+  }
+
+  @Test
+  public void bcInteropValidationPh() throws GeneralSecurityException {
+    assumeTrue(ed25519phIsEnabled());
+    final Signature nativeSig = Signature.getInstance("Ed25519ph", NATIVE_PROVIDER);
+    final Signature bcSig = Signature.getInstance("Ed25519", BOUNCYCASTLE_PROVIDER);
+    makeInteropSignaturePh(bcSig);
+    testInteropValidation(nativeSig, bcSig, true);
+    testInteropValidation(bcSig, nativeSig, true);
+  }
+
+  public void testInteropValidation(Signature signer, Signature verifier, boolean preHash)
+      throws GeneralSecurityException {
     final String signerStr = signer.getProvider().getName();
     final String verifierStr = verifier.getProvider().getName();
     // We're agnostic to key provider as demonstrated in other tests
@@ -154,13 +192,17 @@ public class EdDSATest {
     for (int messageLength = 1; messageLength <= 1024; messageLength++) {
       message = new byte[messageLength];
       random.nextBytes(message);
+      if (preHash) {
+        message = MessageDigest.getInstance("SHA-512").digest(message);
+      }
       // Sign with one, Verify with two
       signer.initSign(privateKey);
       signer.update(message, 0, message.length);
       signature1 = signer.sign();
       verifier.initVerify(publicKey);
       verifier.update(message);
-      assertTrue(verifier.verify(signature1), String.format("%s->%s: Ed25519", signerStr, verifierStr));
+      assertTrue(
+          verifier.verify(signature1), String.format("%s->%s: Ed25519", signerStr, verifierStr));
 
       // Sign with two, Verify with one
       verifier.initSign(privateKey);
@@ -168,7 +210,8 @@ public class EdDSATest {
       signature2 = verifier.sign();
       signer.initVerify(publicKey);
       signer.update(message);
-      assertTrue(signer.verify(signature2), String.format("%s->%s: Ed25519", verifierStr, signerStr));
+      assertTrue(
+          signer.verify(signature2), String.format("%s->%s: Ed25519", verifierStr, signerStr));
 
       assertArrayEquals(signature1, signature2);
     }
@@ -306,7 +349,7 @@ public class EdDSATest {
       return;
     }
 
-    makeJceSigPh(jceSig);
+    makeInteropSignaturePh(jceSig);
 
     jceSig.initVerify(kp.getPublic());
     jceSig.update(message2, 0, message2.length);
@@ -361,13 +404,13 @@ public class EdDSATest {
     TestUtil.assertThrows(NullPointerException.class, () -> nativeSig.verify(null));
   }
 
-  private static void makeJceSigPh(Signature jceSig) {
+  private static void makeInteropSignaturePh(Signature sig) {
     AlgorithmParameterSpec paramSpec = null;
     try {
       Class<?> eddsaParamSpecClass = Class.forName("java.security.spec.EdDSAParameterSpec");
       Constructor<?> constructor = eddsaParamSpecClass.getConstructor(boolean.class);
       paramSpec = (AlgorithmParameterSpec) constructor.newInstance(true);
-      jceSig.setParameter(paramSpec);
+      sig.setParameter(paramSpec);
     } catch (Exception e) {
       fail("Failed to create EdDSAParameterSpec", e);
     }
