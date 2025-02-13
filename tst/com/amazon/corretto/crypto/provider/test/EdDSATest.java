@@ -306,15 +306,7 @@ public class EdDSATest {
       return;
     }
 
-    AlgorithmParameterSpec paramSpec = null;
-    try {
-      Class<?> eddsaParamSpecClass = Class.forName("java.security.spec.EdDSAParameterSpec");
-      Constructor<?> constructor = eddsaParamSpecClass.getConstructor(boolean.class);
-      paramSpec = (AlgorithmParameterSpec) constructor.newInstance(true);
-    } catch (Exception e) {
-      fail("Failed to create EdDSAParameterSpec");
-    }
-    jceSig.setParameter(paramSpec);
+    makeJceSigPh(jceSig);
 
     jceSig.initVerify(kp.getPublic());
     jceSig.update(message2, 0, message2.length);
@@ -367,5 +359,17 @@ public class EdDSATest {
     // Test with null signature
     nativeSig.initVerify(keyPair3.getPublic());
     TestUtil.assertThrows(NullPointerException.class, () -> nativeSig.verify(null));
+  }
+
+  private static void makeJceSigPh(Signature jceSig) {
+    AlgorithmParameterSpec paramSpec = null;
+    try {
+      Class<?> eddsaParamSpecClass = Class.forName("java.security.spec.EdDSAParameterSpec");
+      Constructor<?> constructor = eddsaParamSpecClass.getConstructor(boolean.class);
+      paramSpec = (AlgorithmParameterSpec) constructor.newInstance(true);
+      jceSig.setParameter(paramSpec);
+    } catch (Exception e) {
+      fail("Failed to create EdDSAParameterSpec", e);
+    }
   }
 }
