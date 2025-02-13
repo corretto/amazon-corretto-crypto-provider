@@ -170,33 +170,41 @@ public class EdDSATest {
     // Generate keys with ACCP and use BC KeyFactory to get equivalent Keys
     final Signature nativeSig = Signature.getInstance("Ed25519", NATIVE_PROVIDER);
     final Signature bcSig = Signature.getInstance("Ed25519", BOUNCYCASTLE_PROVIDER);
+    testInteropValidation(nativeSig, bcSig);
+    testInteropValidation(bcSig, nativeSig);
+  }
+
+  public void testInteropValidation(Signature signer, Signature verifier) throws GeneralSecurityException {
+    final String signerStr = signer.getProvider().getName();
+    final String verifierStr = verifier.getProvider().getName();
+    // We're agnostic to key provider as demonstrated in other tests
     final KeyPair keyPair = nativeGen.generateKeyPair();
 
     final PrivateKey privateKey = keyPair.getPrivate();
     final PublicKey publicKey = keyPair.getPublic();
-    byte[] message, signatureACCP, signatureBC;
+    byte[] message, signature1, signature2;
     Random random = new Random();
 
     for (int messageLength = 1; messageLength <= 1024; messageLength++) {
       message = new byte[messageLength];
       random.nextBytes(message);
-      // Sign with ACCP, Verify with BouncyCastle
-      nativeSig.initSign(privateKey);
-      nativeSig.update(message, 0, message.length);
-      signatureACCP = nativeSig.sign();
-      bcSig.initVerify(publicKey);
-      bcSig.update(message);
-      assertTrue(bcSig.verify(signatureACCP), "Native->BC: Ed25519");
+      // Sign with one, Verify with two
+      signer.initSign(privateKey);
+      signer.update(message, 0, message.length);
+      signature1 = signer.sign();
+      verifier.initVerify(publicKey);
+      verifier.update(message);
+      assertTrue(verifier.verify(signature1), String.format("%s->%s: Ed25519", signerStr, verifierStr));
 
-      // Sign with BouncyCastle, Verify with ACCP
-      bcSig.initSign(privateKey);
-      bcSig.update(message, 0, message.length);
-      signatureBC = bcSig.sign();
-      nativeSig.initVerify(publicKey);
-      nativeSig.update(message);
-      assertTrue(nativeSig.verify(signatureBC), "BC->Native: Ed25519");
+      // Sign with two, Verify with one
+      verifier.initSign(privateKey);
+      verifier.update(message, 0, message.length);
+      signature2 = verifier.sign();
+      signer.initVerify(publicKey);
+      signer.update(message);
+      assertTrue(signer.verify(signature2), String.format("%s->%s: Ed25519", verifierStr, signerStr));
 
-      assertArrayEquals(signatureBC, signatureACCP);
+      assertArrayEquals(signature1, signature2);
     }
   }
 
