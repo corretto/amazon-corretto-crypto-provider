@@ -500,6 +500,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatu
                 CHECK_OPENSSL(EVP_PKEY_sign_init(ctx.getKeyCtx()));
                 uint8_t* context_str = nullptr;
                 CHECK_OPENSSL(EVP_PKEY_CTX_set_signature_context(ctx.getKeyCtx(), context_str, 0));
+                // TODO [childw] hash the message!
             }
 #endif
             if (EVP_PKEY_sign(ctx.getKeyCtx(), NULL, &sigLength, message.data(), message.len()) <= 0) {
@@ -581,6 +582,7 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
                 CHECK_OPENSSL(EVP_PKEY_verify_init(ctx.getKeyCtx()));
                 uint8_t* context_str = nullptr;
                 CHECK_OPENSSL(EVP_PKEY_CTX_set_signature_context(ctx.getKeyCtx(), context_str, 0));
+                // TODO [childw] hash the message!
             }
 #endif
             ret = EVP_PKEY_verify(ctx.getKeyCtx(), signature.data(), signature.len(), message.data(), message.len());
