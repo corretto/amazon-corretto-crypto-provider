@@ -126,48 +126,14 @@ public class EdDSATest {
 
   @Test
   public void jceInteropValidation() throws GeneralSecurityException {
-    // Generate keys with ACCP and use JCE KeyFactory to get equivalent JCE Keys
-    final KeyPair keyPair = nativeGen.generateKeyPair();
-
-    final PrivateKey privateKey = keyPair.getPrivate();
-    final PublicKey publicKey = keyPair.getPublic();
-
-    // Set up ACCP and JCE Signature Instances
     final Signature nativeSig = Signature.getInstance("Ed25519", NATIVE_PROVIDER);
     final Signature jceSig = Signature.getInstance("Ed25519", "SunEC");
-    byte[] message, signatureACCP, signatureJCE;
-    Random random = new Random();
-
-    for (int messageLength = 1; messageLength <= 1024; messageLength++) {
-      message = new byte[messageLength];
-      random.nextBytes(message);
-      // Sign with ACCP and verify with SunEC
-      nativeSig.initSign(privateKey);
-      nativeSig.update(message, 0, message.length);
-      signatureACCP = nativeSig.sign();
-      jceSig.initVerify(publicKey);
-      jceSig.update(message);
-      assertTrue(
-          jceSig.verify(signatureACCP),
-          "Native->JCE: Ed25519 (message length: " + messageLength + ")");
-
-      // Sign with SunEC and verify with ACCP
-      jceSig.initSign(privateKey);
-      jceSig.update(message, 0, message.length);
-      signatureJCE = jceSig.sign();
-      nativeSig.initVerify(publicKey);
-      nativeSig.update(message);
-      assertTrue(
-          nativeSig.verify(signatureJCE),
-          "JCE->Native: Ed25519 (message length: " + messageLength + ")");
-
-      assertArrayEquals(signatureJCE, signatureACCP);
-    }
+    testInteropValidation(nativeSig, jceSig);
+    testInteropValidation(jceSig, nativeSig);
   }
 
   @Test
   public void bcInteropValidation() throws GeneralSecurityException {
-    // Generate keys with ACCP and use BC KeyFactory to get equivalent Keys
     final Signature nativeSig = Signature.getInstance("Ed25519", NATIVE_PROVIDER);
     final Signature bcSig = Signature.getInstance("Ed25519", BOUNCYCASTLE_PROVIDER);
     testInteropValidation(nativeSig, bcSig);
