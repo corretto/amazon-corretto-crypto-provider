@@ -5,18 +5,28 @@ package com.amazon.corretto.crypto.provider.test;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
+import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.security.*;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
+import java.security.InvalidParameterException;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Arrays;
 import java.util.Random;
+import org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters;
+import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters;
+import org.bouncycastle.crypto.signers.Ed25519phSigner;
+import org.bouncycastle.crypto.util.PrivateKeyFactory;
+import org.bouncycastle.crypto.util.PublicKeyFactory;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,6 +54,72 @@ public class EdDSATest {
   public static boolean ed25519phIsEnabled() {
     return !NATIVE_PROVIDER.isFips() || NATIVE_PROVIDER.isExperimentalFips();
   }
+
+  private Signature bcPrehashSig =
+      new Signature("Ed25519ph") {
+        private final Ed25519phSigner signer = new Ed25519phSigner(new byte[] {});
+
+        @Override
+        protected void engineInitSign(PrivateKey privateKey) throws InvalidKeyException {
+          try {
+            Ed25519PrivateKeyParameters privateKeyParams =
+                (Ed25519PrivateKeyParameters) PrivateKeyFactory.createKey(privateKey.getEncoded());
+            signer.init(true, privateKeyParams);
+          } catch (IOException e) {
+            throw new RuntimeException(e);
+          }
+        }
+
+        @Override
+        protected void engineInitVerify(PublicKey publicKey) throws InvalidKeyException {
+          try {
+            Ed25519PublicKeyParameters publicKeyParams =
+                (Ed25519PublicKeyParameters) PublicKeyFactory.createKey(publicKey.getEncoded());
+            signer.init(false, publicKeyParams);
+          } catch (IOException e) {
+            throw new RuntimeException(e);
+          }
+        }
+
+        @Override
+        protected void engineUpdate(byte b) throws SignatureException {
+          engineUpdate(new byte[] {b}, 0, 1);
+        }
+
+        @Override
+        protected void engineUpdate(byte[] b, int off, int len) throws SignatureException {
+          signer.update(b, off, len);
+        }
+
+        @Override
+        protected byte[] engineSign() throws SignatureException {
+          return signer.generateSignature();
+        }
+
+        @Override
+        protected boolean engineVerify(byte[] sigBytes) throws SignatureException {
+          return signer.verifySignature(sigBytes);
+        }
+
+        @Override
+        protected void engineSetParameter(AlgorithmParameterSpec params)
+            throws InvalidAlgorithmParameterException {
+          throw new UnsupportedOperationException();
+        }
+
+        @Override
+        @Deprecated
+        protected void engineSetParameter(String param, Object value)
+            throws InvalidParameterException {
+          throw new UnsupportedOperationException();
+        }
+
+        @Override
+        @Deprecated
+        protected Object engineGetParameter(String param) throws InvalidParameterException {
+          throw new UnsupportedOperationException();
+        }
+      };
 
   @BeforeEach
   public void setup() throws GeneralSecurityException {
@@ -162,7 +238,7 @@ public class EdDSATest {
     assumeTrue(ed25519phIsEnabled());
     final Signature nativeSig = Signature.getInstance("Ed25519ph", NATIVE_PROVIDER);
     final Signature jceSig = Signature.getInstance("Ed25519", "SunEC");
-    makeInteropSignaturePh(jceSig);
+    makeJceSignaturePh(jceSig);
     testInteropValidation(nativeSig, jceSig, true);
     testInteropValidation(jceSig, nativeSig, true);
   }
@@ -171,16 +247,24 @@ public class EdDSATest {
   public void bcInteropValidationPh() throws GeneralSecurityException {
     assumeTrue(ed25519phIsEnabled());
     final Signature nativeSig = Signature.getInstance("Ed25519ph", NATIVE_PROVIDER);
-    final Signature bcSig = Signature.getInstance("Ed25519", BOUNCYCASTLE_PROVIDER);
-    makeInteropSignaturePh(bcSig);
-    testInteropValidation(nativeSig, bcSig, true);
-    testInteropValidation(bcSig, nativeSig, true);
+    testInteropValidation(nativeSig, bcPrehashSig, true);
+    testInteropValidation(bcPrehashSig, nativeSig, true);
+  }
+
+  @Test // sanity check to assert that JCE and BC are interoperable
+  public void bcJceInteropValidationPh() throws GeneralSecurityException {
+    assumeTrue(ed25519phIsEnabled());
+    final Signature jceSig = Signature.getInstance("Ed25519", "SunEC");
+    makeJceSignaturePh(jceSig);
+    testInteropValidation(jceSig, bcPrehashSig, true);
+    testInteropValidation(bcPrehashSig, jceSig, true);
   }
 
   public void testInteropValidation(Signature signer, Signature verifier, boolean preHash)
       throws GeneralSecurityException {
-    final String signerStr = signer.getProvider().getName();
-    final String verifierStr = verifier.getProvider().getName();
+    final String signerStr = signer.getProvider() == null ? "BC" : signer.getProvider().getName();
+    final String verifierStr =
+        verifier.getProvider() == null ? "BC" : verifier.getProvider().getName();
     // We're agnostic to key provider as demonstrated in other tests
     final KeyPair keyPair = nativeGen.generateKeyPair();
 
@@ -197,7 +281,7 @@ public class EdDSATest {
       }
       // Sign with one, Verify with two
       signer.initSign(privateKey);
-      signer.update(message, 0, message.length);
+      signer.update(message);
       signature1 = signer.sign();
       verifier.initVerify(publicKey);
       verifier.update(message);
@@ -206,7 +290,7 @@ public class EdDSATest {
 
       // Sign with two, Verify with one
       verifier.initSign(privateKey);
-      verifier.update(message, 0, message.length);
+      verifier.update(message);
       signature2 = verifier.sign();
       signer.initVerify(publicKey);
       signer.update(message);
@@ -349,7 +433,7 @@ public class EdDSATest {
       return;
     }
 
-    makeInteropSignaturePh(jceSig);
+    makeJceSignaturePh(jceSig);
 
     jceSig.initVerify(kp.getPublic());
     jceSig.update(message2, 0, message2.length);
@@ -404,14 +488,19 @@ public class EdDSATest {
     TestUtil.assertThrows(NullPointerException.class, () -> nativeSig.verify(null));
   }
 
-  private static void makeInteropSignaturePh(Signature sig) {
+  private static void makeJceSignaturePh(Signature sig) {
+    assertTrue(ed25519phIsEnabled());
     AlgorithmParameterSpec paramSpec = null;
     try {
       Class<?> eddsaParamSpecClass = Class.forName("java.security.spec.EdDSAParameterSpec");
+      assertNotNull(eddsaParamSpecClass);
       Constructor<?> constructor = eddsaParamSpecClass.getConstructor(boolean.class);
+      assertNotNull(constructor);
       paramSpec = (AlgorithmParameterSpec) constructor.newInstance(true);
+      assertNotNull(paramSpec);
       sig.setParameter(paramSpec);
     } catch (Exception e) {
+      e.printStackTrace();
       fail("Failed to create EdDSAParameterSpec", e);
     }
   }
