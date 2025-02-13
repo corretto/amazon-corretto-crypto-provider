@@ -6,9 +6,12 @@ import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
+import java.lang.reflect.Constructor;
 import java.security.*;
+import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
@@ -268,7 +271,8 @@ public class EdDSATest {
   @Test
   public void ed25519phValidation() throws GeneralSecurityException {
     assumeTrue(ed25519phIsEnabled());
-    final byte[] preHash = MessageDigest.getInstance("SHA-512").digest(new byte[10]);
+    final byte[] preHash =
+        MessageDigest.getInstance("SHA-512").digest(new byte[10]); // message content is irrelevant
     testEdDSAValidation("Ed25519ph", preHash);
   }
 
@@ -289,21 +293,54 @@ public class EdDSATest {
 
   @Test
   public void mismatchSignature() throws GeneralSecurityException {
-    final byte[] message1 = new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-    final byte[] message2 = new byte[] {5, 5, 5, 5, 5, 5, 5, 5, 5, 5};
+    byte[] message1 = new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+    byte[] message2 = new byte[] {5, 5, 5, 5, 5, 5, 5, 5, 5, 5};
 
     final KeyPair kp = nativeGen.generateKeyPair();
 
-    final Signature nativeSig = Signature.getInstance("Ed25519", NATIVE_PROVIDER);
+    Signature nativeSig = Signature.getInstance("Ed25519", NATIVE_PROVIDER);
     final Signature jceSig = Signature.getInstance("Ed25519", "SunEC");
 
     nativeSig.initSign(kp.getPrivate());
     nativeSig.update(message1, 0, message1.length);
-    final byte[] signature = nativeSig.sign();
+    byte[] signature = nativeSig.sign();
 
     nativeSig.initVerify(kp.getPublic());
     nativeSig.update(message2, 0, message2.length);
     assertFalse(nativeSig.verify(signature));
+
+    jceSig.initVerify(kp.getPublic());
+    jceSig.update(message2, 0, message2.length);
+    assertFalse(jceSig.verify(signature));
+
+    // Ed25519ph ("pre-hash") testing below, hash algorithm is always SHA-512
+    // https://www.rfc-editor.org/rfc/rfc8032.html#section-5.1
+    message1 = MessageDigest.getInstance("SHA-512").digest(message1);
+    message2 = MessageDigest.getInstance("SHA-512").digest(message2);
+
+    nativeSig = Signature.getInstance("Ed25519ph", NATIVE_PROVIDER);
+    nativeSig.initSign(kp.getPrivate());
+    nativeSig.update(message1, 0, message1.length);
+    signature = nativeSig.sign();
+
+    nativeSig.initVerify(kp.getPublic());
+    nativeSig.update(message2, 0, message2.length);
+    assertFalse(nativeSig.verify(signature));
+
+    // JCE interop requires reflection for EdDSAParameterSpec to compile on JDK <15
+    if (!ed25519phIsEnabled()) {
+      return;
+    }
+
+    AlgorithmParameterSpec paramSpec = null;
+    try {
+      Class<?> eddsaParamSpecClass = Class.forName("java.security.spec.EdDSAParameterSpec");
+      Constructor<?> constructor = eddsaParamSpecClass.getConstructor(boolean.class);
+      paramSpec = (AlgorithmParameterSpec) constructor.newInstance(true);
+    } catch (Exception e) {
+      fail("Failed to create EdDSAParameterSpec");
+    }
+    jceSig.setParameter(paramSpec);
 
     jceSig.initVerify(kp.getPublic());
     jceSig.update(message2, 0, message2.length);
