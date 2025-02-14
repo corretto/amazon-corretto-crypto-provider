@@ -740,20 +740,19 @@ public class EdDSATest {
 
   @Test
   public void eddsaValidation() throws GeneralSecurityException {
-    final byte[] message = new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-    testEdDSAValidation("EdDSA", message);
-    testEdDSAValidation("Ed25519", message);
+    testEdDSAValidation("EdDSA");
+    testEdDSAValidation("Ed25519");
   }
 
   @Test
   public void ed25519phValidation() throws GeneralSecurityException {
     assumeTrue(ed25519phIsEnabled());
-    final byte[] message = new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-    testEdDSAValidation("Ed25519ph", message);
+    testEdDSAValidation("Ed25519ph");
   }
 
-  private void testEdDSAValidation(String algorithm, byte[] message)
+  private void testEdDSAValidation(String algorithm)
       throws GeneralSecurityException {
+    final byte[] message = new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
     // Generate keys, sign, & verify with ACCP
     final Signature eddsa = Signature.getInstance(algorithm, NATIVE_PROVIDER);
     final KeyPair keyPair = nativeGen.generateKeyPair();
