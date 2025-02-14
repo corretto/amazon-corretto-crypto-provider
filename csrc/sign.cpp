@@ -588,7 +588,7 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
             // requested |preHash|, we need to replace |ctx|'s EVP_PKEY* with a
             // ED25519PH (pre-hash) newly constructed from the current key's key
             // material. This only TODO [childw]
-             size_t raw_len;
+            size_t raw_len;
             CHECK_OPENSSL(EVP_PKEY_get_raw_public_key(ctx.getKey(), nullptr, &raw_len));
             std::vector<uint8_t> raw_bytes(raw_len);
             CHECK_OPENSSL(EVP_PKEY_get_raw_public_key(ctx.getKey(), raw_bytes.data(), &raw_len));
@@ -602,7 +602,8 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
             uint8_t message_hash[SHA512_DIGEST_LENGTH];
             CHECK_OPENSSL(SHA512(message.data(), message.len(), message_hash));
 
-            ret = EVP_PKEY_verify(ctx.getKeyCtx(), signature.data(), signature.len(), message_hash, sizeof(message_hash));
+            ret = EVP_PKEY_verify(
+                ctx.getKeyCtx(), signature.data(), signature.len(), message_hash, sizeof(message_hash));
 #endif
         } else {
             ret = EVP_PKEY_verify(ctx.getKeyCtx(), signature.data(), signature.len(), message.data(), message.len());
