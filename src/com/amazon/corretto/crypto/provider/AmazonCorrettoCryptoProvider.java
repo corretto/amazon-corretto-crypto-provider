@@ -229,6 +229,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     if (shouldRegisterEdDSA) {
       addService("Signature", "EdDSA", "EvpSignatureRaw$Ed25519");
       addService("Signature", "Ed25519", "EvpSignatureRaw$Ed25519");
+      addService("Signature", "Ed25519ph", "EvpSignatureRaw$Ed25519ph");
     }
 
     if (shouldRegisterMLDSA) {
