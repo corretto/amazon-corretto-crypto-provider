@@ -16,6 +16,7 @@ import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.InvalidParameterSpecException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -55,30 +56,39 @@ class AesCbcSpi extends CipherSpi {
 
   static {
     Loader.load();
-    AES_CBC_NO_PADDING_NAMES = new HashSet<>();
-    AES_CBC_NO_PADDING_NAMES.add("AES/CBC/NoPadding".toLowerCase());
-    AES_CBC_NO_PADDING_NAMES.add("AES_128/CBC/NoPadding".toLowerCase());
-    AES_CBC_NO_PADDING_NAMES.add("AES_192/CBC/NoPadding".toLowerCase());
-    AES_CBC_NO_PADDING_NAMES.add("AES_256/CBC/NoPadding".toLowerCase());
+    AES_CBC_NO_PADDING_NAMES =
+        Collections.unmodifiableSet(
+            new HashSet<>(
+                Arrays.asList(
+                    "AES/CBC/NoPadding".toLowerCase(),
+                    "AES_128/CBC/NoPadding".toLowerCase(),
+                    "AES_192/CBC/NoPadding".toLowerCase(),
+                    "AES_256/CBC/NoPadding".toLowerCase())));
 
-    AES_CBC_PKCS7_PADDING_NAMES = new HashSet<>();
-    AES_CBC_PKCS7_PADDING_NAMES.add("AES/CBC/PKCS7Padding".toLowerCase());
-    AES_CBC_PKCS7_PADDING_NAMES.add("AES_128/CBC/PKCS7Padding".toLowerCase());
-    AES_CBC_PKCS7_PADDING_NAMES.add("AES_192/CBC/PKCS7Padding".toLowerCase());
-    AES_CBC_PKCS7_PADDING_NAMES.add("AES_256/CBC/PKCS7Padding".toLowerCase());
     // PKCS5Padding with AES/CBC must be treated as PKCS7Padding. PKCS7Padding name is not
     // recognized by SunJCE, but BouncyCastle supports PKCS7Padding as a valid name for the same
     // padding.
-    AES_CBC_PKCS7_PADDING_NAMES.add("AES/CBC/PKCS5Padding".toLowerCase());
-    AES_CBC_PKCS7_PADDING_NAMES.add("AES_128/CBC/PKCS5Padding".toLowerCase());
-    AES_CBC_PKCS7_PADDING_NAMES.add("AES_192/CBC/PKCS5Padding".toLowerCase());
-    AES_CBC_PKCS7_PADDING_NAMES.add("AES_256/CBC/PKCS5Padding".toLowerCase());
+    AES_CBC_PKCS7_PADDING_NAMES =
+        Collections.unmodifiableSet(
+            new HashSet<>(
+                Arrays.asList(
+                    "AES/CBC/PKCS7Padding".toLowerCase(),
+                    "AES_128/CBC/PKCS7Padding".toLowerCase(),
+                    "AES_192/CBC/PKCS7Padding".toLowerCase(),
+                    "AES_256/CBC/PKCS7Padding".toLowerCase(),
+                    "AES/CBC/PKCS5Padding".toLowerCase(),
+                    "AES_128/CBC/PKCS5Padding".toLowerCase(),
+                    "AES_192/CBC/PKCS5Padding".toLowerCase(),
+                    "AES_256/CBC/PKCS5Padding".toLowerCase())));
 
-    AES_CBC_ISO10126_PADDING_NAMES = new HashSet<>();
-    AES_CBC_ISO10126_PADDING_NAMES.add("AES/CBC/ISO10126Padding".toLowerCase());
-    AES_CBC_ISO10126_PADDING_NAMES.add("AES_128/CBC/ISO10126Padding".toLowerCase());
-    AES_CBC_ISO10126_PADDING_NAMES.add("AES_192/CBC/ISO10126Padding".toLowerCase());
-    AES_CBC_ISO10126_PADDING_NAMES.add("AES_256/CBC/ISO10126Padding".toLowerCase());
+    AES_CBC_ISO10126_PADDING_NAMES =
+        Collections.unmodifiableSet(
+            new HashSet<>(
+                Arrays.asList(
+                    "AES/CBC/ISO10126Padding".toLowerCase(),
+                    "AES_128/CBC/ISO10126Padding".toLowerCase(),
+                    "AES_192/CBC/ISO10126Padding".toLowerCase(),
+                    "AES_256/CBC/ISO10126Padding".toLowerCase())));
   }
 
   private static final byte[] EMPTY_ARRAY = new byte[0];
