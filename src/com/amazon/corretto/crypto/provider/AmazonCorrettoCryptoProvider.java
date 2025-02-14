@@ -66,8 +66,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
   private final boolean shouldRegisterSecureRandom;
   private final boolean shouldRegisterEdDSA;
   private final boolean shouldRegisterEdKeyFactory;
-  private final boolean shouldRegisterEd25519ph; // TODO can be removed when AWS-LC-FIPS supports
-  private final boolean shouldRegisterMLDSA; // TODO can be removed when AWS-LC-FIPS supports
+  private final boolean shouldRegisterMLDSA;
   private final Utils.NativeContextReleaseStrategy nativeContextReleaseStrategy;
 
   private transient SelfTestSuite selfTestSuite = new SelfTestSuite();
@@ -230,10 +229,9 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     if (shouldRegisterEdDSA) {
       addService("Signature", "EdDSA", "EvpSignatureRaw$Ed25519");
       addService("Signature", "Ed25519", "EvpSignatureRaw$Ed25519");
-    }
-    if (shouldRegisterEd25519ph) {
       addService("Signature", "Ed25519ph", "EvpSignatureRaw$Ed25519ph");
     }
+
     if (shouldRegisterMLDSA) {
       addService("Signature", "ML-DSA", "EvpSignatureRaw$MLDSA");
       addService("Signature", "ML-DSA-ExtMu", "EvpSignatureRaw$MLDSAExtMu");
@@ -533,8 +531,6 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
     this.shouldRegisterEdKeyFactory =
         Utils.getBooleanProperty(PROPERTY_REGISTER_ED_KEYFACTORY, false);
-
-    this.shouldRegisterEd25519ph = (!isFips() || isExperimentalFips()) && this.shouldRegisterEdDSA;
 
     this.shouldRegisterMLDSA = (!isFips() || isExperimentalFips());
 

@@ -8,6 +8,7 @@
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/rsa.h>
+#include <openssl/sha.h>
 #include <vector>
 
 using namespace AmazonCorrettoCryptoProvider;
@@ -480,29 +481,40 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatu
             }
 
             signature.resize(sigLength);
+#if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
+        } else if (preHash && EVP_PKEY_base_id(ctx.getKey()) == EVP_PKEY_ED25519) {
+            // ED25519 and ED25519PH (pre-hash) have different NIDs, but share an
+            // OID, so we treat them as a common EvpKeyType in the java layer. If
+            // requested |preHash|, we need to replace |ctx|'s EVP_PKEY* with a
+            // ED25519PH (pre-hash) newly constructed from the current key's key
+            // material. This only TODO [childw]
+            size_t raw_len;
+            CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(ctx.getKey(), nullptr, &raw_len));
+            std::vector<uint8_t> raw_bytes(raw_len);
+            CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(ctx.getKey(), raw_bytes.data(), &raw_len));
+            CHECK_OPENSSL(
+                ctx.setKey(EVP_PKEY_new_raw_private_key(EVP_PKEY_ED25519PH, nullptr, raw_bytes.data(), raw_len)));
+            CHECK_OPENSSL(ctx.setKeyCtx(EVP_PKEY_CTX_new(ctx.getKey(), nullptr)));
+            CHECK_OPENSSL(EVP_PKEY_sign_init(ctx.getKeyCtx()));
+
+            signature.resize(SHA512_DIGEST_LENGTH);
+            uint8_t message_hash[SHA512_DIGEST_LENGTH];
+            jni_borrow message(env, messageBuf, "message");
+            CHECK_OPENSSL(SHA512(message.data(), message.len(), &message_hash[0]));
+
+            if (EVP_PKEY_sign(ctx.getKeyCtx(), &signature[0], &sigLength, message_hash, sizeof(message_hash)) <= 0) {
+                throw_openssl("Signature failed");
+            }
+
+            if (signature.size() < sigLength) {
+                pEnv->FatalError("Unexpected buffer overflow");
+            }
+
+            signature.resize(sigLength);
+#endif
         } else {
             jni_borrow message(env, messageBuf, "message");
 
-#if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
-            if (preHash && EVP_PKEY_base_id(ctx.getKey()) == EVP_PKEY_ED25519) {
-                // ED25519 and ED25519PH (pre-hash) have different NIDs, but share an
-                // OID, so we treat them as a common EvpKeyType in the java layer. If
-                // requested |preHash|, we need to replace |ctx|'s EVP_PKEY* with a
-                // ED25519PH (pre-hash) newly constructed from the current key's key
-                // material. This only TODO [childw]
-                size_t raw_len;
-                CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(ctx.getKey(), nullptr, &raw_len));
-                std::vector<uint8_t> raw_bytes(raw_len);
-                CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(ctx.getKey(), raw_bytes.data(), &raw_len));
-                CHECK_OPENSSL(
-                    ctx.setKey(EVP_PKEY_new_raw_private_key(EVP_PKEY_ED25519PH, nullptr, raw_bytes.data(), raw_len)));
-                CHECK_OPENSSL(ctx.setKeyCtx(EVP_PKEY_CTX_new(ctx.getKey(), nullptr)));
-                CHECK_OPENSSL(EVP_PKEY_sign_init(ctx.getKeyCtx()));
-                uint8_t* context_str = nullptr;
-                CHECK_OPENSSL(EVP_PKEY_CTX_set_signature_context(ctx.getKeyCtx(), context_str, 0));
-                // TODO [childw] hash the message!
-            }
-#endif
             if (EVP_PKEY_sign(ctx.getKeyCtx(), NULL, &sigLength, message.data(), message.len()) <= 0) {
                 throw_openssl("Signature failed");
             }

@@ -558,7 +558,7 @@ public class EdDSATest {
     Signature verifier = Signature.getInstance("Ed25519ph", NATIVE_PROVIDER);
 
     // NOTE: ACCP takes a _hash of the message_ (for now), not the message itself...
-    byte[] message = MessageDigest.getInstance("SHA-512").digest(new byte[] {0x61, 0x62, 0x63});
+    byte[] message = new byte[] {0x61, 0x62, 0x63};
     signer.initSign(privateKey);
     signer.update(message);
     byte[] signature = signer.sign();
@@ -651,9 +651,7 @@ public class EdDSATest {
     for (int messageLength = 1; messageLength <= 1024; messageLength++) {
       message = new byte[messageLength];
       random.nextBytes(message);
-      if (preHash) {
-        message = MessageDigest.getInstance("SHA-512").digest(message);
-      }
+
       // Sign with signer, Verify with verifier
       signer.initSign(privateKey);
       signer.update(message);
@@ -750,9 +748,8 @@ public class EdDSATest {
   @Test
   public void ed25519phValidation() throws GeneralSecurityException {
     assumeTrue(ed25519phIsEnabled());
-    final byte[] preHash =
-        MessageDigest.getInstance("SHA-512").digest(new byte[10]); // message content is irrelevant
-    testEdDSAValidation("Ed25519ph", preHash);
+    final byte[] message = new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+    testEdDSAValidation("Ed25519ph", message);
   }
 
   private void testEdDSAValidation(String algorithm, byte[] message)
@@ -791,11 +788,6 @@ public class EdDSATest {
     jceSig.initVerify(kp.getPublic());
     jceSig.update(message2, 0, message2.length);
     assertFalse(jceSig.verify(signature));
-
-    // Ed25519ph ("pre-hash") testing below, hash algorithm is always SHA-512
-    // https://www.rfc-editor.org/rfc/rfc8032.html#section-5.1
-    message1 = MessageDigest.getInstance("SHA-512").digest(message1);
-    message2 = MessageDigest.getInstance("SHA-512").digest(message2);
 
     nativeSig = Signature.getInstance("Ed25519ph", NATIVE_PROVIDER);
     nativeSig.initSign(kp.getPrivate());
