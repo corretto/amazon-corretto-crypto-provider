@@ -255,6 +255,7 @@ public class EdDSATest {
 
   @Test // https://www.rfc-editor.org/rfc/rfc8032.html#section-7.3
   public void jceRfc8032KAT() throws Exception {
+    assumeTrue(ed25519phIsEnabled());
     // Generate keys with ACCP and use JCE KeyFactory to get equivalent Keys
     final Class<?> edPrivateKeyCls = Class.forName("java.security.interfaces.EdECPrivateKey");
     final Class<?> edPPublicKeyCls = Class.forName("java.security.interfaces.EdECPublicKey");
@@ -447,6 +448,7 @@ public class EdDSATest {
 
   @Test // https://www.rfc-editor.org/rfc/rfc8032.html#section-7.3
   public void nativeRfc8032KAT() throws Exception {
+    assumeTrue(ed25519phIsEnabled());
     // Generate keys with ACCP and use JCE KeyFactory to get equivalent Keys
     final Class<?> edPrivateKeyCls = Class.forName("java.security.interfaces.EdECPrivateKey");
     final Class<?> edPPublicKeyCls = Class.forName("java.security.interfaces.EdECPublicKey");
