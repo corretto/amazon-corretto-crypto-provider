@@ -17,7 +17,7 @@ public class NativeTestHooks {
 
   public static native void callAwsLcFipsFailureCallback();
 
-  public static native void flipFipsStatus();
+  public static native void resetFipsStatus();
 
   public static native void getBytes(byte[] array, int offset, int length, int off2, int len2);
 

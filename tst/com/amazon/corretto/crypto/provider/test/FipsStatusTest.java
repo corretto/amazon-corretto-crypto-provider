@@ -37,7 +37,7 @@ public class FipsStatusTest {
       assertThrows(FipsStatusException.class, () -> KeyGenerator.getInstance("AES", provider));
       // we need to flip the status back to OK so the rest of tests would work. In practice, once
       // the flag is set to false, it remains false.
-      NativeTestHooks.flipFipsStatus();
+      NativeTestHooks.resetFipsStatus();
     }
   }
 }
