@@ -18,7 +18,7 @@ public class KeyGenEd {
     @Param({AmazonCorrettoCryptoProvider.PROVIDER_NAME, "BC", "SunEC"})
     public String provider;
 
-    private KeyPairGenerator kpg;
+  private KeyPairGenerator kpg;
 
     @Setup
     public void setup() throws Exception {
@@ -26,8 +26,8 @@ public class KeyGenEd {
         kpg = KeyPairGenerator.getInstance("Ed25519", provider);
     }
 
-    @Benchmark
-    public KeyPair generate() {
-        return kpg.generateKeyPair();
-    }
+  @Benchmark
+  public KeyPair generate() {
+    return kpg.generateKeyPair();
+  }
 }

@@ -32,6 +32,11 @@ if (System.properties["AWSLC_GITVERSION"]) {
 }
 
 ext.isLegacyBuild = Boolean.getBoolean('LEGACY_BUILD')
+ext.allowFipsTestBreak = Boolean.getBoolean('ALLOW_FIPS_TEST_BREAK')
+
+if (allowFipsTestBreak && !isFips) {
+    throw new GradleException("ALLOW_FIPS_TEST_BREAK can only be set if FIPS is also set to true")
+}
 
 ext.lcovIgnore = System.properties['LCOV_IGNORE']
 if (ext.lcovIgnore == null) {
@@ -252,9 +257,14 @@ task buildAwsLc {
 
 
                 if (isFips) {
+                    println "Building AWS-LC in FIPS mode"
                     args '-DFIPS=1'
                 }
 
+                if (allowFipsTestBreak) {
+                    println "Building AWS-LC with hooks to break FIPS tests"
+                    args '-DFIPS_BREAK_TEST=TESTS'
+                }
                 args '.'
             }
         }
