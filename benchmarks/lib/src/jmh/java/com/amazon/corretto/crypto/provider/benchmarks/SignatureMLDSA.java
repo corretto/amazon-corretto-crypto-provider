@@ -22,13 +22,13 @@ public class SignatureMLDSA extends SignatureBase {
         super.setup(provider, algorithm, null, "ML-DSA", null);
     }
 
-  @Benchmark
-  public byte[] sign() throws Exception {
-    return super.sign();
-  }
+    @Benchmark
+    public byte[] sign() throws Exception {
+        return super.sign();
+    }
 
-  @Benchmark
-  public boolean verify() throws Exception {
-    return super.verify();
-  }
+    @Benchmark
+    public boolean verify() throws Exception {
+        return super.verify();
+    }
 }

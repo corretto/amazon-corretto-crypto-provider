@@ -14,7 +14,7 @@ plugins {
 
 group = 'software.amazon.cryptools'
 version = '2.5.0'
-ext.awsLcMainTag = 'v1.44.0'
+ext.awsLcMainTag = 'v1.45.0'
 ext.awsLcFipsTag = 'AWS-LC-FIPS-3.0.0'
 ext.isExperimentalFips = Boolean.getBoolean('EXPERIMENTAL_FIPS')
 ext.isFips = ext.isExperimentalFips || Boolean.getBoolean('FIPS')

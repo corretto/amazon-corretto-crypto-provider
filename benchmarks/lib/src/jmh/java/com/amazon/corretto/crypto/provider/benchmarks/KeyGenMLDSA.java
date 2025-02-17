@@ -6,7 +6,6 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
->>>>>>> main:benchmarks/lib/src/jmh/java/com/amazon/corretto/crypto/provider/benchmarks/KeyGenMLDSA.java
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
@@ -30,8 +29,8 @@ public class KeyGenMLDSA {
         kpg = KeyPairGenerator.getInstance(algorithm, provider);
     }
 
-  @Benchmark
-  public KeyPair generate() {
-    return kpg.generateKeyPair();
-  }
+    @Benchmark
+    public KeyPair generate() {
+        return kpg.generateKeyPair();
+    }
 }
