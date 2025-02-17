@@ -212,8 +212,8 @@ task buildAwsLc {
         // TODO [childw] revert below when @andhop's change is released
             exec {
                 workingDir awslcSrcPath
-                commandLine "git", "fetch", "--tags"
-                commandLine "git", "remote", "set-url", "andhop", "https://github.com/andrewhop/aws-lc"
+                commandLine "git", "remote", "add", "andhop", "https://github.com/andrewhop/aws-lc"
+                ignoreExitValue true
             }
             exec {
                 workingDir awslcSrcPath
