@@ -5,86 +5,50 @@
 
 #include "compiler.h"
 
-#ifdef HAVE_CPP11
-#include <atomic>
-#else
-// For pre-C++11, we use pthread_mutex to sync access to the AtomicBool
 #include <cstdio>
 #include <cstdlib>
+#include <mutex>
 #include <pthread.h>
-#endif
+#include <string>
+#include <vector>
 
 namespace AmazonCorrettoCryptoProvider {
 
-#ifdef HAVE_CPP11
-
-using AtomicBool = std::atomic<bool>;
-
-#else
-
-// If lock/unlock failes, we still proceed
-// Since we are using the default value when initializing the mutex, these failures should not happen.
-class UniquePthreadMutexLock {
-public:
-    UniquePthreadMutexLock(pthread_mutex_t* mutex)
-        : mutex_(mutex)
-    {
-        int status = pthread_mutex_lock(mutex_);
-        if (status != 0) {
-            fprintf(stderr, "pthread_mutex_lock failed with error %d", status);
-        }
-    }
-
-    ~UniquePthreadMutexLock()
-    {
-        int status = pthread_mutex_unlock(mutex_);
-        if (status != 0) {
-            fprintf(stderr, "pthread_mutex_unlock failed with error %d", status);
-        }
-    }
-
+class ConcurrentStringVector {
 private:
-    pthread_mutex_t* mutex_;
-};
+    std::vector<std::string> vec;
+    mutable std::mutex mutex;
 
-class AtomicBool {
 public:
-    AtomicBool(bool initial_value)
-        : value_(initial_value)
+    void push_back(const std::string& value)
     {
-        int status = pthread_mutex_init(&value_mutex_, nullptr);
-        if (status != 0) {
-            // let's exit if we can't even initalize a mutex :(
-            fprintf(stderr, "failed to initialize the mutex; pthread_mutex_init failed with error code %d", status);
-            exit(EXIT_FAILURE);
+        std::unique_lock<std::mutex> lock(mutex);
+        vec.push_back(std::string(value));
+    }
+
+    void clear()
+    {
+        std::unique_lock<std::mutex> lock(mutex);
+        vec.clear();
+    }
+
+    size_t size() const
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        return vec.size();
+    }
+
+    // TODO [childw] note about how implementing full iterator interface would be more
+    // efficient, but this is sufficient for rarely-checked self-test failure functionality
+    void copy(std::vector<std::string>& out) const
+    {
+        out.clear();
+        std::lock_guard<std::mutex> lock(mutex);
+        for (const auto& s : vec) {
+            out.push_back(std::string(s));
         }
     }
-
-    ~AtomicBool() { pthread_mutex_destroy(&value_mutex_); }
-
-    bool load()
-    {
-        UniquePthreadMutexLock lock(&value_mutex_);
-        return value_;
-    }
-
-    void store(bool value)
-    {
-        UniquePthreadMutexLock lock(&value_mutex_);
-        value_ = value;
-    }
-
-private:
-    bool value_;
-    pthread_mutex_t value_mutex_; // used to sync access to value_
-
-    // Disabling default constructors
-    AtomicBool();
-    AtomicBool(AtomicBool const&);
-    AtomicBool& operator=(AtomicBool const&);
 };
-
-#endif
 
 } // namespace AmazonCorrettoCryptoProvider
 

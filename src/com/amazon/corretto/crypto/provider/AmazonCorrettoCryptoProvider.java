@@ -39,7 +39,6 @@ import java.security.Security;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -69,7 +68,6 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
   private final boolean shouldRegisterEdKeyFactory;
   private final boolean shouldRegisterMLDSA;
   private final Utils.NativeContextReleaseStrategy nativeContextReleaseStrategy;
-  private final Set<String> fipsStatusErrors = Collections.synchronizedSet(new HashSet<>());
 
   private transient SelfTestSuite selfTestSuite = new SelfTestSuite();
 
@@ -554,7 +552,6 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     }
 
     buildServiceMap();
-    registerFipsStatusCallback();
     initializeSelfTests();
   }
 
@@ -678,27 +675,16 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     return Loader.FIPS_BUILD;
   }
 
+  private native int fipsStatusErrorCount();
+
   /**
    * @return true if and only if the underlying libcrypto library's FIPS related checks pass
    */
   public boolean isFipsStatusOk() {
-    return fipsStatusErrors.isEmpty();
+    return fipsStatusErrorCount() == 0;
   }
 
-  public Set<String> getFipsSelfTestFailures() {
-    return new HashSet<>(fipsStatusErrors);
-  }
-
-  private native void registerFipsStatusCallback();
-
-  // TODO [childw] should never be called from java -- only JNI
-  private void addFipsStatusError(String error) {
-    fipsStatusErrors.add(error);
-  }
-
-  private void clearFipsStatusErrors() {
-    fipsStatusErrors.clear();
-  }
+  public native List<String> getFipsSelfTestFailures();
 
   /**
    * ACCP-FIPS uses the FIPS branches/releases of AWS-LC. Experimental FIPS mode is to allow
