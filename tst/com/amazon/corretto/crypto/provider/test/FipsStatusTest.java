@@ -18,7 +18,9 @@ import org.junit.jupiter.api.parallel.ResourceAccessMode;
 import org.junit.jupiter.api.parallel.ResourceLock;
 
 @ExtendWith(TestResultLogger.class)
-@Execution(ExecutionMode.SAME_THREAD)
+@Execution(ExecutionMode.CONCURRENT)
+// NOTE: we need to take global r/w lock on TestUtil because FIPS self test breakages
+//       are global and would affect other tests executed concurrently with this one.
 @ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ_WRITE)
 public class FipsStatusTest {
 
