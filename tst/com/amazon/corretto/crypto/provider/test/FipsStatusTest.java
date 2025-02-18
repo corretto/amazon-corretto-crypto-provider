@@ -18,8 +18,8 @@ import org.junit.jupiter.api.parallel.ResourceAccessMode;
 import org.junit.jupiter.api.parallel.ResourceLock;
 
 @ExtendWith(TestResultLogger.class)
-@Execution(ExecutionMode.CONCURRENT)
-@ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
+@Execution(ExecutionMode.SAME_THREAD)
+@ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ_WRITE)
 public class FipsStatusTest {
 
   private final AmazonCorrettoCryptoProvider provider = AmazonCorrettoCryptoProvider.INSTANCE;
