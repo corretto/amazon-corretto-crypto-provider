@@ -109,9 +109,9 @@ public class RsaCipherTest {
           Object o = f.get(null); // static field, so null "instance"
           Method m = MGF1ParameterSpec.class.getDeclaredMethod("getDigestAlgorithm");
           String digest = (String) m.invoke(o);
-          // NOTE: AWS-LC doesn't support SHA-512/224 or SHA3 in a recent FIPS
-          //       version, but does support them as of non-FIPS v1.17.0
-          if ("SHA-512/224".equals(digest) || !digest.startsWith("SHA-")) {
+          // TODO: remove below when we support SHA3
+          // https://github.com/corretto/amazon-corretto-crypto-provider/issues/106
+          if (digest.startsWith("SHA3")) {
             continue;
           }
           digests.add(digest);
