@@ -316,7 +316,6 @@ final class AesGcmSpi extends CipherSpi {
       final AlgorithmParameterSpec algorithmParameterSpec,
       final SecureRandom secureRandom)
       throws InvalidKeyException, InvalidAlgorithmParameterException {
-
     final int opMode = checkOperation(jceOpMode);
 
     final GCMParameterSpec spec = checkSpecAndTag(algorithmParameterSpec);
