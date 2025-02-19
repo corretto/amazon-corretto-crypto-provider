@@ -547,4 +547,10 @@ class EvpSignature extends EvpSignatureBase {
       super(provider, EvpKeyType.EC, 0, "sha512");
     }
   }
+
+  static final class Ed25519ph extends EvpSignature {
+    Ed25519ph(final AmazonCorrettoCryptoProvider provider) {
+      super(provider, EvpKeyType.EdDSA, 0, "sha512");
+    }
+  }
 }
