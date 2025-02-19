@@ -36,6 +36,7 @@ class EvpSignature extends EvpSignatureBase {
       long privateKey,
       long digestPtr,
       int paddingType,
+      boolean preHash,
       long mgfMd,
       int saltLen,
       byte[] message,
@@ -73,6 +74,7 @@ class EvpSignature extends EvpSignatureBase {
       long publicKey,
       long digestPtr,
       int paddingType,
+      boolean preHash,
       long mgfMd,
       int saltLen,
       byte[] message,
@@ -110,6 +112,7 @@ class EvpSignature extends EvpSignatureBase {
       long privateKey,
       long digestPtr,
       int paddingType,
+      boolean preHash,
       long mgfMd,
       int saltLen,
       byte[] message,
@@ -141,6 +144,7 @@ class EvpSignature extends EvpSignatureBase {
       long privateKey,
       long digestPtr,
       int paddingType,
+      boolean preHash,
       long mgfMd,
       int saltLen,
       ByteBuffer message);
@@ -172,6 +176,7 @@ class EvpSignature extends EvpSignatureBase {
       long publicKey,
       long digestPtr,
       int paddingType,
+      boolean preHash,
       long mgfMd,
       int saltLen,
       byte[] message,
@@ -200,7 +205,7 @@ class EvpSignature extends EvpSignatureBase {
    *     href="https://www.openssl.org/docs/man1.1.0/crypto/EVP_get_digestbyname.html">EVP_get_digestbyname</a>
    */
   private static native long verifyStartBuffer(
-      long publicKey, long digestPtr, int paddingType, long mgfMd, int saltLen, ByteBuffer message);
+      long publicKey, long digestPtr, int paddingType, boolean preHash, long mgfMd, int saltLen, ByteBuffer message);
 
   /**
    * Updates the context for signing data.
@@ -280,6 +285,7 @@ class EvpSignature extends EvpSignatureBase {
    * @param paddingType the paddingType as recognized by OpenSSL for this algorithm or {@code 0} if
    *     N/A.
    * @param digestName the long digest name as recognized by OpenSSL for this algorithm.
+   * @param preHash TODO [childw]
    * @see <a
    *     href="https://www.openssl.org/docs/man1.1.0/crypto/EVP_PKEY_CTX_set_rsa_padding.html">EVP_PKEY_CTX_ctrl</a>
    * @see <a
@@ -291,8 +297,9 @@ class EvpSignature extends EvpSignatureBase {
       AmazonCorrettoCryptoProvider provider,
       final EvpKeyType keyType,
       final int paddingType,
-      final String digestName) {
-    super(provider, keyType, paddingType, Utils.getMdPtr(digestName));
+      final String digestName,
+      final boolean preHash) {
+    super(provider, keyType, paddingType, Utils.getMdPtr(digestName), preHash);
     Loader.checkNativeLibraryAvailability();
 
     signingBuffer = getSigningBuffer();
@@ -310,6 +317,7 @@ class EvpSignature extends EvpSignatureBase {
                                 ptr,
                                 digest_,
                                 paddingType_,
+                                preHash_,
                                 pssMgfMd_,
                                 pssSaltLen_,
                                 src,
@@ -321,7 +329,7 @@ class EvpSignature extends EvpSignatureBase {
                     key_.use(
                         ptr ->
                             signStartBuffer(
-                                ptr, digest_, paddingType_, pssMgfMd_, pssSaltLen_, src))))
+                                ptr, digest_, paddingType_, preHash_, pssMgfMd_, pssSaltLen_, src))))
         .withUpdater(
             (ctx, src, offset, length) -> ctx.useVoid(ptr -> signUpdate(ptr, src, offset, length)))
         .withUpdater((ctx, src) -> ctx.useVoid(ptr -> signUpdateBuffer(ptr, src)))
@@ -334,6 +342,7 @@ class EvpSignature extends EvpSignatureBase {
                             ptr,
                             digest_,
                             paddingType_,
+                            preHash_,
                             pssMgfMd_,
                             pssSaltLen_,
                             src,
@@ -352,6 +361,7 @@ class EvpSignature extends EvpSignatureBase {
                                 ptr,
                                 digest_,
                                 paddingType_,
+                                preHash_,
                                 pssMgfMd_,
                                 pssSaltLen_,
                                 src,
@@ -363,7 +373,7 @@ class EvpSignature extends EvpSignatureBase {
                     key_.use(
                         ptr ->
                             verifyStartBuffer(
-                                ptr, digest_, paddingType_, pssMgfMd_, pssSaltLen_, src))))
+                                ptr, digest_, paddingType_, preHash_, pssMgfMd_, pssSaltLen_, src))))
         .withUpdater(
             (ctx, src, offset, length) ->
                 ctx.useVoid(ptr -> verifyUpdate(ptr, src, offset, length)))
@@ -466,6 +476,7 @@ class EvpSignature extends EvpSignatureBase {
                               ptr,
                               digest_,
                               paddingType_,
+                              preHash_,
                               pssMgfMd_,
                               pssSaltLen_,
                               src,
@@ -484,73 +495,73 @@ class EvpSignature extends EvpSignatureBase {
 
   static final class SHA1withRSA extends EvpSignature {
     SHA1withRSA(final AmazonCorrettoCryptoProvider provider) {
-      super(provider, EvpKeyType.RSA, RSA_PKCS1_PADDING, "sha1");
+      super(provider, EvpKeyType.RSA, RSA_PKCS1_PADDING, "sha1", false);
     }
   }
 
   static final class SHA224withRSA extends EvpSignature {
     SHA224withRSA(final AmazonCorrettoCryptoProvider provider) {
-      super(provider, EvpKeyType.RSA, RSA_PKCS1_PADDING, "sha224");
+      super(provider, EvpKeyType.RSA, RSA_PKCS1_PADDING, "sha224", false);
     }
   }
 
   static final class SHA256withRSA extends EvpSignature {
     SHA256withRSA(final AmazonCorrettoCryptoProvider provider) {
-      super(provider, EvpKeyType.RSA, RSA_PKCS1_PADDING, "sha256");
+      super(provider, EvpKeyType.RSA, RSA_PKCS1_PADDING, "sha256", false);
     }
   }
 
   static final class SHA384withRSA extends EvpSignature {
     SHA384withRSA(final AmazonCorrettoCryptoProvider provider) {
-      super(provider, EvpKeyType.RSA, RSA_PKCS1_PADDING, "sha384");
+      super(provider, EvpKeyType.RSA, RSA_PKCS1_PADDING, "sha384", false);
     }
   }
 
   static final class SHA512withRSA extends EvpSignature {
     SHA512withRSA(final AmazonCorrettoCryptoProvider provider) {
-      super(provider, EvpKeyType.RSA, RSA_PKCS1_PADDING, "sha512");
+      super(provider, EvpKeyType.RSA, RSA_PKCS1_PADDING, "sha512", false);
     }
   }
 
   static final class RSASSA_PSS extends EvpSignature {
     RSASSA_PSS(final AmazonCorrettoCryptoProvider provider) {
-      super(provider, EvpKeyType.RSA, RSA_PKCS1_PSS_PADDING, null);
+      super(provider, EvpKeyType.RSA, RSA_PKCS1_PSS_PADDING, null, false);
     }
   }
 
   static final class SHA1withECDSA extends EvpSignature {
     SHA1withECDSA(final AmazonCorrettoCryptoProvider provider) {
-      super(provider, EvpKeyType.EC, 0, "sha1");
+      super(provider, EvpKeyType.EC, 0, "sha1", false);
     }
   }
 
   static final class SHA224withECDSA extends EvpSignature {
     SHA224withECDSA(final AmazonCorrettoCryptoProvider provider) {
-      super(provider, EvpKeyType.EC, 0, "sha224");
+      super(provider, EvpKeyType.EC, 0, "sha224", false);
     }
   }
 
   static final class SHA256withECDSA extends EvpSignature {
     SHA256withECDSA(final AmazonCorrettoCryptoProvider provider) {
-      super(provider, EvpKeyType.EC, 0, "sha256");
+      super(provider, EvpKeyType.EC, 0, "sha256", false);
     }
   }
 
   static final class SHA384withECDSA extends EvpSignature {
     SHA384withECDSA(final AmazonCorrettoCryptoProvider provider) {
-      super(provider, EvpKeyType.EC, 0, "sha384");
+      super(provider, EvpKeyType.EC, 0, "sha384", false);
     }
   }
 
   static final class SHA512withECDSA extends EvpSignature {
     SHA512withECDSA(final AmazonCorrettoCryptoProvider provider) {
-      super(provider, EvpKeyType.EC, 0, "sha512");
+      super(provider, EvpKeyType.EC, 0, "sha512", false);
     }
   }
 
   static final class Ed25519ph extends EvpSignature {
     Ed25519ph(final AmazonCorrettoCryptoProvider provider) {
-      super(provider, EvpKeyType.EdDSA, 0, "sha512");
+      super(provider, EvpKeyType.EdDSA, 0, "sha512", true);
     }
   }
 }
