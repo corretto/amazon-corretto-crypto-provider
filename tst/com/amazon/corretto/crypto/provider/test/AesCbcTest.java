@@ -1278,4 +1278,10 @@ public class AesCbcTest {
         InvalidAlgorithmParameterException.class,
         () -> cipher.init(Cipher.ENCRYPT_MODE, key, nullParam));
   }
+
+  public void testNoPaddingException() {
+    TestUtil.assertThrows(
+        NoSuchPaddingException.class,
+        () -> Cipher.getInstance("AES/CBC/Notepad", TestUtil.NATIVE_PROVIDER));
+  }
 }
