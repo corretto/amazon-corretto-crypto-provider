@@ -14,8 +14,7 @@ plugins {
 
 group = 'software.amazon.cryptools'
 version = '2.5.0'
-// TODO [childw] update this to proper release when available
-ext.awsLcMainTag = '9921cd9694221c1107210f9c4f229b3d2f5acd9c'
+ext.awsLcMainTag = 'v1.46.0'
 ext.awsLcFipsTag = 'AWS-LC-FIPS-3.0.0'
 ext.isExperimentalFips = Boolean.getBoolean('EXPERIMENTAL_FIPS')
 ext.isFips = ext.isExperimentalFips || Boolean.getBoolean('FIPS')
