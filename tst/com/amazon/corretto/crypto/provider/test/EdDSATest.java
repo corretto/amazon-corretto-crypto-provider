@@ -435,6 +435,10 @@ public class EdDSATest {
     jceSig.update(message2, 0, message2.length);
     assertFalse(jceSig.verify(signature));
 
+    if (!ed25519phIsEnabled()) {
+      return;
+    }
+
     nativeSig = Signature.getInstance("Ed25519ph", NATIVE_PROVIDER);
     nativeSig.initSign(kp.getPrivate());
     nativeSig.update(message1, 0, message1.length);
@@ -443,11 +447,6 @@ public class EdDSATest {
     nativeSig.initVerify(kp.getPublic());
     nativeSig.update(message2, 0, message2.length);
     assertFalse(nativeSig.verify(signature));
-
-    // JCE interop requires reflection for EdDSAParameterSpec to compile on JDK <15
-    if (!ed25519phIsEnabled()) {
-      return;
-    }
 
     makeJceSignaturePh(jceSig);
 
