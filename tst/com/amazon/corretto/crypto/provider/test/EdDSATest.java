@@ -253,390 +253,6 @@ public class EdDSATest {
     testInteropValidation(jceSig, bcPrehashSig, true);
   }
 
-  @Test // https://www.rfc-editor.org/rfc/rfc8032.html#section-7.3
-  public void jceRfc8032KAT() throws Exception {
-    assumeTrue(ed25519phIsEnabled());
-    // Generate keys with ACCP and use JCE KeyFactory to get equivalent Keys
-    final Class<?> edPrivateKeyCls = Class.forName("java.security.interfaces.EdECPrivateKey");
-    final Class<?> edPPublicKeyCls = Class.forName("java.security.interfaces.EdECPublicKey");
-
-    byte[] pkcs8 = {
-      (byte) 0x30,
-      (byte) 0x2e,
-      (byte) 0x02,
-      (byte) 0x01,
-      (byte) 0x00,
-      (byte) 0x30,
-      (byte) 0x05,
-      (byte) 0x06,
-      (byte) 0x03,
-      (byte) 0x2b,
-      (byte) 0x65,
-      (byte) 0x70,
-      (byte) 0x04,
-      (byte) 0x22,
-      (byte) 0x04,
-      (byte) 0x20,
-      (byte) 0x83,
-      (byte) 0x3f,
-      (byte) 0xe6,
-      (byte) 0x24,
-      (byte) 0x09,
-      (byte) 0x23,
-      (byte) 0x7b,
-      (byte) 0x9d,
-      (byte) 0x62,
-      (byte) 0xec,
-      (byte) 0x77,
-      (byte) 0x58,
-      (byte) 0x75,
-      (byte) 0x20,
-      (byte) 0x91,
-      (byte) 0x1e,
-      (byte) 0x9a,
-      (byte) 0x75,
-      (byte) 0x9c,
-      (byte) 0xec,
-      (byte) 0x1d,
-      (byte) 0x19,
-      (byte) 0x75,
-      (byte) 0x5b,
-      (byte) 0x7d,
-      (byte) 0xa9,
-      (byte) 0x01,
-      (byte) 0xb9,
-      (byte) 0x6d,
-      (byte) 0xca,
-      (byte) 0x3d,
-      (byte) 0x42
-    };
-    byte[] x509 = {
-      (byte) 0x30,
-      (byte) 0x2a,
-      (byte) 0x30,
-      (byte) 0x05,
-      (byte) 0x06,
-      (byte) 0x03,
-      (byte) 0x2b,
-      (byte) 0x65,
-      (byte) 0x70,
-      (byte) 0x03,
-      (byte) 0x21,
-      (byte) 0x00,
-      (byte) 0xec,
-      (byte) 0x17,
-      (byte) 0x2b,
-      (byte) 0x93,
-      (byte) 0xad,
-      (byte) 0x5e,
-      (byte) 0x56,
-      (byte) 0x3b,
-      (byte) 0xf4,
-      (byte) 0x93,
-      (byte) 0x2c,
-      (byte) 0x70,
-      (byte) 0xe1,
-      (byte) 0x24,
-      (byte) 0x50,
-      (byte) 0x34,
-      (byte) 0xc3,
-      (byte) 0x54,
-      (byte) 0x67,
-      (byte) 0xef,
-      (byte) 0x2e,
-      (byte) 0xfd,
-      (byte) 0x4d,
-      (byte) 0x64,
-      (byte) 0xeb,
-      (byte) 0xf8,
-      (byte) 0x19,
-      (byte) 0x68,
-      (byte) 0x34,
-      (byte) 0x67,
-      (byte) 0xe2,
-      (byte) 0xbf
-    };
-
-    final PKCS8EncodedKeySpec privateKeyPkcs8 = new PKCS8EncodedKeySpec(pkcs8);
-    final X509EncodedKeySpec publicKeyX509 = new X509EncodedKeySpec(x509);
-    final KeyFactory kf = KeyFactory.getInstance("Ed25519", "SunEC");
-    final PrivateKey privateKey = kf.generatePrivate(privateKeyPkcs8);
-    final PublicKey publicKey = kf.generatePublic(publicKeyX509);
-
-    Signature signer = Signature.getInstance("Ed25519", "SunEC");
-    makeJceSignaturePh(signer);
-    Signature verifier = Signature.getInstance("Ed25519", "SunEC");
-    makeJceSignaturePh(verifier);
-
-    // NOTE: JDK takes _the message itself_, not a hash...
-    byte[] message = new byte[] {0x61, 0x62, 0x63};
-    signer.initSign(privateKey);
-    signer.update(message);
-    byte[] signature = signer.sign();
-    verifier.initVerify(publicKey);
-    verifier.update(message);
-    assertTrue(verifier.verify(signature), String.format("JCE->JCE: Ed25519ph"));
-
-    byte[] expected = {
-      (byte) 0x98,
-      (byte) 0xa7,
-      (byte) 0x02,
-      (byte) 0x22,
-      (byte) 0xf0,
-      (byte) 0xb8,
-      (byte) 0x12,
-      (byte) 0x1a,
-      (byte) 0xa9,
-      (byte) 0xd3,
-      (byte) 0x0f,
-      (byte) 0x81,
-      (byte) 0x3d,
-      (byte) 0x68,
-      (byte) 0x3f,
-      (byte) 0x80,
-      (byte) 0x9e,
-      (byte) 0x46,
-      (byte) 0x2b,
-      (byte) 0x46,
-      (byte) 0x9c,
-      (byte) 0x7f,
-      (byte) 0xf8,
-      (byte) 0x76,
-      (byte) 0x39,
-      (byte) 0x49,
-      (byte) 0x9b,
-      (byte) 0xb9,
-      (byte) 0x4e,
-      (byte) 0x6d,
-      (byte) 0xae,
-      (byte) 0x41,
-      (byte) 0x31,
-      (byte) 0xf8,
-      (byte) 0x50,
-      (byte) 0x42,
-      (byte) 0x46,
-      (byte) 0x3c,
-      (byte) 0x2a,
-      (byte) 0x35,
-      (byte) 0x5a,
-      (byte) 0x20,
-      (byte) 0x03,
-      (byte) 0xd0,
-      (byte) 0x62,
-      (byte) 0xad,
-      (byte) 0xf5,
-      (byte) 0xaa,
-      (byte) 0xa1,
-      (byte) 0x0b,
-      (byte) 0x8c,
-      (byte) 0x61,
-      (byte) 0xe6,
-      (byte) 0x36,
-      (byte) 0x06,
-      (byte) 0x2a,
-      (byte) 0xaa,
-      (byte) 0xd1,
-      (byte) 0x1c,
-      (byte) 0x2a,
-      (byte) 0x26,
-      (byte) 0x08,
-      (byte) 0x34,
-      (byte) 0x06
-    };
-    assertArrayEquals(expected, signature);
-  }
-
-  @Test // https://www.rfc-editor.org/rfc/rfc8032.html#section-7.3
-  public void nativeRfc8032KAT() throws Exception {
-    assumeTrue(ed25519phIsEnabled());
-    // Generate keys with ACCP and use JCE KeyFactory to get equivalent Keys
-    final Class<?> edPrivateKeyCls = Class.forName("java.security.interfaces.EdECPrivateKey");
-    final Class<?> edPPublicKeyCls = Class.forName("java.security.interfaces.EdECPublicKey");
-
-    byte[] pkcs8 = {
-      (byte) 0x30,
-      (byte) 0x2e,
-      (byte) 0x02,
-      (byte) 0x01,
-      (byte) 0x00,
-      (byte) 0x30,
-      (byte) 0x05,
-      (byte) 0x06,
-      (byte) 0x03,
-      (byte) 0x2b,
-      (byte) 0x65,
-      (byte) 0x70,
-      (byte) 0x04,
-      (byte) 0x22,
-      (byte) 0x04,
-      (byte) 0x20,
-      (byte) 0x83,
-      (byte) 0x3f,
-      (byte) 0xe6,
-      (byte) 0x24,
-      (byte) 0x09,
-      (byte) 0x23,
-      (byte) 0x7b,
-      (byte) 0x9d,
-      (byte) 0x62,
-      (byte) 0xec,
-      (byte) 0x77,
-      (byte) 0x58,
-      (byte) 0x75,
-      (byte) 0x20,
-      (byte) 0x91,
-      (byte) 0x1e,
-      (byte) 0x9a,
-      (byte) 0x75,
-      (byte) 0x9c,
-      (byte) 0xec,
-      (byte) 0x1d,
-      (byte) 0x19,
-      (byte) 0x75,
-      (byte) 0x5b,
-      (byte) 0x7d,
-      (byte) 0xa9,
-      (byte) 0x01,
-      (byte) 0xb9,
-      (byte) 0x6d,
-      (byte) 0xca,
-      (byte) 0x3d,
-      (byte) 0x42
-    };
-    byte[] x509 = {
-      (byte) 0x30,
-      (byte) 0x2a,
-      (byte) 0x30,
-      (byte) 0x05,
-      (byte) 0x06,
-      (byte) 0x03,
-      (byte) 0x2b,
-      (byte) 0x65,
-      (byte) 0x70,
-      (byte) 0x03,
-      (byte) 0x21,
-      (byte) 0x00,
-      (byte) 0xec,
-      (byte) 0x17,
-      (byte) 0x2b,
-      (byte) 0x93,
-      (byte) 0xad,
-      (byte) 0x5e,
-      (byte) 0x56,
-      (byte) 0x3b,
-      (byte) 0xf4,
-      (byte) 0x93,
-      (byte) 0x2c,
-      (byte) 0x70,
-      (byte) 0xe1,
-      (byte) 0x24,
-      (byte) 0x50,
-      (byte) 0x34,
-      (byte) 0xc3,
-      (byte) 0x54,
-      (byte) 0x67,
-      (byte) 0xef,
-      (byte) 0x2e,
-      (byte) 0xfd,
-      (byte) 0x4d,
-      (byte) 0x64,
-      (byte) 0xeb,
-      (byte) 0xf8,
-      (byte) 0x19,
-      (byte) 0x68,
-      (byte) 0x34,
-      (byte) 0x67,
-      (byte) 0xe2,
-      (byte) 0xbf
-    };
-
-    final PKCS8EncodedKeySpec privateKeyPkcs8 = new PKCS8EncodedKeySpec(pkcs8);
-    final X509EncodedKeySpec publicKeyX509 = new X509EncodedKeySpec(x509);
-    final KeyFactory kf = KeyFactory.getInstance("Ed25519");
-    final PrivateKey privateKey = kf.generatePrivate(privateKeyPkcs8);
-    final PublicKey publicKey = kf.generatePublic(publicKeyX509);
-
-    Signature signer = Signature.getInstance("Ed25519ph", NATIVE_PROVIDER);
-    Signature verifier = Signature.getInstance("Ed25519ph", NATIVE_PROVIDER);
-
-    // NOTE: ACCP takes a _hash of the message_ (for now), not the message itself...
-    byte[] message = new byte[] {0x61, 0x62, 0x63};
-    signer.initSign(privateKey);
-    signer.update(message);
-    byte[] signature = signer.sign();
-    verifier.initVerify(publicKey);
-    verifier.update(message);
-    assertTrue(verifier.verify(signature), String.format("ACCP->ACCP: Ed25519ph"));
-
-    byte[] expected = {
-      (byte) 0x98,
-      (byte) 0xa7,
-      (byte) 0x02,
-      (byte) 0x22,
-      (byte) 0xf0,
-      (byte) 0xb8,
-      (byte) 0x12,
-      (byte) 0x1a,
-      (byte) 0xa9,
-      (byte) 0xd3,
-      (byte) 0x0f,
-      (byte) 0x81,
-      (byte) 0x3d,
-      (byte) 0x68,
-      (byte) 0x3f,
-      (byte) 0x80,
-      (byte) 0x9e,
-      (byte) 0x46,
-      (byte) 0x2b,
-      (byte) 0x46,
-      (byte) 0x9c,
-      (byte) 0x7f,
-      (byte) 0xf8,
-      (byte) 0x76,
-      (byte) 0x39,
-      (byte) 0x49,
-      (byte) 0x9b,
-      (byte) 0xb9,
-      (byte) 0x4e,
-      (byte) 0x6d,
-      (byte) 0xae,
-      (byte) 0x41,
-      (byte) 0x31,
-      (byte) 0xf8,
-      (byte) 0x50,
-      (byte) 0x42,
-      (byte) 0x46,
-      (byte) 0x3c,
-      (byte) 0x2a,
-      (byte) 0x35,
-      (byte) 0x5a,
-      (byte) 0x20,
-      (byte) 0x03,
-      (byte) 0xd0,
-      (byte) 0x62,
-      (byte) 0xad,
-      (byte) 0xf5,
-      (byte) 0xaa,
-      (byte) 0xa1,
-      (byte) 0x0b,
-      (byte) 0x8c,
-      (byte) 0x61,
-      (byte) 0xe6,
-      (byte) 0x36,
-      (byte) 0x06,
-      (byte) 0x2a,
-      (byte) 0xaa,
-      (byte) 0xd1,
-      (byte) 0x1c,
-      (byte) 0x2a,
-      (byte) 0x26,
-      (byte) 0x08,
-      (byte) 0x34,
-      (byte) 0x06
-    };
-    assertArrayEquals(expected, signature);
-  }
-
   public void testInteropValidation(Signature signer, Signature verifier, boolean preHash)
       throws GeneralSecurityException {
     final String signerStr = signer.getProvider() == null ? "BC" : signer.getProvider().getName();
@@ -677,6 +293,36 @@ public class EdDSATest {
       // Ed25519(ph) is deterministic, so signatures should be equal
       assertArrayEquals(signature1, signature2);
     }
+  }
+
+  @Test // https://www.rfc-editor.org/rfc/rfc8032.html#section-7.3
+  public void rfc8032KAT() throws Exception {
+    assumeTrue(ed25519phIsEnabled());
+    byte[] pkcs8 =
+        TestUtil.decodeHex(
+            "302e020100300506032b657004220420833fe62409237b9d62ec77587520911e9a759cec1d19755b7da901b96dca3d42");
+    byte[] x509 =
+        TestUtil.decodeHex(
+            "302a300506032b6570032100ec172b93ad5e563bf4932c70e1245034c35467ef2efd4d64ebf819683467e2bf");
+    byte[] message = TestUtil.decodeHex("616263");
+    byte[] expected =
+        TestUtil.decodeHex(
+            "98a70222f0b8121aa9d30f813d683f809e462b469c7ff87639499bb94e6dae4131f85042463c2a355a2003d062adf5aaa10b8c61e636062aaad11c2a26083406");
+
+    final KeyFactory kf = KeyFactory.getInstance("Ed25519");
+    final PrivateKey privateKey = kf.generatePrivate(new PKCS8EncodedKeySpec(pkcs8));
+    final PublicKey publicKey = kf.generatePublic(new X509EncodedKeySpec(x509));
+
+    Signature signer = Signature.getInstance("Ed25519ph", NATIVE_PROVIDER);
+    Signature verifier = Signature.getInstance("Ed25519ph", NATIVE_PROVIDER);
+
+    signer.initSign(privateKey);
+    signer.update(message);
+    byte[] signature = signer.sign();
+    verifier.initVerify(publicKey);
+    verifier.update(message);
+    assertTrue(verifier.verify(signature), String.format("ACCP->ACCP: Ed25519ph"));
+    assertArrayEquals(expected, signature);
   }
 
   @Test

@@ -79,12 +79,11 @@ bool initializeContext(raii_env& env,
 
 #if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
         if (preHash && EVP_PKEY_id(pKey) == EVP_PKEY_ED25519) {
-            // ED25519 and ED25519PH (pre-hash) have different NIDs, but share an
-            // OID, so we treat them as a common EvpKeyType in the java layer. If
-            // requested |preHash|, we need to replace |ctx|'s EVP_PKEY* with a
-            // ED25519PH (pre-hash) newly constructed from the current key's key
-            // material. This only TODO [childw]
-            if (signMode)  {
+            // ED25519 and ED25519PH (pre-hash) have different NIDs, but share an OID, so we treat them as a common
+            // EvpKeyType in the java layer. So, if an EVP_PKEY_ED25519 pkey is initialized as |preHash|, we need to
+            // replace |ctx|'s EVP_PKEY* with an EVP_PKEY_ED25519PH (pre-hash) pkey newly constructed from the current
+            // key's key material.
+            if (signMode) {
                 size_t raw_len;
                 CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(ctx->getKey(), nullptr, &raw_len));
                 std::vector<uint8_t> raw_bytes(raw_len);
@@ -211,8 +210,15 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_si
     }
 }
 
-JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_signStartBuffer(
-    JNIEnv* pEnv, jclass, jlong pKey, jlong mdPtr, jint paddingType, jboolean preHash, jlong mgfMdPtr, jint pssSaltLen, jobject message)
+JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_signStartBuffer(JNIEnv* pEnv,
+    jclass,
+    jlong pKey,
+    jlong mdPtr,
+    jint paddingType,
+    jboolean preHash,
+    jlong mgfMdPtr,
+    jint pssSaltLen,
+    jobject message)
 {
     try {
         raii_env env(pEnv);
@@ -262,8 +268,15 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_ve
     }
 }
 
-JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_verifyStartBuffer(
-    JNIEnv* pEnv, jclass, jlong pKey, jlong mdPtr, jint paddingType, jboolean preHash, jlong mgfMdPtr, jint pssSaltLen, jobject message)
+JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature_verifyStartBuffer(JNIEnv* pEnv,
+    jclass,
+    jlong pKey,
+    jlong mdPtr,
+    jint paddingType,
+    jboolean preHash,
+    jlong mgfMdPtr,
+    jint pssSaltLen,
+    jobject message)
 {
     try {
         raii_env env(pEnv);
@@ -326,7 +339,6 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatu
 {
     jlong ctx = Java_com_amazon_corretto_crypto_provider_EvpSignature_signStart(
         pEnv, clazz, pKey, mdPtr, paddingType, preHash, mgfMdPtr, pssSaltLen, message, offset, length);
-
 
     if (unlikely(pEnv->ExceptionCheck())) {
         return NULL;

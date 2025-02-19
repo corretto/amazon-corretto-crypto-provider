@@ -16,6 +16,7 @@ class EvpSignature extends EvpSignatureBase {
    * @param digestPtr the value from {@link Utils#getEvpMdFromName(String)} representing the digest
    *     to use with this signature
    * @param paddingType the integer defined by OpenSSL as the padding type to be used.
+   * @param preHash whether the signature is a modern "pre-hash" variant
    * @param mgfMd the value from {@link Utils#getEvpMdFromName(String)} used by the Mask Generation
    *     Function (MGF). This parameter is only necessary for RSA-PSS signatures.
    * @param saltLen the length of the salt in bytes. This parameter is only necessary for RSA-PSS
@@ -51,6 +52,7 @@ class EvpSignature extends EvpSignatureBase {
    * @param digestPtr the value from {@link Utils#getEvpMdFromName(String)} representing the digest
    *     to use with this signature
    * @param paddingType the integer defined by OpenSSL as the padding type to be used.
+   * @param preHash whether the signature is a modern "pre-hash" variant
    * @param mgfMd the value from {@link Utils#getEvpMdFromName(String)} used by the Mask Generation
    *     Function (MGF). This parameter is only necessary for RSA-PSS signatures.
    * @param saltLen the length of the salt in bytes. This parameter is only necessary for RSA-PSS
@@ -92,6 +94,7 @@ class EvpSignature extends EvpSignatureBase {
    * @param digestPtr the value from {@link Utils#getEvpMdFromName(String)} representing the digest
    *     to use with this signature
    * @param paddingType the integer defined by OpenSSL as the padding type to be used.
+   * @param preHash whether the signature is a modern "pre-hash" variant
    * @param mgfMd the value from {@link Utils#getEvpMdFromName(String)} used by the Mask Generation
    *     Function (MGF). This parameter is only necessary for RSA-PSS signatures.
    * @param saltLen the length of the salt in bytes. This parameter is only necessary for RSA-PSS
@@ -126,6 +129,7 @@ class EvpSignature extends EvpSignatureBase {
    * @param digestPtr the value from {@link Utils#getEvpMdFromName(String)} representing the digest
    *     to use with this signature
    * @param paddingType the integer defined by OpenSSL as the padding type to be used.
+   * @param preHash whether the signature is a modern "pre-hash" variant
    * @param mgfMd the value from {@link Utils#getEvpMdFromName(String)} used by the Mask Generation
    *     Function (MGF). This parameter is only necessary for RSA-PSS signatures.
    * @param saltLen the length of the salt in bytes. This parameter is only necessary for RSA-PSS
@@ -156,6 +160,7 @@ class EvpSignature extends EvpSignatureBase {
    * @param digestPtr the value from {@link Utils#getEvpMdFromName(String)} representing the digest
    *     to use with this signature
    * @param paddingType the integer defined by OpenSSL as the padding type to be used.
+   * @param preHash whether the signature is a modern "pre-hash" variant
    * @param mgfMd the value from {@link Utils#getEvpMdFromName(String)} used by the Mask Generation
    *     Function (MGF). This parameter is only necessary for RSA-PSS signatures.
    * @param saltLen the length of the salt in bytes. This parameter is only necessary for RSA-PSS
@@ -190,6 +195,7 @@ class EvpSignature extends EvpSignatureBase {
    * @param digestPtr the value from {@link Utils#getEvpMdFromName(String)} representing the digest
    *     to use with this signature
    * @param paddingType the integer defined by OpenSSL as the padding type to be used.
+   * @param preHash whether the signature is a modern "pre-hash" variant
    * @param mgfMd the value from {@link Utils#getEvpMdFromName(String)} used by the Mask Generation
    *     Function (MGF). This parameter is only necessary for RSA-PSS signatures.
    * @param saltLen the length of the salt in bytes. This parameter is only necessary for RSA-PSS
@@ -205,7 +211,13 @@ class EvpSignature extends EvpSignatureBase {
    *     href="https://www.openssl.org/docs/man1.1.0/crypto/EVP_get_digestbyname.html">EVP_get_digestbyname</a>
    */
   private static native long verifyStartBuffer(
-      long publicKey, long digestPtr, int paddingType, boolean preHash, long mgfMd, int saltLen, ByteBuffer message);
+      long publicKey,
+      long digestPtr,
+      int paddingType,
+      boolean preHash,
+      long mgfMd,
+      int saltLen,
+      ByteBuffer message);
 
   /**
    * Updates the context for signing data.
@@ -285,7 +297,7 @@ class EvpSignature extends EvpSignatureBase {
    * @param paddingType the paddingType as recognized by OpenSSL for this algorithm or {@code 0} if
    *     N/A.
    * @param digestName the long digest name as recognized by OpenSSL for this algorithm.
-   * @param preHash TODO [childw]
+   * @param preHash whether the signature is a modern "pre-hash" variant
    * @see <a
    *     href="https://www.openssl.org/docs/man1.1.0/crypto/EVP_PKEY_CTX_set_rsa_padding.html">EVP_PKEY_CTX_ctrl</a>
    * @see <a
@@ -329,7 +341,13 @@ class EvpSignature extends EvpSignatureBase {
                     key_.use(
                         ptr ->
                             signStartBuffer(
-                                ptr, digest_, paddingType_, preHash_, pssMgfMd_, pssSaltLen_, src))))
+                                ptr,
+                                digest_,
+                                paddingType_,
+                                preHash_,
+                                pssMgfMd_,
+                                pssSaltLen_,
+                                src))))
         .withUpdater(
             (ctx, src, offset, length) -> ctx.useVoid(ptr -> signUpdate(ptr, src, offset, length)))
         .withUpdater((ctx, src) -> ctx.useVoid(ptr -> signUpdateBuffer(ptr, src)))
@@ -373,7 +391,13 @@ class EvpSignature extends EvpSignatureBase {
                     key_.use(
                         ptr ->
                             verifyStartBuffer(
-                                ptr, digest_, paddingType_, preHash_, pssMgfMd_, pssSaltLen_, src))))
+                                ptr,
+                                digest_,
+                                paddingType_,
+                                preHash_,
+                                pssMgfMd_,
+                                pssSaltLen_,
+                                src))))
         .withUpdater(
             (ctx, src, offset, length) ->
                 ctx.useVoid(ptr -> verifyUpdate(ptr, src, offset, length)))
