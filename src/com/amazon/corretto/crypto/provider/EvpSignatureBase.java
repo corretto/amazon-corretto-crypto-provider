@@ -31,6 +31,7 @@ abstract class EvpSignatureBase extends SignatureSpi {
   protected final AmazonCorrettoCryptoProvider provider_;
   protected final EvpKeyType keyType_;
   protected int paddingType_;
+  protected final boolean preHash_;
   protected Key untranslatedKey_ = null;
   protected EvpKey key_ = null;
   protected boolean signMode;
@@ -48,7 +49,8 @@ abstract class EvpSignatureBase extends SignatureSpi {
       final AmazonCorrettoCryptoProvider provider,
       final EvpKeyType keyType,
       final int paddingType,
-      final long digest) {
+      final long digest,
+      final boolean preHash) {
     provider_ = provider;
     keyType_ = keyType;
     paddingType_ = paddingType;
@@ -60,6 +62,7 @@ abstract class EvpSignatureBase extends SignatureSpi {
       // Overwrite the 0 set by internalSetParameters
       digest_ = digest;
     }
+    preHash_ = preHash;
   }
 
   /**
