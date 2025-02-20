@@ -55,7 +55,8 @@ public class EdDSATest {
     return !NATIVE_PROVIDER.isFips() || NATIVE_PROVIDER.isExperimentalFips();
   }
 
-  // This test fixture wraps BouncyCastle's lower-loevel API to provide a JCA Signature impl for interop testing
+  // This test fixture wraps BouncyCastle's lower-loevel API to provide a JCA Signature impl for
+  // interop testing
   private final Signature bcPrehashSig =
       new Signature("Ed25519ph") {
         private final Ed25519phSigner signer = new Ed25519phSigner(new byte[] {});
@@ -257,8 +258,7 @@ public class EdDSATest {
   public void testInteropValidation(Signature one, Signature two, boolean preHash)
       throws GeneralSecurityException {
     final String oneStr = one.getProvider() == null ? "BC" : one.getProvider().getName();
-    final String twoStr =
-        two.getProvider() == null ? "BC" : two.getProvider().getName();
+    final String twoStr = two.getProvider() == null ? "BC" : two.getProvider().getName();
     // We're agnostic to key provider as demonstrated in other tests
     final KeyPair keyPair = nativeGen.generateKeyPair();
 
