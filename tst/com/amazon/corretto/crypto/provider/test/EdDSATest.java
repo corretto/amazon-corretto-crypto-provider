@@ -55,7 +55,8 @@ public class EdDSATest {
     return !NATIVE_PROVIDER.isFips() || NATIVE_PROVIDER.isExperimentalFips();
   }
 
-  private Signature bcPrehashSig =
+  // This test fixture wraps BouncyCastle's lower-loevel API to provide a JCA Signature impl for interop testing
+  private final Signature bcPrehashSig =
       new Signature("Ed25519ph") {
         private final Ed25519phSigner signer = new Ed25519phSigner(new byte[] {});
 
@@ -253,11 +254,11 @@ public class EdDSATest {
     testInteropValidation(jceSig, bcPrehashSig, true);
   }
 
-  public void testInteropValidation(Signature signer, Signature verifier, boolean preHash)
+  public void testInteropValidation(Signature one, Signature two, boolean preHash)
       throws GeneralSecurityException {
-    final String signerStr = signer.getProvider() == null ? "BC" : signer.getProvider().getName();
-    final String verifierStr =
-        verifier.getProvider() == null ? "BC" : verifier.getProvider().getName();
+    final String oneStr = one.getProvider() == null ? "BC" : one.getProvider().getName();
+    final String twoStr =
+        two.getProvider() == null ? "BC" : two.getProvider().getName();
     // We're agnostic to key provider as demonstrated in other tests
     final KeyPair keyPair = nativeGen.generateKeyPair();
 
@@ -270,25 +271,25 @@ public class EdDSATest {
       message = new byte[messageLength];
       random.nextBytes(message);
 
-      // Sign with signer, Verify with verifier
-      signer.initSign(privateKey);
-      signer.update(message);
-      signature1 = signer.sign();
-      verifier.initVerify(publicKey);
-      verifier.update(message);
+      // Sign with one, Verify with two
+      one.initSign(privateKey);
+      one.update(message);
+      signature1 = one.sign();
+      two.initVerify(publicKey);
+      two.update(message);
       assertTrue(
-          verifier.verify(signature1),
-          String.format("%s->%s: Ed25519%s", signerStr, verifierStr, preHash ? "ph" : ""));
+          two.verify(signature1),
+          String.format("%s->%s: Ed25519%s", oneStr, twoStr, preHash ? "ph" : ""));
 
-      // Sign with verifier, Verify with signer
-      verifier.initSign(privateKey);
-      verifier.update(message);
-      signature2 = verifier.sign();
-      signer.initVerify(publicKey);
-      signer.update(message);
+      // Sign with two, Verify with one
+      two.initSign(privateKey);
+      two.update(message);
+      signature2 = two.sign();
+      one.initVerify(publicKey);
+      one.update(message);
       assertTrue(
-          signer.verify(signature2),
-          String.format("%s->%s: Ed25519%s", verifierStr, signerStr, preHash ? "ph" : ""));
+          one.verify(signature2),
+          String.format("%s->%s: Ed25519%s", twoStr, oneStr, preHash ? "ph" : ""));
 
       // Ed25519(ph) is deterministic, so signatures should be equal
       assertArrayEquals(signature1, signature2);
