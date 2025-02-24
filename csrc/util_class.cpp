@@ -83,4 +83,20 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_Utils_getDigestL
 {
     return EVP_MD_size(reinterpret_cast<const EVP_MD*>(evpMd));
 }
+
+JNIEXPORT jbyteArray Java_com_amazon_corretto_crypto_provider_PublicUtils_expandMLDSAKeyInternal(
+    JNIEnv* pEnv, jclass, jbyteArray keyBytes)
+{
+    try {
+        raii_env env(pEnv);
+        // TODO [childw]
+        // 0. do we have a performance optimization here detecting if the key is already expanded and return early?
+        // 1. parse key, this should work for all ML-DSA keys (seed and expanded)
+        // 2. serialize the key with regular EVP_marshal_private_key
+        return NULL;
+    } catch (java_ex& ex) {
+        ex.throw_to_java(pEnv);
+        return 0;
+    }
+}
 }
