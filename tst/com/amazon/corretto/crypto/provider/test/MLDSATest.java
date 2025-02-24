@@ -202,7 +202,8 @@ public class MLDSATest {
 
   @Test
   public void documentBouncyCastleDifferences() throws Exception {
-    // ACCP and BouncyCastle both encode ML-DSA public keys in expanded form and ML-DSA private keys
+    // ACCP and BouncyCastle both encode ML-DSA public keys in "expanded "form and ML-DSA private
+    // keys
     // in "seed" form
     KeyFactory bcKf = KeyFactory.getInstance("ML-DSA", TestUtil.BC_PROVIDER);
     KeyPair nativePair =
@@ -229,6 +230,8 @@ public class MLDSATest {
     bcPriv = bcKf.generatePrivate(new PKCS8EncodedKeySpec(nativePriv.getEncoded()));
     TestUtil.assertArraysHexEquals(bcPub.getEncoded(), nativePub.getEncoded());
     TestUtil.assertArraysHexEquals(bcPriv.getEncoded(), nativePriv.getEncoded());
+
+    // TODO [childw] test keys that have been decoded from expanded form
 
     // BouncyCastle Signatures don't accept keys from other providers
     Signature bcSignature = Signature.getInstance("ML-DSA", TestUtil.BC_PROVIDER);
