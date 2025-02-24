@@ -204,13 +204,21 @@ task buildAwsLc {
         }
 
         if (!isLegacyBuild) {
+            // TODO [childw] revert below when @jakemas's PR 2194 change is released
             exec {
                 workingDir awslcSrcPath
                 commandLine "git", "fetch", "--tags"
+                commandLine "git", "remote", "add", "jakemas", "https://github.com/jakemas/aws-lc"
+                ignoreExitValue true
             }
             exec {
                 workingDir awslcSrcPath
                 commandLine "git", "checkout", awsLcGitVersionId
+                commandLine "git", "fetch", "jakemas"
+            }
+            exec {
+                workingDir awslcSrcPath
+                commandLine "git", "checkout", "ml-dsa-seeds"
             }
         }
         mkdir "${buildDir}/awslc"
