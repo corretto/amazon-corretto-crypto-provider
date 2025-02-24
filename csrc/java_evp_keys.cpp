@@ -681,27 +681,26 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpMlDsaPr
         raii_env env(pEnv);
 
         EVP_PKEY* key = reinterpret_cast<EVP_PKEY*>(keyHandle);
+        CHECK_OPENSSL(EVP_PKEY_id(key) == EVP_PKEY_PQDSA);
         int derLen = 0;
         uint8_t* der;
-        //        OPENSSL_buffer_auto der;
 
         // For ML-DSA, first try to serialize in "seed" form, fall back to "expanded"
         CBB cbb;
         CHECK_OPENSSL(CBB_init(&cbb, 0));
         // Failure below indicates that we don't have the seed, so pass through to |EVP_PKEY2PKCS8|
         if (!EVP_marshal_private_key_v2(&cbb, key)) {
-            CBB_cleanup(&cbb);
-            // TODO [childw] just call Java_com_amazon_corretto_crypto_provider_EvpRsaPrivateKey_encodeRsaPrivateKey ?
             PKCS8_PRIV_KEY_INFO_auto pkcs8 = PKCS8_PRIV_KEY_INFO_auto::from(EVP_PKEY2PKCS8(key));
             CHECK_OPENSSL(pkcs8.isInitialized());
             derLen = i2d_PKCS8_PRIV_KEY_INFO(pkcs8, &der);
         } else {
-            derLen = 52;
+            derLen = CBB_len(&cbb);
             der = (uint8_t*)OPENSSL_malloc(derLen);
-            const uint8_t* tmp = CBB_data(&cbb);
-            memcpy(der, tmp, derLen);
-            OPENSSL_free((void*)tmp);
+            // |cbb| has allocated its own memory outside of |env|, so copy its contents  over before
+            // freeing |cbb|'s buffer with |CBB_cleanup|.
+            memcpy(der, CBB_data(&cbb), derLen);
         }
+        CBB_cleanup(&cbb);
 
         CHECK_OPENSSL(derLen > 0);
         if (!(result = env->NewByteArray(derLen))) {
