@@ -666,3 +666,54 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpRsaPriv
 
     return result;
 }
+
+/*
+ * Class:     com_amazon_corretto_crypto_provider_EvpRsaPrivateKey
+ * Method:    encodeRsaPrivateKey
+ * Signature: (J)[B
+ */
+JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpMlDsaPrivateKey_encodeMlDsaPrivateKey(
+    JNIEnv* pEnv, jclass, jlong keyHandle)
+{
+    jbyteArray result = NULL;
+
+    try {
+        raii_env env(pEnv);
+
+        EVP_PKEY* key = reinterpret_cast<EVP_PKEY*>(keyHandle);
+        int derLen = 0;
+        uint8_t* der;
+        //        OPENSSL_buffer_auto der;
+
+        // For ML-DSA, first try to serialize in "seed" form, fall back to "expanded"
+        CBB cbb;
+        CHECK_OPENSSL(CBB_init(&cbb, 0));
+        // Failure below indicates that we don't have the seed, so pass through to |EVP_PKEY2PKCS8|
+        if (!EVP_marshal_private_key_v2(&cbb, key)) {
+            CBB_cleanup(&cbb);
+            // TODO [childw] just call Java_com_amazon_corretto_crypto_provider_EvpRsaPrivateKey_encodeRsaPrivateKey ?
+            PKCS8_PRIV_KEY_INFO_auto pkcs8 = PKCS8_PRIV_KEY_INFO_auto::from(EVP_PKEY2PKCS8(key));
+            CHECK_OPENSSL(pkcs8.isInitialized());
+            derLen = i2d_PKCS8_PRIV_KEY_INFO(pkcs8, &der);
+        } else {
+            derLen = 52;
+            der = (uint8_t*)OPENSSL_malloc(derLen);
+            const uint8_t* tmp = CBB_data(&cbb);
+            memcpy(der, tmp, derLen);
+            OPENSSL_free((void*)tmp);
+        }
+
+        CHECK_OPENSSL(derLen > 0);
+        if (!(result = env->NewByteArray(derLen))) {
+            OPENSSL_free(der);
+            throw_java_ex(EX_OOM, "Unable to allocate DER array");
+        }
+        // This may throw, if it does we'll just keep the exception state as we return.
+        env->SetByteArrayRegion(result, 0, derLen, (const jbyte*)der);
+        OPENSSL_free(der);
+    } catch (java_ex& ex) {
+        ex.throw_to_java(pEnv);
+    }
+
+    return result;
+}
