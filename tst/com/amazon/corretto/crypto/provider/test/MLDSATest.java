@@ -242,9 +242,6 @@ public class MLDSATest {
     byte[] sigBytes = nativeSignature.sign();
     nativeSignature.initVerify(bcPub);
     assertTrue(nativeSignature.verify(sigBytes));
-
-    // TODO [childw] test with seed-less key. parse BC FIPS or round-trip through
-    // PublicUtils.expandMLDSAKey()
   }
 
   @ParameterizedTest

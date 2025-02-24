@@ -682,28 +682,22 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpMlDsaPr
 
         EVP_PKEY* key = reinterpret_cast<EVP_PKEY*>(keyHandle);
         CHECK_OPENSSL(EVP_PKEY_id(key) == EVP_PKEY_PQDSA);
-        int derLen = 0;
-        uint8_t* der;
 
         // For ML-DSA, first try to serialize in "seed" form, fall back to "expanded"
         CBB cbb;
         CHECK_OPENSSL(CBB_init(&cbb, 0));
-        // TODO [childw] how much of the special logic can we remove?
-        // Failure below indicates that we don't have the seed, so pass through to |EVP_PKEY2PKCS8|
+        // Failure below may just indicate that we don't have the seed, so retry with |EVP_marshal_private_key|.
         if (!EVP_marshal_private_key_v2(&cbb, key)) {
-            PKCS8_PRIV_KEY_INFO_auto pkcs8 = PKCS8_PRIV_KEY_INFO_auto::from(EVP_PKEY2PKCS8(key));
-            CHECK_OPENSSL(pkcs8.isInitialized());
-            derLen = i2d_PKCS8_PRIV_KEY_INFO(pkcs8, &der);
-        } else {
-            derLen = CBB_len(&cbb);
-            der = (uint8_t*)OPENSSL_malloc(derLen);
-            // |cbb| has allocated its own memory outside of |env|, so copy its contents  over before
-            // freeing |cbb|'s buffer with |CBB_cleanup|.
-            memcpy(der, CBB_data(&cbb), derLen);
+            CHECK_OPENSSL(EVP_marshal_private_key(&cbb, key));
         }
+        int derLen = CBB_len(&cbb);
+        CHECK_OPENSSL(derLen > 0);
+        uint8_t* der = (uint8_t*)OPENSSL_malloc(derLen);
+        // |cbb| has allocated its own memory outside of |env|, so copy its contents  over before
+        // freeing |cbb|'s buffer with |CBB_cleanup|.
+        memcpy(der, CBB_data(&cbb), derLen);
         CBB_cleanup(&cbb);
 
-        CHECK_OPENSSL(derLen > 0);
         if (!(result = env->NewByteArray(derLen))) {
             OPENSSL_free(der);
             throw_java_ex(EX_OOM, "Unable to allocate DER array");

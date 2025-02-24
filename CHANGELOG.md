@@ -13,6 +13,7 @@
 * [PR 426:](https://github.com/corretto/amazon-corretto-crypto-provider/pull/426) Add null check to AesCbcSpi
 * [PR 427:](https://github.com/corretto/amazon-corretto-crypto-provider/pull/427) Add provider info string
 * [PR 432:](https://github.com/corretto/amazon-corretto-crypto-provider/pull/432) Support Ed25519ph, bump AWS-LC to v1.46.0yy
+* [PR 434:](https://github.com/corretto/amazon-corretto-crypto-provider/pull/434) Encode ML-DSA priv key as seed, expose MlDsaUtils
 
 ## 2.4.1
 
