@@ -245,20 +245,6 @@ public class MLDSATest {
 
     // TODO [childw] test with seed-less key. parse BC FIPS or round-trip through
     // PublicUtils.expandMLDSAKey()
-
-    // TODO [childw] move this to PublicUtilsTest
-    // Expanded private key sizes https://openquantumsafe.org/liboqs/algorithms/sig/ml-dsa.html
-    nativePair = KeyPairGenerator.getInstance("ML-DSA-44", NATIVE_PROVIDER).generateKeyPair();
-    byte[] expanded = PublicUtils.expandMLDSAKey(nativePair.getPrivate());
-    assertEquals(2584, expanded.length);
-
-    nativePair = KeyPairGenerator.getInstance("ML-DSA-65", NATIVE_PROVIDER).generateKeyPair();
-    expanded = PublicUtils.expandMLDSAKey(nativePair.getPrivate());
-    assertEquals(4056, expanded.length);
-
-    nativePair = KeyPairGenerator.getInstance("ML-DSA-87", NATIVE_PROVIDER).generateKeyPair();
-    expanded = PublicUtils.expandMLDSAKey(nativePair.getPrivate());
-    assertEquals(4920, expanded.length);
   }
 
   @ParameterizedTest
@@ -275,7 +261,7 @@ public class MLDSATest {
     PublicKey pub = params.pub;
 
     byte[] message = Arrays.copyOf(params.message, params.message.length);
-    byte[] mu = TestUtil.computeMLDSAMu(pub, message);
+    byte[] mu = PublicUtils.computeMLDSAMu(pub, message);
     assertEquals(64, mu.length);
     byte[] fakeMu = new byte[64];
     Arrays.fill(fakeMu, (byte) 0);
@@ -320,23 +306,5 @@ public class MLDSATest {
     extMuVerifier.initVerify(pub);
     extMuVerifier.update(mu);
     assertFalse(extMuVerifier.verify(signatureBytes));
-  }
-
-  @ParameterizedTest
-  @ValueSource(strings = {"ML-DSA-44", "ML-DSA-65", "ML-DSA-87"})
-  public void testComputeMLDSAExtMu(String algorithm) throws Exception {
-    KeyPair keyPair = KeyPairGenerator.getInstance(algorithm, NATIVE_PROVIDER).generateKeyPair();
-    PublicKey nativePub = keyPair.getPublic();
-    KeyFactory bcKf = KeyFactory.getInstance("ML-DSA", TestUtil.BC_PROVIDER);
-    PublicKey bcPub = bcKf.generatePublic(new X509EncodedKeySpec(nativePub.getEncoded()));
-
-    byte[] message = new byte[256];
-    Arrays.fill(message, (byte) 0x41);
-    byte[] mu = TestUtil.computeMLDSAMu(nativePub, message);
-    assertEquals(64, mu.length);
-    // We don't have any other implementations of mu calculation to test against, so just assert
-    // that mu is equivalent
-    // generated from both ACCP and BouncyCastle keys.
-    assertArrayEquals(mu, TestUtil.computeMLDSAMu(bcPub, message));
   }
 }
