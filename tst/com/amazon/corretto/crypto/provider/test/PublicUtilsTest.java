@@ -59,11 +59,12 @@ public class PublicUtilsTest {
   }
 
   @Test
+  @DisabledIf("mlDsaDisabled")
   public void testExpandMLDSAKey() throws Exception {
     KeyFactory kf = KeyFactory.getInstance("ML-DSA", TestUtil.NATIVE_PROVIDER);
 
-    // Parsing expanded keys discards the seed, so after expansion we're no longer dealing
-    // with the seed. THere's ~24B of PKCS8 overhead for each key. Raw private key sizes below.
+    // Parsing expanded keys discards the seed, so after expansion we're no longer dealing with
+    // the seed. There are 24 bytes of PKCS8 overhead for each key. Raw private key sizes below.
     // https://openquantumsafe.org/liboqs/algorithms/sig/ml-dsa.html
     KeyPair nativePair =
         KeyPairGenerator.getInstance("ML-DSA-44", NATIVE_PROVIDER).generateKeyPair();
