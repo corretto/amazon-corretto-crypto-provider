@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
+import com.amazon.corretto.crypto.provider.PublicUtils;
 import java.security.InvalidKeyException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
@@ -203,8 +204,7 @@ public class MLDSATest {
   @Test
   public void documentBouncyCastleDifferences() throws Exception {
     // ACCP and BouncyCastle both encode ML-DSA public keys in "expanded "form and ML-DSA private
-    // keys
-    // in "seed" form
+    // keys in "seed" form.
     KeyFactory bcKf = KeyFactory.getInstance("ML-DSA", TestUtil.BC_PROVIDER);
     KeyPair nativePair =
         KeyPairGenerator.getInstance("ML-DSA-44", NATIVE_PROVIDER).generateKeyPair();
@@ -231,8 +231,6 @@ public class MLDSATest {
     TestUtil.assertArraysHexEquals(bcPub.getEncoded(), nativePub.getEncoded());
     TestUtil.assertArraysHexEquals(bcPriv.getEncoded(), nativePriv.getEncoded());
 
-    // TODO [childw] test keys that have been decoded from expanded form
-
     // BouncyCastle Signatures don't accept keys from other providers
     Signature bcSignature = Signature.getInstance("ML-DSA", TestUtil.BC_PROVIDER);
     final PrivateKey finalNativePriv = nativePriv;
@@ -244,6 +242,23 @@ public class MLDSATest {
     byte[] sigBytes = nativeSignature.sign();
     nativeSignature.initVerify(bcPub);
     assertTrue(nativeSignature.verify(sigBytes));
+
+    // TODO [childw] test with seed-less key. parse BC FIPS or round-trip through
+    // PublicUtils.expandMLDSAKey()
+
+    // TODO [childw] move this to PublicUtilsTest
+    // Expanded private key sizes https://openquantumsafe.org/liboqs/algorithms/sig/ml-dsa.html
+    nativePair = KeyPairGenerator.getInstance("ML-DSA-44", NATIVE_PROVIDER).generateKeyPair();
+    byte[] expanded = PublicUtils.expandMLDSAKey(nativePair.getPrivate());
+    assertEquals(2584, expanded.length);
+
+    nativePair = KeyPairGenerator.getInstance("ML-DSA-65", NATIVE_PROVIDER).generateKeyPair();
+    expanded = PublicUtils.expandMLDSAKey(nativePair.getPrivate());
+    assertEquals(4056, expanded.length);
+
+    nativePair = KeyPairGenerator.getInstance("ML-DSA-87", NATIVE_PROVIDER).generateKeyPair();
+    expanded = PublicUtils.expandMLDSAKey(nativePair.getPrivate());
+    assertEquals(4920, expanded.length);
   }
 
   @ParameterizedTest
