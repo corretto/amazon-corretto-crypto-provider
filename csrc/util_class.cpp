@@ -84,19 +84,49 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_Utils_getDigestL
     return EVP_MD_size(reinterpret_cast<const EVP_MD*>(evpMd));
 }
 
-JNIEXPORT jbyteArray Java_com_amazon_corretto_crypto_provider_PublicUtils_expandMLDSAKeyInternal(
+JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_PublicUtils_expandMLDSAKeyInternal(
     JNIEnv* pEnv, jclass, jbyteArray keyBytes)
 {
+    jbyteArray result = NULL;
     try {
         raii_env env(pEnv);
-        // TODO [childw]
-        // 0. do we have a performance optimization here detecting if the key is already expanded and return early?
-        // 1. parse key, this should work for all ML-DSA keys (seed and expanded)
-        // 2. serialize the key with regular EVP_marshal_private_key
-        return NULL;
+        jsize key_der_len = env->GetArrayLength(keyBytes);
+        // If they key is already expanded, return it
+        if (key_der_len > 52) {
+            return keyBytes;
+        }
+        // PKCS8-encoded seed keys are always 52 bytes
+        CHECK_OPENSSL(key_der_len == 52);
+        uint8_t* key_der = (uint8_t*)env->GetByteArrayElements(keyBytes, nullptr);
+        CHECK_OPENSSL(key_der);
+        // Parse the seed key
+        BIO* key_bio = BIO_new_mem_buf(key_der, key_der_len);
+        CHECK_OPENSSL(key_bio);
+        PKCS8_PRIV_KEY_INFO_auto pkcs8 = PKCS8_PRIV_KEY_INFO_auto::from(d2i_PKCS8_PRIV_KEY_INFO_bio(key_bio, nullptr));
+        CHECK_OPENSSL(pkcs8.isInitialized());
+        // Re-serialize into expanded key with |EVP__marshal_private_key|
+        CBB cbb;
+        CBB_init(&cbb, 0);
+        EVP_PKEY_auto key = EVP_PKEY_auto::from(EVP_PKCS82PKEY(pkcs8));
+        CHECK_OPENSSL(EVP_marshal_private_key(&cbb, key));
+        // |cbb| has allocated its own memory outside of |env|, so copy its contents  over before
+        // freeing |cbb|'s buffer with |CBB_cleanup|.
+        int new_der_len = CBB_len(&cbb);
+        uint8_t* new_der = (uint8_t*)OPENSSL_malloc(new_der_len);
+        memcpy(new_der, CBB_data(&cbb), new_der_len);
+        CBB_cleanup(&cbb);
+
+        CHECK_OPENSSL(new_der_len > 0);
+        if (!(result = env->NewByteArray(new_der_len))) {
+            OPENSSL_free(new_der);
+            throw_java_ex(EX_OOM, "Unable to allocate DER array");
+        }
+        env->SetByteArrayRegion(result, 0, new_der_len, (const jbyte*)new_der);
+        OPENSSL_free(new_der);
     } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);
         return 0;
     }
+    return result;
 }
 }
