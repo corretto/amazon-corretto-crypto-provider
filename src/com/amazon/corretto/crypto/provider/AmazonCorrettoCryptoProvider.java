@@ -3,7 +3,6 @@
 package com.amazon.corretto.crypto.provider;
 
 import static com.amazon.corretto.crypto.provider.AesCbcSpi.AES_CBC_ISO10126_PADDING_NAMES;
-import static com.amazon.corretto.crypto.provider.AesCbcSpi.AES_CBC_NO_PADDING_NAMES;
 import static com.amazon.corretto.crypto.provider.AesCbcSpi.AES_CBC_PKCS7_PADDING_NAMES;
 import static com.amazon.corretto.crypto.provider.ConcatenationKdfSpi.CKDF_WITH_HMAC_SHA256;
 import static com.amazon.corretto.crypto.provider.ConcatenationKdfSpi.CKDF_WITH_HMAC_SHA512;
@@ -44,6 +43,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
 import java.util.function.Supplier;
+import javax.crypto.CipherSpi;
 
 public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
   private static final MethodHandles.Lookup LOOKUP = MethodHandles.lookup();
@@ -148,25 +148,15 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
     addService("Cipher", "AES/XTS/NoPadding", "AesXtsSpi", false);
 
-    addService("Cipher", "AES/CBC/NoPadding", "AesCbcSpi", false);
-    addService("Cipher", "AES_128/CBC/NoPadding", "AesCbcSpi", false);
-    addService("Cipher", "AES_192/CBC/NoPadding", "AesCbcSpi", false);
-    addService("Cipher", "AES_256/CBC/NoPadding", "AesCbcSpi", false);
-
-    addService("Cipher", "AES/CBC/PKCS5Padding", "AesCbcSpi", false);
-    addService("Cipher", "AES_128/CBC/PKCS5Padding", "AesCbcSpi", false);
-    addService("Cipher", "AES_192/CBC/PKCS5Padding", "AesCbcSpi", false);
-    addService("Cipher", "AES_256/CBC/PKCS5Padding", "AesCbcSpi", false);
-
-    addService("Cipher", "AES/CBC/PKCS7Padding", "AesCbcSpi", false);
-    addService("Cipher", "AES_128/CBC/PKCS7Padding", "AesCbcSpi", false);
-    addService("Cipher", "AES_192/CBC/PKCS7Padding", "AesCbcSpi", false);
-    addService("Cipher", "AES_256/CBC/PKCS7Padding", "AesCbcSpi", false);
-
-    addService("Cipher", "AES/CBC/ISO10126Padding", "AesCbcSpi", false);
-    addService("Cipher", "AES_128/CBC/ISO10126Padding", "AesCbcSpi", false);
-    addService("Cipher", "AES_192/CBC/ISO10126Padding", "AesCbcSpi", false);
-    addService("Cipher", "AES_256/CBC/ISO10126Padding", "AesCbcSpi", false);
+    addService(
+        "Cipher",
+        "AES",
+        "AesCbcSpi",
+        false,
+        singletonMap("SupportedModes", "CBC"),
+        "AES_128",
+        "AES_192",
+        "AES_256");
 
     addService("Cipher", "RSA/ECB/NoPadding", "RsaCipher$NoPadding");
     addService("Cipher", "RSA/ECB/Pkcs1Padding", "RsaCipher$Pkcs1");
@@ -391,32 +381,8 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
           return SecretKeyGenerator.createAesKeyGeneratorSpi();
         }
 
-        if ("Cipher".equalsIgnoreCase(type) && "AES/XTS/NoPadding".equalsIgnoreCase(algo)) {
-          return new AesXtsSpi();
-        }
-
-        if ("Cipher".equalsIgnoreCase(type)
-            && AES_CBC_PKCS7_PADDING_NAMES.contains(algo.toLowerCase())) {
-          final boolean saveContext =
-              AmazonCorrettoCryptoProvider.this.nativeContextReleaseStrategy
-                  == Utils.NativeContextReleaseStrategy.LAZY;
-          return new AesCbcSpi(AesCbcSpi.Padding.PKCS7, saveContext);
-        }
-
-        if ("Cipher".equalsIgnoreCase(type)
-            && AES_CBC_NO_PADDING_NAMES.contains(algo.toLowerCase())) {
-          final boolean saveContext =
-              AmazonCorrettoCryptoProvider.this.nativeContextReleaseStrategy
-                  == Utils.NativeContextReleaseStrategy.LAZY;
-          return new AesCbcSpi(AesCbcSpi.Padding.NONE, saveContext);
-        }
-
-        if ("Cipher".equalsIgnoreCase(type)
-            && AES_CBC_ISO10126_PADDING_NAMES.contains(algo.toLowerCase())) {
-          final boolean saveContext =
-              AmazonCorrettoCryptoProvider.this.nativeContextReleaseStrategy
-                  == Utils.NativeContextReleaseStrategy.LAZY;
-          return new AesCbcSpi(AesCbcSpi.Padding.ISO10126, saveContext);
+        if ("Cipher".equalsIgnoreCase(type)) {
+          return getCipherSpiInstance(algo);
         }
 
         throw new NoSuchAlgorithmException(String.format("No service class for %s/%s", type, algo));
@@ -433,6 +399,26 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
       } catch (Throwable t) {
         throw new NoSuchAlgorithmException("Unexpected error constructing algorithm", t);
       }
+    }
+
+    private CipherSpi getCipherSpiInstance(String algo) throws NoSuchAlgorithmException {
+      final boolean saveContext =
+          AmazonCorrettoCryptoProvider.this.nativeContextReleaseStrategy
+              == Utils.NativeContextReleaseStrategy.LAZY;
+      if ("AES/XTS/NoPadding".equalsIgnoreCase(algo)) {
+        return new AesXtsSpi();
+      }
+      if (AES_CBC_PKCS7_PADDING_NAMES.contains(algo.toLowerCase())) {
+        return new AesCbcSpi(AesCbcSpi.Padding.PKCS7, saveContext);
+      }
+      if (AES_CBC_ISO10126_PADDING_NAMES.contains(algo.toLowerCase())) {
+        return new AesCbcSpi(AesCbcSpi.Padding.ISO10126, saveContext);
+      }
+      // Allow the padding scheme to be set later by defaulting to a no-padding Cipher.
+      if (algo.toUpperCase().startsWith("AES")) {
+        return new AesCbcSpi(AesCbcSpi.Padding.NONE, saveContext);
+      }
+      throw new NoSuchAlgorithmException(format("No service class for Cipher/%s", algo));
     }
 
     private void checkTests() throws NoSuchAlgorithmException {

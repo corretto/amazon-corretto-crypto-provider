@@ -479,9 +479,17 @@ task unit_tests(type: Copy) {
 }
 test.dependsOn unit_tests
 
-task single_test(type: Exec) {
+task singleTest(type: Exec) {
+    group 'Verification'
+    description 'Pass in the test class using -DSINGLE_TEST=${fully_qualified_test_class}'
     dependsOn executeCmake
     workingDir "${buildDir}/cmake"
+    // Our cmake doesn't properly react java source changes, but it will rebuild them if the jars are missing
+    doFirst {
+        delete fileTree("${buildDir}/cmake").matching {
+            include '*.jar'
+        }
+    }
     commandLine 'make', 'check-junit-single'
 }
 
