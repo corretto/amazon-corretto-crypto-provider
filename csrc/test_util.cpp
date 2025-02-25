@@ -29,7 +29,6 @@ extern "C" JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider
         CBS cbs;
         CBS_init(&cbs, pub_key_der, pub_key_der_len);
         EVP_PKEY_auto pkey = EVP_PKEY_auto::from((EVP_parse_public_key(&cbs)));
-        EVP_PKEY_CTX_auto ctx = EVP_PKEY_CTX_auto::from(EVP_PKEY_CTX_new(pkey.get(), nullptr));
         EVP_MD_CTX_auto md_ctx_mu = EVP_MD_CTX_auto::from(EVP_MD_CTX_new());
         EVP_MD_CTX_auto md_ctx_pk = EVP_MD_CTX_auto::from(EVP_MD_CTX_new());
 
