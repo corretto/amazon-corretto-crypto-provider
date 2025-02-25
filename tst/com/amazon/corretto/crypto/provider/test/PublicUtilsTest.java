@@ -11,12 +11,12 @@ import com.amazon.corretto.crypto.provider.PublicUtils;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.PrivateKey;
 import java.security.Provider;
 import java.security.PublicKey;
-import java.security.PrivateKey;
 import java.security.Signature;
-import java.security.spec.X509EncodedKeySpec;
 import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
 import java.util.Arrays;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledIf;
@@ -89,8 +89,7 @@ public class PublicUtilsTest {
     assertEquals(4920, expandedPriv.getEncoded().length);
 
     // Lastly, do a sign/verify round trip with the expanded key
-    nativePair =
-            KeyPairGenerator.getInstance("ML-DSA-44", NATIVE_PROVIDER).generateKeyPair();
+    nativePair = KeyPairGenerator.getInstance("ML-DSA-44", NATIVE_PROVIDER).generateKeyPair();
     expanded = PublicUtils.expandMLDSAKey(nativePair.getPrivate());
     expandedPriv = kf.generatePrivate(new PKCS8EncodedKeySpec(expanded));
     final byte[] message = new byte[256];
