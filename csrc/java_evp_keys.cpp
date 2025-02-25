@@ -686,8 +686,10 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpMlDsaPr
         // For ML-DSA, first try to serialize in "seed" form, fall back to "expanded"
         CBB cbb;
         CHECK_OPENSSL(CBB_init(&cbb, 0));
-        // Failure below may just indicate that we don't have the seed, so retry with |EVP_marshal_private_key|.
+        // Failure below may just indicate that we don't have the seed, so retry with |EVP_marshal_private_key|
+        // after clearing the error queue.
         if (!EVP_marshal_private_key_v2(&cbb, key)) {
+            ERR_clear_error();
             CHECK_OPENSSL(EVP_marshal_private_key(&cbb, key));
         }
         int derLen = CBB_len(&cbb);
