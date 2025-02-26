@@ -684,7 +684,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpMlDsaPr
         CHECK_OPENSSL(EVP_PKEY_id(key) == EVP_PKEY_PQDSA);
 
         uint8_t* der;
-        int der_len;
+        size_t der_len;
         CBB cbb;
         CHECK_OPENSSL(CBB_init(&cbb, 0));
         // Failure below may just indicate that we don't have the seed, so retry with |EVP_PKEY_new_raw_private_key|
@@ -693,12 +693,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpMlDsaPr
             ERR_clear_error();
             der_len = encodeExpandedMLDSAPrivateKey(key, &der);
         } else {
-            der_len = CBB_len(&cbb);
-            CHECK_OPENSSL(der_len > 0);
-            der = (uint8_t*)OPENSSL_malloc(der_len);   // TODO [childw] explain why we need to manually manage memory here instead of OPENSSL_auto_buffer or whatever
-            // |cbb| has allocated its own memory outside of |env|, so copy its contents over before freeing |cbb|'s buffer
-            // with |CBB_cleanup|.
-            memcpy(der, CBB_data(&cbb), der_len);   // TODO [childw] can we use CBB_flush here instead??
+            CBB_finish(&cbb, &der, &der_len);
         }
         CBB_cleanup(&cbb);
 

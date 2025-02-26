@@ -214,8 +214,6 @@ size_t encodeExpandedMLDSAPrivateKey(const EVP_PKEY* key, uint8_t** out) {
             !CBB_add_bytes(&priv, raw_priv, raw_len)) {
                 throw_java_ex(EX_OOM, "Error serializing expanded ML-DSA key");
         }
-        // |cbb| has allocated its own memory outside of |env|, so copy its contents  over before
-        // freeing |cbb|'s buffer with |CBB_cleanup|.
         size_t out_len;
         CBB_finish(&cbb, out, &out_len);
         return out_len;
