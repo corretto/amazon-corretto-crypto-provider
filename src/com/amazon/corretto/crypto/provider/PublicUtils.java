@@ -6,7 +6,7 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 
 /** Public utility methods */
-public class PublicUtils {
+public final class PublicUtils {
   private PublicUtils() {} // private constructor to prevent instantiation
 
   private static native byte[] computeMLDSAMuInternal(byte[] pubKeyEncoded, byte[] message);

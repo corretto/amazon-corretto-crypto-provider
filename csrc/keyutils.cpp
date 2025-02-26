@@ -185,7 +185,7 @@ size_t encodeExpandedMLDSAPrivateKey(const EVP_PKEY* key, uint8_t** out)
     CHECK_OPENSSL(EVP_PKEY_id(key) == EVP_PKEY_PQDSA);
     CHECK_OPENSSL(out);
     size_t raw_len;
-    int nid;
+    int nid = NID_undef;
     // See Section 4, Table 2 of https://nvlpubs.nist.gov/nistpubs/fips/nist.fips.204.pdf
     switch (EVP_PKEY_size(key)) { // switch on signature size for |key|'s algorithm
     case 2420:
@@ -207,11 +207,16 @@ size_t encodeExpandedMLDSAPrivateKey(const EVP_PKEY* key, uint8_t** out)
     CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(key, raw_priv, &raw_len));
     CBB cbb, pkcs8, algorithm, priv;
     CBB_init(&cbb, 0);
-    if (!CBB_add_asn1(&cbb, &pkcs8, CBS_ASN1_SEQUENCE) || !CBB_add_asn1_uint64(&pkcs8, 0)
-        || !CBB_add_asn1(&pkcs8, &algorithm, CBS_ASN1_SEQUENCE) || !OBJ_nid2cbb(&algorithm, nid)
-        || !CBB_add_asn1(&pkcs8, &priv, CBS_ASN1_OCTETSTRING) || !CBB_add_bytes(&priv, raw_priv, raw_len)) {
+    // spotless:off
+    if (!CBB_add_asn1(&cbb, &pkcs8, CBS_ASN1_SEQUENCE) ||
+        !CBB_add_asn1_uint64(&pkcs8, 0) ||
+        !CBB_add_asn1(&pkcs8, &algorithm, CBS_ASN1_SEQUENCE) ||
+        !OBJ_nid2cbb(&algorithm, nid) ||
+        !CBB_add_asn1(&pkcs8, &priv, CBS_ASN1_OCTETSTRING) ||
+        !CBB_add_bytes(&priv, raw_priv, raw_len)) {
         throw_java_ex(EX_OOM, "Error serializing expanded ML-DSA key");
     }
+    // spotless:on
     size_t out_len;
     CBB_finish(&cbb, out, &out_len);
     return out_len;

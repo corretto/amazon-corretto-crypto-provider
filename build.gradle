@@ -78,6 +78,7 @@ spotless {
         target 'csrc/*'
         licenseHeaderFile 'build-tools/license-headers/LicenseHeader.h'
         clangFormat(clangFormatVersion)
+        toggleOffOn()
     }
   }
 }
