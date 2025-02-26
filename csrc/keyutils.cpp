@@ -179,44 +179,42 @@ RSA* new_private_RSA_key_with_no_e(BIGNUM const* n, BIGNUM const* d)
     return result;
 }
 
-size_t encodeExpandedMLDSAPrivateKey(const EVP_PKEY* key, uint8_t** out) {
-        CHECK_OPENSSL(key);
-        CHECK_OPENSSL(EVP_PKEY_id(key) == EVP_PKEY_PQDSA);
-        CHECK_OPENSSL(out);
-        size_t raw_len;
-        int nid;
-        // See Section 4, Table 2 of https://nvlpubs.nist.gov/nistpubs/fips/nist.fips.204.pdf
-        switch (EVP_PKEY_size(key)) {   // switch on signature size for |key|'s algorithm
-            case 2420:
-                nid = NID_MLDSA44;
-                raw_len = 2560;
-                break;
-            case 3309:
-                nid = NID_MLDSA65;
-                raw_len = 4032;
-                break;
-            case 4627:
-                nid = NID_MLDSA87;
-                raw_len = 4896;
-                break;
-            default:
-                throw_java_ex(EX_OOM, "Invalid ML-DSA signature size");
-        }
-        OPENSSL_buffer_auto raw_priv(raw_len);
-        CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(key, raw_priv, &raw_len));
-        CBB cbb, pkcs8, algorithm, priv;
-        CBB_init(&cbb, 0);
-        if (!CBB_add_asn1(&cbb, &pkcs8, CBS_ASN1_SEQUENCE) ||
-            !CBB_add_asn1_uint64(&pkcs8, 0) ||
-            !CBB_add_asn1(&pkcs8, &algorithm, CBS_ASN1_SEQUENCE) ||
-            !OBJ_nid2cbb(&algorithm, nid) ||
-            !CBB_add_asn1(&pkcs8, &priv, CBS_ASN1_OCTETSTRING) ||
-            !CBB_add_bytes(&priv, raw_priv, raw_len)) {
-                throw_java_ex(EX_OOM, "Error serializing expanded ML-DSA key");
-        }
-        size_t out_len;
-        CBB_finish(&cbb, out, &out_len);
-        return out_len;
+size_t encodeExpandedMLDSAPrivateKey(const EVP_PKEY* key, uint8_t** out)
+{
+    CHECK_OPENSSL(key);
+    CHECK_OPENSSL(EVP_PKEY_id(key) == EVP_PKEY_PQDSA);
+    CHECK_OPENSSL(out);
+    size_t raw_len;
+    int nid;
+    // See Section 4, Table 2 of https://nvlpubs.nist.gov/nistpubs/fips/nist.fips.204.pdf
+    switch (EVP_PKEY_size(key)) { // switch on signature size for |key|'s algorithm
+    case 2420:
+        nid = NID_MLDSA44;
+        raw_len = 2560;
+        break;
+    case 3309:
+        nid = NID_MLDSA65;
+        raw_len = 4032;
+        break;
+    case 4627:
+        nid = NID_MLDSA87;
+        raw_len = 4896;
+        break;
+    default:
+        throw_java_ex(EX_OOM, "Invalid ML-DSA signature size");
+    }
+    OPENSSL_buffer_auto raw_priv(raw_len);
+    CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(key, raw_priv, &raw_len));
+    CBB cbb, pkcs8, algorithm, priv;
+    CBB_init(&cbb, 0);
+    if (!CBB_add_asn1(&cbb, &pkcs8, CBS_ASN1_SEQUENCE) || !CBB_add_asn1_uint64(&pkcs8, 0)
+        || !CBB_add_asn1(&pkcs8, &algorithm, CBS_ASN1_SEQUENCE) || !OBJ_nid2cbb(&algorithm, nid)
+        || !CBB_add_asn1(&pkcs8, &priv, CBS_ASN1_OCTETSTRING) || !CBB_add_bytes(&priv, raw_priv, raw_len)) {
+        throw_java_ex(EX_OOM, "Error serializing expanded ML-DSA key");
+    }
+    size_t out_len;
+    CBB_finish(&cbb, out, &out_len);
+    return out_len;
 }
 
 }
