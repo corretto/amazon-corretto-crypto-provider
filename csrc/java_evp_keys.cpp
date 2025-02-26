@@ -683,29 +683,31 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpMlDsaPr
         EVP_PKEY* key = reinterpret_cast<EVP_PKEY*>(keyHandle);
         CHECK_OPENSSL(EVP_PKEY_id(key) == EVP_PKEY_PQDSA);
 
-        // For ML-DSA, first try to serialize in "seed" form, fall back to "expanded"
+        uint8_t* der;
+        int der_len;
         CBB cbb;
         CHECK_OPENSSL(CBB_init(&cbb, 0));
-        // Failure below may just indicate that we don't have the seed, so retry with |EVP_marshal_private_key|
-        // after clearing the error queue.
-        if (!EVP_marshal_private_key_v2(&cbb, key)) {
+        // Failure below may just indicate that we don't have the seed, so retry with |EVP_PKEY_new_raw_private_key|
+        // and encode in PKCS8 (RFC 5208) format after clearing the error queue.
+        if (!EVP_marshal_private_key(&cbb, key)) {
             ERR_clear_error();
-            CHECK_OPENSSL(EVP_marshal_private_key(&cbb, key));
+            der_len = encodeExpandedMLDSAPrivateKey(key, &der);
+        } else {
+            der_len = CBB_len(&cbb);
+            CHECK_OPENSSL(der_len > 0);
+            der = (uint8_t*)OPENSSL_malloc(der_len);   // TODO [childw] explain why we need to manually manage memory here instead of OPENSSL_auto_buffer or whatever
+            // |cbb| has allocated its own memory outside of |env|, so copy its contents over before freeing |cbb|'s buffer
+            // with |CBB_cleanup|.
+            memcpy(der, CBB_data(&cbb), der_len);   // TODO [childw] can we use CBB_flush here instead??
         }
-        int derLen = CBB_len(&cbb);
-        CHECK_OPENSSL(derLen > 0);
-        uint8_t* der = (uint8_t*)OPENSSL_malloc(derLen);
-        // |cbb| has allocated its own memory outside of |env|, so copy its contents  over before
-        // freeing |cbb|'s buffer with |CBB_cleanup|.
-        memcpy(der, CBB_data(&cbb), derLen);
         CBB_cleanup(&cbb);
 
-        if (!(result = env->NewByteArray(derLen))) {
+        if (!(result = env->NewByteArray(der_len))) {
             OPENSSL_free(der);
             throw_java_ex(EX_OOM, "Unable to allocate DER array");
         }
         // This may throw, if it does we'll just keep the exception state as we return.
-        env->SetByteArrayRegion(result, 0, derLen, (const jbyte*)der);
+        env->SetByteArrayRegion(result, 0, der_len, (const jbyte*)der);
         OPENSSL_free(der);
     } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);

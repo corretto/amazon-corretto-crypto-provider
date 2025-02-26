@@ -96,38 +96,29 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_PublicUtil
     try {
         raii_env env(pEnv);
         jsize key_der_len = env->GetArrayLength(keyBytes);
-        // If they key is already expanded, return it
-        if (key_der_len > 52) {
+
+        if (key_der_len > 52) { // If they key is already expanded, return it
             return keyBytes;
         }
-        // PKCS8-encoded seed keys are always 52 bytes
-        CHECK_OPENSSL(key_der_len == 52);
+        CHECK_OPENSSL(key_der_len == 52);   // PKCS8-encoded seed keys are always 52 bytes
         uint8_t* key_der = (uint8_t*)env->GetByteArrayElements(keyBytes, nullptr);
         CHECK_OPENSSL(key_der);
+
         // Parse the seed key
         BIO* key_bio = BIO_new_mem_buf(key_der, key_der_len);
         CHECK_OPENSSL(key_bio);
         PKCS8_PRIV_KEY_INFO_auto pkcs8 = PKCS8_PRIV_KEY_INFO_auto::from(d2i_PKCS8_PRIV_KEY_INFO_bio(key_bio, nullptr));
         CHECK_OPENSSL(pkcs8.isInitialized());
-        // Re-serialize into expanded key with |EVP__marshal_private_key|
-        CBB cbb;
-        CBB_init(&cbb, 0);
         EVP_PKEY_auto key = EVP_PKEY_auto::from(EVP_PKCS82PKEY(pkcs8));
-        CHECK_OPENSSL(EVP_marshal_private_key(&cbb, key));
-        // |cbb| has allocated its own memory outside of |env|, so copy its contents  over before
-        // freeing |cbb|'s buffer with |CBB_cleanup|.
-        int new_der_len = CBB_len(&cbb);
-        uint8_t* new_der = (uint8_t*)OPENSSL_malloc(new_der_len);
-        memcpy(new_der, CBB_data(&cbb), new_der_len);
-        CBB_cleanup(&cbb);
 
+        // Expand the seed key and encode it before returning
+        OPENSSL_buffer_auto new_der;
+        int new_der_len = encodeExpandedMLDSAPrivateKey(key, &new_der);
         CHECK_OPENSSL(new_der_len > 0);
         if (!(result = env->NewByteArray(new_der_len))) {
-            OPENSSL_free(new_der);
             throw_java_ex(EX_OOM, "Unable to allocate DER array");
         }
         env->SetByteArrayRegion(result, 0, new_der_len, (const jbyte*)new_der);
-        OPENSSL_free(new_der);
     } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);
         return 0;
