@@ -70,23 +70,23 @@ public class MlDsaUtilsTest {
         KeyPairGenerator.getInstance("ML-DSA-44", NATIVE_PROVIDER).generateKeyPair();
     assertEquals(52, nativePair.getPrivate().getEncoded().length);
     byte[] expanded = MlDsaUtils.expandPrivateKey(nativePair.getPrivate());
-    assertEquals(2584, expanded.length);
+    assertEquals(2588, expanded.length);
     PrivateKey expandedPriv = kf.generatePrivate(new PKCS8EncodedKeySpec(expanded));
-    assertEquals(2584, expandedPriv.getEncoded().length);
+    assertEquals(2588, expandedPriv.getEncoded().length);
 
     nativePair = KeyPairGenerator.getInstance("ML-DSA-65", NATIVE_PROVIDER).generateKeyPair();
     assertEquals(52, nativePair.getPrivate().getEncoded().length);
     expanded = MlDsaUtils.expandPrivateKey(nativePair.getPrivate());
-    assertEquals(4056, expanded.length);
+    assertEquals(4060, expanded.length);
     expandedPriv = kf.generatePrivate(new PKCS8EncodedKeySpec(expanded));
-    assertEquals(4056, expandedPriv.getEncoded().length);
+    assertEquals(4060, expandedPriv.getEncoded().length);
 
     nativePair = KeyPairGenerator.getInstance("ML-DSA-87", NATIVE_PROVIDER).generateKeyPair();
     assertEquals(52, nativePair.getPrivate().getEncoded().length);
     expanded = MlDsaUtils.expandPrivateKey(nativePair.getPrivate());
-    assertEquals(4920, expanded.length);
+    assertEquals(4924, expanded.length);
     expandedPriv = kf.generatePrivate(new PKCS8EncodedKeySpec(expanded));
-    assertEquals(4920, expandedPriv.getEncoded().length);
+    assertEquals(4924, expandedPriv.getEncoded().length);
 
     // Lastly, do a sign/verify round trip with the expanded key
     nativePair = KeyPairGenerator.getInstance("ML-DSA-44", NATIVE_PROVIDER).generateKeyPair();
