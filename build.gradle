@@ -341,29 +341,27 @@ task executeCmake(type: Exec) {
     if (isExperimentalFips) {
         args '-DEXPERIMENTAL_FIPS=ON'
     }
-
     if (prebuiltJar != null) {
        args '-DSIGNED_JAR=' + prebuiltJar
        println "Using SIGNED_JAR=${prebuiltJar}"
     }
-
     if (System.properties['JAVA_HOME'] != null) {
         args '-DJAVA_HOME=' + System.properties['JAVA_HOME']
     }
-
     if (System.properties['TEST_JAVA_HOME'] != null) {
         args '-DTEST_JAVA_HOME=' + System.properties['TEST_JAVA_HOME']
     }
     if (System.properties['TEST_JAVA_MAJOR_VERSION'] != null) {
         args '-DTEST_JAVA_MAJOR_VERSION=' + System.properties['TEST_JAVA_MAJOR_VERSION']
     }
+    if (System.properties['TEST_JAVA_ARGS'] != null) {
+        args '-DTEST_JAVA_ARGS=' + System.properties['TEST_JAVA_ARGS']
+    }
     if (System.properties['SINGLE_TEST'] != null) {
         args '-DSINGLE_TEST=' + System.properties['SINGLE_TEST']
-
     }
     if (System.properties['USE_CLANG_TIDY'] != null) {
         args '-DUSE_CLANG_TIDY=' + System.properties['USE_CLANG_TIDY']
-
     }
     args projectDir
 }
