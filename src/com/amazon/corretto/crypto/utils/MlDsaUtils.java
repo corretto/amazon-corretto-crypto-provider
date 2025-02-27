@@ -30,8 +30,8 @@ public final class MlDsaUtils {
   }
 
   /**
-   * Returns an expanded ML-DSA private key, whether the key passed in is based on a seed or expanded. It
-   * returns the PKCS8-encoded expanded key.
+   * Returns an expanded ML-DSA private key, whether the key passed in is based on a seed or
+   * expanded. It returns the PKCS8-encoded expanded key.
    *
    * @param key an ML-DSA private key
    * @return a byte[] containing the PKCS8-encoded seed private key
