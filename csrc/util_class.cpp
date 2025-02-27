@@ -85,11 +85,11 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_Utils_getDigestL
 }
 
 /*
- * Class:     com_amazon_corretto_crypto_provider_PublicUtils
- * Method:    expandMLDSAKeyInternal
+ * Class:     com_amazon_corretto_crypto_utils_MlDsaUtils
+ * Method:    expandPrivateKeyInternal
  * Signature: ([B)[B
  */
-JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_PublicUtils_expandMLDSAKeyInternal(
+JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_utils_MlDsaUtils_expandPrivateKeyInternal(
     JNIEnv* pEnv, jclass, jbyteArray keyBytes)
 {
     jbyteArray result = NULL;
@@ -127,11 +127,11 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_PublicUtil
 }
 
 /*
- * Class:     com_amazon_corretto_crypto_provider_test_TestUtil
- * Method:    computeMLDSAMuInternal
+ * Class:     com_amazon_corretto_crypto_utils_MlDsaUtils
+ * Method:    computeMuInternal
  * Signature: ([B[B)[B
  */
-extern "C" JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_PublicUtils_computeMLDSAMuInternal(
+extern "C" JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_utils_MlDsaUtils_computeMuInternal(
     JNIEnv* pEnv, jclass, jbyteArray pubKeyEncodedArr, jbyteArray messageArr)
 {
     try {
