@@ -205,7 +205,7 @@ size_t encodeExpandedMLDSAPrivateKey(const EVP_PKEY* key, uint8_t** out)
     }
     OPENSSL_buffer_auto raw_expanded(raw_len);
     CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(key, raw_expanded, &raw_len));
-    CBB cbb, pkcs8, algorithm, priv, choice_0, expandedKey;
+    CBB cbb, pkcs8, algorithm, priv, expanded;
     CBB_init(&cbb, 0);
     // spotless:off
     if (!CBB_add_asn1(&cbb, &pkcs8, CBS_ASN1_SEQUENCE) ||
@@ -213,9 +213,8 @@ size_t encodeExpandedMLDSAPrivateKey(const EVP_PKEY* key, uint8_t** out)
         !CBB_add_asn1(&pkcs8, &algorithm, CBS_ASN1_SEQUENCE) ||
         !OBJ_nid2cbb(&algorithm, nid) ||
         !CBB_add_asn1(&pkcs8, &priv, CBS_ASN1_OCTETSTRING) ||
-        !CBB_add_asn1(&priv, &choice_0, CBS_ASN1_CONTEXT_SPECIFIC | 0) ||
-        !CBB_add_asn1(&choice_0, &expandedKey, CBS_ASN1_OCTETSTRING) ||
-        !CBB_add_bytes(&expandedKey, raw_expanded, raw_len)) {
+        !CBB_add_asn1(&priv, &expanded, CBS_ASN1_OCTETSTRING) ||
+        !CBB_add_bytes(&expanded, raw_expanded, raw_len)) {
         throw_java_ex(EX_OOM, "Error serializing expanded ML-DSA key");
     }
     // spotless:on
