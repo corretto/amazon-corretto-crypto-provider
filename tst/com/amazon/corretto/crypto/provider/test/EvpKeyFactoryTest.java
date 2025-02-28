@@ -90,7 +90,7 @@ public class EvpKeyFactoryTest {
       if (algorithm.startsWith("ML-DSA")) {
         // JCE doesn't support ML-DSA until JDK24, and BouncyCastle currently
         // serializes ML-DSA private keys via seeds. TODO: switch to
-        // BouncyCastle once we support deserializing private keys from seed.
+        // BouncyCastle once BC supports CHOICE-encodeed private keys
         kpg = KeyPairGenerator.getInstance(algorithm, NATIVE_PROVIDER);
       } else {
         kpg = KeyPairGenerator.getInstance(algorithm);
@@ -238,7 +238,7 @@ public class EvpKeyFactoryTest {
     if (algorithm.startsWith("ML-DSA")) {
       // JCE doesn't support ML-DSA until JDK24, and BouncyCastle currently
       // serializes ML-DSA private keys via seeds. TODO: switch to
-      // BouncyCastle once we support deserializing private keys from seed.
+      // BouncyCastle once BC supports CHOICE-encodeed private keys
       jceFactory = KeyFactory.getInstance(algorithm, NATIVE_PROVIDER);
     } else {
       jceFactory = KeyFactory.getInstance(algorithm);
@@ -315,7 +315,7 @@ public class EvpKeyFactoryTest {
     if (algorithm.startsWith("ML-DSA")) {
       // JCE doesn't support ML-DSA until JDK24, and BouncyCastle currently
       // serializes ML-DSA private keys via seeds. TODO: switch to
-      // BouncyCastle once we support deserializing private keys from seed.
+      // BouncyCastle once BC supports CHOICE-encodeed private keys
       jceFactory = KeyFactory.getInstance(algorithm, NATIVE_PROVIDER);
     } else {
       jceFactory = KeyFactory.getInstance(algorithm);
