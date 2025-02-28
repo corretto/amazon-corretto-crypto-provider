@@ -203,9 +203,9 @@ size_t encodeExpandedMLDSAPrivateKey(const EVP_PKEY* key, uint8_t** out)
     default:
         throw_java_ex(EX_OOM, "Invalid ML-DSA signature size");
     }
-    OPENSSL_buffer_auto raw_priv(raw_len);
-    CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(key, raw_priv, &raw_len));
-    CBB cbb, pkcs8, algorithm, choice_0, priv;
+    OPENSSL_buffer_auto raw_expanded(raw_len);
+    CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(key, raw_expanded, &raw_len));
+    CBB cbb, pkcs8, algorithm, priv, choice_0, expandedKey;
     CBB_init(&cbb, 0);
     // spotless:off
     if (!CBB_add_asn1(&cbb, &pkcs8, CBS_ASN1_SEQUENCE) ||
@@ -214,7 +214,8 @@ size_t encodeExpandedMLDSAPrivateKey(const EVP_PKEY* key, uint8_t** out)
         !OBJ_nid2cbb(&algorithm, nid) ||
         !CBB_add_asn1(&pkcs8, &priv, CBS_ASN1_OCTETSTRING) ||
         !CBB_add_asn1(&priv, &choice_0, CBS_ASN1_CONTEXT_SPECIFIC | 0) ||
-        !CBB_add_bytes(&choice_0, raw_priv, raw_len)) {
+        !CBB_add_asn1(&choice_0, &expandedKey, CBS_ASN1_OCTETSTRING) ||
+        !CBB_add_bytes(&expandedKey, raw_expanded, raw_len)) {
         throw_java_ex(EX_OOM, "Error serializing expanded ML-DSA key");
     }
     // spotless:on

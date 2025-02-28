@@ -97,10 +97,10 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_utils_MlDsaUtils_ex
         raii_env env(pEnv);
         jsize key_der_len = env->GetArrayLength(keyBytes);
 
-        if (key_der_len > 52) { // If they key is already expanded, return it
+        if (key_der_len > 54) { // If they key is already expanded, return it
             return keyBytes;
         }
-        CHECK_OPENSSL(key_der_len == 52); // PKCS8-encoded seed keys are always 52 bytes
+        CHECK_OPENSSL(key_der_len == 54); // seed-only keys are always 54 bytes when PKCS8-encoded
         uint8_t* key_der = (uint8_t*)env->GetByteArrayElements(keyBytes, nullptr);
         CHECK_OPENSSL(key_der);
 

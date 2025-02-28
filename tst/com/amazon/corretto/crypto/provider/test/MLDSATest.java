@@ -213,7 +213,10 @@ public class MLDSATest {
     PublicKey bcPub = bcKf.generatePublic(new X509EncodedKeySpec(nativePub.getEncoded()));
     PrivateKey bcPriv = bcKf.generatePrivate(new PKCS8EncodedKeySpec(nativePriv.getEncoded()));
     TestUtil.assertArraysHexEquals(bcPub.getEncoded(), nativePub.getEncoded());
-    TestUtil.assertArraysHexEquals(bcPriv.getEncoded(), nativePriv.getEncoded());
+    // TODO delete below line and uncomment following once BC updates to newer CHOICE encoding
+    // format
+    assertEquals(bcPriv.getEncoded().length + 2, nativePriv.getEncoded().length);
+    // TestUtil.assertArraysHexEquals(bcPriv.getEncoded(), nativePriv.getEncoded());
 
     nativePair = KeyPairGenerator.getInstance("ML-DSA-65", NATIVE_PROVIDER).generateKeyPair();
     nativePub = nativePair.getPublic();
@@ -221,7 +224,10 @@ public class MLDSATest {
     bcPub = bcKf.generatePublic(new X509EncodedKeySpec(nativePub.getEncoded()));
     bcPriv = bcKf.generatePrivate(new PKCS8EncodedKeySpec(nativePriv.getEncoded()));
     TestUtil.assertArraysHexEquals(bcPub.getEncoded(), nativePub.getEncoded());
-    TestUtil.assertArraysHexEquals(bcPriv.getEncoded(), nativePriv.getEncoded());
+    // TODO delete below line and uncomment following once BC updates to newer CHOICE encoding
+    // format
+    assertEquals(bcPriv.getEncoded().length + 2, nativePriv.getEncoded().length);
+    // TestUtil.assertArraysHexEquals(bcPriv.getEncoded(), nativePriv.getEncoded());
 
     nativePair = KeyPairGenerator.getInstance("ML-DSA-87", NATIVE_PROVIDER).generateKeyPair();
     nativePub = nativePair.getPublic();
@@ -229,19 +235,25 @@ public class MLDSATest {
     bcPub = bcKf.generatePublic(new X509EncodedKeySpec(nativePub.getEncoded()));
     bcPriv = bcKf.generatePrivate(new PKCS8EncodedKeySpec(nativePriv.getEncoded()));
     TestUtil.assertArraysHexEquals(bcPub.getEncoded(), nativePub.getEncoded());
-    TestUtil.assertArraysHexEquals(bcPriv.getEncoded(), nativePriv.getEncoded());
+    // TODO delete below line and uncomment following once BC updates to newer CHOICE encoding
+    // format
+    assertEquals(bcPriv.getEncoded().length + 2, nativePriv.getEncoded().length);
+    // TestUtil.assertArraysHexEquals(bcPriv.getEncoded(), nativePriv.getEncoded());
 
     // BouncyCastle Signatures don't accept keys from other providers
     Signature bcSignature = Signature.getInstance("ML-DSA", TestUtil.BC_PROVIDER);
     final PrivateKey finalNativePriv = nativePriv;
     assertThrows(InvalidKeyException.class, () -> bcSignature.initSign(finalNativePriv));
 
+    // TODO  uncomment compat test below once BC updates to newer CHOICE encoding format
+    /*
     // However, ACCP can use BouncyCastle KeyPairs with seed-encoded  PrivateKeys
     Signature nativeSignature = Signature.getInstance("ML-DSA", NATIVE_PROVIDER);
     nativeSignature.initSign(bcPriv);
     byte[] sigBytes = nativeSignature.sign();
     nativeSignature.initVerify(bcPub);
     assertTrue(nativeSignature.verify(sigBytes));
+     */
   }
 
   @ParameterizedTest
