@@ -144,7 +144,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
       addService("KeyPairGenerator", "ML-DSA-87", "MlDsaGen$MlDsaGen87");
     }
 
-    addService("KeyGenerator", "AES", "keygeneratorspi.SecretKeyGenerator", false);
+    addService("KeyGenerator", "AES", "SecretKeyGenerator", false);
 
     addService("Cipher", "AES/XTS/NoPadding", "AesXtsSpi", false);
 
