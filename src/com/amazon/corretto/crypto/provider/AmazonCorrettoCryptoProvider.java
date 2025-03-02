@@ -342,9 +342,9 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
     @Override
     public Object newInstance(final Object constructorParameter) throws NoSuchAlgorithmException {
-      if (isFips() && !isFipsStatusOk()) {
+      if (isFips() && isFipsSelfTestFailureNoAbort() && !isFipsStatusOk()) {
         throw new FipsStatusException(
-            "The provider is built in FIPS mode and its status is not Ok.");
+            "The provider is built in FIPS non-abort mode and its status is not Ok.");
       }
 
       if (constructorParameter != null) {
@@ -670,7 +670,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
   public boolean isFipsStatusOk() {
     if (!isFipsSelfTestFailureNoAbort()) {
       throw new UnsupportedOperationException(
-              "ACCP not built with FIPS_SELF_TEST_FAILURE_NO_ABORT");
+          "ACCP not built with FIPS_SELF_TEST_FAILURE_NO_ABORT");
     }
     return fipsStatusErrorCount() == 0;
   }

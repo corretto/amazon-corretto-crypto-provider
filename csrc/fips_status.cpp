@@ -22,7 +22,7 @@ void AWS_LC_fips_failure_callback(char const* message) { }
 #endif
 
 extern "C" JNIEXPORT jobject JNICALL
-Java_com_amazon_corretto_crypto_provider_AmazonCorrettoCryptoProvider_getFipsSelfTestFailures(
+Java_com_amazon_corretto_crypto_provider_AmazonCorrettoCryptoProvider_getFipsSelfTestFailuresInternal(
     JNIEnv* env, jobject thisObj)
 {
     std::vector<std::string> errors;

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.amazon.corretto.crypto.provider.test;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -29,22 +30,22 @@ public class FipsStatusTest {
   @Test
   public void givenAccpBuiltWithFips_whenAWS_LC_fips_failure_callback_expectException()
       throws Exception {
-    if (provider.isFips()) {  // TODO [childw] use assume API
-      if (provider.isFipsSelfTestFailureNoAbort()) {
-        assertTrue(provider.isFipsStatusOk());
-        assertNotNull(KeyGenerator.getInstance("AES", provider));
-        // call the failure callback
-        NativeTestHooks.callAwsLcFipsFailureCallback();
-        assertFalse(provider.isFipsStatusOk());
-        // we should not be able to get any service object
-        assertThrows(FipsStatusException.class, () -> KeyGenerator.getInstance("AES", provider));
-        // we need to flip the status back to OK so the rest of tests would work. In practice, once
-        // the flag is set to false, it remains false.
-        NativeTestHooks.resetFipsStatus();
-      } else {
-        assertThrows(UnsupportedOperationException.class, () -> provider.isFipsStatusOk());
-        assertThrows(UnsupportedOperationException.class, () -> provider.getFipsSelfTestFailures());
-      }
+    if (provider.isFips() && provider.isFipsSelfTestFailureNoAbort()) {
+      assertTrue(provider.isFipsStatusOk());
+      assertEquals(0, provider.getFipsSelfTestFailures().size());
+      assertNotNull(KeyGenerator.getInstance("AES", provider));
+      // call the failure callback
+      NativeTestHooks.callAwsLcFipsFailureCallback();
+      assertFalse(provider.isFipsStatusOk());
+      assertTrue(provider.getFipsSelfTestFailures().size() > 0);
+      // we should not be able to get any service object
+      assertThrows(FipsStatusException.class, () -> KeyGenerator.getInstance("AES", provider));
+      // we need to flip the status back to OK so the rest of tests would work. In practice, once
+      // the flag is set to false, it remains false.
+      NativeTestHooks.resetFipsStatus();
+    } else {
+      assertThrows(UnsupportedOperationException.class, () -> provider.isFipsStatusOk());
+      assertThrows(UnsupportedOperationException.class, () -> provider.getFipsSelfTestFailures());
     }
   }
 }
