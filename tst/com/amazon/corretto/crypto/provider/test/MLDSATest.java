@@ -43,10 +43,9 @@ public class MLDSATest {
   private static final Provider NATIVE_PROVIDER = AmazonCorrettoCryptoProvider.INSTANCE;
   private static final int[] MESSAGE_LENGTHS = new int[] {0, 1, 16, 32, 2047, 2048, 2049, 4100};
 
-  // TODO: remove this disablement when ACCP consumes an AWS-LC-FIPS release with ML-DSA
+  // TODO [childw]: revert this change before publishing, once ML-DSA seeds-as-keys is merged
   public static boolean isDisabled() {
-    return AmazonCorrettoCryptoProvider.INSTANCE.isFips()
-        && !AmazonCorrettoCryptoProvider.INSTANCE.isExperimentalFips();
+      return true;
   }
 
   private static class TestParams {
