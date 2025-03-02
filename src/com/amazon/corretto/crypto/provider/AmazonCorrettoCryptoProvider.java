@@ -668,10 +668,22 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
    * @return true if and only if the underlying libcrypto library's FIPS related checks pass
    */
   public boolean isFipsStatusOk() {
+    if (!isFipsSelfTestFailureNoAbort()) {
+      throw new UnsupportedOperationException(
+              "ACCP not built with FIPS_SELF_TEST_FAILURE_NO_ABORT");
+    }
     return fipsStatusErrorCount() == 0;
   }
 
-  public native List<String> getFipsSelfTestFailures();
+  private native List<String> getFipsSelfTestFailuresInternal();
+
+  public List<String> getFipsSelfTestFailures() {
+    if (!isFipsSelfTestFailureNoAbort()) {
+      throw new UnsupportedOperationException(
+          "ACCP not built with FIPS_SELF_TEST_FAILURE_NO_ABORT");
+    }
+    return getFipsSelfTestFailuresInternal();
+  }
 
   /**
    * ACCP-FIPS uses the FIPS branches/releases of AWS-LC. Experimental FIPS mode is to allow
@@ -682,6 +694,10 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
    */
   public boolean isExperimentalFips() {
     return Loader.EXPERIMENTAL_FIPS_BUILD;
+  }
+
+  public boolean isFipsSelfTestFailureNoAbort() {
+    return Loader.FIPS_SELF_TEST_FAILURE_NO_ABORT;
   }
 
   /**

@@ -42,6 +42,7 @@ set(TEST_DATA_DIR ${PROJECT_SOURCE_DIR}/test-data/ CACHE STRING "Path to directo
 set(ORIG_SRCROOT ${PROJECT_SOURCE_DIR} CACHE STRING "Path to root of original package")
 set(PROVIDER_VERSION_STRING "" CACHE STRING "X.Y.Z formatted version of the provider")
 set(EXPERIMENTAL_FIPS NO CACHE BOOL "Determines if this build is for FIPS mode with extra features from a non-FIPS branch of AWS-LC.")
+set(FIPS_SELF_TEST_FAILURE_NO_ABORT NO CACHE BOOL "Determines whether ACCP throws exceptions on self-test failure, or AWS-LC aborts")
 set(FIPS NO CACHE BOOL "Determine if this build is for FIPS mode")
 set(ALWAYS_ALLOW_EXTERNAL_LIB NO CACHE BOOL "Always permit tests to load ACCP shared objects from the library path")
 set(AWS_LC_VERSION_STRING "" CACHE STRING "Git version of AWS-LC used in this build")
@@ -49,6 +50,10 @@ set(AWS_LC_VERSION_STRING "" CACHE STRING "Git version of AWS-LC used in this bu
 if (EXPERIMENTAL_FIPS)
     set(FIPS ON)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DEXPERIMENTAL_FIPS_BUILD")
+endif()
+
+if (FIPS_SELF_TEST_FAILURE_NO_ABORT)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DFIPS_SELF_TEST_FAILURE_NO_ABORT")
 endif()
 
 if (USE_CLANG_TIDY)

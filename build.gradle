@@ -33,9 +33,14 @@ if (System.properties["AWSLC_GITVERSION"]) {
 
 ext.isLegacyBuild = Boolean.getBoolean('LEGACY_BUILD')
 ext.allowFipsTestBreak = Boolean.getBoolean('ALLOW_FIPS_TEST_BREAK')
+ext.isFipsSelfTestFailureNoAbort = Boolean.getBoolean('FIPS_SELF_TEST_FAILURE_NO_ABORT')
 
 if (allowFipsTestBreak && !isFips) {
     throw new GradleException("ALLOW_FIPS_TEST_BREAK can only be set if FIPS is also set to true")
+}
+
+if (isFipsSelfTestFailureNoAbort && !isFips) {
+    throw new GradleException("FIPS_SELF_TEST_FAILURE_NO_ABORT can only be set if FIPS is also set to true")
 }
 
 ext.lcovIgnore = System.properties['LCOV_IGNORE']
@@ -351,6 +356,9 @@ task executeCmake(type: Exec) {
     if (isExperimentalFips) {
         args '-DEXPERIMENTAL_FIPS=ON'
     }
+    if (isFipsSelfTestFailureNoAbort) {
+        args '-DFIPS_SELF_TEST_FAILURE_NO_ABORT=ON'
+    }
 
     if (prebuiltJar != null) {
        args '-DSIGNED_JAR=' + prebuiltJar
@@ -563,6 +571,9 @@ task coverage_cmake(type: Exec) {
     }
     if (isExperimentalFips) {
         args '-DEXPERIMENTAL_FIPS=ON'
+    }
+    if (isFipsSelfTestFailureNoAbort) {
+        args '-DAWSLC_FIPS_FAILURE_CALLBACK=ON'
     }
 
     if (System.properties['JAVA_HOME'] != null) {
