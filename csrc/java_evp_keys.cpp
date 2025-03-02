@@ -667,6 +667,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpRsaPriv
     return result;
 }
 
+#if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
 /*
  * Class:     com_amazon_corretto_crypto_provider_EvpRsaPrivateKey
  * Method:    encodeRsaPrivateKey
@@ -710,3 +711,4 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpMlDsaPr
 
     return result;
 }
+#endif // !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)

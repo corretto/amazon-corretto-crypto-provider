@@ -84,6 +84,7 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_Utils_getDigestL
     return EVP_MD_size(reinterpret_cast<const EVP_MD*>(evpMd));
 }
 
+#if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
 /*
  * Class:     com_amazon_corretto_crypto_utils_MlDsaUtils
  * Method:    expandPrivateKeyInternal
@@ -131,7 +132,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_utils_MlDsaUtils_ex
  * Method:    computeMuInternal
  * Signature: ([B[B)[B
  */
-extern "C" JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_utils_MlDsaUtils_computeMuInternal(
+JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_utils_MlDsaUtils_computeMuInternal(
     JNIEnv* pEnv, jclass, jbyteArray pubKeyEncodedArr, jbyteArray messageArr)
 {
     try {
@@ -181,4 +182,5 @@ extern "C" JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_utils_Ml
         return 0;
     }
 }
+#endif // !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
 }

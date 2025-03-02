@@ -179,6 +179,7 @@ RSA* new_private_RSA_key_with_no_e(BIGNUM const* n, BIGNUM const* d)
     return result;
 }
 
+#if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
 size_t encodeExpandedMLDSAPrivateKey(const EVP_PKEY* key, uint8_t** out)
 {
     CHECK_OPENSSL(key);
@@ -222,5 +223,6 @@ size_t encodeExpandedMLDSAPrivateKey(const EVP_PKEY* key, uint8_t** out)
     CBB_finish(&cbb, out, &out_len);
     return out_len;
 }
+#endif // !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
 
 }
