@@ -8,22 +8,13 @@ import java.security.SignatureException;
 class EvpSignatureRaw extends EvpSignatureBase {
   private AccessibleByteArrayOutputStream buffer =
       new AccessibleByteArrayOutputStream(64, 1024 * 1024);
-  private final boolean preHash_;
-
-  private EvpSignatureRaw(
-      final AmazonCorrettoCryptoProvider provider,
-      final EvpKeyType keyType,
-      final int paddingType) {
-    this(provider, keyType, paddingType, false);
-  }
 
   private EvpSignatureRaw(
       final AmazonCorrettoCryptoProvider provider,
       final EvpKeyType keyType,
       final int paddingType,
       final boolean preHash) {
-    super(provider, keyType, paddingType, 0 /* No digest */);
-    preHash_ = preHash;
+    super(provider, keyType, paddingType, 0 /* No digest */, preHash);
   }
 
   @Override
@@ -119,25 +110,25 @@ class EvpSignatureRaw extends EvpSignatureBase {
 
   static final class NONEwithECDSA extends EvpSignatureRaw {
     NONEwithECDSA(AmazonCorrettoCryptoProvider provider) {
-      super(provider, EvpKeyType.EC, 0);
+      super(provider, EvpKeyType.EC, 0, false);
     }
   }
 
   static final class Ed25519 extends EvpSignatureRaw {
     Ed25519(AmazonCorrettoCryptoProvider provider) {
-      super(provider, EvpKeyType.EdDSA, 0);
+      super(provider, EvpKeyType.EdDSA, 0, false);
     }
   }
 
   static final class MLDSA extends EvpSignatureRaw {
     MLDSA(final AmazonCorrettoCryptoProvider provider) {
-      super(provider, EvpKeyType.MLDSA, 0);
+      super(provider, EvpKeyType.MLDSA, 0, false);
     }
   }
 
   static final class MLDSAExtMu extends EvpSignatureRaw {
     MLDSAExtMu(final AmazonCorrettoCryptoProvider provider) {
-      super(provider, EvpKeyType.MLDSA, 0, /*preHash*/ true);
+      super(provider, EvpKeyType.MLDSA, 0, true);
     }
   }
 }
