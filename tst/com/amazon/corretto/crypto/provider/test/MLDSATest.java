@@ -45,7 +45,7 @@ public class MLDSATest {
 
   // TODO [childw]: revert this change before publishing, once ML-DSA seeds-as-keys is merged
   public static boolean isDisabled() {
-      return true;
+    return true;
   }
 
   private static class TestParams {
