@@ -5,6 +5,7 @@ set -exo pipefail
 
 testing_experimental_fips=false
 testing_fips_self_test_failure_no_abort=false
+testing_fips_test_break=false
 
 # Testing non-FIPS is the default.
 testing_fips=false
@@ -17,7 +18,10 @@ while [[ $# -gt 0 ]]; do
       testing_experimental_fips=true
       ;;
     --fips-self-test-failure-no-abort)
+      testing_fips=true
+      testing_experimental_fips=true # TODO: can be deleted when AWS-LC-FIPS supports callback
       testing_fips_self_test_failure_no_abort=true
+      testing_fips_test_break=true
       ;;
     *)
       echo "${1} is not supported."
@@ -39,6 +43,7 @@ if (( "$version" <= "10" )); then
         -DTEST_JAVA_MAJOR_VERSION=$version \
         -DEXPERIMENTAL_FIPS=$testing_experimental_fips \
         -DFIPS_SELF_TEST_FAILURE_NO_ABORT=$testing_fips_self_test_failure_no_abort \
+        -DALLOW_FIPS_TEST_BREAK=$testing_fips_test_break \
         -DFIPS=$testing_fips \
         test_integration
     exit $?
@@ -53,5 +58,6 @@ export PATH=$JAVA_HOME/bin:$PATH
 ./gradlew \
     -DEXPERIMENTAL_FIPS=$testing_experimental_fips \
     -DFIPS_SELF_TEST_FAILURE_NO_ABORT=$testing_fips_self_test_failure_no_abort \
+    -DALLOW_FIPS_TEST_BREAK=$testing_fips_test_break \
     -DFIPS=$testing_fips \
     test_integration

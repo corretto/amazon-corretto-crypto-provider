@@ -37,7 +37,8 @@ public class FipsStatusTest {
       // call the failure callback
       NativeTestHooks.callAwsLcFipsFailureCallback();
       assertFalse(provider.isFipsStatusOk());
-      assertTrue(provider.getFipsSelfTestFailures().size() > 0);
+      assertEquals(1, provider.getFipsSelfTestFailures().size());
+      assertEquals("called by a test", provider.getFipsSelfTestFailures().get(0));
       // we should not be able to get any service object
       assertThrows(FipsStatusException.class, () -> KeyGenerator.getInstance("AES", provider));
       // we need to flip the status back to OK so the rest of tests would work. In practice, once
