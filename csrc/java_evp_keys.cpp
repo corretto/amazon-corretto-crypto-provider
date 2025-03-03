@@ -688,13 +688,16 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpMlDsaPr
         size_t der_len;
         CBB cbb;
         CHECK_OPENSSL(CBB_init(&cbb, 0));
-        // Failure below may just indicate that we don't have the seed, so retry with |EVP_PKEY_new_raw_private_key|
+        // Failure below may just indicate that we don't have the seed, so retry with |encodeExpandedMLDSAPrivateKey|
         // and encode in PKCS8 (RFC 5208) format after clearing the error queue.
-        if (!EVP_marshal_private_key(&cbb, key)) {
+        if (EVP_marshal_private_key(&cbb, key)) {
+            if (!CBB_finish(&cbb, &der, &der_len)) {
+                OPENSSL_free(der);
+                throw_java_ex(EX_RUNTIME_CRYPTO, "Error finalizing seed ML-DSA key");
+            }
+        } else {
             ERR_clear_error();
             der_len = encodeExpandedMLDSAPrivateKey(key, &der);
-        } else {
-            CBB_finish(&cbb, &der, &der_len);
         }
         CBB_cleanup(&cbb);
 

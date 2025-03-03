@@ -164,7 +164,8 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_utils_MlDsaUtils_co
         CHECK_OPENSSL(EVP_DigestUpdate(md_ctx_pk.get(), pk.data(), pk_len));
         CHECK_OPENSSL(EVP_DigestFinalXOF(md_ctx_pk.get(), tr, sizeof(tr)));
 
-        // compute mu
+        // compute mu as defined on line 6 of Algorithm 7 in FIPS 204
+        // https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.204.pdf
         CHECK_OPENSSL(EVP_DigestInit_ex(md_ctx_mu.get(), EVP_shake256(), nullptr));
         CHECK_OPENSSL(EVP_DigestUpdate(md_ctx_mu.get(), tr, sizeof(tr)));
         CHECK_OPENSSL(EVP_DigestUpdate(md_ctx_mu.get(), pre, sizeof(pre)));

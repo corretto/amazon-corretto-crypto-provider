@@ -147,7 +147,8 @@ RSA* new_private_RSA_key_with_no_e(BIGNUM const* n, BIGNUM const* d);
 
 #if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
 // Expands ML-DSA |key|, allocates appropriately sized buffer to |*out|, writes the PKCS8-encoded expanded key to
-// |*out|, and returns the size of |*out| or 0 on failure. The caller takes ownership of |*out|.
+// |*out|, and returns the size of |*out| on success and throws an unchecked exception on failure. The caller takes
+// ownership of |*out|.
 size_t encodeExpandedMLDSAPrivateKey(const EVP_PKEY* key, uint8_t** out);
 #endif
 

@@ -202,12 +202,14 @@ size_t encodeExpandedMLDSAPrivateKey(const EVP_PKEY* key, uint8_t** out)
         raw_len = 4896;
         break;
     default:
-        throw_java_ex(EX_OOM, "Invalid ML-DSA signature size");
+        throw_java_ex(EX_ILLEGAL_ARGUMENT, "Invalid ML-DSA signature size");
     }
     OPENSSL_buffer_auto raw_expanded(raw_len);
     CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(key, raw_expanded, &raw_len));
     CBB cbb, pkcs8, algorithm, priv, expanded;
     CBB_init(&cbb, 0);
+    // Encoding below is based on expandedKey CHOICE member of PrivateKey ASN.1 structures in:
+    // https://github.com/lamps-wg/dilithium-certificates/blob/main/X509-ML-DSA-2025.asn
     // spotless:off
     if (!CBB_add_asn1(&cbb, &pkcs8, CBS_ASN1_SEQUENCE) ||
         !CBB_add_asn1_uint64(&pkcs8, 0) ||
@@ -216,11 +218,14 @@ size_t encodeExpandedMLDSAPrivateKey(const EVP_PKEY* key, uint8_t** out)
         !CBB_add_asn1(&pkcs8, &priv, CBS_ASN1_OCTETSTRING) ||
         !CBB_add_asn1(&priv, &expanded, CBS_ASN1_OCTETSTRING) ||
         !CBB_add_bytes(&expanded, raw_expanded, raw_len)) {
-        throw_java_ex(EX_OOM, "Error serializing expanded ML-DSA key");
+        throw_java_ex(EX_RUNTIME_CRYPTO, "Error serializing expanded ML-DSA key");
     }
     // spotless:on
     size_t out_len;
-    CBB_finish(&cbb, out, &out_len);
+    if (!CBB_finish(&cbb, out, &out_len)) {
+        OPENSSL_free(*out);
+        throw_java_ex(EX_RUNTIME_CRYPTO, "Error finalizing expanded ML-DSA key");
+    }
     return out_len;
 }
 #endif // !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
