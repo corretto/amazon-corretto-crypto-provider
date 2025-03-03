@@ -117,6 +117,11 @@ public:
     {
     }
 
+    explicit OPENSSL_buffer_auto(size_t buf_size)
+        : buf((unsigned char*)OPENSSL_malloc(buf_size))
+    {
+    }
+
     virtual ~OPENSSL_buffer_auto() { OPENSSL_free(buf); }
 
     operator unsigned char*() { return buf; }

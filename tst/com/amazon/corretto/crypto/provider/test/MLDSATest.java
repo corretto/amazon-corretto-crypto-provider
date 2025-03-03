@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
+import com.amazon.corretto.crypto.utils.MlDsaUtils;
 import java.security.InvalidKeyException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
@@ -24,6 +25,7 @@ import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledIf;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -88,7 +90,9 @@ public class MLDSATest {
         // support non-Bouncy-Castle keys.
         KeyFactory bcKf = KeyFactory.getInstance("ML-DSA", TestUtil.BC_PROVIDER);
         PublicKey bcPub = bcKf.generatePublic(new X509EncodedKeySpec(nativePub.getEncoded()));
-        PrivateKey bcPriv = bcKf.generatePrivate(new PKCS8EncodedKeySpec(nativePriv.getEncoded()));
+        // TODO uncomment below once BC supports CHOICE-encoded private keys
+        // PrivateKey bcPriv = bcKf.generatePrivate(new
+        // PKCS8EncodedKeySpec(nativePriv.getEncoded()));
 
         Provider nativeProv = NATIVE_PROVIDER;
         Provider bcProv = TestUtil.BC_PROVIDER;
@@ -98,8 +102,8 @@ public class MLDSATest {
 
         params.add(new TestParams(nativeProv, nativeProv, nativePriv, nativePub, message));
         params.add(new TestParams(nativeProv, bcProv, nativePriv, bcPub, message));
-        params.add(new TestParams(bcProv, nativeProv, bcPriv, nativePub, message));
-        params.add(new TestParams(bcProv, bcProv, bcPriv, bcPub, message));
+        // params.add(new TestParams(bcProv, nativeProv, bcPriv, nativePub, message));
+        // params.add(new TestParams(bcProv, bcProv, bcPriv, bcPub, message));
       }
     }
     return params;
@@ -200,47 +204,49 @@ public class MLDSATest {
         });
   }
 
+  @Disabled("until BC updates to newer CHOICE priv key encoding format")
   @Test
   public void documentBouncyCastleDifferences() throws Exception {
-    // ACCP and BouncyCastle both encode the public key in full form, but BC FIPS encodes the
-    // private key as its 32 byte
-    // seed while ACCP encodes the fully expanded key. Key sizes don't precisely match the spec's
-    // sizes due to X509/PKCS9 ASN.1 encoding overhead.
-    // https://openquantumsafe.org/liboqs/algorithms/sig/ml-dsa.html
+    // ACCP and BouncyCastle both encode ML-DSA public keys in "expanded "form and ML-DSA private
+    // keys in "seed" form.
+    KeyFactory bcKf = KeyFactory.getInstance("ML-DSA", TestUtil.BC_PROVIDER);
     KeyPair nativePair =
         KeyPairGenerator.getInstance("ML-DSA-44", NATIVE_PROVIDER).generateKeyPair();
-    KeyPair bcPair =
-        KeyPairGenerator.getInstance("ML-DSA-44", TestUtil.BC_PROVIDER).generateKeyPair();
-    assertEquals(
-        nativePair.getPublic().getEncoded().length, bcPair.getPublic().getEncoded().length);
-    assertEquals(2584, nativePair.getPrivate().getEncoded().length);
-    assertEquals(52, bcPair.getPrivate().getEncoded().length);
+    PublicKey nativePub = nativePair.getPublic();
+    PrivateKey nativePriv = nativePair.getPrivate();
+    PublicKey bcPub = bcKf.generatePublic(new X509EncodedKeySpec(nativePub.getEncoded()));
+    PrivateKey bcPriv = bcKf.generatePrivate(new PKCS8EncodedKeySpec(nativePriv.getEncoded()));
+    TestUtil.assertArraysHexEquals(bcPub.getEncoded(), nativePub.getEncoded());
+    assertEquals(bcPriv.getEncoded().length + 2, nativePriv.getEncoded().length);
+    TestUtil.assertArraysHexEquals(bcPriv.getEncoded(), nativePriv.getEncoded());
 
     nativePair = KeyPairGenerator.getInstance("ML-DSA-65", NATIVE_PROVIDER).generateKeyPair();
-    bcPair = KeyPairGenerator.getInstance("ML-DSA-65", TestUtil.BC_PROVIDER).generateKeyPair();
-    assertEquals(
-        nativePair.getPublic().getEncoded().length, bcPair.getPublic().getEncoded().length);
-    assertEquals(4056, nativePair.getPrivate().getEncoded().length);
-    assertEquals(52, bcPair.getPrivate().getEncoded().length);
+    nativePub = nativePair.getPublic();
+    nativePriv = nativePair.getPrivate();
+    bcPub = bcKf.generatePublic(new X509EncodedKeySpec(nativePub.getEncoded()));
+    bcPriv = bcKf.generatePrivate(new PKCS8EncodedKeySpec(nativePriv.getEncoded()));
+    TestUtil.assertArraysHexEquals(bcPub.getEncoded(), nativePub.getEncoded());
+    assertEquals(bcPriv.getEncoded().length + 2, nativePriv.getEncoded().length);
+    TestUtil.assertArraysHexEquals(bcPriv.getEncoded(), nativePriv.getEncoded());
 
     nativePair = KeyPairGenerator.getInstance("ML-DSA-87", NATIVE_PROVIDER).generateKeyPair();
-    bcPair = KeyPairGenerator.getInstance("ML-DSA-87", TestUtil.BC_PROVIDER).generateKeyPair();
-    assertEquals(
-        nativePair.getPublic().getEncoded().length, bcPair.getPublic().getEncoded().length);
-    assertEquals(4920, nativePair.getPrivate().getEncoded().length);
-    assertEquals(52, bcPair.getPrivate().getEncoded().length);
+    nativePub = nativePair.getPublic();
+    nativePriv = nativePair.getPrivate();
+    bcPub = bcKf.generatePublic(new X509EncodedKeySpec(nativePub.getEncoded()));
+    bcPriv = bcKf.generatePrivate(new PKCS8EncodedKeySpec(nativePriv.getEncoded()));
+    TestUtil.assertArraysHexEquals(bcPub.getEncoded(), nativePub.getEncoded());
+    TestUtil.assertArraysHexEquals(bcPriv.getEncoded(), nativePriv.getEncoded());
 
     // BouncyCastle Signatures don't accept keys from other providers
     Signature bcSignature = Signature.getInstance("ML-DSA", TestUtil.BC_PROVIDER);
-    final KeyPair finalNativePair = nativePair;
-    assertThrows(
-        InvalidKeyException.class, () -> bcSignature.initSign(finalNativePair.getPrivate()));
+    final PrivateKey finalNativePriv = nativePriv;
+    assertThrows(InvalidKeyException.class, () -> bcSignature.initSign(finalNativePriv));
 
     // However, ACCP can use BouncyCastle KeyPairs with seed-encoded  PrivateKeys
     Signature nativeSignature = Signature.getInstance("ML-DSA", NATIVE_PROVIDER);
-    nativeSignature.initSign(bcPair.getPrivate());
+    nativeSignature.initSign(bcPriv);
     byte[] sigBytes = nativeSignature.sign();
-    nativeSignature.initVerify(bcPair.getPublic());
+    nativeSignature.initVerify(bcPub);
     assertTrue(nativeSignature.verify(sigBytes));
   }
 
@@ -258,7 +264,7 @@ public class MLDSATest {
     PublicKey pub = params.pub;
 
     byte[] message = Arrays.copyOf(params.message, params.message.length);
-    byte[] mu = TestUtil.computeMLDSAMu(pub, message);
+    byte[] mu = MlDsaUtils.computeMu(pub, message);
     assertEquals(64, mu.length);
     byte[] fakeMu = new byte[64];
     Arrays.fill(fakeMu, (byte) 0);
@@ -303,23 +309,5 @@ public class MLDSATest {
     extMuVerifier.initVerify(pub);
     extMuVerifier.update(mu);
     assertFalse(extMuVerifier.verify(signatureBytes));
-  }
-
-  @ParameterizedTest
-  @ValueSource(strings = {"ML-DSA-44", "ML-DSA-65", "ML-DSA-87"})
-  public void testComputeMLDSAExtMu(String algorithm) throws Exception {
-    KeyPair keyPair = KeyPairGenerator.getInstance(algorithm, NATIVE_PROVIDER).generateKeyPair();
-    PublicKey nativePub = keyPair.getPublic();
-    KeyFactory bcKf = KeyFactory.getInstance("ML-DSA", TestUtil.BC_PROVIDER);
-    PublicKey bcPub = bcKf.generatePublic(new X509EncodedKeySpec(nativePub.getEncoded()));
-
-    byte[] message = new byte[256];
-    Arrays.fill(message, (byte) 0x41);
-    byte[] mu = TestUtil.computeMLDSAMu(nativePub, message);
-    assertEquals(64, mu.length);
-    // We don't have any other implementations of mu calculation to test against, so just assert
-    // that mu is equivalent
-    // generated from both ACCP and BouncyCastle keys.
-    assertArrayEquals(mu, TestUtil.computeMLDSAMu(bcPub, message));
   }
 }

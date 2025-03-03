@@ -14,7 +14,7 @@ plugins {
 
 group = 'software.amazon.cryptools'
 version = '2.5.0'
-ext.awsLcMainTag = 'v1.46.0'
+ext.awsLcMainTag = 'v1.47.0'
 ext.awsLcFipsTag = 'AWS-LC-FIPS-3.0.0'
 ext.isExperimentalFips = Boolean.getBoolean('EXPERIMENTAL_FIPS')
 ext.isFips = ext.isExperimentalFips || Boolean.getBoolean('FIPS')
@@ -78,6 +78,7 @@ spotless {
         target 'csrc/*'
         licenseHeaderFile 'build-tools/license-headers/LicenseHeader.h'
         clangFormat(clangFormatVersion)
+        toggleOffOn()
     }
   }
 }
