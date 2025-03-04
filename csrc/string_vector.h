@@ -1,7 +1,7 @@
 // Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
-#ifndef ATOMIC_BOOL_H
-#define ATOMIC_BOOL_H
+#ifndef STRING_VECTOR_H
+#define STRING_VECTOR_H
 
 #include "compiler.h"
 
@@ -38,8 +38,8 @@ public:
         return vec.size();
     }
 
-    // TODO [childw] note about how implementing full iterator interface would be more
-    // efficient, but this is sufficient for rarely-checked self-test failure functionality
+    // TODO [childw] rewrite this to comply with GCC 4.1, which doesn't
+    // support std::mutex :(
     void copy(std::vector<std::string>& out) const
     {
         out.clear();
@@ -52,4 +52,4 @@ public:
 
 } // namespace AmazonCorrettoCryptoProvider
 
-#endif // ATOMIC_BOOL_H
+#endif // STRING_VECTOR_H

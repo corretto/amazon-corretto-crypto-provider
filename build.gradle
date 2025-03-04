@@ -578,14 +578,9 @@ task coverage_cmake(type: Exec) {
     if (isExperimentalFips) {
         args '-DEXPERIMENTAL_FIPS=ON'
     }
-    if (isFipsSelfTestFailureSkipAbort) {
-        args '-DAWSLC_FIPS_FAILURE_CALLBACK=ON'
-    }
-
     if (System.properties['JAVA_HOME'] != null) {
         args '-DJAVA_HOME=' + System.properties['JAVA_HOME']
     }
-
     if (System.properties['SINGLE_TEST'] != null) {
         args '-DSINGLE_TEST=' + System.properties['SINGLE_TEST']
 

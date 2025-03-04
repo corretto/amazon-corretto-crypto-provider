@@ -3,12 +3,12 @@ set -exo pipefail
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-testing_experimental_fips=false
-fips_self_test_skip_abort=false
-testing_fips_test_break=false
-
 # Testing non-FIPS is the default.
 testing_fips=false
+testing_experimental_fips=false
+testing_fips_self_test_skip_abort=false
+testing_fips_test_break=false
+
 while [[ $# -gt 0 ]]; do
     case ${1} in
     --fips)
@@ -20,7 +20,7 @@ while [[ $# -gt 0 ]]; do
     --fips-self-test-failure-no-abort)
       testing_fips=true
       testing_experimental_fips=true # TODO: can be deleted when AWS-LC-FIPS supports callback
-      fips_self_test_skip_abort=true
+      testing_fips_self_test_skip_abort=true
       testing_fips_test_break=true
       ;;
     *)
@@ -42,7 +42,7 @@ if (( "$version" <= "10" )); then
         -DTEST_JAVA_HOME=$TEST_JAVA_HOME \
         -DTEST_JAVA_MAJOR_VERSION=$version \
         -DEXPERIMENTAL_FIPS=$testing_experimental_fips \
-        -DFIPS_SELF_TEST_SKIP_ABORT=$fips_self_test_skip_abort \
+        -DFIPS_SELF_TEST_SKIP_ABORT=$testing_fips_self_test_skip_abort \
         -DALLOW_FIPS_TEST_BREAK=$testing_fips_test_break \
         -DFIPS=$testing_fips \
         test_integration
@@ -57,7 +57,7 @@ export PATH=$JAVA_HOME/bin:$PATH
 
 ./gradlew \
     -DEXPERIMENTAL_FIPS=$testing_experimental_fips \
-    -DFIPS_SELF_TEST_SKIP_ABORT=$fips_self_test_skip_abort \
+    -DFIPS_SELF_TEST_SKIP_ABORT=$testing_fips_self_test_skip_abort \
     -DALLOW_FIPS_TEST_BREAK=$testing_fips_test_break \
     -DFIPS=$testing_fips \
     test_integration

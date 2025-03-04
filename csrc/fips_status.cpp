@@ -4,7 +4,7 @@
 #include <functional>
 #include <jni.h>
 
-#include "atomic_bool.h"
+#include "string_vector.h"
 
 static AmazonCorrettoCryptoProvider::ConcurrentStringVector fipsStatusErrors;
 
