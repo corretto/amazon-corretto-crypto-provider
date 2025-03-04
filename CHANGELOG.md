@@ -14,6 +14,7 @@
 * [PR 427:](https://github.com/corretto/amazon-corretto-crypto-provider/pull/427) Add provider info string
 * [PR 432:](https://github.com/corretto/amazon-corretto-crypto-provider/pull/432) Support Ed25519ph, bump AWS-LC to v1.46.0yy
 * [PR 433:](https://github.com/corretto/amazon-corretto-crypto-provider/pull/433): Add build option for exposing self-test failure messages
+* [PR 434:](https://github.com/corretto/amazon-corretto-crypto-provider/pull/434) Encode ML-DSA priv key as seed, expose MlDsaUtils
 
 ## 2.4.1
 

@@ -666,3 +666,52 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpRsaPriv
 
     return result;
 }
+
+#if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
+/*
+ * Class:     com_amazon_corretto_crypto_provider_EvpRsaPrivateKey
+ * Method:    encodeRsaPrivateKey
+ * Signature: (J)[B
+ */
+JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpMlDsaPrivateKey_encodeMlDsaPrivateKey(
+    JNIEnv* pEnv, jclass, jlong keyHandle)
+{
+    jbyteArray result = NULL;
+
+    try {
+        raii_env env(pEnv);
+
+        EVP_PKEY* key = reinterpret_cast<EVP_PKEY*>(keyHandle);
+        CHECK_OPENSSL(EVP_PKEY_id(key) == EVP_PKEY_PQDSA);
+
+        uint8_t* der;
+        size_t der_len;
+        CBB cbb;
+        CHECK_OPENSSL(CBB_init(&cbb, 0));
+        // Failure below may just indicate that we don't have the seed, so retry with |encodeExpandedMLDSAPrivateKey|
+        // and encode in PKCS8 (RFC 5208) format after clearing the error queue.
+        if (EVP_marshal_private_key(&cbb, key)) {
+            if (!CBB_finish(&cbb, &der, &der_len)) {
+                OPENSSL_free(der);
+                throw_java_ex(EX_RUNTIME_CRYPTO, "Error finalizing seed ML-DSA key");
+            }
+        } else {
+            ERR_clear_error();
+            der_len = encodeExpandedMLDSAPrivateKey(key, &der);
+        }
+        CBB_cleanup(&cbb);
+
+        if (!(result = env->NewByteArray(der_len))) {
+            OPENSSL_free(der);
+            throw_java_ex(EX_OOM, "Unable to allocate DER array");
+        }
+        // This may throw, if it does we'll just keep the exception state as we return.
+        env->SetByteArrayRegion(result, 0, der_len, (const jbyte*)der);
+        OPENSSL_free(der);
+    } catch (java_ex& ex) {
+        ex.throw_to_java(pEnv);
+    }
+
+    return result;
+}
+#endif // !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
