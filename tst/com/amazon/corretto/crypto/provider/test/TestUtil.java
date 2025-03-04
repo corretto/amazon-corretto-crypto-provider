@@ -860,4 +860,15 @@ public class TestUtil {
     }
     return computeMLDSAMuInternal(publicKey.getEncoded(), message);
   }
+
+  /**
+   * Set or unset an environment variable at runtime
+   *
+   * <p>Java does not provide a way to do this, so we need to use POSIX calls over JNI.
+   *
+   * @param name of the environment variable to set or unset
+   * @param value of the environment variable to set, or |null| to unset the variable
+   * @return a byte[] of length 64 containing mu
+   */
+  static native void setEnv(String name, String value);
 }

@@ -64,4 +64,32 @@ extern "C" JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider
     }
 }
 
+/*
+ * Class:     com_amazon_corretto_crypto_provider_test_TestUtil
+ * Method:    setEnv
+ * Signature: (Ljava/lang/String;Ljava/lang/String;)V
+ */
+extern "C" JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_test_TestUtil_setEnv(
+    JNIEnv* pEnv, jclass, jstring nameJava, jstring valueJava)
+{
+    int ret;
+    try {
+        raii_env env(pEnv);
+        const char* name = env->GetStringUTFChars(nameJava, 0);
+        if (valueJava == nullptr) {
+            ret = unsetenv(name);
+        } else {
+            const char* value = env->GetStringUTFChars(valueJava, 0);
+            ret = setenv(name, value, /*overwrite*/ 1);
+            env->ReleaseStringUTFChars(valueJava, value);
+        }
+        env->ReleaseStringUTFChars(nameJava, name);
+        if (ret != 0) {
+            throw_java_ex(EX_RUNTIME_CRYPTO, "Error calling POSIX setenv or unsetenv");
+        }
+    } catch (java_ex& ex) {
+        ex.throw_to_java(pEnv);
+    }
+}
+
 } // namespace

@@ -270,6 +270,12 @@ task buildAwsLc {
                     println "Building AWS-LC with hooks to break FIPS tests"
                     args '-DFIPS_BREAK_TEST=TESTS'
                 }
+
+                if (isFipsSelfTestFailureNoAbort) {
+                    println "Building AWS-LC to call callback instead of aborting on self-test failure"
+                    args '-DCMAKE_C_FLAGS="-DAWSLC_FIPS_FAILURE_CALLBACK"'
+                }
+
                 args '.'
             }
         }

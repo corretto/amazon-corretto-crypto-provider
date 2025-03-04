@@ -7,9 +7,12 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import com.amazon.corretto.crypto.provider.FipsStatusException;
+import com.amazon.corretto.crypto.provider.RuntimeCryptoException;
+import java.security.KeyPairGenerator;
 import javax.crypto.KeyGenerator;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,6 +29,7 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 public class FipsStatusTest {
 
   private final AmazonCorrettoCryptoProvider provider = AmazonCorrettoCryptoProvider.INSTANCE;
+  private static final String PWCT_BREAKAGE_ENV_VAR = "BORINGSSL_FIPS_BREAK_TEST";
 
   @Test
   public void givenAccpBuiltWithFips_whenAWS_LC_fips_failure_callback_expectException()
@@ -47,6 +51,34 @@ public class FipsStatusTest {
     } else {
       assertThrows(UnsupportedOperationException.class, () -> provider.isFipsStatusOk());
       assertThrows(UnsupportedOperationException.class, () -> provider.getFipsSelfTestFailures());
+    }
+  }
+
+  private void testPwctBreakage(String algo, String envVarValue) throws Exception {
+    NativeTestHooks.resetFipsStatus();
+    final KeyPairGenerator kpg = KeyPairGenerator.getInstance(algo, provider);
+    assertTrue(provider.isFipsStatusOk());
+    TestUtil.setEnv(PWCT_BREAKAGE_ENV_VAR, envVarValue);
+    assertThrows(RuntimeCryptoException.class, () -> kpg.generateKeyPair());
+    assertTrue(provider.getFipsSelfTestFailures().size() > 0);
+    assertFalse(provider.isFipsStatusOk());
+    for (String msg : provider.getFipsSelfTestFailures()) {
+      assertTrue(msg.contains(algo));
+    }
+    TestUtil.setEnv(PWCT_BREAKAGE_ENV_VAR, null);
+    NativeTestHooks.resetFipsStatus();
+    assertTrue(provider.isFipsStatusOk());
+  }
+
+  @Test
+  public void testPwctBreakageSkipAbort() throws Exception {
+    assumeTrue(provider.isFips());
+    assumeTrue(provider.isFipsSelfTestFailureNoAbort());
+    testPwctBreakage("ML-DSA", "MLDSA_PWCT");
+    testPwctBreakage("RSA", "RSA_PWCT");
+    testPwctBreakage("EC", "ECDSA_PWCT");
+    if (TestUtil.getJavaVersion() >= 15) {
+      testPwctBreakage("EdDSA", "EDDSA_PWCT");
     }
   }
 }
