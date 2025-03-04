@@ -342,7 +342,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
     @Override
     public Object newInstance(final Object constructorParameter) throws NoSuchAlgorithmException {
-      if (isFips() && isFipsSelfTestFailureNoAbort() && !isFipsStatusOk()) {
+      if (isFips() && isFipsSelfTestFailureSkipAbort() && !isFipsStatusOk()) {
         throw new FipsStatusException(
             "The provider is built in FIPS non-abort mode and its status is not Ok.");
       }
@@ -668,9 +668,8 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
    * @return true if and only if the underlying libcrypto library's FIPS related checks pass
    */
   public boolean isFipsStatusOk() {
-    if (!isFipsSelfTestFailureNoAbort()) {
-      throw new UnsupportedOperationException(
-          "ACCP not built with FIPS_SELF_TEST_FAILURE_NO_ABORT");
+    if (!isFipsSelfTestFailureSkipAbort()) {
+      throw new UnsupportedOperationException("ACCP not built with FIPS_SELF_TEST_SKIP_ABORT");
     }
     return fipsStatusErrorCount() == 0;
   }
@@ -678,9 +677,8 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
   private native List<String> getFipsSelfTestFailuresInternal();
 
   public List<String> getFipsSelfTestFailures() {
-    if (!isFipsSelfTestFailureNoAbort()) {
-      throw new UnsupportedOperationException(
-          "ACCP not built with FIPS_SELF_TEST_FAILURE_NO_ABORT");
+    if (!isFipsSelfTestFailureSkipAbort()) {
+      throw new UnsupportedOperationException("ACCP not built with FIPS_SELF_TEST_SKIP_ABORT");
     }
     return getFipsSelfTestFailuresInternal();
   }
@@ -696,8 +694,8 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     return Loader.EXPERIMENTAL_FIPS_BUILD;
   }
 
-  public boolean isFipsSelfTestFailureNoAbort() {
-    return Loader.FIPS_SELF_TEST_FAILURE_NO_ABORT;
+  public boolean isFipsSelfTestFailureSkipAbort() {
+    return Loader.FIPS_SELF_TEST_SKIP_ABORT;
   }
 
   /**

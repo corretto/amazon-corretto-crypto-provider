@@ -56,9 +56,10 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_Loader_isExp
 #endif
 }
 
-JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_Loader_isFipsSelfTestFailureNoAbort(JNIEnv*, jclass)
+JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_Loader_isFipsSelfTestFailureSkipAbort(
+    JNIEnv*, jclass)
 {
-#ifdef FIPS_SELF_TEST_FAILURE_NO_ABORT
+#ifdef FIPS_SELF_TEST_SKIP_ABORT
     return JNI_TRUE;
 #else
     return JNI_FALSE;

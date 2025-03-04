@@ -83,7 +83,7 @@ final class Loader {
 
   static final boolean EXPERIMENTAL_FIPS_BUILD;
 
-  static final boolean FIPS_SELF_TEST_FAILURE_NO_ABORT;
+  static final boolean FIPS_SELF_TEST_SKIP_ABORT;
 
   /**
    * Returns an InputStream associated with {@code fileName} contained in the "testdata"
@@ -159,7 +159,7 @@ final class Loader {
     PROVIDER_VERSION = oldVersion;
     FIPS_BUILD = available && isFipsMode();
     EXPERIMENTAL_FIPS_BUILD = available && isExperimentalFipsMode();
-    FIPS_SELF_TEST_FAILURE_NO_ABORT = available && isFipsSelfTestFailureNoAbort();
+    FIPS_SELF_TEST_SKIP_ABORT = available && isFipsSelfTestFailureSkipAbort();
     AWS_LC_VERSION_STR = awsLcVersionStr;
 
     // Check for native/java library version mismatch
@@ -357,7 +357,7 @@ final class Loader {
 
   private static native boolean isExperimentalFipsMode();
 
-  private static native boolean isFipsSelfTestFailureNoAbort();
+  private static native boolean isFipsSelfTestFailureSkipAbort();
 
   /** Throws an {@link AssertionError} if the java and native libraries do not match versions. */
   private static void assertVersionMatch() {

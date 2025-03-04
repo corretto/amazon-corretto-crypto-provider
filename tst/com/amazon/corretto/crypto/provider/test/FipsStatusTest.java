@@ -34,7 +34,7 @@ public class FipsStatusTest {
   @Test
   public void givenAccpBuiltWithFips_whenAWS_LC_fips_failure_callback_expectException()
       throws Exception {
-    if (provider.isFips() && provider.isFipsSelfTestFailureNoAbort()) {
+    if (provider.isFips() && provider.isFipsSelfTestFailureSkipAbort()) {
       assertTrue(provider.isFipsStatusOk());
       assertEquals(0, provider.getFipsSelfTestFailures().size());
       assertNotNull(KeyGenerator.getInstance("AES", provider));
@@ -73,7 +73,7 @@ public class FipsStatusTest {
   @Test
   public void testPwctBreakageSkipAbort() throws Exception {
     assumeTrue(provider.isFips());
-    assumeTrue(provider.isFipsSelfTestFailureNoAbort());
+    assumeTrue(provider.isFipsSelfTestFailureSkipAbort());
     testPwctBreakage("ML-DSA", "MLDSA_PWCT");
     testPwctBreakage("RSA", "RSA_PWCT");
     testPwctBreakage("EC", "ECDSA_PWCT");

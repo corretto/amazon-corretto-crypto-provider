@@ -84,7 +84,7 @@ extern "C" JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_test_
             env->ReleaseStringUTFChars(valueJava, value);
         }
         env->ReleaseStringUTFChars(nameJava, name);
-        if (ret != 0) {
+        if (ret != 0) { // non-zero indicates failure https://man7.org/linux/man-pages/man3/setenv.3.html
             throw_java_ex(EX_RUNTIME_CRYPTO, "Error calling POSIX setenv or unsetenv");
         }
     } catch (java_ex& ex) {
