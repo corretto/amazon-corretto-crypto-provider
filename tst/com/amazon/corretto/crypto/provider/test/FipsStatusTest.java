@@ -54,17 +54,23 @@ public class FipsStatusTest {
     }
   }
 
-  private void testPwctBreakage(String algo, String envVarValue) throws Exception {
+  private void testPwctBreakage(final String algo, String envVarValue) throws Exception {
     NativeTestHooks.resetFipsStatus();
     final KeyPairGenerator kpg = KeyPairGenerator.getInstance(algo, provider);
     assertTrue(provider.isFipsStatusOk());
+    // Set PWCT_BREAKAGE_ENV_VAR for desired keygen test to break it
     TestUtil.setEnv(PWCT_BREAKAGE_ENV_VAR, envVarValue);
+    // Key generation should now fail
     assertThrows(RuntimeCryptoException.class, () -> kpg.generateKeyPair());
+    // Global FIPS status should not be OK, and we shouldn't be able to get more KPG instances
     assertTrue(provider.getFipsSelfTestFailures().size() > 0);
     assertFalse(provider.isFipsStatusOk());
+    assertThrows(FipsStatusException.class, () -> KeyPairGenerator.getInstance(algo, provider));
+    // Self-test error messages should reference the expected algorithm
     for (String msg : provider.getFipsSelfTestFailures()) {
       assertTrue(msg.contains(algo));
     }
+    // Be sure to reset provider-global state!
     TestUtil.setEnv(PWCT_BREAKAGE_ENV_VAR, null);
     NativeTestHooks.resetFipsStatus();
     assertTrue(provider.isFipsStatusOk());

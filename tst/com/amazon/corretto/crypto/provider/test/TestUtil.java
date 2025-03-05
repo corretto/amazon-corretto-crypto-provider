@@ -849,7 +849,6 @@ public class TestUtil {
    *
    * @param name of the environment variable to set or unset
    * @param value of the environment variable to set, or |null| to unset the variable
-   * @return a byte[] of length 64 containing mu
    */
   static native void setEnv(String name, String value);
 }
