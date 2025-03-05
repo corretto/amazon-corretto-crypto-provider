@@ -7,7 +7,6 @@
 
 #include <cstdio>
 #include <cstdlib>
-#include <mutex>
 #include <pthread.h>
 #include <string>
 #include <vector>
@@ -17,36 +16,45 @@ namespace AmazonCorrettoCryptoProvider {
 class ConcurrentStringVector {
 private:
     std::vector<std::string> vec;
-    mutable std::mutex mutex;
+    mutable pthread_rwlock_t lock;
 
 public:
+    ConcurrentStringVector() { pthread_rwlock_init(&lock, nullptr); }
+
+    ~ConcurrentStringVector() { pthread_rwlock_destroy(&lock); }
+
+    // Disable copy constructors
+    ConcurrentStringVector(const ConcurrentStringVector&);
+    ConcurrentStringVector& operator=(const ConcurrentStringVector&);
+
     void push_back(const std::string& value)
     {
-        std::unique_lock<std::mutex> lock(mutex);
+        pthread_rwlock_wrlock(&lock);
         vec.push_back(std::string(value));
+        pthread_rwlock_unlock(&lock);
     }
 
     void clear()
     {
-        std::unique_lock<std::mutex> lock(mutex);
+        pthread_rwlock_wrlock(&lock);
         vec.clear();
+        pthread_rwlock_unlock(&lock);
     }
 
     size_t size() const
     {
-        std::lock_guard<std::mutex> lock(mutex);
-        return vec.size();
+        pthread_rwlock_rdlock(&lock);
+        size_t vec_size = vec.size();
+        pthread_rwlock_unlock(&lock);
+        return vec_size;
     }
 
-    // TODO [childw] rewrite this to comply with GCC 4.1, which doesn't
-    // support std::mutex :(
-    void copy(std::vector<std::string>& out) const
+    std::vector<std::string> to_std() const
     {
-        out.clear();
-        std::lock_guard<std::mutex> lock(mutex);
-        for (const auto& s : vec) {
-            out.push_back(std::string(s));
-        }
+        pthread_rwlock_rdlock(&lock);
+        std::vector<std::string> out(vec);  // Use copy constructor, no references
+        pthread_rwlock_unlock(&lock);
+        return out;
     }
 };
 

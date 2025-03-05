@@ -25,8 +25,7 @@ extern "C" JNIEXPORT jobject JNICALL
 Java_com_amazon_corretto_crypto_provider_AmazonCorrettoCryptoProvider_getFipsSelfTestFailuresInternal(
     JNIEnv* env, jobject thisObj)
 {
-    std::vector<std::string> errors;
-    fipsStatusErrors.copy(errors);
+    std::vector<std::string> errors = fipsStatusErrors.to_std();
 
     jclass arrayListClass = env->FindClass("java/util/ArrayList");
     if (arrayListClass == NULL) {
