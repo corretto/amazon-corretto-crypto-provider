@@ -52,7 +52,7 @@ public:
     std::vector<std::string> to_std() const
     {
         pthread_rwlock_rdlock(&lock);
-        std::vector<std::string> out(vec);  // Use copy constructor, no references
+        std::vector<std::string> out(vec); // Use copy constructor, no references
         pthread_rwlock_unlock(&lock);
         return out;
     }
