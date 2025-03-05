@@ -18,7 +18,7 @@ void AWS_LC_fips_failure_callback(char const* message)
     fipsStatusErrors.push_back(message);
 }
 #else
-void AWS_LC_fips_failure_callback(char const* message) { }
+void AWS_LC_fips_failure_callback(char const* message) { abort(); }
 #endif
 
 extern "C" JNIEXPORT jobject JNICALL
