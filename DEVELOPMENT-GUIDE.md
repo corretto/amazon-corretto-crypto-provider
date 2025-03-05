@@ -192,3 +192,26 @@ Essentially, all you can do is methods which manipulate your critical region unt
 It is **extremely important** that you do not allocate *any* Java memory (such as creating Java objects, like a Java Exception), call *any* Java methods (which you shouldn't be doing anyway), or take any actions which may block.
 It is also **very important** that you don't spend too much time (more than about a millisecond) in a critical region.
 If you are concerned that an operation is not reasonably time-bounded, you should probably be sure to release the critical region on a regular basis to ensure the JVM has the opportunity to do needed memory management. (This isn't always achievable when everything is happening within a single atomic cryptographic operation.)
+
+# Java Debugger Support
+Due to ACCP's unconventional build system, IDEs are not able to automatically configure, run, and debug the unit tests.
+This is largely because of how we use of Gradle/CMake to run the unit tests via the JUnit CLI which allows us to
+incorporate the natively compiled portion of the library. A simple workaround is to use the singleTest task along with
+JVM arguments to start a remote Java debugger session. This then allows you to connect and debug your test in the IDE.
+
+```
+# 1. Create a new Run/Debug Configuration for "Remote JVM Debug" in IntelliJ or the equivalent for your IDE.
+
+# 2. Launch your test target using the singlelTest target. n.b. Suspend is set to y to break immediately.
+TEST_CLASS=com.amazon.corretto.crypto.provider.test.KeyGeneratorTest
+./gradlew \
+-DTEST_JAVA_ARGS='-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=*:5005' \
+-DSINGLE_TEST=${TEST_CLASS} \
+singleTest
+
+# 3. Wait for the server to start listening.
+...
+Listening for transport dt_socket at address: 5005
+
+# 4. Set a breakpoint in the IDE and connect to the JVM debug server.
+```
