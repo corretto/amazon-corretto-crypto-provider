@@ -74,11 +74,13 @@ public class FipsStatusTest {
   public void testPwctBreakageSkipAbort() throws Exception {
     assumeTrue(provider.isFips());
     assumeTrue(provider.isFipsSelfTestFailureSkipAbort());
-    testPwctBreakage("ML-DSA", "MLDSA_PWCT");
     testPwctBreakage("RSA", "RSA_PWCT");
     testPwctBreakage("EC", "ECDSA_PWCT");
     if (TestUtil.getJavaVersion() >= 15) {
       testPwctBreakage("EdDSA", "EDDSA_PWCT");
+    }
+    if (provider.isExperimentalFips()) { // can be removed when AWS-LC-FIPS supports ML-DSA
+      testPwctBreakage("ML-DSA", "MLDSA_PWCT");
     }
   }
 }
