@@ -27,6 +27,7 @@ Java_com_amazon_corretto_crypto_provider_AmazonCorrettoCryptoProvider_getFipsSel
 {
     std::vector<std::string> errors = fipsStatusErrors.to_std();
 
+    // Construct a Java ArrayList, get a handle for the |add| method
     jclass arrayListClass = env->FindClass("java/util/ArrayList");
     if (arrayListClass == NULL) {
         abort();
@@ -44,10 +45,11 @@ Java_com_amazon_corretto_crypto_provider_AmazonCorrettoCryptoProvider_getFipsSel
         abort();
     }
 
-    for (const auto& s : errors) {
-        jstring javaString = env->NewStringUTF(s.c_str());
-        env->CallBooleanMethod(arrayList, addMethod, javaString);
-        env->DeleteLocalRef(javaString); // Clean up local reference
+    // Copy the errors over to |arrayList| and clean up temporary local reference
+    for (size_t i = 0; i < errors.size(); i++) {
+        jstring javaString = env->NewStringUTF(errors[i].c_str());
+        env->CallVoidMethod(arrayList, addMethod, javaString);
+        env->DeleteLocalRef(javaString);
     }
 
     return arrayList;
