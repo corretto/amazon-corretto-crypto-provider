@@ -269,7 +269,7 @@ task buildAwsLc {
 
                 if (allowFipsTestBreak) {
                     println "Building AWS-LC with hooks to break FIPS tests"
-                    args '-DFIPS_BREAK_TEST'
+                    args '-DFIPS_BREAK_TEST='
                 }
 
                 if (isFipsSelfTestFailureSkipAbort) {
