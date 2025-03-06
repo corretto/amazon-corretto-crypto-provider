@@ -107,7 +107,6 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
       // Ed25519 returns keys of type EvpEdPublicKey and EvpEdPrivateKey that do not implement
       // EdECKey interface. One should register the KeyFactories from ACCP if they only use the
       // output of the factories with ACCP's services.
-      // Once ACCP supports multi-release jar, then this option can be removed.
       if (shouldRegisterEdKeyFactory) {
         addService("KeyFactory", "EdDSA", "EvpKeyFactory$EdDSA");
         addService("KeyFactory", "Ed25519", "EvpKeyFactory$EdDSA");
