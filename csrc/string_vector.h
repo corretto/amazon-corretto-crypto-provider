@@ -7,19 +7,24 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <deque>
 #include <pthread.h>
 #include <string>
-#include <vector>
 
 namespace AmazonCorrettoCryptoProvider {
 
 class ConcurrentStringVector {
 private:
-    std::vector<std::string> vec;
+    std::deque<std::string> vec;
+    const size_t limit;
     mutable pthread_rwlock_t lock;
 
 public:
-    ConcurrentStringVector() { pthread_rwlock_init(&lock, nullptr); }
+    ConcurrentStringVector(size_t limit)
+        : limit(limit)
+    {
+        pthread_rwlock_init(&lock, nullptr);
+    }
 
     ~ConcurrentStringVector() { pthread_rwlock_destroy(&lock); }
 
@@ -30,6 +35,9 @@ public:
     void push_back(const std::string& value)
     {
         pthread_rwlock_wrlock(&lock);
+        if (vec.size() >= limit) { // If we're at the limit, pop FIFO
+            vec.pop_front();
+        }
         vec.push_back(std::string(value));
         pthread_rwlock_unlock(&lock);
     }
@@ -52,7 +60,7 @@ public:
     std::vector<std::string> to_std() const
     {
         pthread_rwlock_rdlock(&lock);
-        std::vector<std::string> out(vec); // Use copy constructor, no references
+        std::vector<std::string> out({ vec.begin(), vec.end() }); // Use copy constructor, no references
         pthread_rwlock_unlock(&lock);
         return out;
     }

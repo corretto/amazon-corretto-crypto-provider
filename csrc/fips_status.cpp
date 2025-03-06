@@ -6,7 +6,7 @@
 
 #include "string_vector.h"
 
-static AmazonCorrettoCryptoProvider::ConcurrentStringVector fipsStatusErrors;
+static AmazonCorrettoCryptoProvider::ConcurrentStringVector fipsStatusErrors(1024);
 
 // To have this symbol exported, one needs to modify the final-link.version and the CMakeLists.txt
 extern "C" void AWS_LC_fips_failure_callback(char const* message);
@@ -14,11 +14,20 @@ extern "C" void AWS_LC_fips_failure_callback(char const* message);
 #if defined(FIPS_SELF_TEST_SKIP_ABORT)
 void AWS_LC_fips_failure_callback(char const* message)
 {
+    const size_t char_limit = 128;
+    if (strnlen(message, char_limit + 1) > char_limit) {
+        fprintf(stderr, "AWS_LC_fips_failure_callback invoked with message message exceeding %lu chars\n", char_limit);
+        return;
+    }
     fprintf(stderr, "AWS_LC_fips_failure_callback invoked with message: '%s'\n", message);
     fipsStatusErrors.push_back(message);
 }
 #else
-void AWS_LC_fips_failure_callback(char const* message) { abort(); }
+void AWS_LC_fips_failure_callback(char const* message)
+{
+    fprintf(stderr, "AWS_LC_fips_failure_callback invoked with message: '%s'\n", message);
+    abort();
+}
 #endif
 
 extern "C" JNIEXPORT jobject JNICALL
