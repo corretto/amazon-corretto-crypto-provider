@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <functional>
 #include <jni.h>
+#include <vector>
 
 #include "string_vector.h"
 
