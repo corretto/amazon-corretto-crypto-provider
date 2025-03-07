@@ -342,6 +342,11 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
     @Override
     public Object newInstance(final Object constructorParameter) throws NoSuchAlgorithmException {
+      if (isFips() && isFipsSelfTestFailureSkipAbort() && !isFipsStatusOk()) {
+        throw new FipsStatusException(
+            "The provider is built in FIPS non-abort mode and its status is not Ok.");
+      }
+
       if (constructorParameter != null) {
         // We do not currently support any algorithms that take ctor parameters.
         throw new NoSuchAlgorithmException(
@@ -657,6 +662,42 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     return Loader.FIPS_BUILD;
   }
 
+  private native int fipsStatusErrorCount();
+
+  /**
+   * @return true if and only if the underlying libcrypto library's FIPS related checks pass
+   */
+  public boolean isFipsStatusOk() {
+    if (!isFips() || !isFipsSelfTestFailureSkipAbort()) {
+      throw new UnsupportedOperationException("ACCP not built with FIPS_SELF_TEST_SKIP_ABORT");
+    }
+    if (getSelfTestStatus() == SelfTestStatus.NOT_RUN) {
+      // If FIPS self tests haven't completed, give them a 5s timeout to complete.
+      final long timeout = 5 * 1000;
+      final long deadline = System.currentTimeMillis() + timeout;
+      while (getSelfTestStatus() == SelfTestStatus.NOT_RUN) {
+        try {
+          Thread.sleep(10);
+        } catch (Exception e) {
+          throw new RuntimeCryptoException(e);
+        }
+        if (System.currentTimeMillis() > deadline) {
+          throw new RuntimeCryptoException("FIPS self tests timed out");
+        }
+      }
+    }
+    return fipsStatusErrorCount() == 0;
+  }
+
+  private native List<String> getFipsSelfTestFailuresInternal();
+
+  public List<String> getFipsSelfTestFailures() {
+    if (!isFips() || !isFipsSelfTestFailureSkipAbort()) {
+      throw new UnsupportedOperationException("ACCP not built with FIPS_SELF_TEST_SKIP_ABORT");
+    }
+    return getFipsSelfTestFailuresInternal();
+  }
+
   /**
    * ACCP-FIPS uses the FIPS branches/releases of AWS-LC. Experimental FIPS mode is to allow
    * building ACCP and AWS-LC in FIPS mode using non-FIPS branches/release. This allows one to
@@ -666,6 +707,10 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
    */
   public boolean isExperimentalFips() {
     return Loader.EXPERIMENTAL_FIPS_BUILD;
+  }
+
+  public boolean isFipsSelfTestFailureSkipAbort() {
+    return Loader.FIPS_SELF_TEST_SKIP_ABORT;
   }
 
   /**

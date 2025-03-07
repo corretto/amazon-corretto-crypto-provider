@@ -841,4 +841,14 @@ public class TestUtil {
     return "true"
         .equals(System.getProperty("com.amazon.corretto.crypto.provider.registerEdKeyFactory"));
   }
+
+  /**
+   * Set or unset an environment variable at runtime
+   *
+   * <p>Java does not provide a way to do this, so we need to use POSIX calls over JNI.
+   *
+   * @param name of the environment variable to set or unset
+   * @param value of the environment variable to set, or |null| to unset the variable
+   */
+  static native void setEnv(String name, String value);
 }

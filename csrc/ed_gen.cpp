@@ -7,12 +7,12 @@
 
 using namespace AmazonCorrettoCryptoProvider;
 
-void generateEdKey(EVP_PKEY_auto& key)
+static void generateEdKey(EVP_PKEY_auto& key)
 {
     EVP_PKEY_CTX_auto ctx = EVP_PKEY_CTX_auto::from(EVP_PKEY_CTX_new_id(EVP_PKEY_ED25519, nullptr));
     CHECK_OPENSSL(ctx.isInitialized());
     CHECK_OPENSSL(EVP_PKEY_keygen_init(ctx) == 1);
-    CHECK_OPENSSL(EVP_PKEY_keygen(ctx, key.getAddressOfPtr()));
+    CHECK_OPENSSL(EVP_PKEY_keygen(ctx, key.getAddressOfPtr()) == 1);
 }
 
 JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EdGen_generateEvpEdKey(JNIEnv* pEnv, jclass)

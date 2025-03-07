@@ -32,6 +32,16 @@ if (System.properties["AWSLC_GITVERSION"]) {
 }
 
 ext.isLegacyBuild = Boolean.getBoolean('LEGACY_BUILD')
+ext.allowFipsTestBreak = Boolean.getBoolean('ALLOW_FIPS_TEST_BREAK')
+ext.isFipsSelfTestFailureSkipAbort = Boolean.getBoolean('FIPS_SELF_TEST_SKIP_ABORT')
+
+if (allowFipsTestBreak && !isFips) {
+    throw new GradleException("ALLOW_FIPS_TEST_BREAK can only be set if FIPS is also set to true")
+}
+
+if (isFipsSelfTestFailureSkipAbort && !isFips) {
+    throw new GradleException("FIPS_SELF_TEST_SKIP_ABORT can only be set if FIPS is also set to true")
+}
 
 ext.lcovIgnore = System.properties['LCOV_IGNORE']
 if (ext.lcovIgnore == null) {
@@ -253,7 +263,18 @@ task buildAwsLc {
 
 
                 if (isFips) {
+                    println "Building AWS-LC in FIPS mode"
                     args '-DFIPS=1'
+                }
+
+                if (allowFipsTestBreak) {
+                    println "Building AWS-LC with hooks to break FIPS tests"
+                    args '-DFIPS_BREAK_TEST=TESTS'
+                }
+
+                if (isFipsSelfTestFailureSkipAbort) {
+                    println "Building AWS-LC to call callback instead of aborting on self-test failure"
+                    args '-DCMAKE_C_FLAGS="-DAWSLC_FIPS_FAILURE_CALLBACK"'
                 }
 
                 args '.'
@@ -341,6 +362,9 @@ task executeCmake(type: Exec) {
     }
     if (isExperimentalFips) {
         args '-DEXPERIMENTAL_FIPS=ON'
+    }
+    if (isFipsSelfTestFailureSkipAbort) {
+        args '-DFIPS_SELF_TEST_SKIP_ABORT=ON'
     }
 
     if (prebuiltJar != null) {
@@ -555,11 +579,9 @@ task coverage_cmake(type: Exec) {
     if (isExperimentalFips) {
         args '-DEXPERIMENTAL_FIPS=ON'
     }
-
     if (System.properties['JAVA_HOME'] != null) {
         args '-DJAVA_HOME=' + System.properties['JAVA_HOME']
     }
-
     if (System.properties['SINGLE_TEST'] != null) {
         args '-DSINGLE_TEST=' + System.properties['SINGLE_TEST']
 

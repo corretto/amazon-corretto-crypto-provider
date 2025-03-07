@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.6.0
+
+### Minor
+* [PR 433:](https://github.com/corretto/amazon-corretto-crypto-provider/pull/433) Add build option for exposing self-test failure messages
+
 ## 2.5.0
 
 ### Minor
