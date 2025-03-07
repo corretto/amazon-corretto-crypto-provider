@@ -6,6 +6,8 @@ import java.security.GeneralSecurityException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGeneratorSpi;
+import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
@@ -13,19 +15,22 @@ import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 
 class EdGen extends KeyPairGeneratorSpi {
-  /** Generates a new Ed25519 key and returns a pointer to it. */
+  // Generates a new Ed25519 key and returns a pointer to it encoded as a java |long|
   private static native long generateEvpEdKey();
 
   private final AmazonCorrettoCryptoProvider provider_;
-  private final KeyFactory kf;
+  private KeyFactory kf;
 
   EdGen(AmazonCorrettoCryptoProvider provider) {
     Loader.checkNativeLibraryAvailability();
     provider_ = provider;
     try {
       kf = KeyFactory.getInstance("EdDSA", "SunEC");
-    } catch (final GeneralSecurityException e) {
-      throw new RuntimeException("Error setting up KeyPairGenerator", e);
+    } catch (final NoSuchAlgorithmException | NoSuchProviderException e) {
+      // This case indicates that either:
+      // 1.) The current JDK runtime version does not support EdDSA (i.e. JDK version <15) or
+      // 2.) No SunEC is registered with JCA
+      kf = null;
     }
   }
 
@@ -35,10 +40,11 @@ class EdGen extends KeyPairGeneratorSpi {
 
   @Override
   public KeyPair generateKeyPair() {
-    final EvpEdPrivateKey privateKey;
-    final EvpEdPublicKey publicKey;
-    privateKey = new EvpEdPrivateKey(generateEvpEdKey());
-    publicKey = privateKey.getPublicKey();
+    final EvpEdPrivateKey privateKey = new EvpEdPrivateKey(generateEvpEdKey());
+    final EvpEdPublicKey publicKey = privateKey.getPublicKey();
+    if (kf == null) { // This case indicates JDK EdDSA conditions as described in the constructor
+      return new KeyPair(publicKey, privateKey);
+    }
     try {
       final PKCS8EncodedKeySpec privateKeyPkcs8 = new PKCS8EncodedKeySpec(privateKey.getEncoded());
       final X509EncodedKeySpec publicKeyX509 = new X509EncodedKeySpec(publicKey.getEncoded());
