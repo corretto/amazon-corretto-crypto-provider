@@ -50,7 +50,7 @@ public class RemoveDefaultProvidersTest {
 
   @Test
   void testEdDSASignature() throws Exception {
-    final byte[] message = new byte[0];
+    final byte[] message = new byte[] {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
     final KeyPair keyPair =
         KeyPairGenerator.getInstance("EdDSA", NATIVE_PROVIDER).generateKeyPair();
     final Signature signature = Signature.getInstance("EdDSA", NATIVE_PROVIDER);
