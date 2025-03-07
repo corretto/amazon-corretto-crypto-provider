@@ -12,6 +12,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import com.amazon.corretto.crypto.provider.FipsStatusException;
 import com.amazon.corretto.crypto.provider.RuntimeCryptoException;
+import com.amazon.corretto.crypto.provider.SelfTestStatus;
 import java.security.KeyPairGenerator;
 import javax.crypto.KeyGenerator;
 import org.junit.jupiter.api.Test;
@@ -35,6 +36,7 @@ public class FipsStatusTest {
   public void givenAccpBuiltWithFips_whenAWS_LC_fips_failure_callback_expectException()
       throws Exception {
     if (provider.isFips() && provider.isFipsSelfTestFailureSkipAbort()) {
+      blockUntilSelfTestsRun();
       assertTrue(provider.isFipsStatusOk());
       assertEquals(0, provider.getFipsSelfTestFailures().size());
       assertNotNull(KeyGenerator.getInstance("AES", provider));
@@ -48,6 +50,7 @@ public class FipsStatusTest {
       // we need to flip the status back to OK so the rest of tests would work. In practice, once
       // the flag is set to false, it remains false.
       NativeTestHooks.resetFipsStatus();
+      assertTrue(provider.isFipsStatusOk());
     } else {
       assertThrows(UnsupportedOperationException.class, () -> provider.isFipsStatusOk());
       assertThrows(UnsupportedOperationException.class, () -> provider.getFipsSelfTestFailures());
@@ -72,21 +75,37 @@ public class FipsStatusTest {
     }
     // Be sure to reset provider-global state!
     TestUtil.setEnv(PWCT_BREAKAGE_ENV_VAR, null);
+    assertNotNull(kpg.generateKeyPair());
     NativeTestHooks.resetFipsStatus();
     assertTrue(provider.isFipsStatusOk());
   }
 
   @Test
   public void testPwctBreakageSkipAbort() throws Exception {
+    blockUntilSelfTestsRun();
     assumeTrue(provider.isFips());
     assumeTrue(provider.isFipsSelfTestFailureSkipAbort());
     testPwctBreakage("RSA", "RSA_PWCT");
     testPwctBreakage("EC", "ECDSA_PWCT");
-    if (TestUtil.getJavaVersion() >= 15) {
-      testPwctBreakage("EdDSA", "EDDSA_PWCT");
-    }
+    // TODO: Re-enable this test when AWS-LC's EdDSA can fail keygen
+    // https://github.com/aws/aws-lc/pull/2256
+    // testPwctBreakage("EdDSA", "EDDSA_PWCT");
     if (provider.isExperimentalFips()) { // can be removed when AWS-LC-FIPS supports ML-DSA
       testPwctBreakage("ML-DSA", "MLDSA_PWCT");
+    }
+  }
+
+  // FIPS status won't be OK until the power-on self tests have run and passed, so provide a method
+  // that blocks until the tests have completed. Set a deadline to make terminal hang impossible.
+  private void blockUntilSelfTestsRun() throws Exception {
+    assertTrue(provider.isFips());
+    long timeout = 5 * 1000;
+    long deadline = System.currentTimeMillis() + timeout;
+    while (provider.getSelfTestStatus() == SelfTestStatus.NOT_RUN) {
+      Thread.sleep(100);
+      if (System.currentTimeMillis() > deadline) {
+        throw new RuntimeException("FIPS self tests timed out");
+      }
     }
   }
 }
