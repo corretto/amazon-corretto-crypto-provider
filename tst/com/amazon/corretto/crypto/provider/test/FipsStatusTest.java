@@ -62,7 +62,11 @@ public class FipsStatusTest {
     // Set PWCT_BREAKAGE_ENV_VAR for desired keygen test to break it
     TestUtil.setEnv(PWCT_BREAKAGE_ENV_VAR, envVarValue);
     // Key generation should now fail
-    assertThrows(RuntimeCryptoException.class, () -> kpg.generateKeyPair());
+    if ("Ed25519".equals(algo)) { // TODO: Remove after https://github.com/aws/aws-lc/pull/2256
+      assertNotNull(kpg.generateKeyPair());
+    } else {
+      assertThrows(RuntimeCryptoException.class, () -> kpg.generateKeyPair());
+    }
     // Global FIPS status should not be OK, and we shouldn't be able to get more KPG instances
     assertTrue(provider.getFipsSelfTestFailures().size() > 0);
     assertFalse(provider.isFipsStatusOk());
@@ -84,9 +88,10 @@ public class FipsStatusTest {
     assumeTrue(provider.isFipsSelfTestFailureSkipAbort());
     testPwctBreakage("RSA", "RSA_PWCT");
     testPwctBreakage("EC", "ECDSA_PWCT");
-    // TODO: Re-enable this test when AWS-LC's EdDSA can fail keygen
-    // https://github.com/aws/aws-lc/pull/2256
-    // testPwctBreakage("EdDSA", "EDDSA_PWCT");
+    // TODO: remove check after https://github.com/corretto/amazon-corretto-crypto-provider/pull/438
+    if (TestUtil.getJavaVersion() >= 15) {
+      testPwctBreakage("Ed25519", "EDDSA_PWCT");
+    }
     if (provider.isExperimentalFips()) { // can be removed when AWS-LC-FIPS supports ML-DSA
       testPwctBreakage("ML-DSA", "MLDSA_PWCT");
     }
