@@ -82,9 +82,9 @@ public class FipsStatusTest {
 
   @Test
   public void testPwctBreakageSkipAbort() throws Exception {
-    blockUntilSelfTestsRun();
     assumeTrue(provider.isFips());
     assumeTrue(provider.isFipsSelfTestFailureSkipAbort());
+    blockUntilSelfTestsRun();
     testPwctBreakage("RSA", "RSA_PWCT");
     testPwctBreakage("EC", "ECDSA_PWCT");
     // TODO: Re-enable this test when AWS-LC's EdDSA can fail keygen
