@@ -36,7 +36,6 @@ public class FipsStatusTest {
   public void givenAccpBuiltWithFips_whenAWS_LC_fips_failure_callback_expectException()
       throws Exception {
     if (provider.isFips() && provider.isFipsSelfTestFailureSkipAbort()) {
-      blockUntilSelfTestsRun();
       assertTrue(provider.isFipsStatusOk());
       assertEquals(0, provider.getFipsSelfTestFailures().size());
       assertNotNull(KeyGenerator.getInstance("AES", provider));
@@ -92,21 +91,6 @@ public class FipsStatusTest {
     // testPwctBreakage("EdDSA", "EDDSA_PWCT");
     if (provider.isExperimentalFips()) { // can be removed when AWS-LC-FIPS supports ML-DSA
       testPwctBreakage("ML-DSA", "MLDSA_PWCT");
-    }
-  }
-
-  // FIPS status won't be include power-on self test resutls until the power-on self tests have
-  // completed, so provide a method that blocks until the tests have completed. Set a deadline
-  // to make terminal hang impossible.
-  private void blockUntilSelfTestsRun() throws Exception {
-    assertTrue(provider.isFips());
-    final long timeout = 5 * 1000;
-    final long deadline = System.currentTimeMillis() + timeout;
-    while (provider.getSelfTestStatus() == SelfTestStatus.NOT_RUN) {
-      Thread.sleep(10);
-      if (System.currentTimeMillis() > deadline) {
-        throw new RuntimeException("FIPS self tests timed out");
-      }
     }
   }
 }
