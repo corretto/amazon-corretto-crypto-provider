@@ -12,7 +12,6 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import com.amazon.corretto.crypto.provider.FipsStatusException;
 import com.amazon.corretto.crypto.provider.RuntimeCryptoException;
-import com.amazon.corretto.crypto.provider.SelfTestStatus;
 import java.security.KeyPairGenerator;
 import javax.crypto.KeyGenerator;
 import org.junit.jupiter.api.Test;
@@ -83,7 +82,6 @@ public class FipsStatusTest {
   public void testPwctBreakageSkipAbort() throws Exception {
     assumeTrue(provider.isFips());
     assumeTrue(provider.isFipsSelfTestFailureSkipAbort());
-    blockUntilSelfTestsRun();
     testPwctBreakage("RSA", "RSA_PWCT");
     testPwctBreakage("EC", "ECDSA_PWCT");
     // TODO: Re-enable this test when AWS-LC's EdDSA can fail keygen
