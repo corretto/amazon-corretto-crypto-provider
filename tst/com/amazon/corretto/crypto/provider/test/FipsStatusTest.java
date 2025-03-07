@@ -95,14 +95,15 @@ public class FipsStatusTest {
     }
   }
 
-  // FIPS status won't be OK until the power-on self tests have run and passed, so provide a method
-  // that blocks until the tests have completed. Set a deadline to make terminal hang impossible.
+  // FIPS status won't be include power-on self test resutls until the power-on self tests have
+  // completed, so provide a method that blocks until the tests have completed. Set a deadline
+  // to make terminal hang impossible.
   private void blockUntilSelfTestsRun() throws Exception {
     assertTrue(provider.isFips());
-    long timeout = 5 * 1000;
-    long deadline = System.currentTimeMillis() + timeout;
+    final long timeout = 5 * 1000;
+    final long deadline = System.currentTimeMillis() + timeout;
     while (provider.getSelfTestStatus() == SelfTestStatus.NOT_RUN) {
-      Thread.sleep(100);
+      Thread.sleep(10);
       if (System.currentTimeMillis() > deadline) {
         throw new RuntimeException("FIPS self tests timed out");
       }

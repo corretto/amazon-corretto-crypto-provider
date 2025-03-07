@@ -671,7 +671,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     if (!isFipsSelfTestFailureSkipAbort()) {
       throw new UnsupportedOperationException("ACCP not built with FIPS_SELF_TEST_SKIP_ABORT");
     }
-    return getSelfTestStatus() == SelfTestStatus.PASSED && fipsStatusErrorCount() == 0;
+    return fipsStatusErrorCount() == 0;
   }
 
   private native List<String> getFipsSelfTestFailuresInternal();
