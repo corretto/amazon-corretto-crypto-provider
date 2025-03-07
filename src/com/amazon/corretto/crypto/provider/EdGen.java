@@ -42,7 +42,7 @@ class EdGen extends KeyPairGeneratorSpi {
   public KeyPair generateKeyPair() {
     final EvpEdPrivateKey privateKey = new EvpEdPrivateKey(generateEvpEdKey());
     final EvpEdPublicKey publicKey = privateKey.getPublicKey();
-    if (kf == null) { // This case indicates JDK EdDSA support conditions as described in the ctor
+    if (kf == null) { // This case indicates JDK EdDSA conditions as described in the constructor
       return new KeyPair(publicKey, privateKey);
     }
     try {
