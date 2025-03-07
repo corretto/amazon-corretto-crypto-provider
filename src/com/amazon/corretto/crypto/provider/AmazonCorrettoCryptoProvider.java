@@ -679,10 +679,10 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
         try {
           Thread.sleep(10);
         } catch (Exception e) {
-          throw new RuntimeException(e);
+          throw new RuntimeCryptoException(e);
         }
         if (System.currentTimeMillis() > deadline) {
-          throw new RuntimeException("FIPS self tests timed out");
+          throw new RuntimeCryptoException("FIPS self tests timed out");
         }
       }
     }
