@@ -16,13 +16,12 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.parallel.Execution;
-import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.junit.jupiter.api.parallel.Isolated;
 import org.junit.jupiter.api.parallel.ResourceAccessMode;
 import org.junit.jupiter.api.parallel.ResourceLock;
 
-@Execution(ExecutionMode.SAME_THREAD)
 @ExtendWith(TestResultLogger.class)
+@Isolated("RemoveDefaultProvidersTest modifies global JCA state, so must be run in isolation.")
 @ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ_WRITE)
 // This test is used to prove that functionality tested within it is independent of
 // default-registered JDK providers (SunEC, SunJCE, etc.). We take a global resource
