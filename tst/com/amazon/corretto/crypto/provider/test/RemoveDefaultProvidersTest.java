@@ -3,6 +3,7 @@
 package com.amazon.corretto.crypto.provider.test;
 
 import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.security.KeyPair;
@@ -16,12 +17,15 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.junit.jupiter.api.parallel.Isolated;
 import org.junit.jupiter.api.parallel.ResourceAccessMode;
 import org.junit.jupiter.api.parallel.ResourceLock;
 
 @ExtendWith(TestResultLogger.class)
 @Isolated("RemoveDefaultProvidersTest modifies global JCA state, so must be run in isolation.")
+@Execution(ExecutionMode.SAME_THREAD)
 @ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ_WRITE)
 // This test is used to prove that functionality tested within it is independent of
 // default-registered JDK providers (SunEC, SunJCE, etc.). We take a global resource
@@ -42,8 +46,10 @@ public class RemoveDefaultProvidersTest {
   @AfterAll
   static void restoreProviders() {
     assertTrue(Security.getProviders().length == 0);
+    int i = 1;
     for (Provider provider : defaultProviders) {
-      Security.addProvider(provider);
+      assertEquals(i, Security.addProvider(provider));
+      i++;
     }
   }
 
