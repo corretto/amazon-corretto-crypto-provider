@@ -663,11 +663,11 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     }
     if (getSelfTestStatus() == SelfTestStatus.NOT_RUN) {
       // If FIPS self tests haven't completed, give them a 5s timeout to complete.
-      final long timeout = 5 * 1000;
+      final long timeout = 3 * 1000;
       final long deadline = System.currentTimeMillis() + timeout;
       while (getSelfTestStatus() == SelfTestStatus.NOT_RUN) {
         try {
-          Thread.sleep(10);
+          Thread.sleep(1);
         } catch (Exception e) {
           throw new RuntimeCryptoException(e);
         }
