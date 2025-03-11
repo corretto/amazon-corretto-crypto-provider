@@ -720,10 +720,9 @@ public class EvpKeyFactoryTest {
   }
 
   // This method is used to determine whether tests should use an alternate provider for a given
-  // algorithm. In cases
-  // where JCE doesn't support the requested algorithm, the alternate provider will be returned. In
-  // cases where JCE does
-  // support the requested algorithm, null will be returned.
+  // algorithm. In cases where JCE doesn't support the requested algorithm, the alternate provider
+  // will be returned. In cases where JCE does support the requested algorithm, null will be
+  // returned.
   private static Provider getAlternateProvider(String algorithm) {
     // JCE doesn't support ML-DSA until JDK24, and BouncyCastle currently serializes ML-DSA private
     // keys via seeds.
