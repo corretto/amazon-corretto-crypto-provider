@@ -727,7 +727,7 @@ public class EvpKeyFactoryTest {
     // JCE doesn't support ML-DSA until JDK24, and BouncyCastle currently serializes ML-DSA private
     // keys via seeds.
     // TODO: switch to BouncyCastle once BC supports CHOICE-encoded private keys
-    if (algorithm.startsWith("ML-DSA")
+    if ((algorithm.startsWith("ML-DSA") && TestUtil.getJavaVersion() < 24)
         // Similarly, JDK doesn't support EdDSA/Ed25519 until JDK15
         || ((algorithm.equals("Ed25519")
                 || algorithm.equals("Ed25519ph")
