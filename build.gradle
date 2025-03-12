@@ -434,15 +434,6 @@ task emptyJar(type: Jar) {
     destinationDirectory = file("${buildDir}/lib")
 }
 
-// Since gradle upgrade to 8.13, Gradle macOS CI build fail with this error:
-// "Expected a previously known directory snapshot at <truncated>/build/cmake/javadoc/AmazonCorrettoCryptoProvider
-//  but got MissingFileSnapshot/AmazonCorrettoCryptoProvider"
-// The referenced directory is the source folder for the javadoc task below.
-// The error happens because Gradle expects to have a previous known snapshot of the source directory but its missing.
-// The actual directory exists. It likely an issue with Gradle's internal store of its snapshots.
-// Forcing verification of the directory's existence with File.mkdirs() seems to fix Gradle's missing snapshot issue.
-println "created javadoc dir : " + file("${buildDir}/cmake/javadoc/AmazonCorrettoCryptoProvider/").mkdirs()
-
 task accp_javadoc(type: Jar) {
     dependsOn executeCmake
     doFirst {

@@ -64,6 +64,26 @@ fi
 export JAVA_HOME=$TEST_JAVA_HOME
 export PATH=$JAVA_HOME/bin:$PATH
 
+# Since gradle upgrade to 8.13, Gradle macOS CI workflow fails with this error:
+# "Expected a previously known directory snapshot at <truncated>/build/cmake/javadoc/AmazonCorrettoCryptoProvider
+#  but got MissingFileSnapshot/AmazonCorrettoCryptoProvider"
+# The referenced directory is the source folder for the 'javadoc' gradle task.
+# The error happens because Gradle expects to have a previous known snapshot of the source directory but its missing.
+# The actual directory exists. It likely an issue with Gradle's internal store of its snapshots.
+# But this error happens only happens when 'release' task is executed first (which depends on both 'executeCmake' and 'javadoc' tasks)
+# followed by any other task. But if any other task that depends on 'executeCmake' is executed first,
+# then executing 'javadoc' doesn't seem to break the build when subsequent tasks are executed !!
+#
+# Note: Though 'release' is dependent on 'executeCmake', it will not be executed again as it will be considered 'up-to-date'
+
+./gradlew \
+    -DEXPERIMENTAL_FIPS=$testing_experimental_fips \
+    -DFIPS_SELF_TEST_SKIP_ABORT=$testing_fips_self_test_skip_abort \
+    -DALLOW_FIPS_TEST_BREAK=$testing_fips_test_break \
+    -DFIPS=$testing_fips \
+    -DLCOV_IGNORE=$lcov_ignore \
+    executeCmake
+
 ./gradlew \
     -DEXPERIMENTAL_FIPS=$testing_experimental_fips \
     -DFIPS_SELF_TEST_SKIP_ABORT=$testing_fips_self_test_skip_abort \
