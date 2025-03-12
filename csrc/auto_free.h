@@ -21,10 +21,10 @@
 #define AUTO_CONSTRUCTORS(name)                                                                                        \
     /* Do not allow implicit copy constructors */                                                                      \
     CLASSNAME(name)                                                                                                    \
-    (const CLASSNAME(name) &) = delete;                                                                                \
-    CLASSNAME(name) & operator=(const CLASSNAME(name) &) = delete;                                                     \
+    (const CLASSNAME(name)&) = delete;                                                                                 \
+    CLASSNAME(name)& operator=(const CLASSNAME(name)&) = delete;                                                       \
     /* Move semantics */                                                                                               \
-    CLASSNAME(name) & operator=(CLASSNAME(name) && other)                                                              \
+    CLASSNAME(name)& operator=(CLASSNAME(name) && other)                                                               \
     {                                                                                                                  \
         move(other);                                                                                                   \
         return *this;                                                                                                  \
@@ -34,9 +34,9 @@
 #else
 #define AUTO_CONSTRUCTORS(name)                                                                                        \
     /* On a pre-C++11 compiler, we do an awful hack and mutate the passed-in (const) reference. */                     \
-    CLASSNAME(name) & operator=(const CLASSNAME(name) & other)                                                         \
+    CLASSNAME(name)& operator=(const CLASSNAME(name) & other)                                                          \
     {                                                                                                                  \
-        move(const_cast<CLASSNAME(name) &>(other));                                                                    \
+        move(const_cast<CLASSNAME(name)&>(other));                                                                     \
         return *this;                                                                                                  \
     }                                                                                                                  \
     CLASSNAME(name)                                                                                                    \
