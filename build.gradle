@@ -8,7 +8,7 @@ plugins {
     id 'maven-publish'
     id 'signing'
     id "com.diffplug.spotless" version "6.18.0"
-    id "com.google.osdetector" version "1.7.0"
+    id "com.google.osdetector" version "1.7.3"
     id "io.github.gradle-nexus.publish-plugin" version "1.1.0"
 }
 
@@ -101,13 +101,11 @@ spotless {
  */
 def getClangFormatVersion() {
     def version_command = 'clang-format --version'
-    def shell_output = new ByteArrayOutputStream()
-    exec {
+    def version_exec = providers.exec {
         commandLine "bash", "-c", version_command
-        standardOutput = shell_output
-        ignoreExitValue true
+        ignoreExitValue = true
     }
-    def shell_output_string = shell_output.toString().trim()
+    def shell_output_string = version_exec.standardOutput.asText.get().trim()
     def matcher = shell_output_string =~ /version ([\w\.-]+)/
     if (matcher.find()) {
         return matcher.group(1)
@@ -125,13 +123,11 @@ if (System.properties["AWSLC_SRC_DIR"]) {
 
 // Execute cmake3 command to see if it exists. Mainly to support AL2.
 def detect_cmake3 = {
-    def exec_cmake3 = exec {
+    def cmake3_exec = providers.exec {
         executable "bash" args "-l", "-c", 'command -v cmake3'
-        ignoreExitValue true
-        standardOutput = new ByteArrayOutputStream()
-        errorOutput = standardOutput
+        ignoreExitValue = true
     }
-    if(exec_cmake3.getExitValue() == 0) {
+    if (cmake3_exec.result.get().exitValue == 0) {
         return "cmake3"
     }
     return "cmake"
@@ -509,8 +505,8 @@ task unit_tests(type: Copy) {
 test.dependsOn unit_tests
 
 task singleTest(type: Exec) {
-    group 'Verification'
-    description 'Pass in the test class using -DSINGLE_TEST=${fully_qualified_test_class}'
+    group = 'Verification'
+    description = 'Pass in the test class using -DSINGLE_TEST=${fully_qualified_test_class}'
     dependsOn executeCmake
     workingDir "${buildDir}/cmake"
     // Our cmake doesn't properly react java source changes, but it will rebuild them if the jars are missing
