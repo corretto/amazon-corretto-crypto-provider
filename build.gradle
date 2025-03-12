@@ -273,6 +273,8 @@ task buildAwsLc {
                 }
 
                 if (isFipsSelfTestFailureSkipAbort) {
+                    println "Building AWS-LC to enable CPU jitter sampling when seeding its DRBG"
+                    args '-DENABLE_FIPS_ENTROPY_CPU_JITTER=ON'
                     println "Building AWS-LC to call callback instead of aborting on self-test failure"
                     cmakeCFlags += '-DAWSLC_FIPS_FAILURE_CALLBACK '
                 }

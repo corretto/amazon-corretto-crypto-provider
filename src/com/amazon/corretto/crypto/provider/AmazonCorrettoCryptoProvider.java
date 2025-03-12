@@ -652,7 +652,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     return Loader.FIPS_BUILD;
   }
 
-  private native int fipsStatusErrorCount();
+  private native boolean isFipsStatusOkInternal();
 
   /**
    * @return true if and only if the underlying libcrypto library's FIPS related checks pass
@@ -676,7 +676,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
         }
       }
     }
-    return fipsStatusErrorCount() == 0;
+    return isFipsStatusOkInternal();
   }
 
   private native List<String> getFipsSelfTestFailuresInternal();
