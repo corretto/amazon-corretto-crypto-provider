@@ -64,7 +64,6 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
   private final boolean relyOnCachedSelfTestResults;
   private final boolean shouldRegisterEcParams;
   private final boolean shouldRegisterSecureRandom;
-  private final boolean shouldRegisterEdDSA;
   private final boolean shouldRegisterEdKeyFactory;
   private final boolean shouldRegisterMLDSA;
   private final Utils.NativeContextReleaseStrategy nativeContextReleaseStrategy;
@@ -102,19 +101,16 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
       addService("KeyFactory", "ML-DSA-87", "EvpKeyFactory$MLDSA");
     }
 
-    if (shouldRegisterEdDSA) {
-      // KeyFactories are used to convert key encodings to Java Key objects. ACCP's KeyFactory for
-      // Ed25519 returns keys of type EvpEdPublicKey and EvpEdPrivateKey that do not implement
-      // EdECKey interface. One should register the KeyFactories from ACCP if they only use the
-      // output of the factories with ACCP's services.
-      // Once ACCP supports multi-release jar, then this option can be removed.
-      if (shouldRegisterEdKeyFactory) {
-        addService("KeyFactory", "EdDSA", "EvpKeyFactory$EdDSA");
-        addService("KeyFactory", "Ed25519", "EvpKeyFactory$EdDSA");
-      }
-      addService("KeyPairGenerator", "EdDSA", "EdGen");
-      addService("KeyPairGenerator", "Ed25519", "EdGen");
+    // KeyFactories are used to convert key encodings to Java Key objects. ACCP's KeyFactory for
+    // Ed25519 returns keys of type EvpEdPublicKey and EvpEdPrivateKey that do not implement
+    // EdECKey interface. One should register the KeyFactories from ACCP if they only use the
+    // output of the factories with ACCP's services.
+    if (shouldRegisterEdKeyFactory) {
+      addService("KeyFactory", "EdDSA", "EvpKeyFactory$EdDSA");
+      addService("KeyFactory", "Ed25519", "EvpKeyFactory$EdDSA");
     }
+    addService("KeyPairGenerator", "EdDSA", "EdGen");
+    addService("KeyPairGenerator", "Ed25519", "EdGen");
 
     final String hkdfSpi = "HkdfSecretKeyFactorySpi";
     addService("SecretKeyFactory", HKDF_WITH_SHA1, hkdfSpi, false);
@@ -144,7 +140,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
       addService("KeyPairGenerator", "ML-DSA-87", "MlDsaGen$MlDsaGen87");
     }
 
-    addService("KeyGenerator", "AES", "keygeneratorspi.SecretKeyGenerator", false);
+    addService("KeyGenerator", "AES", "SecretKeyGenerator", false);
 
     addService("Cipher", "AES/XTS/NoPadding", "AesXtsSpi", false);
 
@@ -216,11 +212,9 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
     addService("Signature", "RSASSA-PSS", "EvpSignature$RSASSA_PSS");
     addService("Signature", "NONEwithECDSA", "EvpSignatureRaw$NONEwithECDSA");
-    if (shouldRegisterEdDSA) {
-      addService("Signature", "EdDSA", "EvpSignatureRaw$Ed25519");
-      addService("Signature", "Ed25519", "EvpSignatureRaw$Ed25519");
-      addService("Signature", "Ed25519ph", "EvpSignature$Ed25519ph");
-    }
+    addService("Signature", "EdDSA", "EvpSignatureRaw$Ed25519");
+    addService("Signature", "Ed25519", "EvpSignatureRaw$Ed25519");
+    addService("Signature", "Ed25519ph", "EvpSignature$Ed25519ph");
 
     if (shouldRegisterMLDSA) {
       addService("Signature", "ML-DSA", "EvpSignatureRaw$MLDSA");
@@ -342,6 +336,11 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
     @Override
     public Object newInstance(final Object constructorParameter) throws NoSuchAlgorithmException {
+      if (isFips() && isFipsSelfTestFailureSkipAbort() && !isFipsStatusOk()) {
+        throw new FipsStatusException(
+            "The provider is built in FIPS non-abort mode and its status is not Ok.");
+      }
+
       if (constructorParameter != null) {
         // We do not currently support any algorithms that take ctor parameters.
         throw new NoSuchAlgorithmException(
@@ -511,10 +510,6 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     this.shouldRegisterSecureRandom =
         Utils.getBooleanProperty(PROPERTY_REGISTER_SECURE_RANDOM, true);
 
-    // The Java classes necessary for EdDSA are not included in Java versions < 15, so to compile
-    // successfully on older versions of Java we can only register EdDSA if JDK version >= 15.
-    this.shouldRegisterEdDSA = Utils.getJavaVersion() >= 15;
-
     this.shouldRegisterEdKeyFactory =
         Utils.getBooleanProperty(PROPERTY_REGISTER_ED_KEYFACTORY, false);
 
@@ -657,6 +652,42 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     return Loader.FIPS_BUILD;
   }
 
+  private native boolean isFipsStatusOkInternal();
+
+  /**
+   * @return true if and only if the underlying libcrypto library's FIPS related checks pass
+   */
+  public boolean isFipsStatusOk() {
+    if (!isFips() || !isFipsSelfTestFailureSkipAbort()) {
+      throw new UnsupportedOperationException("ACCP not built with FIPS_SELF_TEST_SKIP_ABORT");
+    }
+    if (getSelfTestStatus() == SelfTestStatus.NOT_RUN) {
+      // If FIPS self tests haven't completed, give them a 5s timeout to complete.
+      final long timeout = 3 * 1000;
+      final long deadline = System.currentTimeMillis() + timeout;
+      while (getSelfTestStatus() == SelfTestStatus.NOT_RUN) {
+        try {
+          Thread.sleep(1);
+        } catch (Exception e) {
+          throw new RuntimeCryptoException(e);
+        }
+        if (System.currentTimeMillis() > deadline) {
+          throw new RuntimeCryptoException("FIPS self tests timed out");
+        }
+      }
+    }
+    return isFipsStatusOkInternal();
+  }
+
+  private native List<String> getFipsSelfTestFailuresInternal();
+
+  public List<String> getFipsSelfTestFailures() {
+    if (!isFips() || !isFipsSelfTestFailureSkipAbort()) {
+      throw new UnsupportedOperationException("ACCP not built with FIPS_SELF_TEST_SKIP_ABORT");
+    }
+    return getFipsSelfTestFailuresInternal();
+  }
+
   /**
    * ACCP-FIPS uses the FIPS branches/releases of AWS-LC. Experimental FIPS mode is to allow
    * building ACCP and AWS-LC in FIPS mode using non-FIPS branches/release. This allows one to
@@ -666,6 +697,10 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
    */
   public boolean isExperimentalFips() {
     return Loader.EXPERIMENTAL_FIPS_BUILD;
+  }
+
+  public boolean isFipsSelfTestFailureSkipAbort() {
+    return Loader.FIPS_SELF_TEST_SKIP_ABORT;
   }
 
   /**

@@ -17,7 +17,6 @@ import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
-import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.util.ArrayList;
@@ -843,21 +842,13 @@ public class TestUtil {
         .equals(System.getProperty("com.amazon.corretto.crypto.provider.registerEdKeyFactory"));
   }
 
-  private static native byte[] computeMLDSAMuInternal(byte[] pubKeyEncoded, byte[] message);
-
   /**
-   * Computes mu as defined on line 6 of Algorithm 7 and line 7 of Algorithm 8 in NIST FIPS 204.
+   * Set or unset an environment variable at runtime
    *
-   * <p>See <a href="https://csrc.nist.gov/pubs/fips/204/final">FIPS 204</a>
+   * <p>Java does not provide a way to do this, so we need to use POSIX calls over JNI.
    *
-   * @param publicKey ML-DSA public key
-   * @param message byte array of the message over which to compute mu
-   * @return a byte[] of length 64 containing mu
+   * @param name of the environment variable to set or unset
+   * @param value of the environment variable to set, or |null| to unset the variable
    */
-  static byte[] computeMLDSAMu(PublicKey publicKey, byte[] message) {
-    if (publicKey == null || !publicKey.getAlgorithm().startsWith("ML-DSA") || message == null) {
-      throw new IllegalArgumentException();
-    }
-    return computeMLDSAMuInternal(publicKey.getEncoded(), message);
-  }
+  static native void setEnv(String name, String value);
 }

@@ -179,4 +179,55 @@ RSA* new_private_RSA_key_with_no_e(BIGNUM const* n, BIGNUM const* d)
     return result;
 }
 
+#if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
+size_t encodeExpandedMLDSAPrivateKey(const EVP_PKEY* key, uint8_t** out)
+{
+    CHECK_OPENSSL(key);
+    CHECK_OPENSSL(EVP_PKEY_id(key) == EVP_PKEY_PQDSA);
+    CHECK_OPENSSL(out);
+    size_t raw_len;
+    int nid = NID_undef;
+    // See Section 4, Table 2 of https://nvlpubs.nist.gov/nistpubs/fips/nist.fips.204.pdf
+    switch (EVP_PKEY_size(key)) { // switch on signature size for |key|'s algorithm
+    case 2420:
+        nid = NID_MLDSA44;
+        raw_len = 2560;
+        break;
+    case 3309:
+        nid = NID_MLDSA65;
+        raw_len = 4032;
+        break;
+    case 4627:
+        nid = NID_MLDSA87;
+        raw_len = 4896;
+        break;
+    default:
+        throw_java_ex(EX_ILLEGAL_ARGUMENT, "Invalid ML-DSA signature size");
+    }
+    OPENSSL_buffer_auto raw_expanded(raw_len);
+    CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(key, raw_expanded, &raw_len));
+    CBB cbb, pkcs8, algorithm, priv, expanded;
+    CBB_init(&cbb, 0);
+    // Encoding below is based on expandedKey CHOICE member of PrivateKey ASN.1 structures in:
+    // https://github.com/lamps-wg/dilithium-certificates/blob/main/X509-ML-DSA-2025.asn
+    // spotless:off
+    if (!CBB_add_asn1(&cbb, &pkcs8, CBS_ASN1_SEQUENCE) ||
+        !CBB_add_asn1_uint64(&pkcs8, 0) ||
+        !CBB_add_asn1(&pkcs8, &algorithm, CBS_ASN1_SEQUENCE) ||
+        !OBJ_nid2cbb(&algorithm, nid) ||
+        !CBB_add_asn1(&pkcs8, &priv, CBS_ASN1_OCTETSTRING) ||
+        !CBB_add_asn1(&priv, &expanded, CBS_ASN1_OCTETSTRING) ||
+        !CBB_add_bytes(&expanded, raw_expanded, raw_len)) {
+        throw_java_ex(EX_RUNTIME_CRYPTO, "Error serializing expanded ML-DSA key");
+    }
+    // spotless:on
+    size_t out_len;
+    if (!CBB_finish(&cbb, out, &out_len)) {
+        OPENSSL_free(*out);
+        throw_java_ex(EX_RUNTIME_CRYPTO, "Error finalizing expanded ML-DSA key");
+    }
+    return out_len;
+}
+#endif // !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
+
 }
