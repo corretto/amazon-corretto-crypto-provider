@@ -71,8 +71,8 @@ export PATH=$JAVA_HOME/bin:$PATH
 # The error happens because Gradle expects to have a previous known snapshot of the source directory but its missing.
 # The actual directory exists. It likely an issue with Gradle's internal store of its snapshots.
 #
-# But this error happens only happens when 'release' task is executed first followed by any other task.
-# ('release' depends on 'javadoc' that seems to be the source of the problem)
+# But this error happens only happens when 'release' task is executed first followed by any other task
+# ('release' depends on 'javadoc' that seems to be the source of the problem).
 #
 # So 'javadoc' is being removed from 'release' dependency chain. It needs to be run separately when required.
 
