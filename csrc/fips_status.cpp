@@ -1,5 +1,6 @@
 // Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
+#include <openssl/crypto.h>
 #include <cstdio>
 #include <functional>
 #include <jni.h>
@@ -66,10 +67,22 @@ Java_com_amazon_corretto_crypto_provider_AmazonCorrettoCryptoProvider_getFipsSel
     return arrayList;
 }
 
-extern "C" JNIEXPORT int JNICALL
-Java_com_amazon_corretto_crypto_provider_AmazonCorrettoCryptoProvider_fipsStatusErrorCount(JNIEnv* env, jobject thisObj)
+extern "C" JNIEXPORT bool JNICALL
+Java_com_amazon_corretto_crypto_provider_AmazonCorrettoCryptoProvider_isFipsStatusOkInternal(
+    JNIEnv* env, jobject thisObj)
 {
-    return fipsStatusErrors.size();
+#if defined(EXPERIMENTAL_FIPS_BUILD)
+    if (!FIPS_is_entropy_cpu_jitter()) {
+        AWS_LC_fips_failure_callback("CPU Jitter is not enabled");
+        return false;
+    }
+#else
+    // Below macro check can be removed once we consume an AWS-LC-FIPS verison with |FIPS_is_entropy_cpu_jitter|.
+    // Until then, this function should never be called unless we're in EXPERIMENTAL_FIPS_BUILD, so abort below
+    // to alert us when EXPERIMENTAL_FIPS_BUILD is dropped from FIPS_SELF_TEST_SKIP_ABORT in testing.
+    abort();
+#endif
+    return fipsStatusErrors.size() == 0;
 }
 
 // TEST methods below

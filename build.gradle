@@ -14,7 +14,7 @@ plugins {
 
 group = 'software.amazon.cryptools'
 version = '2.5.0'
-ext.awsLcMainTag = 'v1.47.0'
+ext.awsLcMainTag = 'v1.48.2'
 ext.awsLcFipsTag = 'AWS-LC-FIPS-3.0.0'
 ext.isExperimentalFips = Boolean.getBoolean('EXPERIMENTAL_FIPS')
 ext.isFips = ext.isExperimentalFips || Boolean.getBoolean('FIPS')
@@ -260,7 +260,7 @@ task buildAwsLc {
                 args '-DCMAKE_BUILD_TYPE=RelWithDebInfo'
                 args "-DCMAKE_INSTALL_PREFIX=${sharedObjectOutDir}"
                 args "-DCMAKE_VERBOSE_MAKEFILE:BOOL=ON"
-
+                def cmakeCFlags = ""
 
                 if (isFips) {
                     println "Building AWS-LC in FIPS mode"
@@ -269,13 +269,17 @@ task buildAwsLc {
 
                 if (allowFipsTestBreak) {
                     println "Building AWS-LC with hooks to break FIPS tests"
-                    args '-DFIPS_BREAK_TEST=TESTS'
+                    cmakeCFlags += '-DBORINGSSL_FIPS_BREAK_TESTS '
                 }
 
                 if (isFipsSelfTestFailureSkipAbort) {
+                    println "Building AWS-LC to enable CPU jitter sampling when seeding its DRBG"
+                    args '-DENABLE_FIPS_ENTROPY_CPU_JITTER=ON'
                     println "Building AWS-LC to call callback instead of aborting on self-test failure"
-                    args '-DCMAKE_C_FLAGS="-DAWSLC_FIPS_FAILURE_CALLBACK"'
+                    cmakeCFlags += '-DAWSLC_FIPS_FAILURE_CALLBACK '
                 }
+
+                args "-DCMAKE_C_FLAGS='${cmakeCFlags}'"
 
                 args '.'
             }

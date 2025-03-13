@@ -28,7 +28,8 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 @ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ_WRITE)
 public class FipsStatusTest {
 
-  private final AmazonCorrettoCryptoProvider provider = AmazonCorrettoCryptoProvider.INSTANCE;
+  private static final AmazonCorrettoCryptoProvider provider =
+      AmazonCorrettoCryptoProvider.INSTANCE;
   private static final String PWCT_BREAKAGE_ENV_VAR = "BORINGSSL_FIPS_BREAK_TEST";
 
   @Test
@@ -55,18 +56,30 @@ public class FipsStatusTest {
     }
   }
 
-  private void testPwctBreakage(final String algo, String envVarValue) throws Exception {
+  // Key generation should ~never fail under normal conditions, so consider a breakage to
+  // indicate that AWS-LC was built with the FIPS_BREAK_TEST build flag set.
+  private static boolean awsLcIsBuiltWitFipshBreakTest() throws Exception {
+    final String algorithm = "RSA";
+    KeyPairGenerator kpg = KeyPairGenerator.getInstance(algorithm, provider);
+    TestUtil.setEnv(PWCT_BREAKAGE_ENV_VAR, String.format("%s_PWCT", algorithm));
+    try {
+      kpg.generateKeyPair();
+    } catch (RuntimeCryptoException e) {
+      return true;
+    } finally {
+      TestUtil.setEnv(PWCT_BREAKAGE_ENV_VAR, null);
+    }
+    return false;
+  }
+
+  private static void testPwctBreakage(final String algo, String envVarValue) throws Exception {
     NativeTestHooks.resetFipsStatus();
     final KeyPairGenerator kpg = KeyPairGenerator.getInstance(algo, provider);
     assertTrue(provider.isFipsStatusOk());
     // Set PWCT_BREAKAGE_ENV_VAR for desired keygen test to break it
     TestUtil.setEnv(PWCT_BREAKAGE_ENV_VAR, envVarValue);
     // Key generation should now fail
-    if ("Ed25519".equals(algo)) { // TODO: Remove after https://github.com/aws/aws-lc/pull/2256
-      assertNotNull(kpg.generateKeyPair());
-    } else {
-      assertThrows(RuntimeCryptoException.class, () -> kpg.generateKeyPair());
-    }
+    assertThrows(RuntimeCryptoException.class, () -> kpg.generateKeyPair());
     // Global FIPS status should not be OK, and we shouldn't be able to get more KPG instances
     assertTrue(provider.getFipsSelfTestFailures().size() > 0);
     assertFalse(provider.isFipsStatusOk());
@@ -86,12 +99,10 @@ public class FipsStatusTest {
   public void testPwctBreakageSkipAbort() throws Exception {
     assumeTrue(provider.isFips());
     assumeTrue(provider.isFipsSelfTestFailureSkipAbort());
+    assumeTrue(awsLcIsBuiltWitFipshBreakTest());
     testPwctBreakage("RSA", "RSA_PWCT");
     testPwctBreakage("EC", "ECDSA_PWCT");
-    // TODO: remove check after https://github.com/corretto/amazon-corretto-crypto-provider/pull/438
-    if (TestUtil.getJavaVersion() >= 15) {
-      testPwctBreakage("Ed25519", "EDDSA_PWCT");
-    }
+    testPwctBreakage("Ed25519", "EDDSA_PWCT");
     if (provider.isExperimentalFips()) { // can be removed when AWS-LC-FIPS supports ML-DSA
       testPwctBreakage("ML-DSA", "MLDSA_PWCT");
     }
