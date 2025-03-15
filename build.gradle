@@ -438,8 +438,18 @@ task emptyJar(type: Jar) {
     destinationDirectory = file("${buildDir}/lib")
 }
 
+// From Gradle 8.6, when `accp_javadoc` is executed, Gradle tries to create a `DirectorySnapshot` in it VFS
+// for the non-existent javadoc folder (before the task executes) and ends up creating a `MissingFileSnapshot`.
+// This makes subsequent gradle executions that parses that location in the VFS to fail, even though that folder
+// is eventually created. Creating that folder up-front as a dependency of `accp_javadoc` avoids this problem.
+task create_javadoc_folder {
+    doLast {
+        mkdir "${buildDir}/cmake/javadoc/AmazonCorrettoCryptoProvider/"
+    }
+}
+
 task accp_javadoc(type: Jar) {
-    dependsOn executeCmake
+    dependsOn executeCmake, create_javadoc_folder
     doFirst {
         mkdir "${buildDir}/lib"
         exec {
