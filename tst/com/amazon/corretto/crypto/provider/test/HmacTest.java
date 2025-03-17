@@ -19,7 +19,6 @@ import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
 import java.security.Provider.Service;
 import java.security.PublicKey;
 import java.security.spec.InvalidKeySpecException;
@@ -32,7 +31,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
-import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 import javax.crypto.Mac;
 import javax.crypto.SecretKey;
@@ -40,7 +38,6 @@ import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import org.apache.commons.codec.binary.Hex;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.parallel.Execution;
@@ -72,30 +69,6 @@ public class HmacTest {
     } catch (final ClassNotFoundException ex) {
       throw new AssertionError(ex);
     }
-  }
-
-  // TODO: This version needs to be updated once known.
-  private static final String MINIMUM_VERSION_WITH_PRECOMPUTED_KEY = "2.4.1";
-
-  /**
-   * Call this function before any tests that use precomputed keys.
-   *
-   * <p>TODO: This function will need to be changed once FIPS support precomputed keys.
-   */
-  private void assumePrecomputedKeySupport() {
-    TestUtil.assumeMinimumVersion(
-        MINIMUM_VERSION_WITH_PRECOMPUTED_KEY, AmazonCorrettoCryptoProvider.INSTANCE);
-    Assumptions.assumeFalse(
-        TestUtil.isFips(), "precomputed keys are only supported in non-FIPS builds");
-  }
-
-  /**
-   * Call this function before any tests that assume precomputed keys are not supported.
-   *
-   * <p>TODO: This function will need to be changed once FIPS support precomputed keys.
-   */
-  private void assumeNoPrecomputedKeySupport() {
-    Assumptions.assumeTrue(TestUtil.isFips());
   }
 
   private static List<String> supportedHmacs() {
@@ -134,25 +107,6 @@ public class HmacTest {
         throw new IllegalArgumentException("Unknown algorithm: " + algorithm);
     }
     return precomputedKeyLength;
-  }
-
-  @Test
-  public void precomputedKeysAreNotAvailableInFipsMode() {
-    assumeNoPrecomputedKeySupport();
-    Stream.of(
-            "HmacMD5WithPrecomputedKey",
-            "HmacSHA1WithPrecomputedKey",
-            "HmacSHA256WithPrecomputedKey",
-            "HmacSHA384WithPrecomputedKey",
-            "HmacSHA512WithPrecomputedKey")
-        .forEach(
-            alg -> {
-              assertThrows(
-                  NoSuchAlgorithmException.class,
-                  () -> SecretKeyFactory.getInstance(alg, NATIVE_PROVIDER));
-              assertThrows(
-                  NoSuchAlgorithmException.class, () -> Mac.getInstance(alg, NATIVE_PROVIDER));
-            });
   }
 
   @Test
@@ -504,8 +458,6 @@ public class HmacTest {
   @ParameterizedTest
   @MethodSource("supportedHmacs")
   public void engineInitErrorsWithPrecomputedKey(final String algorithm) throws Exception {
-    assumePrecomputedKeySupport();
-
     final int precomputedKeyLength = getPrecomputedKeyLength(algorithm);
     byte[] precomputedKey = new byte[precomputedKeyLength];
 
@@ -573,8 +525,6 @@ public class HmacTest {
   @ParameterizedTest
   @MethodSource("supportedHmacs")
   public void incorrectKeySpecForKeyFactory(final String algorithm) throws Exception {
-    assumePrecomputedKeySupport();
-
     final SecretKeyFactory skf =
         SecretKeyFactory.getInstance(algorithm + "WithPrecomputedKey", NATIVE_PROVIDER);
 
@@ -732,8 +682,6 @@ public class HmacTest {
   // Suppress redundant cast warnings; they're redundant in java 9 but not java 8
   @SuppressWarnings({"cast", "RedundantCast"})
   public void testWithPrecomputedKey(final String algorithm) throws Exception {
-    assumePrecomputedKeySupport();
-
     final SecretKeySpec key =
         new SecretKeySpec("YellowSubmarine".getBytes(StandardCharsets.US_ASCII), "Generic");
     final byte[] msg = "This is a test message".getBytes(StandardCharsets.US_ASCII);

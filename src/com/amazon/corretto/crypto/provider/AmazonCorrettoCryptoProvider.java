@@ -162,27 +162,20 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     addService("Cipher", "RSA/ECB/OAEPWithSHA-1AndMGF1Padding", "RsaCipher$OAEPSha1");
     addService("Cipher", "RSA/ECB/OAEPWithSHA1AndMGF1Padding", "RsaCipher$OAEPSha1");
 
+    final String hmacWithPrecomputedKeyKeyFactorySpi = "HmacWithPrecomputedKeyKeyFactorySpi";
     for (String hash : new String[] {"MD5", "SHA1", "SHA256", "SHA384", "SHA512"}) {
+      // Registration of regular Hmac
       addService("Mac", "Hmac" + hash, "EvpHmac$" + hash);
-    }
-
-    // Once these HMAC precomputed keys are supported in a FIPS branch of AWS-LC, we can remove this
-    // check and update HmacTest#assumePrecomputedKeySupport and
-    // HmacTest#assumeNoPrecomputedKeySupport.
-    if (!Loader.FIPS_BUILD) {
-      final String hmacWithPrecomputedKeyKeyFactorySpi = "HmacWithPrecomputedKeyKeyFactorySpi";
-
-      for (String hash : new String[] {"MD5", "SHA1", "SHA256", "SHA384", "SHA512"}) {
-        addService(
-            "Mac",
-            HMAC_PREFIX + hash + WITH_PRECOMPUTED_KEY,
-            "EvpHmac$" + hash + WITH_PRECOMPUTED_KEY);
-        addService(
-            "SecretKeyFactory",
-            HMAC_PREFIX + hash + WITH_PRECOMPUTED_KEY,
-            hmacWithPrecomputedKeyKeyFactorySpi,
-            false);
-      }
+      // Registration of Hmac with precomputed keys
+      addService(
+          "Mac",
+          HMAC_PREFIX + hash + WITH_PRECOMPUTED_KEY,
+          "EvpHmac$" + hash + WITH_PRECOMPUTED_KEY);
+      addService(
+          "SecretKeyFactory",
+          HMAC_PREFIX + hash + WITH_PRECOMPUTED_KEY,
+          hmacWithPrecomputedKeyKeyFactorySpi,
+          false);
     }
 
     addService(
