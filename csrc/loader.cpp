@@ -47,6 +47,25 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_Loader_isFip
     return FIPS_mode() == 1 ? JNI_TRUE : JNI_FALSE;
 }
 
+JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_Loader_isExperimentalFipsMode(JNIEnv*, jclass)
+{
+#ifdef EXPERIMENTAL_FIPS_BUILD
+    return JNI_TRUE;
+#else
+    return JNI_FALSE;
+#endif
+}
+
+JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_Loader_isFipsSelfTestFailureSkipAbort(
+    JNIEnv*, jclass)
+{
+#ifdef FIPS_SELF_TEST_SKIP_ABORT
+    return JNI_TRUE;
+#else
+    return JNI_FALSE;
+#endif
+}
+
 JNIEXPORT jstring JNICALL Java_com_amazon_corretto_crypto_provider_Loader_getNativeLibraryVersion(JNIEnv* pEnv, jclass)
 {
     try {

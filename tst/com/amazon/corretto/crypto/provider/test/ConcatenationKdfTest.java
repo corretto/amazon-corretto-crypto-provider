@@ -9,7 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.amazon.corretto.crypto.provider.ConcatenationKdfSpec;
 import java.security.NoSuchAlgorithmException;
@@ -34,8 +33,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 public class ConcatenationKdfTest {
 
   @Test
-  public void concatenationKdfsAreNotAvailableInFipsMode() {
-    assumeTrue(TestUtil.isFips());
+  public void concatenationKdfsAreAvailable() {
     Stream.of(
             "ConcatenationKdfWithSHA256",
             "ConcatenationKdfWithSHA384",
@@ -43,10 +41,13 @@ public class ConcatenationKdfTest {
             "ConcatenationKdfWithHmacSHA256",
             "ConcatenationKdfWithHmacSHA512")
         .forEach(
-            alg ->
-                assertThrows(
-                    NoSuchAlgorithmException.class,
-                    () -> SecretKeyFactory.getInstance(alg, TestUtil.NATIVE_PROVIDER)));
+            alg -> {
+              try {
+                assertNotNull(SecretKeyFactory.getInstance(alg, TestUtil.NATIVE_PROVIDER));
+              } catch (final NoSuchAlgorithmException e) {
+                throw new RuntimeException(e);
+              }
+            });
   }
 
   @Test
@@ -58,15 +59,14 @@ public class ConcatenationKdfTest {
   @Test
   public void outputLengthCannotBeZeroOrNegative() {
     assertThrows(
-        IllegalArgumentException.class, () -> new ConcatenationKdfSpec(new byte[0], 0, "name"));
+        IllegalArgumentException.class, () -> new ConcatenationKdfSpec(new byte[10], 0, "name"));
     assertThrows(
-        IllegalArgumentException.class, () -> new ConcatenationKdfSpec(new byte[0], -1, "name"));
+        IllegalArgumentException.class, () -> new ConcatenationKdfSpec(new byte[10], -1, "name"));
   }
 
-  // The rest of the tests are only available in non-FIPS mode.
+  // The rest of the tests are only available in non-FIPS mode, or in experimental FIPS mode.
   @Test
   public void concatenationKdfExpectsConcatenationKdfSpecAsKeySpec() throws Exception {
-    assumeFalse(TestUtil.isFips());
     final SecretKeyFactory skf =
         SecretKeyFactory.getInstance("ConcatenationKdfWithSha256", TestUtil.NATIVE_PROVIDER);
     assertThrows(
@@ -75,7 +75,6 @@ public class ConcatenationKdfTest {
 
   @Test
   public void concatenationKdfWithEmptyInfoIsFine() throws Exception {
-    assumeFalse(TestUtil.isFips());
     final SecretKeyFactory skf =
         SecretKeyFactory.getInstance("ConcatenationKdfWithSha256", TestUtil.NATIVE_PROVIDER);
     final ConcatenationKdfSpec spec = new ConcatenationKdfSpec(new byte[1], 10, "name");
@@ -85,7 +84,6 @@ public class ConcatenationKdfTest {
 
   @Test
   public void concatenationKdfHmacWithEmptySaltIsFine() throws Exception {
-    assumeFalse(TestUtil.isFips());
     final SecretKeyFactory skf =
         SecretKeyFactory.getInstance("ConcatenationKdfWithHmacSha256", TestUtil.NATIVE_PROVIDER);
     final ConcatenationKdfSpec spec1 = new ConcatenationKdfSpec(new byte[1], 10, "name");
@@ -103,7 +101,6 @@ public class ConcatenationKdfTest {
   @ParameterizedTest(name = "{0}")
   @MethodSource("sskdfKatTests")
   public void concatenationKdfKatTests(final RspTestEntry entry) throws Exception {
-    assumeFalse(TestUtil.isFips());
     final String digest = jceDigestName(entry.getInstance("HASH"));
     assumeFalse("SHA1".equals(digest) || "SHA224".equals(digest));
     final boolean digestPrf = entry.getInstance("VARIANT").equals("DIGEST");

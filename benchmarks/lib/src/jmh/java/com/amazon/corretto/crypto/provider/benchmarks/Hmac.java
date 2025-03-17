@@ -47,7 +47,7 @@ public class Hmac {
   }
 
   @Benchmark
-  public byte[] oneShotMedium_64KiB() {
+  public byte[] oneShotLarge_64KiB() {
     return mac.doFinal(data_64KiB);
   }
 }

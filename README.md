@@ -13,6 +13,15 @@ As of 2.0.0, algorithms exposed by ACCP are primarily backed by [AWS-LC](https:/
 | Linux x86_64 | ![](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiRW4zZUhmeHlJbHRVQnNBZGZEbVJUa0pOK0J0MmtnNVB2dVZZSWhLbUtaNWYxNG96WWg4emN1SjJKL3VSUk9obFl0MnBtajBxejlVWDFiR3ppZGd3U1lrPSIsIml2UGFyYW1ldGVyU3BlYyI6IkFsUkpiMDRkRjZQb1U3Ly8iLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=main) |
 | Linux aarch64 | ![](https://codebuild.us-west-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiMEVNSXhZYmdEOWFrcE1HdE9nQmdwVlZFZXRYVnloc05TMXhoZ0tTVUQ1ZlMzeWRrZTArSUxUdzY2RVJRbUtXak5zU2ZCamJBS3JxUEFxZFJ2ZVNkcGVNPSIsIml2UGFyYW1ldGVyU3BlYyI6Ii80UEZpYWc2RjJZLzZDQ0wiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=main) |
 
+## Performance Benchmarks
+
+We provide complete benchmarking data from our [benchmarking suite](./benchmarks/README.md) for the current tip of `main`.
+
+| Build Name | Data | EC2 Instance Type |
+| - | - | - |
+| Linux x86_64 | [link](https://d1veyo88e7gsuw.cloudfront.net/c7ixlarge/index.html) | c7i.xlarge |
+| Linux aarch64 | [link](https://d1veyo88e7gsuw.cloudfront.net/c8gxlarge/index.html) | c8g.xlarge |
+
 ## Supported Algorithms
 MessageDigest algorithms:
 * SHA-512
@@ -64,10 +73,12 @@ Signature algorithms:
 * SHA512withECDSA
 * SHA512withECDSAinP1363Format
 * RSASSA-PSS
+* ED25519 (JDK 15+)
 
 KeyPairGenerator:
 * EC
 * RSA
+* ED25519 (JDK 15+)
 
 KeyGenerator:
 * AES
@@ -85,6 +96,9 @@ SecretKeyFactory:
 * ConcatenationKdfWithSHA512 (not available in FIPS builds)
 * ConcatenationKdfWithHmacSHA256 (not available in FIPS builds)
 * ConcatenationKdfWithHmacSHA512 (not available in FIPS builds)
+* CounterKdfWithHmacSHA256 (not available in FIPS builds)
+* CounterKdfWithHmacSHA384 (not available in FIPS builds)
+* CounterKdfWithHmacSHA512 (not available in FIPS builds)
 
 SecureRandom:
 * ACCP's SecureRandom uses [AWS-LC's DRBG implementation](https://github.com/aws/aws-lc/blob/main/crypto/fipsmodule/rand/rand.c).
@@ -92,6 +106,7 @@ SecureRandom:
 KeyFactory:
 * EC
 * RSA
+* ED25519 (JDK 15+). Please refer to [system properties](https://github.com/corretto/amazon-corretto-crypto-provider#other-system-properties) for more information.
 
 AlgorithmParameters:
 * EC. Please refer to [system properties](https://github.com/corretto/amazon-corretto-crypto-provider#other-system-properties) for more information.
@@ -104,18 +119,36 @@ Mac algorithms with precomputed key and associated secret key factories (expert 
 * HmacMD5WithPrecomputedKey (not available in FIPS builds)
 
 # Notes on ACCP-FIPS
-ACCP-FIPS is a variation of ACCP which uses AWS-LC-FIPS 2.x as its cryptographic module. This version of AWS-LC-FIPS has completed FIPS validation testing by an accredited lab and has been submitted to NIST for certification. Refer to the [NIST Cryptographic Module Validation Program's Modules In Progress List](https://csrc.nist.gov/Projects/cryptographic-module-validation-program/modules-in-process/Modules-In-Process-List) for the latest status of the AWS-LC Cryptographic Module. We will also update our release notes and documentation to reflect any changes in FIPS certification status. We provide ACCP-FIPS for experimentation and performance testing in the interim.
+ACCP-FIPS is a variation of ACCP which uses AWS-LC-FIPS 2.x as its cryptographic module. This version of AWS-LC-FIPS has FIPS certificate [4816](https://csrc.nist.gov/projects/cryptographic-module-validation-program/certificate/4816).
 
 Version 2.3.0 is the first release of ACCP-FIPS. The Maven coordinates for
 ACCP-FIPS are the same as ACCP with one difference that ACCP-FIPS's
 artifact ID is `AmazonCorrettoCryptoProvider-FIPS`.
 
+The table below shows which AWS-LC and AWS-LC-FIPS release versions are used in each ACCP(-FIPS) release.
+ACCP did not track a FIPS branch/release version of AWS-LC until ACCP v2.3.0. Before then, ACCP-FIPS simply built its tracked AWS-LC commit in FIPS mode.
+
+| ACCP(-FIPS) version | AWS-LC version | AWS-LC-FIPS version |
+|---------------------|----------------|---------------------|
+| 2.0.0               | 1.4.0          | ---                 |
+| 2.1.0               | 1.5.0          | ---                 |
+| 2.2.0               | 1.5.0          | ---                 |
+| 2.3.0               | 1.5.0          | 2.0.0               |
+| 2.3.1               | 1.15.0         | 2.0.0               |
+| 2.3.2               | 1.16.0         | 2.0.0               |
+| 2.3.3               | 1.17.0         | 2.0.2               |
+| 2.4.0               | 1.30.1         | 2.0.13              |
+| 2.4.1               | 1.30.1         | 2.0.13              |
+| 2.5.0               | 1.47.0         | 3.0.0               |
+| 2.6.0               | 1.48.2         | 3.0.0               |
+
 Notable differences between ACCP and ACCP-FIPS:
 * ACCP uses [the latest release of AWS-LC](https://github.com/aws/aws-lc/releases), whereas, ACCP-FIPS uses [the fips-2022-11-02 branch of AWS-LC](https://github.com/aws/aws-lc/tree/fips-2022-11-02).
 * ACCP-FIPS builds AWS-LC in FIPS mode by passing `-DFIPS=1` when configuring AWS-LC's build.
+* For details about the FIPS module of AWS-LC in FIPS mode, including the entropy sources used, see the [AWS-LC FIPS.md documentation](https://github.com/aws/aws-lc/blob/main/crypto/fipsmodule/FIPS.md).
 * In FIPS-mode, RSA keys are limited to 2048, 3072, or 4096 bits in size with public exponent F4.
-* ACCP-FIPS does not register SecureRandom by default due to the performance of AWS-LC’s entropy source in FIPS-mode. [A system property](https://github.com/corretto/amazon-corretto-crypto-provider#other-system-properties) is available to register SecureRandom from AWS-LC if needed, and the performance differences are described in further detail under the description of that property.
 * Due to the fact that an older branch of AWS-LC is used in FIPS-mode, there will be performance differences between ACCP and ACCP-FIPS. We highly recommend performing detailed performance testing of your application if you choose to experiment with ACCP-FIPS.
+* Between versions 2.1.0 and 2.3.3 (inclusive), ACCP-FIPS does not register SecureRandom by default due to the performance of AWS-LC’s entropy source in FIPS-mode, with older versions of AWS-LC. Since version 2.4.0, ACCP-FIPS behaves as ACCP: it registers SecureRandom from AWS-LC by default. [A system property](https://github.com/corretto/amazon-corretto-crypto-provider#other-system-properties) is available to change the default behavior.
 
 ACCP-FIPS is only supported on the following platforms:
 
@@ -259,17 +292,27 @@ If you receive one of these exceptions, then you will need to evaluate if any of
 3. Migrate to a different JDK (eg OpenJDK or CorrettoJDK) that does not require that JCE providers be signed.
 4. [Obtain your own JCE Code Signing Certificate](https://www.oracle.com/java/technologies/javase/getcodesigningcertificate.html) and sign your repackaged Jar.
 
-##### FIPS builds
-**FIPS builds are still experimental and are not yet ready for production use.**
+#### Building ACCP in FIPS mode
+There are two possible flags which can be provided to `gradlew` to build ACCP in FIPS mode:
+- `-DFIPS=true`: This causes ACCP to be built with AWS-LC-FIPS as its underlying crypto library. The exact version of AWS-LC-FIPS used is specified in our [build.gradle](https://github.com/corretto/amazon-corretto-crypto-provider/blob/main/build.gradle#L28) file. Refer to the [AWS-LC FIPS documentation](https://github.com/aws/aws-lc/blob/main/crypto/fipsmodule/FIPS.md) for the latest FIPS validation and certification status of each version.
+- `-DEXPERIMENTAL_FIPS=true`: This causes ACCP to be built with the `main` branch of AWS-LC, built in FIPS mode, as its underlying crypto library. This variation of FIPS mode allows one to experiment with the latest APIs and features in AWS-LC that have not yet made it onto a FIPS branch/release.
 
-By providing `-DFIPS=true` to `gradlew` you will cause the entire build to be for a "FIPS mode" build.
-The FIPS builds use a different version of AWS-LC along with `FIPS=1` build flag. Not all releases of
-AWS-LC will have FIPS certification. As a result, ACCP in FIPS mode only uses a version of AWS-LC
-that has FIPS certification or it will have in future.
+The following illustration depicts the difference these FIPS mode build options.
+```
+                           -DEXPERIMENTAL_FIPS=true
+                                      |
+                                      ↓
+AWS-LC [■]───[■]───[■]───[■]───[■]───[■]  main
+                 \
+                  [■]───[■]  AWS-LC-FIPS-X.Y.Z
+                         ↑
+                         |
+                   -DFIPS=true
+```
 
 When changing between FIPS and non-FIPS builds, be sure to do a full `clean` of your build environment.
 
-##### All targets
+#### All targets
 * clean: Remove all artifacts except AWS-LC build artifacts
 * deep_clean: Remove the entire `build/` directory including build artifacts from AWS-LC dependencies
 * build: Build the library
@@ -360,8 +403,9 @@ Thus, these should all be set on the JVM command line using `-D`.
   Callers can choose to register ACCP's implementation at runtime with a call to `AmazonCorrettoCryptoProvider.registerEcParams()`
 * `com.amazon.corretto.crypto.provider.registerSecureRandom`
   Takes in `true` or `false` (defaults to `true`).
-  If `true`, then ACCP will register a SecureRandom implementation (`LibCryptoRng`) backed by AWS-LC
+  If `true`, then ACCP will register a SecureRandom implementation (`LibCryptoRng`) backed by AWS-LC.
   Else, ACCP will not register a SecureRandom implementation, meaning that the JCA will source SecureRandom instances from another registered provider. AWS-LC will still use its internal DRBG for key generation and other operations requiring secure pseudo-randomness.
+  Before version 2.4.0, default was `false` for FIPS builds.
 * `com.amazon.corretto.crypto.provider.nativeContextReleaseStrategy`
   Takes in `HYBRID`, `LAZY`, or `EAGER` (defaults to `HYBRID`). This property only affects
   AES-GCM cipher for now. AES-GCM associates a native object of type `EVP_CIPHER_CTX`
@@ -380,6 +424,14 @@ Thus, these should all be set on the JVM command line using `-D`.
 * `com.amazon.corretto.crypto.provider.tmpdir`
    Allows one to set the temporary directory used by ACCP when loading native libraries.
    If this system property is not defined, the system property `java.io.tmpdir` is used.
+* `com.amazon.corretto.crypto.provider.registerEdKeyFactory`
+  Takes in `true` or `false` (defaults to `false`).
+  If `true` and JDK version is 15+, then ACCP will register its Ed25519 related KeyFactory classes.
+  The keys produced by ACCP's KeyFactory services for Ed25519 do not implement [EdECKey](https://docs.oracle.com/en/java/javase/17/docs//api/java.base/java/security/interfaces/EdECKey.html)
+  interface, and as a result, they cannot be used by other providers. Consider setting this property
+  to `true` if the keys are only used by other ACCP services AND they are not type cast to `EdECKey`.
+  It is worth noting that the key generated by KeyFactory service of SunEC can be used by ACCP services
+  such as Signature.
 
 # Additional information
 

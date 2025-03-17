@@ -25,7 +25,7 @@ import org.openjdk.jmh.annotations.Threads;
  * mode (ops/s), because the throughput mode sums the number of operations over all the threads
  */
 @BenchmarkMode(Mode.AverageTime)
-@OutputTimeUnit(TimeUnit.NANOSECONDS)
+@OutputTimeUnit(TimeUnit.MICROSECONDS)
 public class Random {
   @State(Scope.Thread)
   public static class ThreadState {

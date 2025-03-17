@@ -32,10 +32,10 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
   private final EvpKeyType type;
   private final AmazonCorrettoCryptoProvider provider;
 
-  private static native long pkcs82Evp(byte[] der, int nativeValue, boolean checkPrivate)
+  private static native long pkcs82Evp(byte[] der, int evpType, boolean checkPrivate)
       throws InvalidKeySpecException;
 
-  private static native long x5092Evp(byte[] der, int nativeValue) throws InvalidKeySpecException;
+  private static native long x5092Evp(byte[] der, int evpType) throws InvalidKeySpecException;
 
   private static native long rsa2Evp(
       byte[] modulus,
@@ -65,8 +65,8 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
     return provider.hasExtraCheck(ExtraCheck.PRIVATE_KEY_CONSISTENCY);
   }
 
-  protected long maybeCheckPkcs82Evp(byte[] der, int nativeValue) throws InvalidKeySpecException {
-    return pkcs82Evp(der, nativeValue, shouldCheckPrivateKey());
+  protected long maybeCheckPkcs82Evp(byte[] der, int evpType) throws InvalidKeySpecException {
+    return pkcs82Evp(der, evpType, shouldCheckPrivateKey());
   }
 
   @Override
@@ -128,8 +128,9 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
   }
 
   protected boolean keyNeedsConversion(Key key) throws InvalidKeyException {
-    if (!type.jceName.equalsIgnoreCase(key.getAlgorithm())) {
-      throw new InvalidKeyException("Incorrect key algorithm: " + key.getAlgorithm());
+    if (key.getAlgorithm() == null || !key.getAlgorithm().startsWith(type.jceName)) {
+      throw new InvalidKeyException(
+          "Incorrect key algorithm: " + key.getAlgorithm() + ". Expected: " + type.jceName);
     }
     return !(key instanceof EvpKey);
   }
@@ -300,6 +301,41 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
         return keySpec.cast(new ECPrivateKeySpec(ecKey.getS(), ecKey.getParams()));
       }
       return super.engineGetKeySpec(key, keySpec);
+    }
+  }
+
+  private abstract static class StandardEvpKeyFactory extends EvpKeyFactory {
+    StandardEvpKeyFactory(EvpKeyType type, AmazonCorrettoCryptoProvider provider) {
+      super(type, provider);
+    }
+
+    @Override
+    protected PrivateKey engineGeneratePrivate(final KeySpec keySpec)
+        throws InvalidKeySpecException {
+      return super.engineGeneratePrivate(keySpec);
+    }
+
+    @Override
+    protected PublicKey engineGeneratePublic(final KeySpec keySpec) throws InvalidKeySpecException {
+      return super.engineGeneratePublic(keySpec);
+    }
+
+    @Override
+    protected <T extends KeySpec> T engineGetKeySpec(final Key key, final Class<T> keySpec)
+        throws InvalidKeySpecException {
+      return super.engineGetKeySpec(key, keySpec);
+    }
+  }
+
+  static class EdDSA extends StandardEvpKeyFactory {
+    EdDSA(AmazonCorrettoCryptoProvider provider) {
+      super(EvpKeyType.EdDSA, provider);
+    }
+  }
+
+  static class MLDSA extends StandardEvpKeyFactory {
+    MLDSA(AmazonCorrettoCryptoProvider provider) {
+      super(EvpKeyType.MLDSA, provider);
     }
   }
 }

@@ -1192,4 +1192,96 @@ public class AesCbcTest {
     // when input is aligned, decrypt-final does not produce any output.
     assertArrayEquals(input, cipher.update(cipherText));
   }
+
+  private static byte[] encryptArrays(
+      ByteBuffer buffer, SecretKeySpec key, IvParameterSpec iv, boolean isPaddingEnabled)
+      throws Exception {
+    Cipher cipher = accpAesCbcCipher(isPaddingEnabled);
+    cipher.init(Cipher.ENCRYPT_MODE, key, iv);
+
+    buffer.position(0);
+    final byte[] slice0 = new byte[32];
+    buffer.get(slice0);
+    final byte[] slice1 = new byte[32];
+    buffer.get(slice1);
+
+    final ByteBuffer destination = ByteBuffer.allocate(64);
+    cipher.update(ByteBuffer.wrap(slice0), destination);
+    cipher.update(ByteBuffer.wrap(slice1), destination);
+    return destination.array();
+  }
+
+  private static byte[] encryptSlices(
+      ByteBuffer buffer, SecretKeySpec key, IvParameterSpec iv, boolean isPaddingEnabled)
+      throws Exception {
+    Cipher cipher = accpAesCbcCipher(isPaddingEnabled);
+    cipher.init(Cipher.ENCRYPT_MODE, key, iv);
+
+    buffer.position(0);
+    final ByteBuffer slice0 = buffer.slice();
+    slice0.limit(32);
+
+    buffer.position(32);
+    final ByteBuffer slice1 = buffer.slice();
+
+    final ByteBuffer destination = ByteBuffer.allocate(64);
+    cipher.update(slice0, destination);
+    cipher.update(slice1, destination);
+    return destination.array();
+  }
+
+  private static byte[] encryptShiftedSlices(
+      ByteBuffer buffer, SecretKeySpec key, IvParameterSpec iv, boolean isPaddingEnabled)
+      throws Exception {
+    Cipher cipher = accpAesCbcCipher(isPaddingEnabled);
+    cipher.init(Cipher.ENCRYPT_MODE, key, iv);
+
+    buffer.position(0);
+    final ByteBuffer slice0 = buffer.slice();
+    slice0.limit(32);
+
+    buffer.position(32 - 7);
+    final ByteBuffer slice1 = buffer.slice();
+    slice1.limit(7 + 32);
+    slice1.position(7);
+
+    final ByteBuffer destination = ByteBuffer.allocate(64);
+    cipher.update(slice0, destination);
+    cipher.update(slice1, destination);
+    return destination.array();
+  }
+
+  @ParameterizedTest
+  @MethodSource("paddings")
+  public void testByteBufferSlicing(boolean isPaddingEnabled) throws Exception {
+    final IvParameterSpec iv = genIv(1, 16);
+    final SecretKeySpec key = genAesKey(1, 128);
+
+    final byte[] bytes = new byte[64];
+    for (int i = 0; i < 64; ++i) {
+      bytes[i] = (byte) i;
+    }
+    final ByteBuffer buffer = ByteBuffer.wrap(bytes);
+    final byte[] expectedOutput = encryptArrays(buffer, key, iv, isPaddingEnabled);
+
+    assertTrue(Arrays.equals(encryptSlices(buffer, key, iv, isPaddingEnabled), expectedOutput));
+    assertTrue(
+        Arrays.equals(encryptShiftedSlices(buffer, key, iv, isPaddingEnabled), expectedOutput));
+  }
+
+  @Test
+  public void testNullParamSpec() {
+    Cipher cipher = accpAesCbcCipher(false);
+    SecretKeySpec key = genAesKey(1, 128);
+    AlgorithmParameterSpec nullParam = null;
+    TestUtil.assertThrows(
+        InvalidAlgorithmParameterException.class,
+        () -> cipher.init(Cipher.ENCRYPT_MODE, key, nullParam));
+  }
+
+  public void testNoPaddingException() {
+    TestUtil.assertThrows(
+        NoSuchPaddingException.class,
+        () -> Cipher.getInstance("AES/CBC/Notepad", TestUtil.NATIVE_PROVIDER));
+  }
 }

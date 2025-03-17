@@ -10,23 +10,23 @@
 
 namespace AmazonCorrettoCryptoProvider {
 
-EVP_PKEY* der2EvpPrivateKey(
-    const unsigned char* der, const int derLen, bool shouldCheckPrivate, const char* javaExceptionClass)
+EVP_PKEY* der2EvpPrivateKey(const unsigned char* der,
+    const int derLen,
+    const int evpType,
+    bool shouldCheckPrivate,
+    const char* javaExceptionClass)
 {
     const unsigned char* der_mutable_ptr = der; // openssl modifies the input pointer
 
-    PKCS8_PRIV_KEY_INFO* pkcs8Key = d2i_PKCS8_PRIV_KEY_INFO(NULL, &der_mutable_ptr, derLen);
+    EVP_PKEY* result = d2i_PrivateKey(evpType, NULL, &der_mutable_ptr, derLen);
+
     if (der + derLen != der_mutable_ptr) {
-        if (pkcs8Key) {
-            PKCS8_PRIV_KEY_INFO_free(pkcs8Key);
+        if (result) {
+            EVP_PKEY_free(result);
         }
         throw_openssl(javaExceptionClass, "Extra key information");
     }
-    if (!pkcs8Key) {
-        throw_openssl(javaExceptionClass, "Unable to parse DER key into PKCS8_PRIV_KEY_INFO");
-    }
-    EVP_PKEY* result = EVP_PKCS82PKEY(pkcs8Key);
-    PKCS8_PRIV_KEY_INFO_free(pkcs8Key);
+
     if (!result) {
         throw_openssl(javaExceptionClass, "Unable to convert PKCS8_PRIV_KEY_INFO to EVP_PKEY");
     }
@@ -170,25 +170,6 @@ const EVP_MD* digestFromJstring(raii_env& env, jstring digestName)
 
 RSA* new_private_RSA_key_with_no_e(BIGNUM const* n, BIGNUM const* d)
 {
-#ifdef FIPS_BUILD
-    // AWS-LC-FIPS doesn't have RSA_new_private_key_no_e method yet.
-    // The following implementation has been copied from AWS-LC:
-    // https://github.com/aws/aws-lc/blob/v1.30.1/crypto/fipsmodule/rsa/rsa.c#L147
-    RSA_auto rsa = RSA_auto::from(RSA_new());
-    if (rsa.get() == nullptr) {
-        throw_openssl("RSA_new failed");
-    }
-
-    // RSA struct is not opaque in FIPS mode.
-    rsa->flags |= RSA_FLAG_NO_BLINDING;
-
-    bn_dup_into(&rsa->n, n);
-    bn_dup_into(&rsa->d, d);
-
-    return rsa.take();
-
-#else
-
     RSA* result = ::RSA_new_private_key_no_e(n, d);
 
     if (result == nullptr) {
@@ -196,8 +177,57 @@ RSA* new_private_RSA_key_with_no_e(BIGNUM const* n, BIGNUM const* d)
     }
 
     return result;
-
-#endif
 }
+
+#if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
+size_t encodeExpandedMLDSAPrivateKey(const EVP_PKEY* key, uint8_t** out)
+{
+    CHECK_OPENSSL(key);
+    CHECK_OPENSSL(EVP_PKEY_id(key) == EVP_PKEY_PQDSA);
+    CHECK_OPENSSL(out);
+    size_t raw_len;
+    int nid = NID_undef;
+    // See Section 4, Table 2 of https://nvlpubs.nist.gov/nistpubs/fips/nist.fips.204.pdf
+    switch (EVP_PKEY_size(key)) { // switch on signature size for |key|'s algorithm
+    case 2420:
+        nid = NID_MLDSA44;
+        raw_len = 2560;
+        break;
+    case 3309:
+        nid = NID_MLDSA65;
+        raw_len = 4032;
+        break;
+    case 4627:
+        nid = NID_MLDSA87;
+        raw_len = 4896;
+        break;
+    default:
+        throw_java_ex(EX_ILLEGAL_ARGUMENT, "Invalid ML-DSA signature size");
+    }
+    OPENSSL_buffer_auto raw_expanded(raw_len);
+    CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(key, raw_expanded, &raw_len));
+    CBB cbb, pkcs8, algorithm, priv, expanded;
+    CBB_init(&cbb, 0);
+    // Encoding below is based on expandedKey CHOICE member of PrivateKey ASN.1 structures in:
+    // https://github.com/lamps-wg/dilithium-certificates/blob/main/X509-ML-DSA-2025.asn
+    // spotless:off
+    if (!CBB_add_asn1(&cbb, &pkcs8, CBS_ASN1_SEQUENCE) ||
+        !CBB_add_asn1_uint64(&pkcs8, 0) ||
+        !CBB_add_asn1(&pkcs8, &algorithm, CBS_ASN1_SEQUENCE) ||
+        !OBJ_nid2cbb(&algorithm, nid) ||
+        !CBB_add_asn1(&pkcs8, &priv, CBS_ASN1_OCTETSTRING) ||
+        !CBB_add_asn1(&priv, &expanded, CBS_ASN1_OCTETSTRING) ||
+        !CBB_add_bytes(&expanded, raw_expanded, raw_len)) {
+        throw_java_ex(EX_RUNTIME_CRYPTO, "Error serializing expanded ML-DSA key");
+    }
+    // spotless:on
+    size_t out_len;
+    if (!CBB_finish(&cbb, out, &out_len)) {
+        OPENSSL_free(*out);
+        throw_java_ex(EX_RUNTIME_CRYPTO, "Error finalizing expanded ML-DSA key");
+    }
+    return out_len;
+}
+#endif // !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
 
 }

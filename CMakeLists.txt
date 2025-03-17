@@ -41,8 +41,20 @@ set(ENABLE_NATIVE_TEST_HOOKS NO CACHE BOOL "Enable debugging hooks in the RNG. D
 set(TEST_DATA_DIR ${PROJECT_SOURCE_DIR}/test-data/ CACHE STRING "Path to directory containing test data")
 set(ORIG_SRCROOT ${PROJECT_SOURCE_DIR} CACHE STRING "Path to root of original package")
 set(PROVIDER_VERSION_STRING "" CACHE STRING "X.Y.Z formatted version of the provider")
+set(EXPERIMENTAL_FIPS NO CACHE BOOL "Determines if this build is for FIPS mode with extra features from a non-FIPS branch of AWS-LC.")
+set(FIPS_SELF_TEST_SKIP_ABORT NO CACHE BOOL "Determines whether ACCP throws exceptions on self-test failure, or AWS-LC aborts. If NO, AWS-LC aborts. If YES, ACCP will provide error messages.")
 set(FIPS NO CACHE BOOL "Determine if this build is for FIPS mode")
 set(ALWAYS_ALLOW_EXTERNAL_LIB NO CACHE BOOL "Always permit tests to load ACCP shared objects from the library path")
+set(AWS_LC_VERSION_STRING "" CACHE STRING "Git version of AWS-LC used in this build")
+
+if (EXPERIMENTAL_FIPS)
+    set(FIPS ON)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DEXPERIMENTAL_FIPS_BUILD")
+endif()
+
+if (FIPS_SELF_TEST_SKIP_ABORT)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DFIPS_SELF_TEST_SKIP_ABORT")
+endif()
 
 if (USE_CLANG_TIDY)
     # https://releases.llvm.org/9.0.0/tools/clang/tools/extra/docs/clang-tidy/checks/list.html
@@ -133,7 +145,12 @@ set(VERSION_PROPERTIES_FILE ${GENERATED_JAVA_DIR}/version.properties)
 add_custom_command(
     OUTPUT ${VERSION_PROPERTIES_FILE}
     COMMAND ${CMAKE_COMMAND} -E echo versionStr=${PROVIDER_VERSION_STRING} > ${VERSION_PROPERTIES_FILE}
-    COMMENT "Generation version properties file"
+    COMMAND if [ EXPERIMENTAL_FIPS || ! FIPS ]\; then
+        ${CMAKE_COMMAND} -E echo awsLcVersionStr=AWS-LC ${AWS_LC_VERSION_STRING} >> ${VERSION_PROPERTIES_FILE} \;
+    else
+        ${CMAKE_COMMAND} -E echo awsLcVersionStr=${AWS_LC_VERSION_STRING} >> ${VERSION_PROPERTIES_FILE} \;
+    fi
+    COMMENT "Generated version.properties file"
 )
 
 add_custom_command(
@@ -149,10 +166,12 @@ add_custom_command(
 #       detected by CMake.
 if (${CMAKE_VERSION} VERSION_LESS "3.12.0")
     file(GLOB_RECURSE ACCP_SRC "src/com/amazon/corretto/crypto/provider/*.java")
+    file(GLOB_RECURSE ACCP_UTILS_SRC "src/com/amazon/corretto/crypto/utils/*.java")
 else()
     file(GLOB_RECURSE ACCP_SRC CONFIGURE_DEPENDS "src/com/amazon/corretto/crypto/provider/*.java")
+    file(GLOB_RECURSE ACCP_UTILS_SRC CONFIGURE_DEPENDS "src/com/amazon/corretto/crypto/utils/*.java")
 endif()
-set(ACCP_SRC ${ACCP_SRC} ${GENERATED_JAVA_SRC})
+set(ACCP_SRC ${ACCP_SRC} ${ACCP_UTILS_SRC} ${GENERATED_JAVA_SRC})
 
 set(BASE_JAVA_COMPILE_FLAGS ${CMAKE_JAVA_COMPILE_FLAGS} -h "${JNI_HEADER_DIR}" -Werror -Xlint)
 
@@ -255,8 +274,11 @@ set(C_SRC
     csrc/agreement.cpp
     csrc/bn.cpp
     csrc/buffer.cpp
+    csrc/concatenation_kdf.cpp
+    csrc/counter_kdf.cpp
     csrc/ec_gen.cpp
     csrc/ec_utils.cpp
+    csrc/ed_gen.cpp
     csrc/env.cpp
     csrc/hkdf.cpp
     csrc/hmac.cpp
@@ -272,10 +294,12 @@ set(C_SRC
     csrc/sha384.cpp
     csrc/sha512.cpp
     csrc/sign.cpp
+    csrc/test_util.cpp
     csrc/testhooks.cpp
     csrc/util.cpp
     csrc/util_class.cpp
     csrc/fips_kat_self_test.cpp
+    csrc/fips_status.cpp
     ${JNI_HEADER_DIR}/generated-headers.h)
 
 if(FIPS)
@@ -283,8 +307,12 @@ if(FIPS)
     set(TEST_FIPS_PROPERTY "-DFIPS=true")
 else()
     set(TEST_FIPS_PROPERTY "-DFIPS=false")
-    set(C_SRC ${C_SRC}
-        csrc/concatenation_kdf.cpp)
+endif()
+
+# The source files under this guard should be removed and added to all builds, including FIPS,
+# once the corresponding algorithms are added to a FIPS branch of AWS-LC consumable by ACCP.
+if(EXPERIMENTAL_FIPS OR (NOT FIPS))
+    set(C_SRC ${C_SRC} csrc/mldsa_gen.cpp)
 endif()
 
 add_library(amazonCorrettoCryptoProvider SHARED ${C_SRC})
@@ -301,10 +329,8 @@ add_custom_command(
 add_custom_target(accp-jar-source DEPENDS ${ACCP_JAR_SOURCE})
 
 if(ENABLE_NATIVE_TEST_HOOKS)
-  add_executable(test_keyutils EXCLUDE_FROM_ALL
-        csrc/test_keyutils.cpp
-    )
-    link_with_openssl(test_keyutils)
+    add_executable(test_keyutils EXCLUDE_FROM_ALL csrc/test_keyutils.cpp)
+    # No need to link OpenSSL (AWS-LC)
     target_link_libraries(test_keyutils amazonCorrettoCryptoProvider)
 endif()
 
@@ -484,7 +510,7 @@ if(NOT ENABLE_NATIVE_TEST_HOOKS)
     CHECK_LINKER_FLAG_SUPPORT(USE_VERSION_SCRIPT "-Wl,--version-script -Wl,${CMAKE_CURRENT_SOURCE_DIR}/final-link.version")
 
 # This does the same thing as the version script, but works on Darwin platforms
-    CHECK_LINKER_FLAG_SUPPORT(USE_EXPORTED_SYMBOL "-Wl,-exported_symbol '-Wl,_Java_*' -Wl,-exported_symbol '-Wl,_JNI_*'")
+    CHECK_LINKER_FLAG_SUPPORT(USE_EXPORTED_SYMBOL "-Wl,-exported_symbol '-Wl,_Java_*' '-Wl,_AWS_LC_fips_failure_callback' -Wl,-exported_symbol '-Wl,_JNI_*'")
 endif()
 
 # Attempt to drop unused sections; the idea here is to exclude unreferenced
@@ -661,6 +687,7 @@ add_custom_target(check-junit
         --select-package=com.amazon.corretto.crypto.provider.test
         --exclude-package=com.amazon.corretto.crypto.provider.test.integration
         --exclude-classname=com.amazon.corretto.crypto.provider.test.SecurityManagerTest
+        --exclude-classname=com.amazon.corretto.crypto.provider.test.FipsStatusTest
 
     DEPENDS accp-jar tests-jar)
 
@@ -679,6 +706,15 @@ add_custom_target(check-junit-SecurityManager
         --select-class=com.amazon.corretto.crypto.provider.test.AesTest # Force loading ciphers
         --select-class=com.amazon.corretto.crypto.provider.test.SHA1Test # Force loading digests
         --select-class=com.amazon.corretto.crypto.provider.test.SecurityManagerTest
+
+    DEPENDS accp-jar tests-jar)
+
+add_custom_target(check-junit-FipsStatus
+    COMMAND ${TEST_JAVA_EXECUTABLE}
+        ${TEST_RUNNER_ARGUMENTS}
+        --select-class=com.amazon.corretto.crypto.provider.test.AesTest # Force loading ciphers
+        --select-class=com.amazon.corretto.crypto.provider.test.SHA1Test # Force loading digests
+        --select-class=com.amazon.corretto.crypto.provider.test.FipsStatusTest
 
     DEPENDS accp-jar tests-jar)
 
@@ -729,6 +765,7 @@ add_custom_target(check-junit-extra-checks
         ${TEST_RUNNER_ARGUMENTS}
         --select-package=com.amazon.corretto.crypto.provider.test
         --exclude-package=com.amazon.corretto.crypto.provider.test.integration
+        --exclude-classname=com.amazon.corretto.crypto.provider.test.FipsStatusTest
         --exclude-classname=com.amazon.corretto.crypto.provider.test.SecurityManagerTest
 
     DEPENDS accp-jar tests-jar)
@@ -813,7 +850,20 @@ add_custom_target(check-install-via-properties-with-debug
 
     DEPENDS accp-jar tests-jar)
 
-set(check_targets check-recursive-init
+add_custom_target(check-junit-edKeyFactory
+    COMMAND ${TEST_JAVA_EXECUTABLE}
+    -Dcom.amazon.corretto.crypto.provider.registerEdKeyFactory=true
+        ${TEST_RUNNER_ARGUMENTS}
+        --select-class=com.amazon.corretto.crypto.provider.test.EdDSATest
+        --select-class=com.amazon.corretto.crypto.provider.test.EvpKeyFactoryTest
+        --select-class=com.amazon.corretto.crypto.provider.test.EvpSignatureSpecificTest
+        --select-class=com.amazon.corretto.crypto.provider.test.EvpSignatureTest
+        --select-class=com.amazon.corretto.crypto.provider.test.KeyReuseThreadStormTest
+
+    DEPENDS accp-jar tests-jar)
+
+set(check_targets
+    check-recursive-init
     check-install-via-properties
     check-install-via-properties-with-debug
     check-junit
@@ -821,7 +871,9 @@ set(check_targets check-recursive-init
     check-external-lib
     check-junit-AesLazy
     check-junit-AesEager
-    check-junit-DifferentTempDir)
+    check-junit-DifferentTempDir
+    check-junit-edKeyFactory
+    check-junit-FipsStatus)
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
   set(check_targets ${check_targets} check-with-jni-flag)

@@ -86,7 +86,10 @@ public class EvpKeyFactoryTest {
     }
 
     for (String algorithm : ALGORITHMS) {
-      KeyPairGenerator kpg = KeyPairGenerator.getInstance(algorithm);
+      KeyPairGenerator kpg =
+          getAlternateProvider(algorithm) == null
+              ? KeyPairGenerator.getInstance(algorithm)
+              : KeyPairGenerator.getInstance(algorithm, getAlternateProvider(algorithm));
       List<Arguments> keys = new ArrayList<>();
       if (algorithm.equals("EC")) {
         // Different curves can excercise different areas of ASN.1/DER and so should all be tested.
@@ -226,7 +229,10 @@ public class EvpKeyFactoryTest {
     final String algorithm = pubKey.getAlgorithm();
 
     final KeyFactory nativeFactory = KeyFactory.getInstance(algorithm, NATIVE_PROVIDER);
-    final KeyFactory jceFactory = KeyFactory.getInstance(algorithm);
+    final KeyFactory jceFactory =
+        getAlternateProvider(algorithm) == null
+            ? KeyFactory.getInstance(algorithm)
+            : KeyFactory.getInstance(algorithm, getAlternateProvider(algorithm));
 
     final X509EncodedKeySpec nativeSpec =
         nativeFactory.getKeySpec(pubKey, X509EncodedKeySpec.class);
@@ -295,7 +301,10 @@ public class EvpKeyFactoryTest {
     final String algorithm = privKey.getAlgorithm();
 
     final KeyFactory nativeFactory = KeyFactory.getInstance(algorithm, NATIVE_PROVIDER);
-    final KeyFactory jceFactory = KeyFactory.getInstance(algorithm);
+    final KeyFactory jceFactory =
+        getAlternateProvider(algorithm) == null
+            ? KeyFactory.getInstance(algorithm)
+            : KeyFactory.getInstance(algorithm, getAlternateProvider(algorithm));
 
     final PKCS8EncodedKeySpec nativeSpec =
         nativeFactory.getKeySpec(privKey, PKCS8EncodedKeySpec.class);
@@ -708,6 +717,25 @@ public class EvpKeyFactoryTest {
       this.nativeSample = nativeSample;
       this.jceSample = jceSample;
     }
+  }
+
+  // This method is used to determine whether tests should use an alternate provider for a given
+  // algorithm. In cases where JCE doesn't support the requested algorithm, the alternate provider
+  // will be returned. In cases where JCE does support the requested algorithm, null will be
+  // returned.
+  private static Provider getAlternateProvider(String algorithm) {
+    // JCE doesn't support ML-DSA until JDK24, and BouncyCastle currently serializes ML-DSA private
+    // keys via seeds.
+    // TODO: switch to BouncyCastle once BC supports CHOICE-encoded private keys
+    if ((algorithm.startsWith("ML-DSA") && TestUtil.getJavaVersion() < 24)
+        // Similarly, JDK doesn't support EdDSA/Ed25519 until JDK15
+        || ((algorithm.equals("Ed25519")
+                || algorithm.equals("Ed25519ph")
+                || algorithm.equals("EdDSA"))
+            && TestUtil.getJavaVersion() < 15)) {
+      return NATIVE_PROVIDER;
+    }
+    return null;
   }
 
   public static class NullDataKey implements Key {

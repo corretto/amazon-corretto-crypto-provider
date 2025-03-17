@@ -94,6 +94,10 @@ public class TestUtil {
     return NATIVE_PROVIDER.isFips();
   }
 
+  public static boolean isExperimentalFips() {
+    return NATIVE_PROVIDER.isExperimentalFips();
+  }
+
   public static byte[] intArrayToByteArray(final int[] array) {
     final byte[] result = new byte[array.length];
     for (int i = 0; i != array.length; i++) {
@@ -832,4 +836,19 @@ public class TestUtil {
         return null;
     }
   }
+
+  static boolean edKeyFactoryRegistered() {
+    return "true"
+        .equals(System.getProperty("com.amazon.corretto.crypto.provider.registerEdKeyFactory"));
+  }
+
+  /**
+   * Set or unset an environment variable at runtime
+   *
+   * <p>Java does not provide a way to do this, so we need to use POSIX calls over JNI.
+   *
+   * @param name of the environment variable to set or unset
+   * @param value of the environment variable to set, or |null| to unset the variable
+   */
+  static native void setEnv(String name, String value);
 }

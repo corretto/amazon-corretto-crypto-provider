@@ -651,12 +651,17 @@ public final class EvpSignatureSpecificTest {
    * tests cover that for algorithm families.
    */
   @Test
-  public void simpleCorrectnessAllAlgorithms() throws Throwable {
+  public void simpleCorrectnessSHAAlgorithms() throws Throwable {
     final Pattern namePattern = Pattern.compile("(SHA(\\d+)|NONE)with([A-Z]+)(inP1363Format)?");
     final Set<Provider.Service> services = NATIVE_PROVIDER.getServices();
     for (Provider.Service service : services) {
       final String algorithm = service.getAlgorithm();
       if (!service.getType().equals("Signature") || "RSASSA-PSS".equals(algorithm)) {
+        continue;
+      }
+      if (algorithm.startsWith("Ed25519")
+          || algorithm.equals("EdDSA")
+          || algorithm.startsWith("ML-DSA")) {
         continue;
       }
       String bcAlgorithm = algorithm;

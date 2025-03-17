@@ -8,17 +8,22 @@ plugins {
     id 'maven-publish'
     id 'signing'
     id "com.diffplug.spotless" version "6.18.0"
-    id "com.google.osdetector" version "1.7.0"
+    id "com.google.osdetector" version "1.7.3"
     id "io.github.gradle-nexus.publish-plugin" version "1.1.0"
 }
 
 group = 'software.amazon.cryptools'
-version = '2.4.1'
-ext.isFips = Boolean.getBoolean('FIPS')
-if (ext.isFips) {
-    ext.awsLcGitVersionId = 'AWS-LC-FIPS-2.0.13'
+version = '2.5.0'
+ext.awsLcMainTag = 'v1.48.2'
+ext.awsLcFipsTag = 'AWS-LC-FIPS-3.0.0'
+ext.isExperimentalFips = Boolean.getBoolean('EXPERIMENTAL_FIPS')
+ext.isFips = ext.isExperimentalFips || Boolean.getBoolean('FIPS')
+
+if (ext.isExperimentalFips || !ext.isFips) {
+    // Experimental FIPS uses the same AWS-LC version as non-FIPS builds.
+    ext.awsLcGitVersionId = ext.awsLcMainTag
 } else {
-    ext.awsLcGitVersionId = 'v1.34.2'
+    ext.awsLcGitVersionId = ext.awsLcFipsTag
 }
 
 // Check for user inputted git version ID.
@@ -27,6 +32,16 @@ if (System.properties["AWSLC_GITVERSION"]) {
 }
 
 ext.isLegacyBuild = Boolean.getBoolean('LEGACY_BUILD')
+ext.allowFipsTestBreak = Boolean.getBoolean('ALLOW_FIPS_TEST_BREAK')
+ext.isFipsSelfTestFailureSkipAbort = Boolean.getBoolean('FIPS_SELF_TEST_SKIP_ABORT')
+
+if (allowFipsTestBreak && !isFips) {
+    throw new GradleException("ALLOW_FIPS_TEST_BREAK can only be set if FIPS is also set to true")
+}
+
+if (isFipsSelfTestFailureSkipAbort && !isFips) {
+    throw new GradleException("FIPS_SELF_TEST_SKIP_ABORT can only be set if FIPS is also set to true")
+}
 
 ext.lcovIgnore = System.properties['LCOV_IGNORE']
 if (ext.lcovIgnore == null) {
@@ -36,17 +51,23 @@ if (ext.lcovIgnore == null) {
 def getDescriptionForPom(isFips) {
     if (!isFips) {
         return [
-            'The Amazon Corretto Crypto Provider (ACCP) is a collection of',
-            'high-performance cryptographic implementations exposed via the',
-            'standard JCA/JCE interfaces.'
+            'The Amazon Corretto Crypto Provider (ACCP) is a collection of high-performance',
+            'cryptographic implementations exposed via standard JCA/JCE interfaces.',
+            'ACCP uses AWS-LC to implement its cryptographic operations.',
+            'You can find the version of AWS-LC used with each version of ACCP here:',
+            'https://github.com/corretto/amazon-corretto-crypto-provider/blob/main/README.md#notes-on-accp-fips',
         ].join(" ")
     }
 
     return [
         'The Amazon Corretto Crypto Provider FIPS (ACCP-FIPS) is a collection',
-        'of high-performance cryptographic implementations exposed via the',
-        'standard JCA/JCE interfaces. ACCP-FIPS uses AWS-LC built in FIPS mode',
-        'and is provided for experimental purposes only.'
+        'of high-performance cryptographic implementations exposed via standard',
+        'JCA/JCE interfaces.',
+        'ACCP-FIPS uses AWS-LC built in FIPS mode to implement its cryptographic',
+        'operations, and is subject to the same compliance conditions as AWS-LC-FIPS.',
+        'Please refer to AWS-LC documentation and your local compliance team for guidance.',
+        'You can find the version of AWS-LC-FIPS used with each version of ACCP FIPS here:',
+        'https://github.com/corretto/amazon-corretto-crypto-provider/blob/main/README.md#notes-on-accp-fips',
     ].join(" ")
 
 }
@@ -67,6 +88,7 @@ spotless {
         target 'csrc/*'
         licenseHeaderFile 'build-tools/license-headers/LicenseHeader.h'
         clangFormat(clangFormatVersion)
+        toggleOffOn()
     }
   }
 }
@@ -79,13 +101,11 @@ spotless {
  */
 def getClangFormatVersion() {
     def version_command = 'clang-format --version'
-    def shell_output = new ByteArrayOutputStream()
-    exec {
+    def version_exec = providers.exec {
         commandLine "bash", "-c", version_command
-        standardOutput = shell_output
-        ignoreExitValue true
+        ignoreExitValue = true
     }
-    def shell_output_string = shell_output.toString().trim()
+    def shell_output_string = version_exec.standardOutput.asText.get().trim()
     def matcher = shell_output_string =~ /version ([\w\.-]+)/
     if (matcher.find()) {
         return matcher.group(1)
@@ -103,13 +123,11 @@ if (System.properties["AWSLC_SRC_DIR"]) {
 
 // Execute cmake3 command to see if it exists. Mainly to support AL2.
 def detect_cmake3 = {
-    def exec_cmake3 = exec {
+    def cmake3_exec = providers.exec {
         executable "bash" args "-l", "-c", 'command -v cmake3'
-        ignoreExitValue true
-        standardOutput = new ByteArrayOutputStream()
-        errorOutput = standardOutput
+        ignoreExitValue = true
     }
-    if(exec_cmake3.getExitValue() == 0) {
+    if (cmake3_exec.result.get().exitValue == 0) {
         return "cmake3"
     }
     return "cmake"
@@ -168,8 +186,8 @@ dependencies {
     testDep 'org.apiguardian:apiguardian-api:1.1.2'
     testDep 'org.junit.jupiter:junit-jupiter:5.8.2'
     testDep 'org.junit.vintage:junit-vintage-engine:5.8.2'
-    testDep 'org.bouncycastle:bcprov-debug-jdk15on:1.69'
-    testDep 'org.bouncycastle:bcpkix-jdk15on:1.69'
+    testDep 'org.bouncycastle:bcpkix-jdk18on:1.80'
+    testDep 'org.bouncycastle:bcprov-jdk18on:1.80'
     testDep 'commons-codec:commons-codec:1.12'
     testDep 'org.hamcrest:hamcrest:2.1'
     testDep 'org.jacoco:org.jacoco.core:0.8.3'
@@ -238,10 +256,27 @@ task buildAwsLc {
                 args '-DCMAKE_BUILD_TYPE=RelWithDebInfo'
                 args "-DCMAKE_INSTALL_PREFIX=${sharedObjectOutDir}"
                 args "-DCMAKE_VERBOSE_MAKEFILE:BOOL=ON"
+                def cmakeCFlags = ""
 
                 if (isFips) {
+                    println "Building AWS-LC in FIPS mode"
                     args '-DFIPS=1'
                 }
+
+                if (allowFipsTestBreak) {
+                    println "Building AWS-LC with hooks to break FIPS tests"
+                    cmakeCFlags += '-DBORINGSSL_FIPS_BREAK_TESTS '
+                }
+
+                if (isFipsSelfTestFailureSkipAbort) {
+                    println "Building AWS-LC to enable CPU jitter sampling when seeding its DRBG"
+                    args '-DENABLE_FIPS_ENTROPY_CPU_JITTER=ON'
+                    println "Building AWS-LC to call callback instead of aborting on self-test failure"
+                    cmakeCFlags += '-DAWSLC_FIPS_FAILURE_CALLBACK '
+                }
+
+                args "-DCMAKE_C_FLAGS='${cmakeCFlags}'"
+
                 args '.'
             }
         }
@@ -321,32 +356,39 @@ task executeCmake(type: Exec) {
     args "-DOPENSSL_ROOT_DIR=${buildDir}/awslc/bin", '-DCMAKE_BUILD_TYPE=Release', '-DPROVIDER_VERSION_STRING=' + version
     args "-DTEST_RUNNER_JAR=${configurations.testRunner.singleFile}"
     args "-DCMAKE_VERBOSE_MAKEFILE:BOOL=ON"
+    args "-DAWS_LC_VERSION_STRING=" + awsLcGitVersionId
     if (isFips) {
         args "-DFIPS=ON"
+    }
+    if (isExperimentalFips) {
+        args '-DEXPERIMENTAL_FIPS=ON'
+    }
+
+    if (isFipsSelfTestFailureSkipAbort) {
+        args '-DFIPS_SELF_TEST_SKIP_ABORT=ON'
     }
 
     if (prebuiltJar != null) {
        args '-DSIGNED_JAR=' + prebuiltJar
        println "Using SIGNED_JAR=${prebuiltJar}"
     }
-
     if (System.properties['JAVA_HOME'] != null) {
         args '-DJAVA_HOME=' + System.properties['JAVA_HOME']
     }
-
     if (System.properties['TEST_JAVA_HOME'] != null) {
         args '-DTEST_JAVA_HOME=' + System.properties['TEST_JAVA_HOME']
     }
     if (System.properties['TEST_JAVA_MAJOR_VERSION'] != null) {
         args '-DTEST_JAVA_MAJOR_VERSION=' + System.properties['TEST_JAVA_MAJOR_VERSION']
     }
+    if (System.properties['TEST_JAVA_ARGS'] != null) {
+        args '-DTEST_JAVA_ARGS=' + System.properties['TEST_JAVA_ARGS']
+    }
     if (System.properties['SINGLE_TEST'] != null) {
         args '-DSINGLE_TEST=' + System.properties['SINGLE_TEST']
-
     }
     if (System.properties['USE_CLANG_TIDY'] != null) {
         args '-DUSE_CLANG_TIDY=' + System.properties['USE_CLANG_TIDY']
-
     }
     args projectDir
 }
@@ -375,7 +417,7 @@ task build(overwrite:true) {
                 alias: jcecertAlias,
                 jar: "${buildDir}/cmake/AmazonCorrettoCryptoProvider.jar",
                 destDir: "${buildDir}/lib",
-                storepass: jcecertPassword,
+                storepass: "${System.env.KEYSTORE_PASSWORD}" ,
                 keystore: "${project.gradle.gradleUserHomeDir}/${jcecertJks}",
                 tsaurl: "http://timestamp.digicert.com"
             )
@@ -462,10 +504,24 @@ task unit_tests(type: Copy) {
 }
 test.dependsOn unit_tests
 
-task single_test(type: Exec) {
+task singleTest(type: Exec) {
+    group = 'Verification'
+    description = 'Pass in the test class using -DSINGLE_TEST=${fully_qualified_test_class}'
     dependsOn executeCmake
     workingDir "${buildDir}/cmake"
+    // Our cmake doesn't properly react java source changes, but it will rebuild them if the jars are missing
+    doFirst {
+        delete fileTree("${buildDir}/cmake").matching {
+            include '*.jar'
+        }
+    }
     commandLine 'make', 'check-junit-single'
+}
+
+task test_install_via_properties(type: Exec) {
+    dependsOn executeCmake
+    workingDir "${buildDir}/cmake"
+    commandLine 'make', 'check-install-via-properties'
 }
 
 task test_integration_exec(type: Exec) {
@@ -513,17 +569,19 @@ task coverage_cmake(type: Exec) {
     args '-DPROVIDER_VERSION_STRING=' + version, projectDir
     args "-DTEST_RUNNER_JAR=${configurations.testRunner.singleFile}"
     args "-DCMAKE_VERBOSE_MAKEFILE:BOOL=ON"
+    args "-DAWS_LC_VERSION_STRING=" + awsLcGitVersionId
     if (isLegacyBuild) {
         args "-DLEGACY_BUILD=ON"
     }
     if (isFips) {
         args "-DFIPS=ON"
     }
-
+    if (isExperimentalFips) {
+        args '-DEXPERIMENTAL_FIPS=ON'
+    }
     if (System.properties['JAVA_HOME'] != null) {
         args '-DJAVA_HOME=' + System.properties['JAVA_HOME']
     }
-
     if (System.properties['SINGLE_TEST'] != null) {
         args '-DSINGLE_TEST=' + System.properties['SINGLE_TEST']
 
@@ -586,7 +644,7 @@ task coverage_cpp_report {
 }
 
 task coverage {
-    dependsOn coverage_java_report, coverage_cpp_report
+    dependsOn coverage_java_report
 }
 
 task release {
@@ -675,14 +733,14 @@ task fakePublish {
                 ant.signjar(
                     alias: jcecertAlias,
                     jar: "${destinationDir}/${newPrefix}-osx-x86_64.jar",
-                    storepass: jcecertPassword,
+                    storepass: "${System.env.KEYSTORE_PASSWORD}",
                     keystore: "${project.gradle.gradleUserHomeDir}/${jcecertJks}",
                     tsaurl: "http://timestamp.digicert.com"
                 )
                 ant.signjar(
                     alias: jcecertAlias,
                     jar: "${destinationDir}/${newPrefix}-osx-aarch_64.jar",
-                    storepass: jcecertPassword,
+                    storepass: "${System.env.KEYSTORE_PASSWORD}",
                     keystore: "${project.gradle.gradleUserHomeDir}/${jcecertJks}",
                     tsaurl: "http://timestamp.digicert.com"
                 )
@@ -691,14 +749,14 @@ task fakePublish {
             ant.signjar(
                 alias: jcecertAlias,
                 jar: "${destinationDir}/${newPrefix}-linux-aarch_64.jar",
-                storepass: jcecertPassword,
+                storepass: "${System.env.KEYSTORE_PASSWORD}" ,
                 keystore: "${project.gradle.gradleUserHomeDir}/${jcecertJks}",
                 tsaurl: "http://timestamp.digicert.com"
             )
             ant.signjar(
                 alias: jcecertAlias,
                 jar: "${destinationDir}/${newPrefix}-linux-x86_64.jar",
-                storepass: jcecertPassword,
+                storepass: "${System.env.KEYSTORE_PASSWORD}",
                 keystore: "${project.gradle.gradleUserHomeDir}/${jcecertJks}",
                 tsaurl: "http://timestamp.digicert.com"
             )
@@ -708,7 +766,7 @@ task fakePublish {
 
 }
 
-if (project.hasProperty('mavenUser') && project.hasProperty('jcecertAlias')) {
+if (project.hasProperty('jcecertAlias')) {
     publishing {
         publications {
             mavenJava(MavenPublication) {
@@ -862,11 +920,6 @@ task generateEclipseClasspath {
                     }
                 }
                 classpathentry('kind': 'src', 'output': 'build/eclipse/src', 'path': 'build/cmake/generated-java') {
-                    attributes {
-                        attribute('name': 'optional', 'value': 'true')
-                    }
-                }
-                classpathentry('kind': 'src', 'output': 'build/eclipse/src', 'path': 'build/coverage-cmake/generated-java') {
                     attributes {
                         attribute('name': 'optional', 'value': 'true')
                     }

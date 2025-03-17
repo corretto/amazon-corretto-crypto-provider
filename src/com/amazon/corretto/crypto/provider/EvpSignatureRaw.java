@@ -12,8 +12,9 @@ class EvpSignatureRaw extends EvpSignatureBase {
   private EvpSignatureRaw(
       final AmazonCorrettoCryptoProvider provider,
       final EvpKeyType keyType,
-      final int paddingType) {
-    super(provider, keyType, paddingType, 0 /* No digest */);
+      final int paddingType,
+      final boolean preHash) {
+    super(provider, keyType, paddingType, 0 /* No digest */, preHash);
   }
 
   @Override
@@ -42,7 +43,8 @@ class EvpSignatureRaw extends EvpSignatureBase {
     try {
       ensureInitialized(true);
       return key_.use(
-          ptr -> signRaw(ptr, paddingType_, 0, 0, buffer.getDataBuffer(), 0, buffer.size()));
+          ptr ->
+              signRaw(ptr, paddingType_, preHash_, 0, 0, buffer.getDataBuffer(), 0, buffer.size()));
     } finally {
       engineReset();
     }
@@ -64,6 +66,7 @@ class EvpSignatureRaw extends EvpSignatureBase {
               verifyRaw(
                   ptr,
                   paddingType_,
+                  preHash_,
                   0,
                   0,
                   buffer.getDataBuffer(),
@@ -84,6 +87,7 @@ class EvpSignatureRaw extends EvpSignatureBase {
   private static native byte[] signRaw(
       long privateKey,
       int paddingType,
+      boolean preHash,
       long mgfMd,
       int saltLen,
       byte[] message,
@@ -93,6 +97,7 @@ class EvpSignatureRaw extends EvpSignatureBase {
   private static native boolean verifyRaw(
       long publicKey,
       int paddingType,
+      boolean preHash,
       long mgfMd,
       int saltLen,
       byte[] message,
@@ -105,7 +110,25 @@ class EvpSignatureRaw extends EvpSignatureBase {
 
   static final class NONEwithECDSA extends EvpSignatureRaw {
     NONEwithECDSA(AmazonCorrettoCryptoProvider provider) {
-      super(provider, EvpKeyType.EC, 0);
+      super(provider, EvpKeyType.EC, 0, false);
+    }
+  }
+
+  static final class Ed25519 extends EvpSignatureRaw {
+    Ed25519(AmazonCorrettoCryptoProvider provider) {
+      super(provider, EvpKeyType.EdDSA, 0, false);
+    }
+  }
+
+  static final class MLDSA extends EvpSignatureRaw {
+    MLDSA(final AmazonCorrettoCryptoProvider provider) {
+      super(provider, EvpKeyType.MLDSA, 0, false);
+    }
+  }
+
+  static final class MLDSAExtMu extends EvpSignatureRaw {
+    MLDSAExtMu(final AmazonCorrettoCryptoProvider provider) {
+      super(provider, EvpKeyType.MLDSA, 0, true);
     }
   }
 }

@@ -31,6 +31,7 @@ abstract class EvpSignatureBase extends SignatureSpi {
   protected final AmazonCorrettoCryptoProvider provider_;
   protected final EvpKeyType keyType_;
   protected int paddingType_;
+  protected final boolean preHash_;
   protected Key untranslatedKey_ = null;
   protected EvpKey key_ = null;
   protected boolean signMode;
@@ -48,7 +49,8 @@ abstract class EvpSignatureBase extends SignatureSpi {
       final AmazonCorrettoCryptoProvider provider,
       final EvpKeyType keyType,
       final int paddingType,
-      final long digest) {
+      final long digest,
+      final boolean preHash) {
     provider_ = provider;
     keyType_ = keyType;
     paddingType_ = paddingType;
@@ -60,6 +62,7 @@ abstract class EvpSignatureBase extends SignatureSpi {
       // Overwrite the 0 set by internalSetParameters
       digest_ = digest;
     }
+    preHash_ = preHash;
   }
 
   /**
@@ -103,8 +106,11 @@ abstract class EvpSignatureBase extends SignatureSpi {
     }
 
     if (untranslatedKey_ != privateKey) {
-      if (!keyType_.jceName.equalsIgnoreCase(privateKey.getAlgorithm())) {
-        throw new InvalidKeyException();
+      if (!keyType_.jceName.equalsIgnoreCase(privateKey.getAlgorithm())
+          && !privateKey.getAlgorithm().startsWith(keyType_.jceName)) {
+        throw new InvalidKeyException(
+            String.format(
+                "Invalid algorithm: %s, expected %s", privateKey.getAlgorithm(), keyType_.jceName));
       }
       keyUsageCount_ = 0;
       untranslatedKey_ = privateKey;
@@ -125,7 +131,8 @@ abstract class EvpSignatureBase extends SignatureSpi {
     }
 
     if (untranslatedKey_ != publicKey) {
-      if (!keyType_.jceName.equalsIgnoreCase(publicKey.getAlgorithm())) {
+      if (!keyType_.jceName.equalsIgnoreCase(publicKey.getAlgorithm())
+          && !publicKey.getAlgorithm().startsWith(keyType_.jceName)) {
         throw new InvalidKeyException();
       }
       keyUsageCount_ = 0;

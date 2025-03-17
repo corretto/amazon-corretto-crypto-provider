@@ -17,7 +17,7 @@ repositories {
 
 dependencies {
     jmh("org.projectlombok:lombok:1.18.28")
-    jmh("org.bouncycastle:bcprov-jdk15on:1.70")
+    jmh("org.bouncycastle:bcprov-jdk18on:1.79")
 
     val accpArtifactId =
     if (project.hasProperty("fips"))

@@ -15,6 +15,7 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -47,7 +48,9 @@ final class Loader {
   static final String PROPERTY_BASE = "com.amazon.corretto.crypto.provider.";
   private static final String TEMP_DIR_PREFIX = "amazonCorrettoCryptoProviderNativeLibraries.";
   private static final String JNI_LIBRARY_NAME = "amazonCorrettoCryptoProvider";
+  private static final String VERSION_PROPERTY_FILE = "version.properties";
   private static final String PROPERTY_VERSION_STR = "versionStr";
+  private static final String PROPERTY_AWS_LC_VERSION_STR = "awsLcVersionStr";
 
   private static final String PROPERTY_TMP_DIR = "tmpdir";
   private static final String[] JAR_RESOURCES = {JNI_LIBRARY_NAME};
@@ -73,8 +76,14 @@ final class Loader {
 
   static final String PROVIDER_VERSION_STR;
 
+  static final String AWS_LC_VERSION_STR;
+
   /** Indicates that libcrypto reports we are in a FIPS mode. */
   static final boolean FIPS_BUILD;
+
+  static final boolean EXPERIMENTAL_FIPS_BUILD;
+
+  static final boolean FIPS_SELF_TEST_SKIP_ABORT;
 
   /**
    * Returns an InputStream associated with {@code fileName} contained in the "testdata"
@@ -115,29 +124,19 @@ final class Loader {
   static {
     boolean available = false;
     Throwable error = null;
-    String versionStr = null;
+    String versionStr = null, awsLcVersionStr = null;
     double oldVersion = 0;
 
     try {
-      versionStr =
-          AccessController.doPrivileged(
-              (PrivilegedExceptionAction<String>)
-                  () -> {
-                    try (InputStream is = Loader.class.getResourceAsStream("version.properties")) {
-                      if (is == null) {
-                        return System.getProperty(PROPERTY_VERSION_STR);
-                      }
-                      Properties p = new Properties();
-                      p.load(is);
-                      return p.getProperty(PROPERTY_VERSION_STR);
-                    }
-                  });
+      versionStr = readProperty(VERSION_PROPERTY_FILE, PROPERTY_VERSION_STR);
 
       Matcher m = OLD_VERSION_PATTERN.matcher(versionStr);
       if (!m.matches()) {
         throw new AssertionError("Version string has wrong form: " + versionStr);
       }
       oldVersion = Double.parseDouble(m.group(1));
+
+      awsLcVersionStr = readProperty(VERSION_PROPERTY_FILE, PROPERTY_AWS_LC_VERSION_STR);
 
       available =
           AccessController.doPrivileged(
@@ -151,6 +150,7 @@ final class Loader {
                     tryLoadLibrary();
                     return true;
                   });
+
     } catch (final Throwable t) {
       available = false;
       error = t;
@@ -158,6 +158,9 @@ final class Loader {
     PROVIDER_VERSION_STR = versionStr;
     PROVIDER_VERSION = oldVersion;
     FIPS_BUILD = available && isFipsMode();
+    EXPERIMENTAL_FIPS_BUILD = available && isExperimentalFipsMode();
+    FIPS_SELF_TEST_SKIP_ABORT = available && isFipsSelfTestFailureSkipAbort();
+    AWS_LC_VERSION_STR = awsLcVersionStr;
 
     // Check for native/java library version mismatch
     if (available) {
@@ -180,6 +183,26 @@ final class Loader {
 
     // Finally start up a cleaning thread if necessary
     RESOURCE_JANITOR = new Janitor();
+  }
+
+  /**
+   * Loads a properties file and reads the value for the given key. If file is unavailable, falls
+   * back to {@link System#getProperty(String)}.
+   */
+  private static String readProperty(String propertyFile, String propertyKey)
+      throws PrivilegedActionException {
+    return AccessController.doPrivileged(
+        (PrivilegedExceptionAction<String>)
+            () -> {
+              try (InputStream is = Loader.class.getResourceAsStream(propertyFile)) {
+                if (is == null) {
+                  return System.getProperty(propertyKey);
+                }
+                Properties p = new Properties();
+                p.load(is);
+                return p.getProperty(propertyKey);
+              }
+            });
   }
 
   private static void tryLoadLibraryFromJar() throws IOException {
@@ -331,6 +354,10 @@ final class Loader {
    * @return {@code true} iff the underlying libcrypto is a FIPS build.
    */
   private static native boolean isFipsMode();
+
+  private static native boolean isExperimentalFipsMode();
+
+  private static native boolean isFipsSelfTestFailureSkipAbort();
 
   /** Throws an {@link AssertionError} if the java and native libraries do not match versions. */
   private static void assertVersionMatch() {

@@ -93,7 +93,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpKey_enc
  * Signature: ([BI)J
  */
 JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_pkcs82Evp(
-    JNIEnv* pEnv, jclass, jbyteArray pkcs8der, jint nativeValue, jboolean shouldCheckPrivate)
+    JNIEnv* pEnv, jclass, jbyteArray pkcs8der, jint evpType, jboolean shouldCheckPrivate)
 {
     try {
         raii_env env(pEnv);
@@ -104,8 +104,8 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_p
 
         {
             jni_borrow borrow = jni_borrow(env, pkcs8Buff, "pkcs8Buff");
-            result.set(der2EvpPrivateKey(borrow, derLen, shouldCheckPrivate, EX_INVALID_KEY_SPEC));
-            if (EVP_PKEY_base_id(result) != nativeValue) {
+            result.set(der2EvpPrivateKey(borrow, derLen, evpType, shouldCheckPrivate, EX_INVALID_KEY_SPEC));
+            if (EVP_PKEY_base_id(result) != evpType) {
                 throw_java_ex(EX_INVALID_KEY_SPEC, "Incorrect key type");
             }
         }
@@ -122,7 +122,7 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_p
  * Signature: ([BI)J
  */
 JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_x5092Evp(
-    JNIEnv* pEnv, jclass, jbyteArray x509der, jint nativeValue)
+    JNIEnv* pEnv, jclass, jbyteArray x509der, jint evpType)
 {
     try {
         raii_env env(pEnv);
@@ -134,7 +134,7 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_x
         {
             jni_borrow borrow = jni_borrow(env, x509Buff, "x509Buff");
             result.set(der2EvpPublicKey(borrow, derLen, EX_INVALID_KEY_SPEC));
-            if (EVP_PKEY_base_id(result) != nativeValue) {
+            if (EVP_PKEY_base_id(result) != evpType) {
                 throw_java_ex(EX_INVALID_KEY_SPEC, "Incorrect key type");
             }
         }
@@ -326,6 +326,37 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpEcPriva
         ex.throw_to_java(pEnv);
         return NULL;
     }
+}
+
+/*
+ * Class:     com_amazon_corretto_crypto_provider_EvpEdPrivateKey
+ * Method:    getPrivateKey
+ */
+JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpEdPrivateKey_getPrivateKey(
+    JNIEnv* pEnv, jclass, jlong keyHandle)
+{
+    jbyteArray result = NULL;
+
+    try {
+        raii_env env(pEnv);
+
+        EVP_PKEY* key = reinterpret_cast<EVP_PKEY*>(keyHandle);
+
+        size_t bufSize;
+
+        CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(key, NULL, &bufSize) == 1);
+        SimpleBuffer privateKeyBuffer(bufSize);
+        CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(key, privateKeyBuffer.get_buffer(), &bufSize) == 1);
+
+        result = env->NewByteArray(bufSize);
+        if (!result) {
+            throw_java_ex(EX_OOM, "Unable to allocate private key array");
+        }
+        env->SetByteArrayRegion(result, 0, bufSize, (jbyte*)privateKeyBuffer.get_buffer());
+    } catch (java_ex& ex) {
+        ex.throw_to_java(pEnv);
+    }
+    return result;
 }
 
 JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpRsaKey_getModulus(
@@ -635,3 +666,52 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpRsaPriv
 
     return result;
 }
+
+#if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
+/*
+ * Class:     com_amazon_corretto_crypto_provider_EvpRsaPrivateKey
+ * Method:    encodeRsaPrivateKey
+ * Signature: (J)[B
+ */
+JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpMlDsaPrivateKey_encodeMlDsaPrivateKey(
+    JNIEnv* pEnv, jclass, jlong keyHandle)
+{
+    jbyteArray result = NULL;
+
+    try {
+        raii_env env(pEnv);
+
+        EVP_PKEY* key = reinterpret_cast<EVP_PKEY*>(keyHandle);
+        CHECK_OPENSSL(EVP_PKEY_id(key) == EVP_PKEY_PQDSA);
+
+        uint8_t* der;
+        size_t der_len;
+        CBB cbb;
+        CHECK_OPENSSL(CBB_init(&cbb, 0));
+        // Failure below may just indicate that we don't have the seed, so retry with |encodeExpandedMLDSAPrivateKey|
+        // and encode in PKCS8 (RFC 5208) format after clearing the error queue.
+        if (EVP_marshal_private_key(&cbb, key)) {
+            if (!CBB_finish(&cbb, &der, &der_len)) {
+                OPENSSL_free(der);
+                throw_java_ex(EX_RUNTIME_CRYPTO, "Error finalizing seed ML-DSA key");
+            }
+        } else {
+            ERR_clear_error();
+            der_len = encodeExpandedMLDSAPrivateKey(key, &der);
+        }
+        CBB_cleanup(&cbb);
+
+        if (!(result = env->NewByteArray(der_len))) {
+            OPENSSL_free(der);
+            throw_java_ex(EX_OOM, "Unable to allocate DER array");
+        }
+        // This may throw, if it does we'll just keep the exception state as we return.
+        env->SetByteArrayRegion(result, 0, der_len, (const jbyte*)der);
+        OPENSSL_free(der);
+    } catch (java_ex& ex) {
+        ex.throw_to_java(pEnv);
+    }
+
+    return result;
+}
+#endif // !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
