@@ -29,11 +29,13 @@ abstract class EvpKey implements Key, Destroyable {
   protected final InternalKey internalKey;
   protected final EvpKeyType type;
   protected final boolean isPublicKey;
+
   /**
    * Indicates that the backing native key is used by another java object and thus must not be
    * released by this one.
    */
   protected boolean sharedKey = false;
+
   /**
    * Indicates that this key is entirely managed within ACCP controlled code and thus we know when
    * we're done with it and can release it.

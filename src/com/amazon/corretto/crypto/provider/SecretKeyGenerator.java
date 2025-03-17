@@ -82,14 +82,14 @@ class SecretKeyGenerator extends KeyGeneratorSpi {
    * SecretKeyGenerator to get a service (SPI) class.
    */
   private interface SecretKeyProperties {
-    String getName(); // the name of the algorithm, like AES
+    // the name of the algorithm, like AES
+    String getName();
 
-    int defaultKeySize(); // the default key size, in bits, to be used in case a key size is not
-    // provided
+    // the default key size, in bits, to be used in case a key size is not provided
+    int defaultKeySize();
 
-    void checkKeySizeIsValid(
-        int keySize); // throws an exception if the given algorithm does not support keys of
-    // "keySize"
+    // throws an exception if the given algorithm does not support keys of "keySize"
+    void checkKeySizeIsValid(int keySize);
   }
 
   static final class AesSecretKeyProperties implements SecretKeyProperties {

@@ -12,6 +12,7 @@ class MlDsaGen extends KeyPairGeneratorSpi {
   private static native long generateEvpMlDsaKey(int level);
 
   private final AmazonCorrettoCryptoProvider provider_;
+
   /**
    * level_ corresponds to the purported NIST security level for each ML-DSA variant. It uniquely
    * determines which NID is used to request an ML-DSA key. -1 indicates it is uninitialized.
