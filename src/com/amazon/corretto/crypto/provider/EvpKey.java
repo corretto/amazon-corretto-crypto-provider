@@ -26,7 +26,7 @@ import javax.security.auth.Destroyable;
 abstract class EvpKey implements Key, Destroyable {
   private static final long serialVersionUID = 1;
 
-  protected final InternalKey internalKey;
+  protected final transient InternalKey internalKey;
   protected final EvpKeyType type;
   protected final boolean isPublicKey;
 

@@ -8,7 +8,7 @@ import java.security.spec.ECParameterSpec;
 abstract class EvpEcKey extends EvpKey implements ECKey {
   private static final long serialVersionUID = 1;
 
-  protected volatile ECParameterSpec params;
+  protected transient volatile ECParameterSpec params;
 
   EvpEcKey(final InternalKey key, final boolean isPublicKey) {
     super(key, EvpKeyType.EC, isPublicKey);
