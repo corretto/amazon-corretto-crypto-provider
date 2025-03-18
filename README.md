@@ -112,11 +112,11 @@ AlgorithmParameters:
 * EC. Please refer to [system properties](https://github.com/corretto/amazon-corretto-crypto-provider#other-system-properties) for more information.
 
 Mac algorithms with precomputed key and associated secret key factories (expert use only, refer to [HMAC with Precomputed Key](https://github.com/corretto/amazon-corretto-crypto-provider#HMAC-with-Precomputed-Key) for more information):
-* HmacSHA512WithPrecomputedKey (not available in FIPS builds)
-* HmacSHA384WithPrecomputedKey (not available in FIPS builds)
-* HmacSHA256WithPrecomputedKey (not available in FIPS builds)
-* HmacSHA1WithPrecomputedKey (not available in FIPS builds)
-* HmacMD5WithPrecomputedKey (not available in FIPS builds)
+* HmacSHA512WithPrecomputedKey
+* HmacSHA384WithPrecomputedKey
+* HmacSHA256WithPrecomputedKey
+* HmacSHA1WithPrecomputedKey
+* HmacMD5WithPrecomputedKey
 
 # Notes on ACCP-FIPS
 ACCP-FIPS is a variation of ACCP which uses AWS-LC-FIPS 2.x as its cryptographic module. This version of AWS-LC-FIPS has FIPS certificate [4816](https://csrc.nist.gov/projects/cryptographic-module-validation-program/certificate/4816).
