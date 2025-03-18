@@ -183,6 +183,7 @@ final class AesGcmSpi extends CipherSpi {
   // when the same Java key object is used to initialize a Cipher that was previously used.
   private Key lastKey = null;
   private byte[] iv, key;
+
   /** GCM tag length in bytes. */
   private int tagLength = DEFAULT_TAG_LENGTH / 8;
 

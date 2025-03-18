@@ -296,6 +296,7 @@ public class EvpSignatureTest {
   public static Stream<TestParams> params() {
     return byteBufferParams().filter(TestParams::goodForArraysAndByteBuffers);
   }
+
   /** Test cases for ByteBuffer related tests. */
   public static Stream<TestParams> byteBufferParams() {
     try {

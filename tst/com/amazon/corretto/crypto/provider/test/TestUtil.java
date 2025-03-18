@@ -47,6 +47,7 @@ import org.junit.jupiter.api.Assumptions;
 public class TestUtil {
   public static final String RESOURCE_REFLECTION = "REFLECTIVE_TOOLS";
   public static final String RESOURCE_PROVIDER = "JCE_PROVIDER";
+
   /**
    * Pseudo-resource used by ACCP tests to enforce that certain tests run by themselves. All tests
    * should takea "READ" lock on this resource. Tests which require exclusive control should take a
@@ -780,6 +781,7 @@ public class TestUtil {
 
     return output;
   }
+
   // Returns the length of the output.
   public static int multiStepInPlaceArray(
       final Cipher cipher,

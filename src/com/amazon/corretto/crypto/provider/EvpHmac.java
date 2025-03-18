@@ -23,6 +23,7 @@ import javax.crypto.spec.SecretKeySpec;
 class EvpHmac extends MacSpi implements Cloneable {
   /** When passed to {@code evpMd} indicates that the native code should not call HMAC_Init_ex. */
   private static long DO_NOT_INIT = -1;
+
   /**
    * When passed to {@code evpMd} indicates that while {@code HMAC_Init_ex} must be called, it
    * should be called with NULL for both the key and evpMd parameters.
@@ -41,6 +42,7 @@ class EvpHmac extends MacSpi implements Cloneable {
    */
   private static native void updateCtxArray(
       byte[] ctx, byte[] key, long evpMd, byte[] input, int offset, int length);
+
   /**
    * @see {@link #updateCtxArray(byte[], byte[], long, byte[], int, int)}
    */
@@ -59,6 +61,7 @@ class EvpHmac extends MacSpi implements Cloneable {
    * @param result
    */
   private static native void doFinal(byte[] ctx, byte[] result);
+
   /**
    * @see {@link #doFinal(byte[], byte[])}
    */
@@ -77,6 +80,7 @@ class EvpHmac extends MacSpi implements Cloneable {
    */
   private static native void fastHmac(
       byte[] ctx, byte[] key, long evpMd, byte[] input, int offset, int length, byte[] result);
+
   /**
    * @see {@link #fastHmac(byte[], byte[], long, byte[], int, int, byte[])}
    */
@@ -243,6 +247,7 @@ class EvpHmac extends MacSpi implements Cloneable {
   private static class TestMacProvider extends Provider {
     private final String macName;
     private final Class<? extends MacSpi> spi;
+
     // The superconstructor taking a double version is deprecated in java 9.
     // However, the replacement for it is
     // unavailable in java 8, so to build on both with warnings on our only choice
