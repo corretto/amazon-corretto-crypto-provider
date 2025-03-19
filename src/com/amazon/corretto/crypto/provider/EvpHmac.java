@@ -121,7 +121,7 @@ class EvpHmac extends MacSpi implements Cloneable {
       int length,
       byte[] result,
       boolean usePrecomputedKey);
-  
+
   /**
    * @see {@link #fastHmac(byte[], byte[], long, byte[], int, int, byte[], boolean)}
    */
