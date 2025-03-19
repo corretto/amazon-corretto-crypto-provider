@@ -17,14 +17,14 @@ jobs:
   # JDK 8 job.
   macOS8:
     name: JDK8
-    runs-on: macos-latest
+    runs-on: macos-latest-large
     steps:
     - uses: actions/checkout@v3
       with:
         submodules: true
     - name: Install dependencies from brew
       run: |
-        env HOMEBREW_NO_AUTO_UPDATE=1 brew install lcov golang clang-format
+        env HOMEBREW_NO_AUTO_UPDATE=1 brew install lcov golang
     - name: Setup pip
       uses: actions/setup-python@v4
       with:
@@ -62,14 +62,14 @@ jobs:
   # JDK 11 job.
   macOS11:
     name: JDK11
-    runs-on: macos-latest
+    runs-on: macos-latest-large
     steps:
     - uses: actions/checkout@v3
       with:
         submodules: true
     - name: Install dependencies from brew
       run: |
-        env HOMEBREW_NO_AUTO_UPDATE=1 brew install lcov golang clang-format
+        env HOMEBREW_NO_AUTO_UPDATE=1 brew install lcov golang
     - name: Setup pip
       uses: actions/setup-python@v4
       with:
@@ -96,14 +96,14 @@ jobs:
   # JDK 17 job.
   macOS17:
     name: JDK17
-    runs-on: macos-latest
+    runs-on: macos-latest-large
     steps:
     - uses: actions/checkout@v3
       with:
         submodules: true
     - name: Install dependencies from brew
       run: |
-        env HOMEBREW_NO_AUTO_UPDATE=1 brew install lcov golang clang-format
+        env HOMEBREW_NO_AUTO_UPDATE=1 brew install lcov golang
     - name: Setup pip
       uses: actions/setup-python@v4
       with:
@@ -135,7 +135,7 @@ jobs:
         submodules: true
     - name: Install dependencies from brew
       run: |
-        env HOMEBREW_NO_AUTO_UPDATE=1 brew install lcov clang-format golang
+        env HOMEBREW_NO_AUTO_UPDATE=1 brew install lcov golang
     - name: Setup pip
       uses: actions/setup-python@v4
       with:
@@ -180,7 +180,7 @@ jobs:
         submodules: true
     - name: Install dependencies from brew
       run: |
-        env HOMEBREW_NO_AUTO_UPDATE=1 brew install lcov clang-format golang
+        env HOMEBREW_NO_AUTO_UPDATE=1 brew install lcov golang
     - name: Setup pip
       uses: actions/setup-python@v4
       with:
@@ -214,7 +214,7 @@ jobs:
         submodules: true
     - name: Install lcov dependencies from brew
       run: |
-        env HOMEBREW_NO_AUTO_UPDATE=1 brew install lcov clang-format golang
+        env HOMEBREW_NO_AUTO_UPDATE=1 brew install lcov golang
     - name: Setup pip
       uses: actions/setup-python@v4
       with:

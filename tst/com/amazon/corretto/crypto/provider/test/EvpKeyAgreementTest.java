@@ -88,6 +88,7 @@ public class EvpKeyAgreementTest {
 
     @SuppressWarnings("unused")
     private final KeyPairGenerator keyGen;
+
     // We test pairwise across lots of keypairs in an effort
     // to catch rarer edge-cases.
     private final KeyPair[] pairs;

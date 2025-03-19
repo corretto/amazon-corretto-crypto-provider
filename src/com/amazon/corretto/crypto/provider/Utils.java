@@ -63,6 +63,7 @@ final class Utils {
    * call to @{code EVP_get_digestbyname}.
    */
   static native long getEvpMdFromName(String digestName);
+
   /** Returns the output length for a digest in bytes specified by {@code evpMd}. */
   static native int getDigestLength(long evpMd);
 
