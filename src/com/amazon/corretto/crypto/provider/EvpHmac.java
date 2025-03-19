@@ -121,6 +121,7 @@ class EvpHmac extends MacSpi implements Cloneable {
       int length,
       byte[] result,
       boolean usePrecomputedKey);
+  
   /**
    * @see {@link #fastHmac(byte[], byte[], long, byte[], int, int, byte[], boolean)}
    */
@@ -281,6 +282,7 @@ class EvpHmac extends MacSpi implements Cloneable {
   private static final class HmacState implements Cloneable {
     private SecretKey key;
     private final long evpMd;
+
     /**
      * Name of the algorithm used to create this instance. This is used to ensure that the key is
      * appropriate for the algorithm, when using precomputed keys.
@@ -290,6 +292,7 @@ class EvpHmac extends MacSpi implements Cloneable {
     private final int digestLength;
     private byte[] context = new byte[CONTEXT_SIZE];
     private byte[] encoded_key;
+
     /**
      * True if precomputed keys are used instead of raw HMAC keys, that is for algorithms
      * `HmacXXXWithPrecomputedKey`.
