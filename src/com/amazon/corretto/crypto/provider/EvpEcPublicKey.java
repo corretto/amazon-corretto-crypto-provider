@@ -11,7 +11,7 @@ class EvpEcPublicKey extends EvpEcKey implements ECPublicKey {
 
   private static native void getPublicPointCoords(long ptr, byte[] x, byte[] y);
 
-  protected volatile ECPoint w;
+  protected transient volatile ECPoint w;
 
   EvpEcPublicKey(final long ptr) {
     this(new InternalKey(ptr));

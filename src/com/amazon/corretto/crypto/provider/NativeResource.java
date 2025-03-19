@@ -30,7 +30,7 @@ class NativeResource {
 
     // @GuardedBy("this") // Restore once replacement for JSR-305 available
     private final long ptr;
-    private final LongConsumer releaser;
+    private final transient LongConsumer releaser;
     private final boolean isThreadSafe;
     // @GuardedBy("this") // Restore once replacement for JSR-305 available
     private boolean released;
