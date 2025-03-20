@@ -12,6 +12,8 @@ import static com.amazon.corretto.crypto.provider.ConcatenationKdfSpi.CKDF_WITH_
 import static com.amazon.corretto.crypto.provider.CounterKdfSpi.CTR_KDF_WITH_HMAC_SHA256;
 import static com.amazon.corretto.crypto.provider.CounterKdfSpi.CTR_KDF_WITH_HMAC_SHA384;
 import static com.amazon.corretto.crypto.provider.CounterKdfSpi.CTR_KDF_WITH_HMAC_SHA512;
+import static com.amazon.corretto.crypto.provider.EvpHmac.HMAC_PREFIX;
+import static com.amazon.corretto.crypto.provider.EvpHmac.WITH_PRECOMPUTED_KEY;
 import static com.amazon.corretto.crypto.provider.HkdfSecretKeyFactorySpi.HKDF_WITH_SHA1;
 import static com.amazon.corretto.crypto.provider.HkdfSecretKeyFactorySpi.HKDF_WITH_SHA256;
 import static com.amazon.corretto.crypto.provider.HkdfSecretKeyFactorySpi.HKDF_WITH_SHA384;
@@ -160,8 +162,20 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     addService("Cipher", "RSA/ECB/OAEPWithSHA-1AndMGF1Padding", "RsaCipher$OAEPSha1");
     addService("Cipher", "RSA/ECB/OAEPWithSHA1AndMGF1Padding", "RsaCipher$OAEPSha1");
 
+    final String hmacWithPrecomputedKeyKeyFactorySpi = "HmacWithPrecomputedKeyKeyFactorySpi";
     for (String hash : new String[] {"MD5", "SHA1", "SHA256", "SHA384", "SHA512"}) {
+      // Registration of regular Hmac
       addService("Mac", "Hmac" + hash, "EvpHmac$" + hash);
+      // Registration of Hmac with precomputed keys
+      addService(
+          "Mac",
+          HMAC_PREFIX + hash + WITH_PRECOMPUTED_KEY,
+          "EvpHmac$" + hash + WITH_PRECOMPUTED_KEY);
+      addService(
+          "SecretKeyFactory",
+          HMAC_PREFIX + hash + WITH_PRECOMPUTED_KEY,
+          hmacWithPrecomputedKeyKeyFactorySpi,
+          false);
     }
 
     addService(
@@ -373,6 +387,13 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
               CounterKdfSpi.INSTANCES.get(CounterKdfSpi.getSpiFactoryForAlgName(algo));
           if (cntrKdfSpi != null) {
             return cntrKdfSpi;
+          }
+
+          final HmacWithPrecomputedKeyKeyFactorySpi hmacWithPrecomputedKeySpi =
+              HmacWithPrecomputedKeyKeyFactorySpi.INSTANCES.get(
+                  HmacWithPrecomputedKeyKeyFactorySpi.getSpiFactoryForAlgName(algo));
+          if (hmacWithPrecomputedKeySpi != null) {
+            return hmacWithPrecomputedKeySpi;
           }
         }
 

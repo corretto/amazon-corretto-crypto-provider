@@ -21,6 +21,18 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 
 class EvpHmac extends MacSpi implements Cloneable {
+  static final String HMAC_PREFIX = "Hmac";
+  static final String WITH_PRECOMPUTED_KEY = "WithPrecomputedKey";
+
+  static final String HMAC_SHA512_WITH_PRECOMPUTED_KEY =
+      HMAC_PREFIX + "SHA512" + WITH_PRECOMPUTED_KEY;
+  static final String HMAC_SHA384_WITH_PRECOMPUTED_KEY =
+      HMAC_PREFIX + "SHA384" + WITH_PRECOMPUTED_KEY;
+  static final String HMAC_SHA256_WITH_PRECOMPUTED_KEY =
+      HMAC_PREFIX + "SHA256" + WITH_PRECOMPUTED_KEY;
+  static final String HMAC_SHA1_WITH_PRECOMPUTED_KEY = HMAC_PREFIX + "SHA1" + WITH_PRECOMPUTED_KEY;
+  static final String HMAC_MD5_WITH_PRECOMPUTED_KEY = HMAC_PREFIX + "MD5" + WITH_PRECOMPUTED_KEY;
+
   /** When passed to {@code evpMd} indicates that the native code should not call HMAC_Init_ex. */
   private static long DO_NOT_INIT = -1;
 
@@ -34,22 +46,44 @@ class EvpHmac extends MacSpi implements Cloneable {
   private static native int getContextSize();
 
   /**
-   * Calls {@code HMAC_Update} with {@code input}, possibly calling {@code HMAC_Init_ex} first (if
-   * {@code evpMd} is any value except {@link #DO_NOT_INIT}). This method should only be used via
-   * {@link #synchronizedUpdateCtxArray(byte[], byte[], long, byte[], int, int)}.
+   * Returns the length of the precomputed key for the HMAC for the hash function with name
+   * digestName
+   *
+   * @param digestName name of the digest (md5,sha1,sha256,sha384,sha512)
+   * @return the length of the precomputed key, in bytes
+   */
+  static native int getPrecomputedKeyLength(String digestName);
+
+  /**
+   * Calls {@code HMAC_Update} with {@code input}, possibly calling {@code HMAC_Init_ex} or {@code
+   * HMAC_Init_from_precomputed_key} first (if {@code evpMd} is any value except {@link
+   * #DO_NOT_INIT}). This method should only be used via {@link #synchronizedUpdateCtxArray(byte[],
+   * byte[], long, byte[], int, int, boolean)}.
    *
    * @param ctx opaque array containing native context
    */
   private static native void updateCtxArray(
-      byte[] ctx, byte[] key, long evpMd, byte[] input, int offset, int length);
+      byte[] ctx,
+      byte[] key,
+      long evpMd,
+      byte[] input,
+      int offset,
+      int length,
+      boolean usePrecomputedKey);
 
   /**
-   * @see {@link #updateCtxArray(byte[], byte[], long, byte[], int, int)}
+   * @see {@link #updateCtxArray(byte[], byte[], long, byte[], int, int, boolean)}
    */
   private static void synchronizedUpdateCtxArray(
-      byte[] ctx, byte[] key, long evpMd, byte[] input, int offset, int length) {
+      byte[] ctx,
+      byte[] key,
+      long evpMd,
+      byte[] input,
+      int offset,
+      int length,
+      boolean usePrecomputedKey) {
     synchronized (ctx) {
-      updateCtxArray(ctx, key, evpMd, input, offset, length);
+      updateCtxArray(ctx, key, evpMd, input, offset, length, usePrecomputedKey);
     }
   }
 
@@ -74,20 +108,34 @@ class EvpHmac extends MacSpi implements Cloneable {
   /**
    * Calls {@code HMAC_Init_ex}, {@code HMAC_Update}, and {@code HMAC_Final} with {@code input}.
    * This method should only be used via {@link #synchronizedFastHmac(byte[], byte[], long, byte[],
-   * int, int, byte[])}.
+   * int, int, byte[], boolean)}.
    *
    * @param ctx opaque array containing native context
    */
   private static native void fastHmac(
-      byte[] ctx, byte[] key, long evpMd, byte[] input, int offset, int length, byte[] result);
+      byte[] ctx,
+      byte[] key,
+      long evpMd,
+      byte[] input,
+      int offset,
+      int length,
+      byte[] result,
+      boolean usePrecomputedKey);
 
   /**
-   * @see {@link #fastHmac(byte[], byte[], long, byte[], int, int, byte[])}
+   * @see {@link #fastHmac(byte[], byte[], long, byte[], int, int, byte[], boolean)}
    */
   private static void synchronizedFastHmac(
-      byte[] ctx, byte[] key, long evpMd, byte[] input, int offset, int length, byte[] result) {
+      byte[] ctx,
+      byte[] key,
+      long evpMd,
+      byte[] input,
+      int offset,
+      int length,
+      byte[] result,
+      boolean usePrecomputedKey) {
     synchronized (ctx) {
-      fastHmac(ctx, key, evpMd, input, offset, length, result);
+      fastHmac(ctx, key, evpMd, input, offset, length, result, usePrecomputedKey);
     }
   }
 
@@ -97,12 +145,32 @@ class EvpHmac extends MacSpi implements Cloneable {
   private HmacState state;
   private InputBuffer<byte[], Void, RuntimeException> buffer;
 
-  EvpHmac(long evpMd, int digestLength) {
+  private static final String WITH_PRECOMPUTE_KEY = "WithPrecomputedKey";
+
+  /**
+   * @param digestName is the name of the digest in lowercase (e.g., "sha256", "md5")
+   * @param baseAlgorithm the base name of the algorithm without "WithPrecomputedKey" (e.g.,
+   *     "HmacMd5")
+   * @param usePrecomputedKey true is using precomputed keys instead of normal keys
+   */
+  EvpHmac(String digestName, final String baseAlgorithm, final boolean usePrecomputedKey) {
+    final long evpMd = Utils.getEvpMdFromName(digestName);
+    final int digestLength = Utils.getDigestLength(evpMd);
+    int precomputedKeyLength = 0;
+    if (usePrecomputedKey) {
+      precomputedKeyLength = getPrecomputedKeyLength(digestName);
+    }
+
     if (evpMd == DO_NOT_INIT || evpMd == DO_NOT_REKEY) {
       throw new AssertionError(
           "Unexpected value for evpMd conflicting with reserved negative value: " + evpMd);
     }
-    this.state = new HmacState(evpMd, digestLength);
+    String algorithm = baseAlgorithm;
+    if (usePrecomputedKey) {
+      algorithm += WITH_PRECOMPUTE_KEY;
+    }
+    this.state =
+        new HmacState(evpMd, digestLength, algorithm, usePrecomputedKey, precomputedKeyLength);
     this.buffer = new InputBuffer<byte[], Void, RuntimeException>(1024);
     configureLambdas();
   }
@@ -117,14 +185,16 @@ class EvpHmac extends MacSpi implements Cloneable {
               if (state.needsRekey) {
                 evpMd = state.evpMd;
               }
-              synchronizedUpdateCtxArray(state.context, rawKey, evpMd, src, offset, length);
+              synchronizedUpdateCtxArray(
+                  state.context, rawKey, evpMd, src, offset, length, state.usePrecomputedKey);
               state.needsRekey = false;
               return null;
             })
         .withUpdater(
             (ignored, src, offset, length) -> {
               assertInitialized();
-              synchronizedUpdateCtxArray(state.context, null, DO_NOT_INIT, src, offset, length);
+              synchronizedUpdateCtxArray(
+                  state.context, null, DO_NOT_INIT, src, offset, length, state.usePrecomputedKey);
             })
         .withDoFinal(
             (ignored) -> {
@@ -142,7 +212,15 @@ class EvpHmac extends MacSpi implements Cloneable {
               if (state.needsRekey) {
                 evpMd = state.evpMd;
               }
-              synchronizedFastHmac(state.context, rawKey, evpMd, src, offset, length, result);
+              synchronizedFastHmac(
+                  state.context,
+                  rawKey,
+                  evpMd,
+                  src,
+                  offset,
+                  length,
+                  result,
+                  state.usePrecomputedKey);
               state.needsRekey = false;
               return result;
             });
@@ -204,14 +282,46 @@ class EvpHmac extends MacSpi implements Cloneable {
   private static final class HmacState implements Cloneable {
     private SecretKey key;
     private final long evpMd;
+
+    /**
+     * Name of the algorithm used to create this instance. This is used to ensure that the key is
+     * appropriate for the algorithm, when using precomputed keys.
+     */
+    private final String algorithm;
+
     private final int digestLength;
     private byte[] context = new byte[CONTEXT_SIZE];
     private byte[] encoded_key;
+
+    /**
+     * True if precomputed keys are used instead of raw HMAC keys, that is for algorithms
+     * `HmacXXXWithPrecomputedKey`.
+     */
+    private final boolean usePrecomputedKey;
+
+    private final int precomputedKeyLength;
+
     boolean needsRekey = true;
 
-    private HmacState(long evpMd, int digestLength) {
+    /**
+     * @param evpMd the evpMd corresponding to the digest used
+     * @param digestLength the length of the digest in bytes
+     * @param algorithm the full name algorithm (e.g., "HmacMD5" or "HmacMD5WithPrecomputedKey")
+     * @param usePrecomputedKey false = normal HMAC, true = uses precomputed keys
+     * @param precomputedKeyLength length of precomputed keys in bytes (can be 0 if
+     *     usePrecomputedKey = false)
+     */
+    private HmacState(
+        final long evpMd,
+        final int digestLength,
+        final String algorithm,
+        final boolean usePrecomputedKey,
+        final int precomputedKeyLength) {
       this.evpMd = evpMd;
       this.digestLength = digestLength;
+      this.algorithm = Objects.requireNonNull(algorithm);
+      this.usePrecomputedKey = usePrecomputedKey;
+      this.precomputedKeyLength = precomputedKeyLength;
     }
 
     private void setKey(SecretKey key) throws InvalidKeyException {
@@ -222,9 +332,18 @@ class EvpHmac extends MacSpi implements Cloneable {
       if (!"RAW".equalsIgnoreCase(key.getFormat())) {
         throw new InvalidKeyException("Key must support RAW encoding");
       }
+      if (usePrecomputedKey && !algorithm.equalsIgnoreCase(key.getAlgorithm())) {
+        throw new InvalidKeyException(
+            "Key must be for algorithm \"" + algorithm + "\" when using precomputed keys");
+      }
+
       byte[] encoded = key.getEncoded();
       if (encoded == null) {
         throw new InvalidKeyException("Key encoding must not be null");
+      }
+      if (usePrecomputedKey && encoded.length != precomputedKeyLength) {
+        throw new InvalidKeyException(
+            "Key must be of length \"" + precomputedKeyLength + "\" when using precomputed keys");
       }
       this.encoded_key = encoded;
       this.key = key;
@@ -317,78 +436,143 @@ class EvpHmac extends MacSpi implements Cloneable {
     }
   }
 
-  static class MD5 extends EvpHmac {
-    private static final long evpMd = Utils.getEvpMdFromName("md5");
-    private static final int digestLength = Utils.getDigestLength(evpMd);
+  private static class MD5Base extends EvpHmac {
+    protected static final String digestName = "md5";
+    protected static final String baseAlgorithm = "HmacMD5";
+
+    private MD5Base(boolean usePrecomputedKey) {
+      super(digestName, baseAlgorithm, usePrecomputedKey);
+    }
+  }
+
+  static class MD5 extends MD5Base {
     static final SelfTestSuite.SelfTest SELF_TEST =
-        new SelfTestSuite.SelfTest("HmacMD5", MD5::runSelfTest);
+        new SelfTestSuite.SelfTest(baseAlgorithm, MD5::runSelfTest);
 
     public MD5() {
-      super(evpMd, digestLength);
+      super(false);
     }
 
     public static SelfTestResult runSelfTest() {
-      return EvpHmac.runSelfTest("HmacMD5", MD5.class);
+      return EvpHmac.runSelfTest(baseAlgorithm, MD5.class);
     }
   }
 
-  static class SHA1 extends EvpHmac {
-    private static final long evpMd = Utils.getEvpMdFromName("sha1");
-    private static final int digestLength = Utils.getDigestLength(evpMd);
+  static class MD5WithPrecomputedKey extends MD5Base {
+    public MD5WithPrecomputedKey() {
+      super(true);
+    }
+  }
+
+  private static class SHA1Base extends EvpHmac {
+    protected static final String digestName = "sha1";
+    protected static final String baseAlgorithm = "HmacSHA1";
+
+    private SHA1Base(boolean usePrecomputedKey) {
+      super(digestName, baseAlgorithm, usePrecomputedKey);
+    }
+  }
+
+  static class SHA1 extends SHA1Base {
     static final SelfTestSuite.SelfTest SELF_TEST =
-        new SelfTestSuite.SelfTest("HmacSHA1", SHA1::runSelfTest);
+        new SelfTestSuite.SelfTest(baseAlgorithm, SHA1::runSelfTest);
 
     public SHA1() {
-      super(evpMd, digestLength);
+      super(false);
     }
 
     public static SelfTestResult runSelfTest() {
-      return EvpHmac.runSelfTest("HmacSHA1", SHA1.class);
+      return EvpHmac.runSelfTest(baseAlgorithm, SHA1.class);
     }
   }
 
-  static class SHA256 extends EvpHmac {
-    private static final long evpMd = Utils.getEvpMdFromName("sha256");
-    private static final int digestLength = Utils.getDigestLength(evpMd);
+  static class SHA1WithPrecomputedKey extends SHA1Base {
+    public SHA1WithPrecomputedKey() {
+      super(true);
+    }
+  }
+
+  private static class SHA256Base extends EvpHmac {
+    protected static final String digestName = "sha256";
+    protected static final String baseAlgorithm = "HmacSHA256";
+
+    private SHA256Base(boolean usePrecomputedKey) {
+      super(digestName, baseAlgorithm, usePrecomputedKey);
+    }
+  }
+
+  static class SHA256 extends SHA256Base {
     static final SelfTestSuite.SelfTest SELF_TEST =
-        new SelfTestSuite.SelfTest("HmacSHA256", SHA256::runSelfTest);
+        new SelfTestSuite.SelfTest(baseAlgorithm, SHA256::runSelfTest);
 
     public SHA256() {
-      super(evpMd, digestLength);
+      super(false);
     }
 
     public static SelfTestResult runSelfTest() {
-      return EvpHmac.runSelfTest("HmacSHA256", SHA256.class);
+      return EvpHmac.runSelfTest(baseAlgorithm, SHA256.class);
     }
   }
 
-  static class SHA384 extends EvpHmac {
-    private static final long evpMd = Utils.getEvpMdFromName("sha384");
-    private static final int digestLength = Utils.getDigestLength(evpMd);
+  static class SHA256WithPrecomputedKey extends SHA256Base {
+    public SHA256WithPrecomputedKey() {
+      super(true);
+    }
+  }
+
+  private static class SHA384Base extends EvpHmac {
+    protected static final String digestName = "sha384";
+    protected static final String baseAlgorithm = "HmacSHA384";
+
+    private SHA384Base(boolean usePrecomputedKey) {
+      super(digestName, baseAlgorithm, usePrecomputedKey);
+    }
+  }
+
+  static class SHA384 extends SHA384Base {
     static final SelfTestSuite.SelfTest SELF_TEST =
-        new SelfTestSuite.SelfTest("HmacSHA384", SHA384::runSelfTest);
+        new SelfTestSuite.SelfTest(baseAlgorithm, SHA384::runSelfTest);
 
     public SHA384() {
-      super(evpMd, digestLength);
+      super(false);
     }
 
     public static SelfTestResult runSelfTest() {
-      return EvpHmac.runSelfTest("HmacSHA384", SHA384.class);
+      return EvpHmac.runSelfTest(baseAlgorithm, SHA384.class);
     }
   }
 
-  static class SHA512 extends EvpHmac {
-    private static final long evpMd = Utils.getEvpMdFromName("sha512");
-    private static final int digestLength = Utils.getDigestLength(evpMd);
+  static class SHA384WithPrecomputedKey extends SHA384Base {
+    public SHA384WithPrecomputedKey() {
+      super(true);
+    }
+  }
+
+  private static class SHA512Base extends EvpHmac {
+    protected static final String digestName = "sha512";
+    protected static final String baseAlgorithm = "HmacSHA512";
+
+    private SHA512Base(boolean usePrecomputedKey) {
+      super(digestName, baseAlgorithm, usePrecomputedKey);
+    }
+  }
+
+  static class SHA512 extends SHA512Base {
     static final SelfTestSuite.SelfTest SELF_TEST =
-        new SelfTestSuite.SelfTest("HmacSHA512", SHA512::runSelfTest);
+        new SelfTestSuite.SelfTest(baseAlgorithm, SHA512::runSelfTest);
 
     public SHA512() {
-      super(evpMd, digestLength);
+      super(false);
     }
 
     public static SelfTestResult runSelfTest() {
-      return EvpHmac.runSelfTest("HmacSHA512", SHA512.class);
+      return EvpHmac.runSelfTest(baseAlgorithm, SHA512.class);
+    }
+  }
+
+  static class SHA512WithPrecomputedKey extends SHA512Base {
+    public SHA512WithPrecomputedKey() {
+      super(true);
     }
   }
 }

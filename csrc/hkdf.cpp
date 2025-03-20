@@ -58,7 +58,7 @@ extern "C" JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_HkdfS
         if (HKDF_extract(output.get(), &out_len, digest, secret.get(), secretLen, salt.get(), saltLen) != 1) {
             throw_openssl(EX_RUNTIME_CRYPTO, "HKDF_extract failed.");
         }
-        assert(out_len == EVP_MD_size(digest) && out_len == outputLen);
+        assert(out_len == EVP_MD_size(digest) && outputLen >= 0 && out_len == (size_t)outputLen);
 
     } catch (java_ex& ex) {
         ex.throw_to_java(env);
