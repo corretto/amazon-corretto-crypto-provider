@@ -1279,6 +1279,7 @@ public class AesCbcTest {
         () -> cipher.init(Cipher.ENCRYPT_MODE, key, nullParam));
   }
 
+  @Test
   public void testNoPaddingException() {
     TestUtil.assertThrows(
         NoSuchPaddingException.class,
