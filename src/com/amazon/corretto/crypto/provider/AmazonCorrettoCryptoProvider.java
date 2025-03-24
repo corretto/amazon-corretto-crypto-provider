@@ -148,13 +148,13 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
     addService(
         "Cipher",
-        "AES",
+        "AES/CBC",
         "AesCbcSpi",
         false,
         singletonMap("SupportedModes", "CBC"),
-        "AES_128",
-        "AES_192",
-        "AES_256");
+        "AES_128/CBC",
+        "AES_192/CBC",
+        "AES_256/CBC");
 
     addService("Cipher", "RSA/ECB/NoPadding", "RsaCipher$NoPadding");
     addService("Cipher", "RSA/ECB/Pkcs1Padding", "RsaCipher$Pkcs1");
@@ -435,7 +435,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
         return new AesCbcSpi(AesCbcSpi.Padding.ISO10126, saveContext);
       }
       // Allow the padding scheme to be set later by defaulting to a no-padding Cipher.
-      if (algo.toUpperCase().startsWith("AES")) {
+      if (algo.toUpperCase().startsWith("AES/CBC")) {
         return new AesCbcSpi(AesCbcSpi.Padding.NONE, saveContext);
       }
       throw new NoSuchAlgorithmException(format("No service class for Cipher/%s", algo));
