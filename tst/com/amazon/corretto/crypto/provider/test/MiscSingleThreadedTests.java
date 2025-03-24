@@ -8,6 +8,7 @@ import static com.amazon.corretto.crypto.provider.test.TestUtil.restoreProviders
 import static com.amazon.corretto.crypto.provider.test.TestUtil.saveProviders;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
@@ -17,6 +18,7 @@ import java.security.KeyPairGenerator;
 import java.security.Provider;
 import java.security.Security;
 import java.security.Signature;
+import javax.crypto.Cipher;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -68,6 +70,20 @@ public class MiscSingleThreadedTests {
       verifier.initVerify(pair.getPublic());
       verifier.update("TestData".getBytes(StandardCharsets.UTF_8));
       assertTrue(verifier.verify(signature));
+    } finally {
+      restoreProviders(oldProviders);
+    }
+  }
+
+  /** We should not be register any cipher with the alias "AES", defer to SunJCE for that alias. */
+  @Test
+  public void testNoAESCipherRegistered() throws Exception {
+    final Provider[] oldProviders = saveProviders();
+    try {
+      AmazonCorrettoCryptoProvider.install();
+      assertNotEquals(
+          ((Provider) TestUtil.NATIVE_PROVIDER).getName(),
+          Cipher.getInstance("AES").getProvider().getName());
     } finally {
       restoreProviders(oldProviders);
     }
