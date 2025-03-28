@@ -293,7 +293,6 @@ private:
 public:
     jni_borrow() { clear(); }
 
-#ifdef HAVE_CPP11
     // Do not allow implicit copy constructors
     jni_borrow(const jni_borrow&) = delete;
     jni_borrow& operator=(const jni_borrow&) = delete;
@@ -309,21 +308,6 @@ public:
         clear();
         move(other);
     }
-#else
-    // On a pre-C++11 compiler, we do an awful hack and mutate the passed-in
-    // (const) reference.
-    jni_borrow& operator=(const jni_borrow& other)
-    {
-        move(const_cast<jni_borrow&>(other));
-        return *this;
-    }
-
-    jni_borrow(const jni_borrow& other)
-    {
-        clear();
-        *this = other;
-    }
-#endif
 
     jni_borrow(raii_env& context, java_buffer buffer, const char* trace)
     {
@@ -484,7 +468,6 @@ public:
         m_valid = false;
     }
 
-#ifdef HAVE_CPP11
     // Remove default copy/assign operators
     bounce_buffer(const bounce_buffer&) DELETE_IMPLICIT;
     bounce_buffer& operator=(const bounce_buffer&) DELETE_IMPLICIT;
@@ -504,22 +487,6 @@ public:
 
         return *this;
     }
-#else
-    // Emulate move semantics on pre-C++11 compilers
-    bounce_buffer& operator=(const bounce_buffer& other)
-    {
-        move(const_cast<bounce_buffer&>(other));
-        return *this;
-    }
-
-    bounce_buffer(const bounce_buffer& other)
-    {
-        m_pEnv = nullptr;
-        m_valid = false;
-
-        *this = other;
-    }
-#endif
 
     static bounce_buffer from_array(raii_env& env, jbyteArray array) ALWAYS_INLINE
     {
@@ -598,13 +565,11 @@ public:
     ~JByteArrayCritical();
     unsigned char* get();
 
-#ifdef HAVE_CPP11
     // deleting copy & move operations to satisfy rule of five
     JByteArrayCritical(const JByteArrayCritical&) = delete;
     JByteArrayCritical& operator=(const JByteArrayCritical&) = delete;
     JByteArrayCritical(JByteArrayCritical&&) = delete;
     JByteArrayCritical& operator=(JByteArrayCritical&&) = delete;
-#endif
 
 private:
     void* ptr_;
@@ -618,13 +583,11 @@ public:
     ~SimpleBuffer();
     uint8_t* get_buffer();
 
-#ifdef HAVE_CPP11
     // deleting copy & move operations to satisfy rule of five
     SimpleBuffer(const SimpleBuffer&) = delete;
     SimpleBuffer& operator=(const SimpleBuffer&) = delete;
     SimpleBuffer(SimpleBuffer&&) = delete;
     SimpleBuffer& operator=(SimpleBuffer&&) = delete;
-#endif
 
 private:
     uint8_t* buffer_;
@@ -639,13 +602,11 @@ public:
     ~JBinaryBlob();
     uint8_t* get();
 
-#ifdef HAVE_CPP11
     // deleting copy & move operations to satisfy rule of five
     JBinaryBlob(const JBinaryBlob&) = delete;
     JBinaryBlob& operator=(const JBinaryBlob&) = delete;
     JBinaryBlob(JBinaryBlob&&) = delete;
     JBinaryBlob& operator=(JBinaryBlob&&) = delete;
-#endif
 
 private:
     // The native pointer that is either backed by a direct ByteBuffer or a byte array.
@@ -673,13 +634,11 @@ public:
     uint8_t* get_input();
     uint8_t* get_output();
 
-#ifdef HAVE_CPP11
     // deleting copy & move operations to satisfy rule of five
     JIOBlobs(const JIOBlobs&) = delete;
     JIOBlobs& operator=(const JIOBlobs&) = delete;
     JIOBlobs(JIOBlobs&&) = delete;
     JIOBlobs& operator=(JIOBlobs&&) = delete;
-#endif
 
 private:
     // The native pointers that are either backed by a direct ByteBuffer or a byte array.

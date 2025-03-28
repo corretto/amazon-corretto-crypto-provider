@@ -6,28 +6,9 @@
 #include "config.h"
 #include <stdint.h>
 
-// __cplusplus is >= 201103L on C++11 or newer compilers.
-#if __cplusplus >= 201103L
-#define HAVE_CPP11
-
 // DELETE_IMPLICIT is an alias for the '= delete' feature in C++11.
 #define DELETE_IMPLICIT = delete
 #define MOVE(x)         std::move(x)
-
-#else
-
-// Just in case our compiler doesn't support it, we'll allow it to be removed
-// for compilers that don't support it. In this case, if we attempt to use it,
-// we'll get a mysterious link error as we declare but don't define the
-// ctors/operators in question.
-
-#define DELETE_IMPLICIT
-
-// Define nullptr for ancient compilers
-#define nullptr NULL
-#define MOVE(x) (x)
-
-#endif
 
 #ifdef HAVE_ATTR_COLD
 #define COLD __attribute__((cold))
