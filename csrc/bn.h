@@ -102,7 +102,6 @@ public:
         return result;
     }
 
-#ifdef HAVE_CPP11
     BigNumObj(const BigNumObj&) = delete;
     BigNumObj& operator=(const BigNumObj&) = delete;
 
@@ -117,24 +116,6 @@ public:
     {
         *this = std::move(bn);
     }
-#else
-    BigNumObj& operator=(const BigNumObj& other_const)
-    {
-        BigNumObj& other = const_cast<BigNumObj&>(other_const);
-
-        // No std::move before C++11, use this class's implementation.
-        move(other);
-
-        return *this;
-    }
-
-    BigNumObj(const BigNumObj& other)
-        : m_pBN(NULL)
-    {
-        *this = other;
-    }
-
-#endif
 };
 
 inline BigNumObj bn_zero() { return BigNumObj(); }

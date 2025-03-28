@@ -17,7 +17,6 @@
 
 #define CLASSNAME(name) CONCAT2(name, _auto)
 #define PTR_NAME(name)  CONCAT2(p, name)
-#ifdef HAVE_CPP11
 #define AUTO_CONSTRUCTORS(name)                                                                                        \
     /* Do not allow implicit copy constructors */                                                                      \
     CLASSNAME(name)                                                                                                    \
@@ -31,21 +30,6 @@
     }                                                                                                                  \
     CLASSNAME(name)                                                                                                    \
     (CLASSNAME(name) && other) { move(other); }
-#else
-#define AUTO_CONSTRUCTORS(name)                                                                                        \
-    /* On a pre-C++11 compiler, we do an awful hack and mutate the passed-in (const) reference. */                     \
-    CLASSNAME(name)& operator=(const CLASSNAME(name) & other)                                                          \
-    {                                                                                                                  \
-        move(const_cast<CLASSNAME(name)&>(other));                                                                     \
-        return *this;                                                                                                  \
-    }                                                                                                                  \
-    CLASSNAME(name)                                                                                                    \
-    (const CLASSNAME(name) & other)                                                                                    \
-    {                                                                                                                  \
-        clear();                                                                                                       \
-        *this = other;                                                                                                 \
-    }
-#endif
 
 #define OPENSSL_auto(name)                                                                                             \
     class CLASSNAME(name) {                                                                                            \
