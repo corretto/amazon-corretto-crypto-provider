@@ -18,6 +18,7 @@ ext.awsLcMainTag = 'v1.48.2'
 ext.awsLcFipsTag = 'AWS-LC-FIPS-3.0.0'
 ext.isExperimentalFips = Boolean.getBoolean('EXPERIMENTAL_FIPS')
 ext.isFips = ext.isExperimentalFips || Boolean.getBoolean('FIPS')
+ext.isVerbose = Boolean.getBoolean('VERBOSE')
 
 if (ext.isExperimentalFips || !ext.isFips) {
     // Experimental FIPS uses the same AWS-LC version as non-FIPS builds.
@@ -228,7 +229,7 @@ task buildAwsLc {
             args "-B${cMakeBuildDir}"
             args '-DCMAKE_BUILD_TYPE=RelWithDebInfo'
             args "-DCMAKE_INSTALL_PREFIX=${sharedObjectOutDir}"
-            args "-DCMAKE_VERBOSE_MAKEFILE:BOOL=ON"
+            args "-DCMAKE_VERBOSE_MAKEFILE:BOOL=${isVerbose ? 'ON' : 'OFF'}"
             def cmakeCFlags = ""
 
             if (isFips) {
@@ -327,7 +328,7 @@ task executeCmake(type: Exec) {
     args "-DTEST_CLASSPATH=${configurations.testDep.asPath}", "-DJACOCO_AGENT_JAR=${configurations.jacocoAgent.singleFile}"
     args "-DOPENSSL_ROOT_DIR=${buildDir}/awslc/bin", '-DCMAKE_BUILD_TYPE=Release', '-DPROVIDER_VERSION_STRING=' + version
     args "-DTEST_RUNNER_JAR=${configurations.testRunner.singleFile}"
-    args "-DCMAKE_VERBOSE_MAKEFILE:BOOL=ON"
+    args "-DCMAKE_VERBOSE_MAKEFILE:BOOL=${isVerbose ? 'ON' : 'OFF'}"
     args "-DAWS_LC_VERSION_STRING=" + awsLcGitVersionId
     if (isFips) {
         args "-DFIPS=ON"
@@ -550,7 +551,7 @@ task coverage_cmake(type: Exec) {
     args '-DCMAKE_BUILD_TYPE=Coverage', '-DCOVERAGE=ON', '-DENABLE_NATIVE_TEST_HOOKS=ON'
     args '-DPROVIDER_VERSION_STRING=' + version, projectDir
     args "-DTEST_RUNNER_JAR=${configurations.testRunner.singleFile}"
-    args "-DCMAKE_VERBOSE_MAKEFILE:BOOL=ON"
+    args "-DCMAKE_VERBOSE_MAKEFILE:BOOL=${isVerbose ? 'ON' : 'OFF'}"
     args "-DAWS_LC_VERSION_STRING=" + awsLcGitVersionId
     if (isFips) {
         args "-DFIPS=ON"
