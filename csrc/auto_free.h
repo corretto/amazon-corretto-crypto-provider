@@ -63,7 +63,7 @@
         void releaseOwnership() { PTR_NAME(name) = NULL; }                                                             \
         void clear()                                                                                                   \
         {                                                                                                              \
-            CONCAT2(name, _free)(PTR_NAME(name));                                                                      \
+            CONCAT2(name, _free)(PTR_NAME(name));                                                                       \
             PTR_NAME(name) = NULL;                                                                                     \
         }                                                                                                              \
         name* operator->() { return *this; }                                                                           \
