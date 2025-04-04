@@ -4,8 +4,11 @@ package com.amazon.corretto.crypto.provider;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
-import java.security.*;
-import java.security.spec.*;
+import java.security.AlgorithmParametersSpi;
+import java.security.spec.AlgorithmParameterSpec;
+import java.security.spec.ECGenParameterSpec;
+import java.security.spec.ECParameterSpec;
+import java.security.spec.InvalidParameterSpecException;
 
 public final class EcParameters extends AlgorithmParametersSpi {
   private EcUtils.ECInfo ecInfo;
