@@ -1,12 +1,10 @@
 BasedOnStyle:  WebKit
 ---
-Language:        Cpp
+Language: Cpp
+Standard: c++03
 AlignConsecutiveMacros: true
-AlignOperands:   Align
-AlignTrailingComments: true
-AllowAllParametersOfDeclarationOnNextLine: true
 BinPackParameters: false
-ColumnLimit:     120
+ColumnLimit: 120
 IncludeCategories:
   - Regex:           '^<openssl/'
     Priority:        2
@@ -20,7 +18,6 @@ IncludeCategories:
   - Regex:           '.*'
     Priority:        1
     SortPriority:    0
-MaxEmptyLinesToKeep: 3
 WhitespaceSensitiveMacros:
   - STRINGIZE
   - PP_STRINGIZE

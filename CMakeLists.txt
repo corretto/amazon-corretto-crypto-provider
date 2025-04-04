@@ -37,13 +37,24 @@ find_package(Threads REQUIRED)
 set(BUILD_CLASSPATH "" CACHE STRING "Classpath to JARs to be included at build time")
 set(TEST_CLASSPATH "" CACHE STRING "Classpath to be included at test build and test execution time")
 set(SIGNED_JAR "" CACHE STRING "Path to a pre-signed JAR file, to be used instead of compiling the java source")
-set(DIEHARDER_EXECUTABLE "dieharder" CACHE STRING "Path to the dieharder executable")
 set(ENABLE_NATIVE_TEST_HOOKS NO CACHE BOOL "Enable debugging hooks in the RNG. Disable for production use.")
 set(TEST_DATA_DIR ${PROJECT_SOURCE_DIR}/test-data/ CACHE STRING "Path to directory containing test data")
 set(ORIG_SRCROOT ${PROJECT_SOURCE_DIR} CACHE STRING "Path to root of original package")
 set(PROVIDER_VERSION_STRING "" CACHE STRING "X.Y.Z formatted version of the provider")
+set(EXPERIMENTAL_FIPS NO CACHE BOOL "Determines if this build is for FIPS mode with extra features from a non-FIPS branch of AWS-LC.")
+set(FIPS_SELF_TEST_SKIP_ABORT NO CACHE BOOL "Determines whether ACCP throws exceptions on self-test failure, or AWS-LC aborts. If NO, AWS-LC aborts. If YES, ACCP will provide error messages.")
 set(FIPS NO CACHE BOOL "Determine if this build is for FIPS mode")
 set(ALWAYS_ALLOW_EXTERNAL_LIB NO CACHE BOOL "Always permit tests to load ACCP shared objects from the library path")
+set(AWS_LC_VERSION_STRING "" CACHE STRING "Git version of AWS-LC used in this build")
+
+if (EXPERIMENTAL_FIPS)
+    set(FIPS ON)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DEXPERIMENTAL_FIPS_BUILD")
+endif()
+
+if (FIPS_SELF_TEST_SKIP_ABORT)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DFIPS_SELF_TEST_SKIP_ABORT")
+endif()
 
 if (USE_CLANG_TIDY)
     # https://releases.llvm.org/9.0.0/tools/clang/tools/extra/docs/clang-tidy/checks/list.html
@@ -86,8 +97,6 @@ string(REPLACE ":" ";" TEST_CLASSPATH_LIST "${TEST_CLASSPATH}")
 
 # Needed as we abuse some of the test compile macros to test shared lib links
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-# CMake's default RPath handling includes the full build directory path, which isn't needed. Turn it off.
-set(CMAKE_SKIP_RPATH TRUE)
 set(GENERATE_HASHERS ${CMAKE_CURRENT_SOURCE_DIR}/build-tools/bin/generate-java-hash-spi)
 set(GENERATED_JAVA_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated-java/com/amazon/corretto/crypto/provider)
 set(JNI_HEADER_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated-include)
@@ -103,6 +112,22 @@ execute_process(
 if (NOT RETURN_VALUE EQUAL 0)
     message(FATAL_ERROR "Failed to list generated hash function types")
 endif()
+
+# Consider setting OPENSSL_CRYPTO_LIBRARY_STATIC in case AWS-LC's shared object
+# has also been built. In such cases, OPENSSL_CRYPTO_LIBRARY defaults to libcrypto.so.
+# By setting OPENSSL_CRYPTO_LIBRARY_STATIC to the location of the static build of AWS-LC,
+# we ensure AWS-LC is not linked dynamically. This is useful for those who do not use
+# build.gradle for building ACCP and have a different build strategy for AWS-LC.
+function(link_with_openssl my_target)
+    # Take a dependency on our libcrypto.a
+    if(OPENSSL_CRYPTO_LIBRARY_STATIC)
+        message("OPENSSL_CRYPTO_LIBRARY_STATIC is defined, so we'll use that.")
+        target_link_libraries(${my_target} ${OPENSSL_CRYPTO_LIBRARY_STATIC})
+    else()
+        message("OPENSSL_CRYPTO_LIBRARY_STATIC is not defined. We'll use OPENSSL_CRYPTO_LIBRARY.")
+        target_link_libraries(${my_target} ${OPENSSL_CRYPTO_LIBRARY})
+    endif()
+endfunction()
 
 # This forces cmake to rerun if the generate script itself changes (and
 # therefore the list of files generated might change). Unfortunately this
@@ -120,7 +145,12 @@ set(VERSION_PROPERTIES_FILE ${GENERATED_JAVA_DIR}/version.properties)
 add_custom_command(
     OUTPUT ${VERSION_PROPERTIES_FILE}
     COMMAND ${CMAKE_COMMAND} -E echo versionStr=${PROVIDER_VERSION_STRING} > ${VERSION_PROPERTIES_FILE}
-    COMMENT "Generation version properties file"
+    COMMAND if [ EXPERIMENTAL_FIPS || ! FIPS ]\; then
+        ${CMAKE_COMMAND} -E echo awsLcVersionStr=AWS-LC ${AWS_LC_VERSION_STRING} >> ${VERSION_PROPERTIES_FILE} \;
+    else
+        ${CMAKE_COMMAND} -E echo awsLcVersionStr=${AWS_LC_VERSION_STRING} >> ${VERSION_PROPERTIES_FILE} \;
+    fi
+    COMMENT "Generated version.properties file"
 )
 
 add_custom_command(
@@ -136,15 +166,17 @@ add_custom_command(
 #       detected by CMake.
 if (${CMAKE_VERSION} VERSION_LESS "3.12.0")
     file(GLOB_RECURSE ACCP_SRC "src/com/amazon/corretto/crypto/provider/*.java")
+    file(GLOB_RECURSE ACCP_UTILS_SRC "src/com/amazon/corretto/crypto/utils/*.java")
 else()
     file(GLOB_RECURSE ACCP_SRC CONFIGURE_DEPENDS "src/com/amazon/corretto/crypto/provider/*.java")
+    file(GLOB_RECURSE ACCP_UTILS_SRC CONFIGURE_DEPENDS "src/com/amazon/corretto/crypto/utils/*.java")
 endif()
-set(ACCP_SRC ${ACCP_SRC} ${GENERATED_JAVA_SRC})
+set(ACCP_SRC ${ACCP_SRC} ${ACCP_UTILS_SRC} ${GENERATED_JAVA_SRC})
 
-set(BASE_JAVA_COMPILE_FLAGS ${CMAKE_JAVA_COMPILE_FLAGS} -h "${JNI_HEADER_DIR}" -Werror -Xlint)
+set(BASE_JAVA_COMPILE_FLAGS ${CMAKE_JAVA_COMPILE_FLAGS} -h "${JNI_HEADER_DIR}" -Werror)
 
 # Java targets defined here are compiled for Java supporting modules
-set(CMAKE_JAVA_COMPILE_FLAGS ${BASE_JAVA_COMPILE_FLAGS} --release 9)
+set(CMAKE_JAVA_COMPILE_FLAGS ${BASE_JAVA_COMPILE_FLAGS} -Xlint --release 9)
 
 set(ACCP_JAR "${CMAKE_CURRENT_BINARY_DIR}/AmazonCorrettoCryptoProvider.jar")
 set(ACCP_JAR_SOURCE "${CMAKE_CURRENT_BINARY_DIR}/AmazonCorrettoCryptoProvider-sources.jar")
@@ -169,7 +201,7 @@ create_javadoc(
 add_custom_target(javadoc DEPENDS ${JNI_HEADER_DIR}/generated-headers.h ${GENERATED_JAVA_SRC} AmazonCorrettoCryptoProvider_javadoc)
 
 # All subsequent Java targets are compatible with Java 8
-set(CMAKE_JAVA_COMPILE_FLAGS ${BASE_JAVA_COMPILE_FLAGS} --release 8)
+set(CMAKE_JAVA_COMPILE_FLAGS ${BASE_JAVA_COMPILE_FLAGS} -Xlint:-options --release 8)
 
 # Add a JAR target. We can't add resources here (as discussed below) so we'll
 # build a temporary one first.
@@ -186,7 +218,6 @@ if (SIGNED_JAR)
         OUTPUT ${ACCP_JAR}
         COMMAND ${CMAKE_COMMAND} -E copy ${SIGNED_JAR} ${ACCP_JAR}
         COMMAND ${CMAKE_COMMAND} -E echo Copied ${SIGNED_JAR} to ${ACCP_JAR}
-        COMMAND ${CMAKE_COMMAND} -E copy ${OPENSSL_CRYPTO_LIBRARY} $<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
     )
 else()
 # CMake's UseJar doesn't let us control the paths that resource files are
@@ -202,8 +233,6 @@ else()
         COMMAND ${Java_JAR_EXECUTABLE} uf ${ACCP_JAR_TMP} -C ${CMAKE_CURRENT_SOURCE_DIR}/extra-jar-files .
         COMMAND ${Java_JAR_EXECUTABLE} uf ${ACCP_JAR_TMP} -C $<TARGET_PROPERTY:module-jar,CLASSDIR> module-info.class
         COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/tmplib/com/amazon/corretto/crypto/provider/
-        COMMAND ${CMAKE_COMMAND} -E copy ${OPENSSL_CRYPTO_LIBRARY} $<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>
-        COMMAND ${CMAKE_COMMAND} -E copy ${OPENSSL_CRYPTO_LIBRARY} ${CMAKE_CURRENT_BINARY_DIR}/tmplib/com/amazon/corretto/crypto/provider/
         COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:amazonCorrettoCryptoProvider> ${CMAKE_CURRENT_BINARY_DIR}/tmplib/com/amazon/corretto/crypto/provider/
         COMMAND ${Java_JAR_EXECUTABLE} uf ${ACCP_JAR_TMP} -C ${CMAKE_CURRENT_BINARY_DIR}/tmplib/ com/amazon/corretto/crypto/provider/
         COMMAND ${Java_JAR_EXECUTABLE} uf ${ACCP_JAR_TMP} -C ${CMAKE_CURRENT_BINARY_DIR}/generated-java/ com/amazon/corretto/crypto/provider/version.properties
@@ -237,48 +266,56 @@ ADD_CUSTOM_COMMAND(
 ### Native library configuration
 include_directories(${OPENSSL_INCLUDE_DIR} ${JNI_INCLUDE_DIRS} ${JNI_HEADER_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
 
-add_library(
-    amazonCorrettoCryptoProvider SHARED
-        csrc/aes_gcm.cpp
-        csrc/aes_kwp.cpp
-        csrc/agreement.cpp
-        csrc/bn.cpp
-        csrc/buffer.cpp
-        csrc/ec_gen.cpp
-        csrc/ec_utils.cpp
-        csrc/env.cpp
-        csrc/hmac.cpp
-        csrc/keyutils.cpp
-        csrc/java_evp_keys.cpp
-        csrc/libcrypto_rng.cpp
-        csrc/loader.cpp
-        csrc/md5.cpp
-        csrc/rsa_cipher.cpp
-        csrc/rsa_gen.cpp
-        csrc/sha1.cpp
-        csrc/sha256.cpp
-        csrc/sha384.cpp
-        csrc/sha512.cpp
-        csrc/sign.cpp
-        csrc/testhooks.cpp
-        csrc/util.cpp
-        csrc/util_class.cpp
-        csrc/fips_kat_self_test.cpp
-        ${JNI_HEADER_DIR}/generated-headers.h
-)
+set(C_SRC
+    csrc/aes_gcm.cpp
+    csrc/aes_xts.cpp
+    csrc/aes_cbc.cpp
+    csrc/aes_kwp.cpp
+    csrc/agreement.cpp
+    csrc/bn.cpp
+    csrc/buffer.cpp
+    csrc/concatenation_kdf.cpp
+    csrc/counter_kdf.cpp
+    csrc/ec_gen.cpp
+    csrc/ec_utils.cpp
+    csrc/ed_gen.cpp
+    csrc/env.cpp
+    csrc/hkdf.cpp
+    csrc/hmac.cpp
+    csrc/keyutils.cpp
+    csrc/java_evp_keys.cpp
+    csrc/libcrypto_rng.cpp
+    csrc/loader.cpp
+    csrc/md5.cpp
+    csrc/rsa_cipher.cpp
+    csrc/rsa_gen.cpp
+    csrc/sha1.cpp
+    csrc/sha256.cpp
+    csrc/sha384.cpp
+    csrc/sha512.cpp
+    csrc/sign.cpp
+    csrc/test_util.cpp
+    csrc/testhooks.cpp
+    csrc/util.cpp
+    csrc/util_class.cpp
+    csrc/fips_kat_self_test.cpp
+    csrc/fips_status.cpp
+    ${JNI_HEADER_DIR}/generated-headers.h)
 
-# We MUST set ACCP's RPATH to "$ORIGIN" so that the runtime dynamic loader will look in the same directory as ACCP for
-# any shared library dependencies BEFORE looking for a system-installed depencencies (such as libcrypto). If RPath is
-# not set, the loader may attempt to load an incompatible system-installed libcrypto and cause runtime crashes.
-if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-    set(CMAKE_MACOSX_RPATH TRUE)
-    set(RPATH_ORIGIN "@loader_path")
-elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-    set(RPATH_ORIGIN "\$ORIGIN")
+if(FIPS)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DFIPS_BUILD")
+    set(TEST_FIPS_PROPERTY "-DFIPS=true")
 else()
-    message( FATAL_ERROR "Unsupported OS, need to determine OS-specific analog of linux rpath's $ORIGIN")
+    set(TEST_FIPS_PROPERTY "-DFIPS=false")
 endif()
-set_target_properties(amazonCorrettoCryptoProvider PROPERTIES LINK_FLAGS "-Wl,-rpath,${RPATH_ORIGIN}")
+
+# The source files under this guard should be removed and added to all builds, including FIPS,
+# once the corresponding algorithms are added to a FIPS branch of AWS-LC consumable by ACCP.
+if(EXPERIMENTAL_FIPS OR (NOT FIPS))
+    set(C_SRC ${C_SRC} csrc/mldsa_gen.cpp)
+endif()
+
+add_library(amazonCorrettoCryptoProvider SHARED ${C_SRC})
 
 add_custom_command(
     OUTPUT ${ACCP_JAR_SOURCE}
@@ -292,11 +329,8 @@ add_custom_command(
 add_custom_target(accp-jar-source DEPENDS ${ACCP_JAR_SOURCE})
 
 if(ENABLE_NATIVE_TEST_HOOKS)
-  add_executable(test_keyutils EXCLUDE_FROM_ALL
-        csrc/test_keyutils.cpp
-    )
-    set_target_properties(test_keyutils PROPERTIES LINK_FLAGS "-Wl,-rpath,${RPATH_ORIGIN}")
-    target_link_libraries(test_keyutils ${OPENSSL_CRYPTO_LIBRARY})
+    add_executable(test_keyutils EXCLUDE_FROM_ALL csrc/test_keyutils.cpp)
+    # No need to link OpenSSL (AWS-LC)
     target_link_libraries(test_keyutils amazonCorrettoCryptoProvider)
 endif()
 
@@ -321,16 +355,30 @@ macro(CHECK_CUSTOM_TRY_COMPILE var target)
 # get a false positive result due to the target being built already
 
         file(REMOVE_RECURSE ${CMAKE_CURRENT_BINARY_DIR}/try_compile_tmp/${var})
+        # Take a dependency on our libcrypto.a
+        if(OPENSSL_CRYPTO_LIBRARY_STATIC)
+            try_compile(${var}
+                ${CMAKE_CURRENT_BINARY_DIR}/try_compile_tmp/${var}
+                ${CMAKE_CURRENT_SOURCE_DIR}/CMake/trycompile
+                TryCompile ${target}
+                CMAKE_FLAGS
+                -DLINK_LIBS:STRING=${OPENSSL_CRYPTO_LIBRARY_STATIC}
+                    -DOPENSSL_INCLUDE_DIR:STRING=${OPENSSL_INCLUDE_DIR}
+                    ${ARGN}
+            )
+        else()
+            try_compile(${var}
+                ${CMAKE_CURRENT_BINARY_DIR}/try_compile_tmp/${var}
+                ${CMAKE_CURRENT_SOURCE_DIR}/CMake/trycompile
+                TryCompile ${target}
+                CMAKE_FLAGS
+                    -DLINK_LIBS:STRING=${OPENSSL_CRYPTO_LIBRARY}
+                    -DOPENSSL_INCLUDE_DIR:STRING=${OPENSSL_INCLUDE_DIR}
+                    ${ARGN}
+            )
+        endif()
 
-        try_compile(${var}
-            ${CMAKE_CURRENT_BINARY_DIR}/try_compile_tmp/${var}
-            ${CMAKE_CURRENT_SOURCE_DIR}/CMake/trycompile
-            TryCompile ${target}
-            CMAKE_FLAGS
-                -DLINK_LIBS:STRING=${OPENSSL_CRYPTO_LIBRARY}
-                -DOPENSSL_INCLUDE_DIR:STRING=${OPENSSL_INCLUDE_DIR}
-                ${ARGN}
-        )
+
 
         if(${var})
             message(STATUS "Performing test ${var} - Success")
@@ -462,7 +510,7 @@ if(NOT ENABLE_NATIVE_TEST_HOOKS)
     CHECK_LINKER_FLAG_SUPPORT(USE_VERSION_SCRIPT "-Wl,--version-script -Wl,${CMAKE_CURRENT_SOURCE_DIR}/final-link.version")
 
 # This does the same thing as the version script, but works on Darwin platforms
-    CHECK_LINKER_FLAG_SUPPORT(USE_EXPORTED_SYMBOL "-Wl,-exported_symbol '-Wl,_Java_*' -Wl,-exported_symbol '-Wl,_JNI_*'")
+    CHECK_LINKER_FLAG_SUPPORT(USE_EXPORTED_SYMBOL "-Wl,-exported_symbol '-Wl,_Java_*' '-Wl,_AWS_LC_fips_failure_callback' -Wl,-exported_symbol '-Wl,_JNI_*'")
 endif()
 
 # Attempt to drop unused sections; the idea here is to exclude unreferenced
@@ -509,7 +557,7 @@ if(COVERAGE)
     if(NOT CXX_FLAG_COVERAGE)
         message(FATAL_ERROR "C++ compiler does not support coverage instrumentation")
     endif()
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprofile-arcs -ftest-coverage")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprofile-arcs -ftest-coverage -fprofile-update=atomic")
 # Disable assert()s. This avoids having unreachable assert branches pollute our branch coverage.
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DNDEBUG")
 endif()
@@ -548,8 +596,8 @@ endif()
 # Add pthread support
 target_link_libraries(amazonCorrettoCryptoProvider Threads::Threads)
 
-# Take a dependency on our libcrypto.so file
-target_link_libraries(amazonCorrettoCryptoProvider ${OPENSSL_CRYPTO_LIBRARY})
+# Take a dependency on our libcrypto.a
+link_with_openssl(amazonCorrettoCryptoProvider)
 
 # NOTE: CMake introduced the CONFIGURE_DEPENDS feature in 3.12, so condition
 #       its use on CMake version. If the feature is not available, you may need
@@ -599,11 +647,6 @@ set(COVERAGE_ARGUMENTS
     -javaagent:${JACOCO_AGENT_JAR}=destfile=coverage/jacoco.exec,classdumpdir=coverage/classes
 )
 
-if(FIPS)
-    set(TEST_FIPS_PROPERTY "-DFIPS=true")
-else()
-    set(TEST_FIPS_PROPERTY "-DFIPS=false")
-endif()
 
 if(ALWAYS_ALLOW_EXTERNAL_LIB)
     set(EXTERNAL_LIB_PROPERTY "-Djava.library.path=$<TARGET_FILE_DIR:amazonCorrettoCryptoProvider>")
@@ -640,6 +683,7 @@ add_custom_target(check-junit
         --select-package=com.amazon.corretto.crypto.provider.test
         --exclude-package=com.amazon.corretto.crypto.provider.test.integration
         --exclude-classname=com.amazon.corretto.crypto.provider.test.SecurityManagerTest
+        --exclude-classname=com.amazon.corretto.crypto.provider.test.FipsStatusTest
 
     DEPENDS accp-jar tests-jar)
 
@@ -661,6 +705,55 @@ add_custom_target(check-junit-SecurityManager
 
     DEPENDS accp-jar tests-jar)
 
+add_custom_target(check-junit-FipsStatus
+    COMMAND ${TEST_JAVA_EXECUTABLE}
+        ${TEST_RUNNER_ARGUMENTS}
+        --select-class=com.amazon.corretto.crypto.provider.test.AesTest # Force loading ciphers
+        --select-class=com.amazon.corretto.crypto.provider.test.SHA1Test # Force loading digests
+        --select-class=com.amazon.corretto.crypto.provider.test.FipsStatusTest
+
+    DEPENDS accp-jar tests-jar)
+
+add_custom_target(check-with-jni-flag
+    COMMAND ${TEST_JAVA_EXECUTABLE}
+        -Xcheck:jni
+        ${TEST_RUNNER_ARGUMENTS}
+        --select-package=com.amazon.corretto.crypto.provider.test
+        --exclude-package=com.amazon.corretto.crypto.provider.test.integration
+        --exclude-classname=com.amazon.corretto.crypto.provider.test.SecurityManagerTest
+
+    DEPENDS accp-jar tests-jar)
+
+add_custom_target(check-junit-AesLazy
+    COMMAND ${TEST_JAVA_EXECUTABLE}
+        -Dcom.amazon.corretto.crypto.provider.nativeContextReleaseStrategy=LAZY
+        ${TEST_RUNNER_ARGUMENTS}
+        --select-class=com.amazon.corretto.crypto.provider.test.AesTest
+        --select-class=com.amazon.corretto.crypto.provider.test.AesGcmKatTest
+        --select-class=com.amazon.corretto.crypto.provider.test.AesCbcTest
+        --select-class=com.amazon.corretto.crypto.provider.test.AesCbcNistTest
+        --select-class=com.amazon.corretto.crypto.provider.test.AesCbcIso10126Test
+
+    DEPENDS accp-jar tests-jar)
+
+add_custom_target(check-junit-AesEager
+    COMMAND ${TEST_JAVA_EXECUTABLE}
+        -Dcom.amazon.corretto.crypto.provider.nativeContextReleaseStrategy=EAGER
+        ${TEST_RUNNER_ARGUMENTS}
+        --select-class=com.amazon.corretto.crypto.provider.test.AesTest
+        --select-class=com.amazon.corretto.crypto.provider.test.AesGcmKatTest
+
+    DEPENDS accp-jar tests-jar)
+
+add_custom_target(check-junit-DifferentTempDir
+    COMMAND ${TEST_JAVA_EXECUTABLE}
+    -Dcom.amazon.corretto.crypto.provider.tmpdir=${CMAKE_BINARY_DIR}/tmpdir
+        ${TEST_RUNNER_ARGUMENTS}
+        --select-class=com.amazon.corretto.crypto.provider.test.AesTest
+        --select-class=com.amazon.corretto.crypto.provider.test.AesGcmKatTest
+
+    DEPENDS accp-jar tests-jar)
+
 add_custom_target(check-junit-extra-checks
     COMMAND ${TEST_JAVA_EXECUTABLE}
         -Dcom.amazon.corretto.crypto.provider.extrachecks=ALL
@@ -668,6 +761,7 @@ add_custom_target(check-junit-extra-checks
         ${TEST_RUNNER_ARGUMENTS}
         --select-package=com.amazon.corretto.crypto.provider.test
         --exclude-package=com.amazon.corretto.crypto.provider.test.integration
+        --exclude-classname=com.amazon.corretto.crypto.provider.test.FipsStatusTest
         --exclude-classname=com.amazon.corretto.crypto.provider.test.SecurityManagerTest
 
     DEPENDS accp-jar tests-jar)
@@ -752,17 +846,37 @@ add_custom_target(check-install-via-properties-with-debug
 
     DEPENDS accp-jar tests-jar)
 
-add_custom_target(check
-    DEPENDS check-recursive-init check-install-via-properties check-install-via-properties-with-debug check-junit check-junit-SecurityManager check-external-lib check-libaccp-rpath)
-
-add_custom_target(checkstyle
-    WORKING_DIRECTORY ${ORIG_SRCROOT}
+add_custom_target(check-junit-edKeyFactory
     COMMAND ${TEST_JAVA_EXECUTABLE}
-        -cp ${CHECKSTYLE_CP}
-        com.puppycrawl.tools.checkstyle.Main
-        -c ${ORIG_SRCROOT}/checkstyle.xml
-        ${ACCP_SRC}
-)
+    -Dcom.amazon.corretto.crypto.provider.registerEdKeyFactory=true
+        ${TEST_RUNNER_ARGUMENTS}
+        --select-class=com.amazon.corretto.crypto.provider.test.EdDSATest
+        --select-class=com.amazon.corretto.crypto.provider.test.EvpKeyFactoryTest
+        --select-class=com.amazon.corretto.crypto.provider.test.EvpSignatureSpecificTest
+        --select-class=com.amazon.corretto.crypto.provider.test.EvpSignatureTest
+        --select-class=com.amazon.corretto.crypto.provider.test.KeyReuseThreadStormTest
+
+    DEPENDS accp-jar tests-jar)
+
+set(check_targets
+    check-recursive-init
+    check-install-via-properties
+    check-install-via-properties-with-debug
+    check-junit
+    check-junit-SecurityManager
+    check-external-lib
+    check-junit-AesLazy
+    check-junit-AesEager
+    check-junit-DifferentTempDir
+    check-junit-edKeyFactory
+    check-junit-FipsStatus)
+
+if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+  set(check_targets ${check_targets} check-with-jni-flag)
+endif()
+# For MacOS, check-with-jni-flag is not added due to failures in java.net.Inet6AddressImpl.lookupAllHostAddr: https://bugs.openjdk.org/browse/JDK-8205076
+
+add_custom_target(check DEPENDS ${check_targets})
 
 if(ENABLE_NATIVE_TEST_HOOKS)
     add_custom_target(check-keyutils
@@ -805,89 +919,6 @@ add_custom_target(check-integration
     DEPENDS accp-jar tests-jar)
 
 set_target_properties(check-integration PROPERTIES EXCLUDE_FROM_ALL 1)
-
-if (CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
-
-add_custom_target(run-dieharder-libcrypto-rng
-    COMMAND ${TEST_JAVA_EXECUTABLE} -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
-        ${EXTERNAL_LIB_PROPERTY}
-        com.amazon.corretto.crypto.provider.test.SecureRandomGenerator 'LibCryptoRng' 8192 1 |
-        ${DIEHARDER_EXECUTABLE} -a -g 200 -Y 1 -k 2 |
-        tee dieharder-results-libcrypto-rng.txt
-
-    DEPENDS accp-jar tests-jar)
-
-add_custom_target(run-dieharder-libcrypto-rng-tail
-    COMMAND ${TEST_JAVA_EXECUTABLE} -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
-        ${EXTERNAL_LIB_PROPERTY}
-        com.amazon.corretto.crypto.provider.test.SecureRandomGenerator 'LibCryptoRng' 31 1 |
-        ${DIEHARDER_EXECUTABLE} -d 15 -g 200 -Y 1 -k 2 |
-        tee dieharder-results-libcrypto-rng-tail.txt
-
-    DEPENDS accp-jar tests-jar)
-
-add_custom_target(run-dieharder-libcrypto-rng-threads
-    COMMAND ${TEST_JAVA_EXECUTABLE} -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
-        ${EXTERNAL_LIB_PROPERTY}
-        com.amazon.corretto.crypto.provider.test.SecureRandomGenerator 'LibCryptoRng' 128 4 |
-        ${DIEHARDER_EXECUTABLE} -a -g 200 -Y 1 -k 2 |
-        tee dieharder-results-libcrypto-rng-threads.txt
-
-    DEPENDS accp-jar tests-jar)
-
-add_custom_target(run-dieharder-libcrypto-rng-threads-tail
-    COMMAND ${TEST_JAVA_EXECUTABLE} -cp $<TARGET_PROPERTY:accp-jar,JAR_FILE>:$<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
-        ${EXTERNAL_LIB_PROPERTY}
-        com.amazon.corretto.crypto.provider.test.SecureRandomGenerator 'LibCryptoRng' 31 4 |
-        ${DIEHARDER_EXECUTABLE} -d 15 -g 200 -Y 1 -k 2 |
-        tee dieharder-results-libcrypto-rng-threads-tail.txt
-
-    DEPENDS accp-jar tests-jar)
-
-  add_custom_target(check-dieharder
-    COMMAND ! grep -l FAIL dieharder-results-libcrypto-rng.txt
-    COMMAND grep PASSED dieharder-results-libcrypto-rng.txt
-    COMMAND ! grep -l FAIL dieharder-results-libcrypto-rng-tail.txt
-    COMMAND grep PASSED dieharder-results-libcrypto-rng-tail.txt
-
-    DEPENDS run-dieharder-libcrypto-rng run-dieharder-libcrypto-rng-tail)
-
-add_custom_target(check-dieharder-threads
-    COMMAND ! grep -l FAIL dieharder-results-libcrypto-rng-threads.txt
-    COMMAND grep PASSED dieharder-results-libcrypto-rng-threads.txt
-    COMMAND ! grep -l FAIL dieharder-results-libcrypto-rng-threads-tail.txt
-    COMMAND grep PASSED dieharder-results-libcrypto-rng-threads-tail.txt
-
-    DEPENDS run-dieharder-libcrypto-rng-threads run-dieharder-libcrypto-rng-threads-tail)
-endif() # End of Dieharder targets
-
-# Add a target to assert that the libaccp shared object's rpath meets 2 conditions:
-#   1. rpath contains only a single entry
-#   2. that entry is set to $ORIGIN on linux or @loader_path on mac
-if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-    add_custom_target(check-libaccp-rpath
-        COMMAND otool -l $<TARGET_FILE:amazonCorrettoCryptoProvider>
-            | grep 'cmd LC_RPATH'
-            | wc -l
-            | tr -d '[:blank:]'
-            | xargs test 1 -eq
-        COMMAND otool -l $<TARGET_FILE:amazonCorrettoCryptoProvider>
-            | grep -A2 'cmd LC_RPATH'
-            | tail -1
-            | grep '@loader_path'
-        )
-elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-    add_custom_target(check-libaccp-rpath
-        COMMAND objdump -x $<TARGET_FILE:amazonCorrettoCryptoProvider>
-            | grep -E 'RPATH|RUNPATH'   # RPATH on AL, RUNPATH on Ubuntu
-            | grep -v ':'
-        COMMAND objdump -x $<TARGET_FILE:amazonCorrettoCryptoProvider>
-            | grep -E 'RPATH|RUNPATH'   # RPATH on AL, RUNPATH on Ubuntu
-            | grep -E "\$ORIGIN"
-        )
-else()
-    message( FATAL_ERROR "Unsupported OS, need to validate OS-specific rpath $ORIGIN")
-endif()
 
 # Do this at the end, after we finish all our feature tests, or it'll be missing flags
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/csrc/config.h.in ${JNI_HEADER_DIR}/config.h)

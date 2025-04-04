@@ -1,26 +1,24 @@
 // Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
-
 package com.amazon.corretto.crypto.provider.test;
 
+import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 
+import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
+import com.amazon.corretto.crypto.provider.SelfTestStatus;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.security.MessageDigest;
 import java.security.Provider;
+import java.security.SecureRandom;
 import java.security.Security;
-
-import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
-import org.junit.jupiter.api.Test;
-
-import com.amazon.corretto.crypto.provider.SelfTestStatus;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
@@ -33,60 +31,76 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 @ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ_WRITE)
 public class TestProviderInstallation {
 
-    @AfterAll
-    public static void cleanup() {
-        Security.removeProvider(NATIVE_PROVIDER.getName());
-        for (Provider provider : Security.getProviders()) {
-            assertFalse(NATIVE_PROVIDER.equals(provider.getName()));
-        }
+  @AfterAll
+  public static void cleanup() {
+    Security.removeProvider(NATIVE_PROVIDER.getName());
+    for (Provider provider : Security.getProviders()) {
+      assertFalse(NATIVE_PROVIDER.equals(provider.getName()));
     }
+  }
 
-    @Test
-    public void testProviderInstallation() throws Exception {
-        Security.removeProvider("AmazonCorrettoCryptoProvider");
-        // verify that we actually removed it so we know whether install() worked
-        assertFalse("AmazonCorrettoCryptoProvider".equals(MessageDigest.getInstance("SHA-256").getProvider().getName()));
+  @Test
+  public void testProviderInstallation() throws Exception {
+    Security.removeProvider("AmazonCorrettoCryptoProvider");
+    // verify that we actually removed it so we know whether install() worked
+    assertFalse(
+        "AmazonCorrettoCryptoProvider"
+            .equals(MessageDigest.getInstance("SHA-256").getProvider().getName()));
 
-        AmazonCorrettoCryptoProvider.install();
+    AmazonCorrettoCryptoProvider.install();
 
-        assertEquals("AmazonCorrettoCryptoProvider", MessageDigest.getInstance("SHA-256").getProvider().getName());
+    assertEquals("AmazonCorrettoCryptoProvider", new SecureRandom().getProvider().getName());
+
+    assertEquals(
+        "AmazonCorrettoCryptoProvider",
+        MessageDigest.getInstance("SHA-256").getProvider().getName());
+  }
+
+  @Test
+  public void providerSelfTests() {
+    SelfTestStatus testStatus = AmazonCorrettoCryptoProvider.INSTANCE.getSelfTestStatus();
+    assertFalse(SelfTestStatus.FAILED.equals(testStatus));
+
+    testStatus = AmazonCorrettoCryptoProvider.INSTANCE.runSelfTests();
+    assertEquals(SelfTestStatus.PASSED, testStatus);
+  }
+
+  @Test
+  public void testGetLoadingError() {
+    assertNull(AmazonCorrettoCryptoProvider.INSTANCE.getLoadingError());
+  }
+
+  @Test
+  public void testAssertHealthy() {
+    AmazonCorrettoCryptoProvider.INSTANCE.assertHealthy();
+  }
+
+  @Test
+  public void testSerialization() throws Exception {
+    final byte[] serialized;
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    try (ObjectOutputStream oos = new ObjectOutputStream(baos)) {
+      oos.writeObject(AmazonCorrettoCryptoProvider.INSTANCE);
+      oos.flush();
     }
+    baos.close();
+    serialized = baos.toByteArray();
 
-    @Test
-    public void providerSelfTests() {
-        SelfTestStatus testStatus = AmazonCorrettoCryptoProvider.INSTANCE.getSelfTestStatus();
-        assertFalse(SelfTestStatus.FAILED.equals(testStatus));
-
-        testStatus = AmazonCorrettoCryptoProvider.INSTANCE.runSelfTests();
-        assertEquals(SelfTestStatus.PASSED, testStatus);
+    try (ByteArrayInputStream bais = new ByteArrayInputStream(serialized);
+        ObjectInputStream ois = new ObjectInputStream(bais)) {
+      AmazonCorrettoCryptoProvider result = (AmazonCorrettoCryptoProvider) ois.readObject();
+      result.assertHealthy();
     }
+  }
 
-    @Test
-    public void testGetLoadingError() {
-        assertNull(AmazonCorrettoCryptoProvider.INSTANCE.getLoadingError());
-    }
-
-    @Test
-    public void testAssertHealthy() {
-        AmazonCorrettoCryptoProvider.INSTANCE.assertHealthy();
-    }
-
-    @Test
-    public void testSerialization() throws Exception {
-        final byte[] serialized;
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        try (ObjectOutputStream oos = new ObjectOutputStream(baos) ) {
-            oos.writeObject(AmazonCorrettoCryptoProvider.INSTANCE);
-            oos.flush();
-        }
-        baos.close();
-        serialized = baos.toByteArray();
-
-
-        try (ByteArrayInputStream bais = new ByteArrayInputStream(serialized);
-             ObjectInputStream ois = new ObjectInputStream(bais)) {
-            AmazonCorrettoCryptoProvider result = (AmazonCorrettoCryptoProvider) ois.readObject();
-            result.assertHealthy();
-        }
-    }
+  /**
+   * Check that the SecureRandom algorithm `LibCryptoRng` and its alias `DEFAULT` are both marked
+   * thread safe
+   */
+  @Test
+  public void testSecureRandomThreadSafe() {
+    assertEquals(
+        "true",
+        AmazonCorrettoCryptoProvider.INSTANCE.getProperty("SecureRandom.LibCryptoRng ThreadSafe"));
+  }
 }

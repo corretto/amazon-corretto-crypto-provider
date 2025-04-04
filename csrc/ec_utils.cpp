@@ -1,16 +1,15 @@
 // Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
-
+#include "auto_free.h"
+#include "bn.h"
+#include "env.h"
+#include "generated-headers.h"
+#include "util.h"
 #include <openssl/bn.h>
 #include <openssl/ec.h>
 #include <openssl/err.h>
 #include <openssl/objects.h>
 #include <vector>
-#include "generated-headers.h"
-#include "util.h"
-#include "env.h"
-#include "bn.h"
-#include "auto_free.h"
 
 using namespace AmazonCorrettoCryptoProvider;
 
@@ -19,8 +18,7 @@ using namespace AmazonCorrettoCryptoProvider;
  * Method:    buildCurve
  * Signature: (I)J
  */
-JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_buildGroup
-  (JNIEnv *pEnv, jclass, jint nid)
+JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_buildGroup(JNIEnv* pEnv, jclass, jint nid)
 {
     EC_GROUP* group;
     try {
@@ -30,8 +28,8 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_buildGr
             throw_openssl("Unable to get group");
         }
 
-        return (jlong) group;
-    } catch (java_ex &ex) {
+        return (jlong)group;
+    } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);
         return 0;
     }
@@ -42,10 +40,9 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_buildGr
  * Method:    freeCurve
  * Signature: (J)V
  */
-JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_freeGroup
-  (JNIEnv *, jclass, jlong group)
+JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_freeGroup(JNIEnv*, jclass, jlong group)
 {
-    EC_GROUP_free((EC_GROUP*) group);
+    EC_GROUP_free((EC_GROUP*)group);
 }
 
 /*
@@ -53,20 +50,19 @@ JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_freeGrou
  * Method:    curveNameToInfo
  * Signature: (Ljava/lang/String;[B[B[B[B[B[B[B)I
  */
-JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_curveNameToInfo(
-  JNIEnv *pEnv,
-  jclass,
-  jstring curveName,
-  jintArray mArr,
-  jbyteArray pArr,
-  jbyteArray aArr,
-  jbyteArray bArr,
-  jbyteArray cofactorArr,
-  jbyteArray gxArr,
-  jbyteArray gyArr,
-  jbyteArray orderArr,
-  jbyteArray oid,
-  jbyteArray encoded)
+JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_curveNameToInfo(JNIEnv* pEnv,
+    jclass,
+    jstring curveName,
+    jintArray mArr,
+    jbyteArray pArr,
+    jbyteArray aArr,
+    jbyteArray bArr,
+    jbyteArray cofactorArr,
+    jbyteArray gxArr,
+    jbyteArray gyArr,
+    jbyteArray orderArr,
+    jbyteArray oid,
+    jbyteArray encoded)
 {
     try {
         raii_env env(pEnv);
@@ -88,8 +84,7 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_curveNam
             if (ERR_GET_LIB(errCode) == ERR_LIB_EC && ERR_GET_REASON(errCode) == EC_R_UNKNOWN_GROUP) {
                 throw_java_ex(EX_ILLEGAL_ARGUMENT, "Unknown curve");
             } else {
-                throw_java_ex(EX_RUNTIME_CRYPTO,
-                    formatOpensslError(errCode, "Unable to create group"));
+                throw_java_ex(EX_RUNTIME_CRYPTO, formatOpensslError(errCode, "Unable to create group"));
             }
         }
 
@@ -102,16 +97,6 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_curveNam
         BigNumObj orderBN;
 
         const EC_POINT* generator = NULL;
-        const EC_METHOD * method = NULL;
-        int fieldNid = 0;
-        int m = 0;
-
-        // Figure out which type of group this is
-        method = EC_GROUP_method_of(group);
-        if (!method) {
-            throw_openssl("Unable to acquire method");
-        }
-        fieldNid = EC_METHOD_get_field_type(method);
 
         if (EC_GROUP_get_cofactor(group, cfBN, NULL) != 1) {
             throw_openssl("Unable to get cofactor");
@@ -123,26 +108,11 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_curveNam
             throw_openssl("Unable to get generator");
         }
 
-        switch (fieldNid) {
-            case NID_X9_62_prime_field:
-                if (EC_GROUP_get_curve_GFp(group, pBN, aBN, bBN, NULL) != 1) {
-                    throw_openssl("Unable to get group information");
-                }
-                if (EC_POINT_get_affine_coordinates_GFp(group, generator, gxBN, gyBN, NULL) != 1) {
-                    throw_openssl("Unable to get generator coordinates");
-                }
-                break;
-            case NID_X9_62_characteristic_two_field:
-                if (EC_GROUP_get_curve_GFp(group, pBN, aBN, bBN, NULL) != 1) {
-                    throw_openssl("Unable to get group information");
-                }
-                if (EC_POINT_get_affine_coordinates_GFp(group, generator, gxBN, gyBN, NULL) != 1) {
-                    throw_openssl("Unable to get generator coordinates");
-                }
-                m = EC_GROUP_get_degree(group);
-                env->SetIntArrayRegion(mArr, 0, 1, &m);
-                env.rethrow_java_exception();
-                break;
+        if (EC_GROUP_get_curve_GFp(group, pBN, aBN, bBN, NULL) != 1) {
+            throw_openssl("Unable to get group information");
+        }
+        if (EC_POINT_get_affine_coordinates_GFp(group, generator, gxBN, gyBN, NULL) != 1) {
+            throw_openssl("Unable to get generator coordinates");
         }
 
         gxBN.toJavaArray(env, gxArr);
@@ -152,7 +122,6 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_curveNam
         aBN.toJavaArray(env, aArr);
         bBN.toJavaArray(env, bArr);
 
-
         if (EC_GROUP_get_order(group, orderBN, NULL) != 1) {
             throw_openssl("Unable to get group order");
         }
@@ -160,7 +129,7 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_curveNam
 
         // Get the decoded (string) curve OID
         jni_borrow oidBorrow = jni_borrow(env, java_buffer::from_array(env, oid), "curveNameToInfo");
-        if (!OBJ_obj2txt((char*) oidBorrow.data(), (int) oidBorrow.len(), OBJ_nid2obj(nid), /*always_return_oid*/1)) {
+        if (!OBJ_obj2txt((char*)oidBorrow.data(), (int)oidBorrow.len(), OBJ_nid2obj(nid), /*always_return_oid*/ 1)) {
             throw_openssl("Unable to get decoded curve OID");
         }
         oidBorrow.release();
@@ -175,7 +144,7 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_curveNam
         encodedBorrow.release();
 
         return nid;
-    } catch (java_ex &ex) {
+    } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);
         return 0;
     }
@@ -185,9 +154,7 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_curveNam
  * Class:     com_amazon_corretto_crypto_provider_EcUtils
  * Method:    getCurveNames
  */
-JNIEXPORT jobjectArray JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_getCurveNames(
-  JNIEnv *pEnv,
-  jclass)
+JNIEXPORT jobjectArray JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_getCurveNames(JNIEnv* pEnv, jclass)
 {
     try {
         raii_env env(pEnv);
@@ -210,7 +177,7 @@ JNIEXPORT jobjectArray JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_
         }
 
         return names;
-    } catch (java_ex &ex) {
+    } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);
         return nullptr;
     }
@@ -222,10 +189,7 @@ JNIEXPORT jobjectArray JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_
  * Signature: ([B)Ljava/lang/String
  */
 JNIEXPORT jstring JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_getCurveNameFromEncoded(
-  JNIEnv *pEnv,
-  jclass,
-  jbyteArray encoded
-  )
+    JNIEnv* pEnv, jclass, jbyteArray encoded)
 {
     try {
         raii_env env(pEnv);
@@ -233,7 +197,7 @@ JNIEXPORT jstring JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_getCu
         jni_borrow borrow = jni_borrow(env, java_buffer::from_array(env, encoded), "getCurveNameFromEncoded");
         CBS cbs;
         CBS_init(&cbs, borrow.data(), borrow.len());
-        EC_GROUP *group = EC_KEY_parse_curve_name(&cbs);
+        EC_GROUP* group = EC_KEY_parse_curve_name(&cbs);
         if (group == nullptr) {
             throw_openssl("Unable to parse curve OID ASN.1");
         }
@@ -251,7 +215,7 @@ JNIEXPORT jstring JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_getCu
         // because we're returning the JString value and |env|'s dtor checks
         // for locks once it goes out of scope.
         return pEnv->NewStringUTF(shortName);
-    } catch (java_ex &ex) {
+    } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);
         return nullptr;
     }

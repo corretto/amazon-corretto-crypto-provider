@@ -1,6 +1,5 @@
 // Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
-
 package com.amazon.corretto.crypto.provider.test;
 
 import java.io.IOException;
@@ -14,10 +13,7 @@ import java.util.Scanner;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * Represents a single test-case for Known Answer Tests encoded in RSP files.
- *
- */
+/** Represents a single test-case for Known Answer Tests encoded in RSP files. */
 public class RspTestEntry {
   private static final Pattern NAMELESS_HEADER_ENTRY = Pattern.compile("\\[([^=]+)\\]");
   private static final Pattern HEADER_ENTRY = Pattern.compile("\\[(\\S+)\\s*=\\s*(\\S+)\\]");
@@ -49,9 +45,7 @@ public class RspTestEntry {
     return getHeader().get(field);
   }
 
-  /**
-   * Returns information regarding this specific test case.
-   */
+  /** Returns information regarding this specific test case. */
   public Map<String, String> getInstance() {
     return instance_;
   }
@@ -63,6 +57,15 @@ public class RspTestEntry {
    */
   public String getInstance(final String field) {
     return getInstance().get(field);
+  }
+
+  /**
+   * Returns true if the specific entry has the provided field.
+   *
+   * @see {@link #getInstance()}
+   */
+  public boolean contains(final String field) {
+    return getInstance().containsKey(field);
   }
 
   /**
@@ -90,21 +93,24 @@ public class RspTestEntry {
   /**
    * Parses data provided by {@code in} as a standard CAVP/CAVS file of test vectors and returns an
    * iterator over the test cases.
+   *
    * <ul>
-   * <li>Lines with comments are proceeded by #
-   * <li>Blocks of data are separated by blank lines
-   * <li>Headers for each section consist of Key/Value pairs of the format: {@code [KEY=VALUE]}
-   * <li>Test cases within each section consist of Key/Value pairs of the format: {@code KEY=VALUE}
+   *   <li>Lines with comments are proceeded by #
+   *   <li>Blocks of data are separated by blank lines
+   *   <li>Headers for each section consist of Key/Value pairs of the format: {@code [KEY=VALUE]}
+   *   <li>Test cases within each section consist of Key/Value pairs of the format: {@code
+   *       KEY=VALUE}
    * </ul>
    *
    * @see <a href="http://csrc.nist.gov/groups/STM/cavp/">NIST - CRYPTOGRAPHIC ALGORITHM VALIDATION
-   *      PROGRAM (CAVP)</a>
+   *     PROGRAM (CAVP)</a>
    */
   public static Iterator<RspTestEntry> iterateOverResource(final InputStream in) {
     return new RspTestEntryIterator(in, false);
   }
 
-  public static Iterator<RspTestEntry> iterateOverResource(final InputStream in, boolean closeWhenDone) {
+  public static Iterator<RspTestEntry> iterateOverResource(
+      final InputStream in, boolean closeWhenDone) {
     return new RspTestEntryIterator(in, closeWhenDone);
   }
 
@@ -112,7 +118,8 @@ public class RspTestEntry {
    * Equivalent to {@link #iterateOverResource(InputStream)} except that it loads tests explicitly
    * packaged with this class.
    */
-  public static Iterator<RspTestEntry> iterateOverLocalTests(final String testFile) throws IOException {
+  public static Iterator<RspTestEntry> iterateOverLocalTests(final String testFile)
+      throws IOException {
     return new RspTestEntryIterator(RspTestEntry.class.getResourceAsStream(testFile), true);
   }
 
@@ -201,8 +208,8 @@ public class RspTestEntry {
         if (inInstance_ && line.isEmpty()) {
           inInstance_ = false;
           next_ =
-              new RspTestEntry(Collections.unmodifiableMap(header_),
-                  Collections.unmodifiableMap(instance_));
+              new RspTestEntry(
+                  Collections.unmodifiableMap(header_), Collections.unmodifiableMap(instance_));
           return;
         }
       }

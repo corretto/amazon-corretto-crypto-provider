@@ -1,6 +1,5 @@
 // Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
-
 package com.amazon.corretto.crypto.provider;
 
 import java.security.PrivateKey;
@@ -15,58 +14,72 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * Corresponds to native constants in OpenSSL which represent keytypes.
- */
+/** Corresponds to native constants in OpenSSL which represent keytypes. */
 enum EvpKeyType {
-    RSA("RSA", 6, RSAPublicKey.class, RSAPrivateKey.class),
-    EC("EC", 408, ECPublicKey.class, ECPrivateKey.class);
+  RSA("RSA", 6, RSAPublicKey.class, RSAPrivateKey.class),
+  EC("EC", 408, ECPublicKey.class, ECPrivateKey.class),
+  EdDSA("EdDSA", 949, PublicKey.class, PrivateKey.class),
+  MLDSA("ML-DSA", 993, PublicKey.class, PrivateKey.class);
 
-    final String jceName;
-    final int nativeValue;
-    final Class<? extends PublicKey> publicKeyClass;
-    final Class<? extends PrivateKey> privateKeyClass;
+  final String jceName;
+  final int nativeValue;
+  final Class<? extends PublicKey> publicKeyClass;
+  final Class<? extends PrivateKey> privateKeyClass;
 
-    private final static Map<String, EvpKeyType> jceNameMapping = new HashMap<>();
+  private static final Map<String, EvpKeyType> jceNameMapping = new HashMap<>();
 
-    static {
-        for (final EvpKeyType type : EnumSet.allOf(EvpKeyType.class)) {
-            jceNameMapping.put(type.jceName, type);
-        }
+  static {
+    for (final EvpKeyType type : EnumSet.allOf(EvpKeyType.class)) {
+      jceNameMapping.put(type.jceName, type);
     }
+  }
 
-    private EvpKeyType(final String jceName, final int nativeValue, final Class<? extends PublicKey> publicKeyClass,
-            final Class<? extends PrivateKey> privateKeyClass) {
-        this.jceName = jceName;
-        this.nativeValue = nativeValue;
-        this.publicKeyClass = publicKeyClass;
-        this.privateKeyClass = privateKeyClass;
+  private EvpKeyType(
+      final String jceName,
+      final int nativeValue,
+      final Class<? extends PublicKey> publicKeyClass,
+      final Class<? extends PrivateKey> privateKeyClass) {
+    this.jceName = jceName;
+    this.nativeValue = nativeValue;
+    this.publicKeyClass = publicKeyClass;
+    this.privateKeyClass = privateKeyClass;
+  }
+
+  static EvpKeyType fromJceName(final String jceName) {
+    return jceNameMapping.get(jceName);
+  }
+
+  <X extends Throwable> PrivateKey buildPrivateKey(
+      MiscInterfaces.ThrowingToLongBiFunction<byte[], Integer, X> fn, PKCS8EncodedKeySpec der)
+      throws X {
+    switch (this) {
+      case RSA:
+        return EvpRsaPrivateCrtKey.buildProperKey(fn.applyAsLong(der.getEncoded(), nativeValue));
+      case EC:
+        return new EvpEcPrivateKey(fn.applyAsLong(der.getEncoded(), nativeValue));
+      case EdDSA:
+        return new EvpEdPrivateKey(fn.applyAsLong(der.getEncoded(), nativeValue));
+      case MLDSA:
+        return new EvpMlDsaPrivateKey(fn.applyAsLong(der.getEncoded(), nativeValue));
+      default:
+        throw new AssertionError("Unsupported key type");
     }
+  }
 
-
-    static EvpKeyType fromJceName(final String jceName) {
-        return jceNameMapping.get(jceName);
+  <X extends Throwable> PublicKey buildPublicKey(
+      MiscInterfaces.ThrowingToLongBiFunction<byte[], Integer, X> fn, X509EncodedKeySpec der)
+      throws X {
+    switch (this) {
+      case RSA:
+        return new EvpRsaPublicKey(fn.applyAsLong(der.getEncoded(), nativeValue));
+      case EC:
+        return new EvpEcPublicKey(fn.applyAsLong(der.getEncoded(), nativeValue));
+      case EdDSA:
+        return new EvpEdPublicKey(fn.applyAsLong(der.getEncoded(), nativeValue));
+      case MLDSA:
+        return new EvpMlDsaPublicKey(fn.applyAsLong(der.getEncoded(), nativeValue));
+      default:
+        throw new AssertionError("Unsupported key type");
     }
-
-    <X extends Throwable> PrivateKey buildPrivateKey(MiscInterfaces.ThrowingToLongBiFunction<byte[], Integer, X> fn, PKCS8EncodedKeySpec der) throws X {
-        switch (this) {
-            case RSA:
-                return EvpRsaPrivateCrtKey.buildProperKey(fn.applyAsLong(der.getEncoded(), nativeValue));
-            case EC:
-                return new EvpEcPrivateKey(fn.applyAsLong(der.getEncoded(), nativeValue));
-            default:
-                throw new AssertionError("Unsupported key type");
-        }
-    }
-
-    <X extends Throwable> PublicKey buildPublicKey(MiscInterfaces.ThrowingToLongBiFunction<byte[], Integer, X> fn, X509EncodedKeySpec der) throws X {
-        switch (this) {
-            case RSA:
-                return new EvpRsaPublicKey(fn.applyAsLong(der.getEncoded(), nativeValue));
-            case EC:
-                return new EvpEcPublicKey(fn.applyAsLong(der.getEncoded(), nativeValue));
-            default:
-                throw new AssertionError("Unsupported key type");
-        }
-    }
+  }
 }
