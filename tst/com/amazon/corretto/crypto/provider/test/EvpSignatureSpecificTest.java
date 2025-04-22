@@ -821,6 +821,55 @@ public final class EvpSignatureSpecificTest {
     assertThrows(InvalidAlgorithmParameterException.class, () -> signer.setParameter(params));
   }
 
+  @Test
+  public void testInvalidKey() throws Exception {
+    final Signature signature = Signature.getInstance("SHA256withRSA", NATIVE_PROVIDER);
+
+    assertThrows(InvalidKeyException.class, () -> signature.initSign((PrivateKey) null));
+    assertThrows(InvalidKeyException.class, () -> signature.initVerify((PublicKey) null));
+
+    // Unfortunately we need to instantiate public/private separately because JDK 17+
+    // forbids casting across module boundaries, throwing java.lang.ClassCastException
+    PrivateKey emptyPrivateKey =
+        new PrivateKey() {
+          @Override
+          public String getAlgorithm() {
+            return null;
+          }
+
+          @Override
+          public String getFormat() {
+            return null;
+          }
+
+          @Override
+          public byte[] getEncoded() {
+            return null;
+          }
+        };
+
+    PublicKey emptyPublicKey =
+        new PublicKey() {
+          @Override
+          public String getAlgorithm() {
+            return null;
+          }
+
+          @Override
+          public String getFormat() {
+            return null;
+          }
+
+          @Override
+          public byte[] getEncoded() {
+            return null;
+          }
+        };
+
+    assertThrows(InvalidKeyException.class, () -> signature.initSign(emptyPrivateKey));
+    assertThrows(InvalidKeyException.class, () -> signature.initVerify(emptyPublicKey));
+  }
+
   @SuppressWarnings("serial")
   private static class RawKey implements PublicKey, PrivateKey {
     private final String algorithm_;

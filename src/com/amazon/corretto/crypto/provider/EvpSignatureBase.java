@@ -104,6 +104,9 @@ abstract class EvpSignatureBase extends SignatureSpi {
     if (privateKey == null) {
       throw new InvalidKeyException("Key must not be null");
     }
+    if (privateKey.getAlgorithm() == null) {
+      throw new InvalidKeyException("Key algorithm must not be null");
+    }
 
     if (untranslatedKey_ != privateKey) {
       if (!keyType_.jceName.equalsIgnoreCase(privateKey.getAlgorithm())
@@ -128,6 +131,9 @@ abstract class EvpSignatureBase extends SignatureSpi {
       throws InvalidKeyException {
     if (publicKey == null) {
       throw new InvalidKeyException("Key must not be null");
+    }
+    if (publicKey.getAlgorithm() == null) {
+      throw new InvalidKeyException("Key algorithm must not be null");
     }
 
     if (untranslatedKey_ != publicKey) {
