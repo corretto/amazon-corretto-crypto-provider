@@ -682,11 +682,13 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     if (!isFips() || !isFipsSelfTestFailureSkipAbort()) {
       throw new UnsupportedOperationException("ACCP not built with FIPS_SELF_TEST_SKIP_ABORT");
     }
-    if (getSelfTestStatus() == SelfTestStatus.NOT_RUN) {
-      // If FIPS self tests haven't completed, give them a 5s timeout to complete.
+    // For "FipsStatus", we only care about AWS-LC's self test status.
+    SelfTestStatus status = SelfTestSuite.AWS_LC_SELF_TESTS.getCachedResult().getStatus();
+    if (status == SelfTestStatus.NOT_RUN) {
+      // If FIPS self tests haven't completed, give them a 3s timeout to complete.
       final long timeout = 3 * 1000;
       final long deadline = System.currentTimeMillis() + timeout;
-      while (getSelfTestStatus() == SelfTestStatus.NOT_RUN) {
+      while (status == SelfTestStatus.NOT_RUN) {
         try {
           Thread.sleep(1);
         } catch (Exception e) {
