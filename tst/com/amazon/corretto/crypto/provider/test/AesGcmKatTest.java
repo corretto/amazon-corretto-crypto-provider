@@ -133,7 +133,7 @@ public final class AesGcmKatTest {
     }
   }
 
-  private static Cipher getCipher() throws GeneralSecurityException {
+  private Cipher getCipher() throws GeneralSecurityException {
     return Cipher.getInstance("AES/GCM/NoPadding", TestUtil.NATIVE_PROVIDER);
   }
 }
