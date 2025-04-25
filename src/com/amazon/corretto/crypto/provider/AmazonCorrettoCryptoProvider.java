@@ -688,7 +688,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
       // If FIPS self tests haven't completed, give them a 3s timeout to complete.
       final long timeout = 3 * 1000;
       final long deadline = System.currentTimeMillis() + timeout;
-      while (status == SelfTestStatus.NOT_RUN) {
+      do {
         if (System.currentTimeMillis() > deadline) {
           throw new RuntimeCryptoException("FIPS self tests timed out");
         }
@@ -698,7 +698,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
           throw new RuntimeCryptoException(e);
         }
         status = SelfTestSuite.AWS_LC_SELF_TESTS.getCachedResult().getStatus();
-      }
+      } while (status == SelfTestStatus.NOT_RUN);
     }
     return isFipsStatusOkInternal();
   }
