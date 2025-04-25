@@ -284,7 +284,7 @@ public class AesCfbTest {
 
     // Test invalid padding
     assertThrows(
-        NoSuchPaddingException.class,
+        NoSuchAlgorithmException.class,
         () -> Cipher.getInstance("AES/CFB/PKCS5Padding", PROVIDER_NAME),
         "Should throw exception for unsupported padding");
   }
