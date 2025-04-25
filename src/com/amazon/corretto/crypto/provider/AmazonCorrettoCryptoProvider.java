@@ -145,6 +145,10 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     addService("KeyGenerator", "AES", "SecretKeyGenerator", false);
 
     addService("Cipher", "AES/XTS/NoPadding", "AesXtsSpi", false);
+    
+    addService("Cipher", "AES/CFB/NoPadding", "AesCfbSpi", false);
+    addService("Cipher", "AES_128/CFB/NoPadding", "AesCfbSpi", false);
+    addService("Cipher", "AES_256/CFB/NoPadding", "AesCfbSpi", false);
 
     addService(
         "Cipher",
