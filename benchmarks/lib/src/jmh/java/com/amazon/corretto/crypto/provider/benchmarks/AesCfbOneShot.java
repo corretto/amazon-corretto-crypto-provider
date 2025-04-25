@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.amazon.corretto.crypto.provider.benchmarks;
 
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.Provider;
@@ -59,9 +61,21 @@ public class AesCfbOneShot {
             provider = Security.getProvider("AmazonCorrettoCryptoProvider");
             if (provider == null) {
                 try {
-                    provider = (Provider) Class.forName("com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider")
-                            .getField("INSTANCE").get(null);
-                    Security.insertProviderAt(provider, 1);
+                    // Try to load from the JAR in resources
+                    URL jarUrl = getClass().getClassLoader().getResource("AmazonCorrettoCryptoProvider.jar");
+                    if (jarUrl != null) {
+                        URLClassLoader classLoader = new URLClassLoader(new URL[]{jarUrl}, getClass().getClassLoader());
+                        Class<?> providerClass = classLoader.loadClass("com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider");
+                        provider = (Provider) providerClass.getField("INSTANCE").get(null);
+                        Security.insertProviderAt(provider, 1);
+                        System.out.println("Loaded AmazonCorrettoCryptoProvider from resources JAR");
+                    } else {
+                        // Fall back to the standard way
+                        provider = (Provider) Class.forName("com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider")
+                                .getField("INSTANCE").get(null);
+                        Security.insertProviderAt(provider, 1);
+                        System.out.println("Loaded AmazonCorrettoCryptoProvider from classpath");
+                    }
                 } catch (ReflectiveOperationException e) {
                     throw new RuntimeException("Unable to load AmazonCorrettoCryptoProvider", e);
                 }
