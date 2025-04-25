@@ -110,7 +110,8 @@ class AesCfbSpi extends CipherSpi {
       throw new InvalidKeyException("Key must be transparent");
     }
     if (keyBytes.length != KEY_LEN_AES128 && keyBytes.length != KEY_LEN_AES256) {
-      throw new InvalidKeyException("Key length must be " + KEY_LEN_AES128 + " or " + KEY_LEN_AES256);
+      throw new InvalidKeyException(
+          "Key length must be " + KEY_LEN_AES128 + " or " + KEY_LEN_AES256);
     }
 
     init(opmode, keyBytes, ivBytes);
@@ -130,7 +131,7 @@ class AesCfbSpi extends CipherSpi {
     this.key = keyBytes.clone();
     System.arraycopy(ivBytes, 0, iv, 0, IV_SIZE_IN_BYTES);
     this.initialized = true;
-    
+
     // Free any existing context
     if (ctxPtr != 0) {
       nUpdateFinal(opMode, ctxPtr, false, null, null, 0, 0, null, null, 0);
@@ -143,7 +144,7 @@ class AesCfbSpi extends CipherSpi {
     if (inputLen == 0) {
       return new byte[0];
     }
-    
+
     final byte[] output = new byte[inputLen];
     try {
       engineUpdate(input, inputOffset, inputLen, output, 0);
@@ -164,45 +165,38 @@ class AesCfbSpi extends CipherSpi {
     if (inputLen == 0) {
       return 0;
     }
-    
+
     if (!initialized) {
       throw new IllegalStateException("Cipher not initialized");
     }
-    
+
     Utils.checkArrayLimits(input, inputOffset, inputLen);
     Utils.checkArrayLimits(output, outputOffset, inputLen);
-    
+
     if (ctxPtr == 0) {
       // First update, need to initialize
       final long[] ctxContainer = new long[1];
-      final int result = nInitUpdate(
-          opMode,
-          key,
-          keyLen,
-          iv,
-          ctxContainer,
-          0,
-          null,
-          input,
-          inputOffset,
-          inputLen,
-          null,
-          output,
-          outputOffset);
+      final int result =
+          nInitUpdate(
+              opMode,
+              key,
+              keyLen,
+              iv,
+              ctxContainer,
+              0,
+              null,
+              input,
+              inputOffset,
+              inputLen,
+              null,
+              output,
+              outputOffset);
       ctxPtr = ctxContainer[0];
       return result;
     } else {
       // Subsequent update
       return nUpdate(
-          opMode,
-          ctxPtr,
-          null,
-          input,
-          inputOffset,
-          inputLen,
-          null,
-          output,
-          outputOffset);
+          opMode, ctxPtr, null, input, inputOffset, inputLen, null, output, outputOffset);
     }
   }
 
@@ -233,52 +227,56 @@ class AesCfbSpi extends CipherSpi {
     if (!initialized) {
       throw new IllegalStateException("Cipher not initialized");
     }
-    
+
     if (inputLen > 0) {
       Utils.checkArrayLimits(input, inputOffset, inputLen);
     }
-    
+
     if (inputLen > 0) {
       Utils.checkArrayLimits(output, outputOffset, inputLen);
     }
-    
+
     int result;
     if (ctxPtr == 0) {
       // One-shot operation
-      result = nInitUpdateFinal(
-          opMode,
-          key,
-          keyLen,
-          iv,
-          null,
-          0,
-          false,
-          null,
-          input,
-          inputOffset,
-          inputLen,
-          null,
-          output,
-          outputOffset);
+      result =
+          nInitUpdateFinal(
+              opMode,
+              key,
+              keyLen,
+              iv,
+              null,
+              0,
+              false,
+              null,
+              input,
+              inputOffset,
+              inputLen,
+              null,
+              output,
+              outputOffset);
     } else {
       // Final operation with existing context
-      result = nUpdateFinal(
-          opMode,
-          ctxPtr,
-          false,
-          null,
-          input,
-          inputOffset,
-          inputLen,
-          null,
-          output,
-          outputOffset);
+      result =
+          nUpdateFinal(
+              opMode,
+              ctxPtr,
+              false,
+              null,
+              input,
+              inputOffset,
+              inputLen,
+              null,
+              output,
+              outputOffset);
       ctxPtr = 0;
     }
-    
+
     return result;
   }
 
+  // Clean up resources when this object is no longer used
+  @SuppressWarnings("deprecation")
   @Override
   protected void finalize() throws Throwable {
     try {

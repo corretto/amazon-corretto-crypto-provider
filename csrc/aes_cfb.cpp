@@ -14,11 +14,6 @@
 
 namespace AmazonCorrettoCryptoProvider {
 
-static bool is_encryption_mode(jint op_mode)
-{
-    return op_mode == com_amazon_corretto_crypto_provider_AesCfbSpi_ENC_MODE;
-}
-
 class AesCfbCipher {
     JNIEnv* jenv_;
     EVP_CIPHER_CTX* ctx_;
