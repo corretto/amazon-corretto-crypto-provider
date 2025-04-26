@@ -46,7 +46,7 @@ public class AesCfbOneShot {
     @Param({"16", "64", "256", "1024", "4096", "16384"})
     private int dataSize;
 
-    @Param({"SunJCE", "AmazonCorrettoCryptoProvider"})
+    @Param({"SunJCE", "AmazonCorrettoCryptoProvider", "BC"})
     private String providerName;
 
     private Provider provider;
@@ -78,6 +78,18 @@ public class AesCfbOneShot {
                     }
                 } catch (ReflectiveOperationException e) {
                     throw new RuntimeException("Unable to load AmazonCorrettoCryptoProvider", e);
+                }
+            }
+        } else if ("BC".equals(providerName)) {
+            provider = Security.getProvider("BC");
+            if (provider == null) {
+                try {
+                    // Load BouncyCastle provider
+                    provider = (Provider) Class.forName("org.bouncycastle.jce.provider.BouncyCastleProvider").newInstance();
+                    Security.insertProviderAt(provider, 1);
+                    System.out.println("Loaded BouncyCastle provider");
+                } catch (ReflectiveOperationException e) {
+                    throw new RuntimeException("Unable to load BouncyCastle provider", e);
                 }
             }
         } else {
