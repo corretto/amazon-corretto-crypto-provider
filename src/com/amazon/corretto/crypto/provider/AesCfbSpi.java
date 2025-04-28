@@ -41,15 +41,15 @@ class AesCfbSpi extends CipherSpi {
 
   @Override
   protected void engineSetMode(final String mode) throws NoSuchAlgorithmException {
-    if (!"CFB".equalsIgnoreCase(mode) && !"CFB128".equalsIgnoreCase(mode)) {
-      throw new NoSuchAlgorithmException("Unsupported mode: " + mode);
+    if (!"CFB".equalsIgnoreCase(mode)) {
+      throw new NoSuchAlgorithmException();
     }
   }
 
   @Override
   protected void engineSetPadding(final String padding) throws NoSuchPaddingException {
     if (!"NoPadding".equalsIgnoreCase(padding)) {
-      throw new NoSuchPaddingException("Unsupported padding: " + padding);
+      throw new NoSuchPaddingException();
     }
   }
 
@@ -273,20 +273,6 @@ class AesCfbSpi extends CipherSpi {
     }
 
     return result;
-  }
-
-  // Clean up resources when this object is no longer used
-  @SuppressWarnings("deprecation")
-  @Override
-  protected void finalize() throws Throwable {
-    try {
-      if (ctxPtr != 0) {
-        nUpdateFinal(opMode, ctxPtr, false, null, null, 0, 0, null, null, 0);
-        ctxPtr = 0;
-      }
-    } finally {
-      super.finalize();
-    }
   }
 
   private static native int nInitUpdateFinal(

@@ -146,9 +146,9 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
     addService("Cipher", "AES/XTS/NoPadding", "AesXtsSpi", false);
 
-    addService("Cipher", "AES/CFB/NoPadding", "AesCfbSpi", false);
-    addService("Cipher", "AES_128/CFB/NoPadding", "AesCfbSpi", false);
-    addService("Cipher", "AES_256/CFB/NoPadding", "AesCfbSpi", false);
+    addService("Cipher", "AES/CFB/NoPadding", "AesCfbSpi");
+    addService("Cipher", "AES_128/CFB/NoPadding", "AesCfbSpi");
+    addService("Cipher", "AES_256/CFB/NoPadding", "AesCfbSpi");
 
     addService(
         "Cipher",
@@ -431,15 +431,6 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
               == Utils.NativeContextReleaseStrategy.LAZY;
       if ("AES/XTS/NoPadding".equalsIgnoreCase(algo)) {
         return new AesXtsSpi();
-      }
-      if ("AES/CFB/NoPadding".equalsIgnoreCase(algo)
-          || "AES_128/CFB/NoPadding".equalsIgnoreCase(algo)
-          || "AES_256/CFB/NoPadding".equalsIgnoreCase(algo)) {
-        return new AesCfbSpi();
-      }
-      // For CFB mode, we only support NoPadding
-      if (algo.toUpperCase().startsWith("AES/CFB/") && !algo.toUpperCase().endsWith("/NOPADDING")) {
-        throw new NoSuchAlgorithmException("No service class for Cipher/" + algo);
       }
       if (AES_CBC_PKCS7_PADDING_NAMES.contains(algo.toLowerCase())) {
         return new AesCbcSpi(AesCbcSpi.Padding.PKCS7, saveContext);

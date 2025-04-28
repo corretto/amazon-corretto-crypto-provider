@@ -148,14 +148,6 @@ public class AesCfbTest {
 
   @Test
   public void testCompatibilityWithSunJCE() throws Exception {
-    // Skip if SunJCE doesn't support AES/CFB/NoPadding
-    try {
-      Cipher.getInstance("AES/CFB/NoPadding", "SunJCE");
-    } catch (NoSuchAlgorithmException | NoSuchProviderException | NoSuchPaddingException e) {
-      System.out.println("SunJCE does not support AES/CFB/NoPadding, skipping compatibility test");
-      return;
-    }
-
     final byte[] plaintext = "This is a test message for AES CFB mode compatibility".getBytes();
     final SecretKey key = generateKey(KEY_SIZE_128);
     final byte[] iv = new byte[BLOCK_SIZE];
@@ -191,16 +183,16 @@ public class AesCfbTest {
   public void testKnownAnswerVectors() throws Exception {
     // Test vectors from NIST SP 800-38A, section F.3.17 and F.3.18 (CFB128-AES256)
     final byte[] key =
-        decodeHex("603deb1015ca71be2b73aef0857d7781" + "1f352c073b6108d72d9810a30914dff4");
-    final byte[] iv = decodeHex("000102030405060708090a0b0c0d0e0f");
+        TestUtil.decodeHex("603deb1015ca71be2b73aef0857d7781" + "1f352c073b6108d72d9810a30914dff4");
+    final byte[] iv = TestUtil.decodeHex("000102030405060708090a0b0c0d0e0f");
     final byte[] plaintext =
-        decodeHex(
+        TestUtil.decodeHex(
             "6bc1bee22e409f96e93d7e117393172a"
                 + "ae2d8a571e03ac9c9eb76fac45af8e51"
                 + "30c81c46a35ce411e5fbc1191a0a52ef"
                 + "f69f2445df4f9b17ad2b417be66c3710");
     final byte[] expectedCiphertext =
-        decodeHex(
+        TestUtil.decodeHex(
             "dc7e84bfda79164b7ecd8486985d3860"
                 + "39ffed143b28b1c832113c6331e5407b"
                 + "df10132415e54b92a13ed0a8267ae2f9"
@@ -225,16 +217,16 @@ public class AesCfbTest {
   @Test
   public void testKnownAnswerVectors128() throws Exception {
     // Test vectors from NIST SP 800-38A, section F.3.13 and F.3.14 (CFB128-AES128)
-    final byte[] key = decodeHex("2b7e151628aed2a6abf7158809cf4f3c");
-    final byte[] iv = decodeHex("000102030405060708090a0b0c0d0e0f");
+    final byte[] key = TestUtil.decodeHex("2b7e151628aed2a6abf7158809cf4f3c");
+    final byte[] iv = TestUtil.decodeHex("000102030405060708090a0b0c0d0e0f");
     final byte[] plaintext =
-        decodeHex(
+        TestUtil.decodeHex(
             "6bc1bee22e409f96e93d7e117393172a"
                 + "ae2d8a571e03ac9c9eb76fac45af8e51"
                 + "30c81c46a35ce411e5fbc1191a0a52ef"
                 + "f69f2445df4f9b17ad2b417be66c3710");
     final byte[] expectedCiphertext =
-        decodeHex(
+        TestUtil.decodeHex(
             "3b3fd92eb72dad20333449f8e83cfb4a"
                 + "c8a64537a0b3a93fcde3cdad9f1ce58b"
                 + "26751f67a3cbb140b1808cf187a4f4df"
@@ -294,20 +286,5 @@ public class AesCfbTest {
     final KeyGenerator keyGen = KeyGenerator.getInstance("AES", PROVIDER_NAME);
     keyGen.init(keySize);
     return keyGen.generateKey();
-  }
-
-  // Helper method to decode hex strings
-  private static byte[] decodeHex(String hex) {
-    if (hex == null) {
-      return new byte[0];
-    }
-    if (hex.length() % 2 != 0) {
-      throw new IllegalArgumentException("Input length must be even");
-    }
-    byte[] result = new byte[hex.length() / 2];
-    for (int x = 0; x < hex.length() / 2; x++) {
-      result[x] = (byte) Integer.parseInt(hex.substring(2 * x, 2 * x + 2), 16);
-    }
-    return result;
   }
 }
