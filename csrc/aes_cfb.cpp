@@ -148,7 +148,7 @@ extern "C" JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesCf
     try {
         AesCfbCipher aes_cfb_cipher(env, ctxContainer, ctxPtr, saveCtx);
 
-        // init
+        // init in scope to auto-free j_key and j_iv
         {
             JBinaryBlob j_key(env, nullptr, key);
             JBinaryBlob j_iv(env, nullptr, iv);
@@ -188,7 +188,7 @@ extern "C" JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesCf
     try {
         AesCfbCipher aes_cfb_cipher(env, ctxContainer, ctxPtr, true);
 
-        // init
+        // init in scope to auto-free j_key and j_iv
         {
             JBinaryBlob j_key(env, nullptr, key);
             JBinaryBlob j_iv(env, nullptr, iv);

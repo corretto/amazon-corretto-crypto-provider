@@ -31,11 +31,12 @@ class AesCfbSpi extends CipherSpi {
   private int opMode;
   private int keyLen;
   private byte[] key;
-  private long ctxPtr;
+  private NativeResource context;
   private boolean initialized;
 
   AesCfbSpi() {
     iv = new byte[IV_SIZE_IN_BYTES];
+    context = null;
     initialized = false;
   }
 
@@ -60,7 +61,7 @@ class AesCfbSpi extends CipherSpi {
 
   @Override
   protected int engineGetOutputSize(final int inputLen) {
-    return inputLen;
+    return inputLen; // No padding, so output len is always equal to inputLen
   }
 
   @Override
@@ -93,7 +94,7 @@ class AesCfbSpi extends CipherSpi {
       final SecureRandom random)
       throws InvalidKeyException, InvalidAlgorithmParameterException {
     if (!(params instanceof IvParameterSpec)) {
-      throw new InvalidAlgorithmParameterException("params must be an instance of IvParameterSpec");
+      throw new InvalidAlgorithmParameterException("Params must be an instance of IvParameterSpec");
     }
     final IvParameterSpec ivParameterSpec = (IvParameterSpec) params;
     final byte[] ivBytes = ivParameterSpec.getIV();
@@ -103,11 +104,11 @@ class AesCfbSpi extends CipherSpi {
     }
 
     if (!"RAW".equalsIgnoreCase(key.getFormat())) {
-      throw new InvalidKeyException("Key's format must be raw");
+      throw new InvalidKeyException("Key's format must be RAW");
     }
     final byte[] keyBytes = key.getEncoded();
     if (keyBytes == null) {
-      throw new InvalidKeyException("Key must be transparent");
+      throw new InvalidKeyException("Key must support encoding");
     }
     if (keyBytes.length != KEY_LEN_AES128 && keyBytes.length != KEY_LEN_AES256) {
       throw new InvalidKeyException(
@@ -133,9 +134,8 @@ class AesCfbSpi extends CipherSpi {
     this.initialized = true;
 
     // Free any existing context
-    if (ctxPtr != 0) {
-      nUpdateFinal(opMode, ctxPtr, false, null, null, 0, 0, null, null, 0);
-      ctxPtr = 0;
+    if (context != null && !context.isReleased()) {
+      context.release();
     }
   }
 
@@ -173,9 +173,9 @@ class AesCfbSpi extends CipherSpi {
     Utils.checkArrayLimits(input, inputOffset, inputLen);
     Utils.checkArrayLimits(output, outputOffset, inputLen);
 
-    if (ctxPtr == 0) {
+    if (context == null) {
       // First update, need to initialize
-      final long[] ctxContainer = new long[1];
+      final long[] ctxContainer = new long[] {0};
       final int result =
           nInitUpdate(
               opMode,
@@ -191,13 +191,14 @@ class AesCfbSpi extends CipherSpi {
               null,
               output,
               outputOffset);
-      ctxPtr = ctxContainer[0];
+      context = new NativeEvpCipherCtx(ctxContainer[0]);
       return result;
-    } else {
-      // Subsequent update
-      return nUpdate(
-          opMode, ctxPtr, null, input, inputOffset, inputLen, null, output, outputOffset);
     }
+    // Subsequent update
+    return context.use(
+        ctxPtr ->
+            nUpdate(
+                opMode, ctxPtr, null, input, inputOffset, inputLen, null, output, outputOffset));
   }
 
   @Override
@@ -237,7 +238,7 @@ class AesCfbSpi extends CipherSpi {
     }
 
     int result;
-    if (ctxPtr == 0) {
+    if (context == null) {
       // One-shot operation
       result =
           nInitUpdateFinal(
@@ -258,18 +259,20 @@ class AesCfbSpi extends CipherSpi {
     } else {
       // Final operation with existing context
       result =
-          nUpdateFinal(
-              opMode,
-              ctxPtr,
-              false,
-              null,
-              input,
-              inputOffset,
-              inputLen,
-              null,
-              output,
-              outputOffset);
-      ctxPtr = 0;
+          context.use(
+              ctxPtr ->
+                  nUpdateFinal(
+                      opMode,
+                      ctxPtr,
+                      /*saveCtx*/ false,
+                      null,
+                      input,
+                      inputOffset,
+                      inputLen,
+                      null,
+                      output,
+                      outputOffset));
+      context = null; // nUpdateFinal releases the native context, so just null out our wrapper
     }
 
     return result;
