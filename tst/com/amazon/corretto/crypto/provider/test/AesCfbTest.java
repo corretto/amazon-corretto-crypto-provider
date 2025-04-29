@@ -3,6 +3,8 @@
 package com.amazon.corretto.crypto.provider.test;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
@@ -13,6 +15,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.util.Arrays;
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
@@ -44,17 +47,21 @@ public class AesCfbTest {
     SECURE_RANDOM.nextBytes(iv);
     final IvParameterSpec ivSpec = new IvParameterSpec(iv);
 
-    // Encrypt
-    final Cipher encryptCipher = Cipher.getInstance(ALGORITHM, PROVIDER_NAME);
-    encryptCipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
-    final byte[] ciphertext = encryptCipher.doFinal(plaintext);
+    final Cipher cipher = Cipher.getInstance(ALGORITHM, PROVIDER_NAME);
+    cipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
+    final byte[] ciphertext = cipher.doFinal(plaintext);
+    cipher.init(Cipher.DECRYPT_MODE, key, ivSpec);
+    final byte[] decrypted = cipher.doFinal(ciphertext);
+    assertArrayEquals(plaintext, decrypted);
 
-    // Decrypt
-    final Cipher decryptCipher = Cipher.getInstance(ALGORITHM, PROVIDER_NAME);
-    decryptCipher.init(Cipher.DECRYPT_MODE, key, ivSpec);
-    final byte[] decrypted = decryptCipher.doFinal(ciphertext);
-
-    assertArrayEquals(plaintext, decrypted, "Decrypted text should match original plaintext");
+    // Now do it in place
+    cipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
+    final byte[] buffer = Arrays.copyOf(plaintext, plaintext.length);
+    cipher.doFinal(buffer, 0, buffer.length, buffer);
+    assertFalse(Arrays.equals(plaintext, buffer));
+    cipher.init(Cipher.DECRYPT_MODE, key, ivSpec);
+    cipher.doFinal(buffer, 0, buffer.length, buffer);
+    assertArrayEquals(plaintext, buffer);
   }
 
   @Test
@@ -66,16 +73,15 @@ public class AesCfbTest {
     SECURE_RANDOM.nextBytes(iv);
     final IvParameterSpec ivSpec = new IvParameterSpec(iv);
 
-    // Encrypt
     final Cipher encryptCipher = Cipher.getInstance(ALGORITHM, PROVIDER_NAME);
     encryptCipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
-    final byte[] firstPart = encryptCipher.update(plaintext, 0, 50);
-    final byte[] secondPart = encryptCipher.doFinal(plaintext, 50, 50);
+    final int halfway = plaintext.length / 2;
+    final byte[] firstPart = encryptCipher.update(plaintext, 0, halfway);
+    final byte[] secondPart = encryptCipher.doFinal(plaintext, halfway, plaintext.length - halfway);
     final byte[] ciphertext = new byte[firstPart.length + secondPart.length];
     System.arraycopy(firstPart, 0, ciphertext, 0, firstPart.length);
     System.arraycopy(secondPart, 0, ciphertext, firstPart.length, secondPart.length);
 
-    // Decrypt
     final Cipher decryptCipher = Cipher.getInstance(ALGORITHM, PROVIDER_NAME);
     decryptCipher.init(Cipher.DECRYPT_MODE, key, ivSpec);
     final byte[] firstDecrypted = decryptCipher.update(ciphertext, 0, 50);
@@ -84,7 +90,31 @@ public class AesCfbTest {
     System.arraycopy(firstDecrypted, 0, decrypted, 0, firstDecrypted.length);
     System.arraycopy(secondDecrypted, 0, decrypted, firstDecrypted.length, secondDecrypted.length);
 
-    assertArrayEquals(plaintext, decrypted, "Decrypted text should match original plaintext");
+    assertArrayEquals(plaintext, decrypted);
+  }
+
+  @Test
+  public void testEncryptDecryptSameBuffer() throws Exception {
+    final byte[] plaintext = "This is a test message for AES CFB mode".getBytes();
+    final Cipher cipher = Cipher.getInstance(ALGORITHM, PROVIDER_NAME);
+    final SecretKey key = generateKey(KEY_SIZE_128);
+    final IvParameterSpec ivSpec = new IvParameterSpec(new byte[BLOCK_SIZE]);
+
+    cipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
+    final byte[] buffer = Arrays.copyOf(plaintext, plaintext.length);
+    cipher.doFinal(buffer, 0, buffer.length, buffer);
+    assertFalse(Arrays.equals(plaintext, buffer));
+    cipher.init(Cipher.DECRYPT_MODE, key, ivSpec);
+    cipher.doFinal(buffer, 0, buffer.length, buffer);
+
+    // TODO [childw] do it with in-place updates
+
+    assertArrayEquals(plaintext, buffer);
+  }
+
+  @Test
+  public void testBlockMisaligned() throws Exception {
+    // TODO [childw] test block-misaligned crypt
   }
 
   @Test
@@ -96,7 +126,6 @@ public class AesCfbTest {
     SECURE_RANDOM.nextBytes(iv);
     final IvParameterSpec ivSpec = new IvParameterSpec(iv);
 
-    // Encrypt
     final Cipher encryptCipher = Cipher.getInstance(ALGORITHM, PROVIDER_NAME);
     encryptCipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
     final ByteBuffer plaintextBuffer = ByteBuffer.wrap(plaintext);
@@ -106,7 +135,6 @@ public class AesCfbTest {
     final byte[] ciphertext = new byte[ciphertextBuffer.remaining()];
     ciphertextBuffer.get(ciphertext);
 
-    // Decrypt
     final Cipher decryptCipher = Cipher.getInstance(ALGORITHM, PROVIDER_NAME);
     decryptCipher.init(Cipher.DECRYPT_MODE, key, ivSpec);
     final ByteBuffer decryptedBuffer = ByteBuffer.allocate(ciphertext.length);
@@ -130,15 +158,13 @@ public class AesCfbTest {
       final byte[] plaintext = new byte[size];
       SECURE_RANDOM.nextBytes(plaintext);
 
-      // Encrypt
-      final Cipher encryptCipher = Cipher.getInstance(ALGORITHM, PROVIDER_NAME);
-      encryptCipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
-      final byte[] ciphertext = encryptCipher.doFinal(plaintext);
-
-      // Decrypt
-      final Cipher decryptCipher = Cipher.getInstance(ALGORITHM, PROVIDER_NAME);
-      decryptCipher.init(Cipher.DECRYPT_MODE, key, ivSpec);
-      final byte[] decrypted = decryptCipher.doFinal(ciphertext);
+      final Cipher cipher = Cipher.getInstance(ALGORITHM, PROVIDER_NAME);
+      cipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
+      final byte[] ciphertext = cipher.doFinal(plaintext);
+      assertEquals(size, ciphertext.length);
+      assertFalse(Arrays.equals(plaintext, ciphertext));
+      cipher.init(Cipher.DECRYPT_MODE, key, ivSpec);
+      final byte[] decrypted = cipher.doFinal(ciphertext);
 
       assertArrayEquals(
           plaintext, decrypted, "Decrypted text should match original plaintext for size " + size);
