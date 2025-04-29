@@ -21,6 +21,10 @@ import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.junit.jupiter.api.parallel.ResourceAccessMode;
+import org.junit.jupiter.api.parallel.ResourceLock;
 
 @Execution(ExecutionMode.CONCURRENT)
 @ExtendWith(TestResultLogger.class)
@@ -295,8 +299,7 @@ public class AesCfbTest {
     // Test invalid padding
     assertThrows(
         NoSuchAlgorithmException.class,
-        () -> Cipher.getInstance("AES/CFB/PKCS5Padding", TestUtil.NATIVE_PROVIDER),
-        "Should throw exception for unsupported padding");
+        () -> Cipher.getInstance("AES/CFB/PKCS5Padding", TestUtil.NATIVE_PROVIDER));
   }
 
   private SecretKey generateKey(int keySize)
