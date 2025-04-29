@@ -5,6 +5,7 @@ package com.amazon.corretto.crypto.provider.test;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.nio.ByteBuffer;
@@ -16,6 +17,7 @@ import java.security.SecureRandom;
 import java.util.Arrays;
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
+import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
@@ -35,6 +37,15 @@ public class AesCfbTest {
   private static final int KEY_SIZE_128 = 128;
   private static final int KEY_SIZE_256 = 256;
   private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+  private static final Class<?> SPI_CLASS;
+
+  static {
+    try {
+      SPI_CLASS = Class.forName("com.amazon.corretto.crypto.provider.AesCfbSpi");
+    } catch (final ClassNotFoundException ex) {
+      throw new AssertionError(ex);
+    }
+  }
 
   @Test
   public void testBasicEncryptDecrypt() throws Exception {
@@ -113,6 +124,10 @@ public class AesCfbTest {
   public void testBlockMisaligned() throws Exception {
     // TODO [childw] test block-misaligned crypt
   }
+
+  // TODO [childw] guard against IV reuse?
+
+  // TODO [childw] what about un/wrap?
 
   @Test
   public void testEncryptDecryptWithByteBuffer() throws Exception {
@@ -199,6 +214,8 @@ public class AesCfbTest {
     final byte[] sunDecrypted = sunDecryptCipher.doFinal(accpCiphertext);
 
     assertArrayEquals(plaintext, sunDecrypted, "SunJCE should be able to decrypt ACCP ciphertext");
+
+    assertEquals(sunEncryptCipher.getAlgorithm(), accpEncryptCipher.getAlgorithm());
   }
 
   @Test
@@ -271,7 +288,7 @@ public class AesCfbTest {
   }
 
   @Test
-  public void testInvalidParameters() throws Exception {
+  public void testInvalidParameters() throws Throwable {
     final SecretKey key = generateKey(KEY_SIZE_128);
     final byte[] iv = new byte[BLOCK_SIZE];
     SECURE_RANDOM.nextBytes(iv);
@@ -300,6 +317,34 @@ public class AesCfbTest {
     assertThrows(
         NoSuchAlgorithmException.class,
         () -> Cipher.getInstance("AES/CFB/PKCS5Padding", TestUtil.NATIVE_PROVIDER));
+
+    // Direct invocation via reflection
+    Object spi = TestUtil.sneakyConstruct(SPI_CLASS.getName(), TestUtil.NATIVE_PROVIDER);
+    assertThrows(
+        NoSuchPaddingException.class,
+        () -> TestUtil.sneakyInvoke(spi, "engineSetPadding", "FakePadding"));
+    assertThrows(
+        NoSuchAlgorithmException.class,
+        () -> TestUtil.sneakyInvoke(spi, "engineSetMode", "BadMode"));
+  }
+
+  @Test
+  public void testMiscellaneous() throws Throwable {
+    Object spi = TestUtil.sneakyConstruct(SPI_CLASS.getName(), TestUtil.NATIVE_PROVIDER);
+    TestUtil.sneakyInvoke(spi, "engineSetPadding", "NoPadding"); // valid, nothing happens
+    TestUtil.sneakyInvoke(spi, "engineSetMode", "CFB"); // valid, nothing happens
+
+    final Cipher cipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
+    assertEquals(BLOCK_SIZE, cipher.getBlockSize());
+
+    final SecretKey key = generateKey(KEY_SIZE_128);
+    final byte[] iv = new byte[BLOCK_SIZE];
+    SECURE_RANDOM.nextBytes(iv);
+    final IvParameterSpec ivSpec = new IvParameterSpec(iv);
+    cipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
+    assertArrayEquals(iv, cipher.getIV());
+
+    assertNull(cipher.getParameters());
   }
 
   private SecretKey generateKey(int keySize)

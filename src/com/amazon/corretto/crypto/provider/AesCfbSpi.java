@@ -27,28 +27,28 @@ class AesCfbSpi extends CipherSpi {
   static final int ENC_MODE = 1;
   static final int DEC_MODE = 0;
 
-  private final byte[] iv;
+  private final byte[] iv = new byte[IV_SIZE_IN_BYTES];
   private int opMode;
   private int keyLen;
-  private byte[] key;
-  private NativeResource context;
-  private boolean initialized;
+  private byte[] key = null;
+  private NativeResource context = null;
+  private boolean initialized = false;
+  private final AmazonCorrettoCryptoProvider provider;
 
-  AesCfbSpi() {
-    iv = new byte[IV_SIZE_IN_BYTES];
-    context = null;
-    initialized = false;
+  AesCfbSpi(final AmazonCorrettoCryptoProvider provider) {
+    Loader.checkNativeLibraryAvailability();
+    this.provider = provider;
   }
 
   @Override
-  protected void engineSetMode(final String mode) throws NoSuchAlgorithmException {
+  protected void engineSetMode(String mode) throws NoSuchAlgorithmException {
     if (!"CFB".equalsIgnoreCase(mode)) {
       throw new NoSuchAlgorithmException();
     }
   }
 
   @Override
-  protected void engineSetPadding(final String padding) throws NoSuchPaddingException {
+  protected void engineSetPadding(String padding) throws NoSuchPaddingException {
     if (!"NoPadding".equalsIgnoreCase(padding)) {
       throw new NoSuchPaddingException();
     }
