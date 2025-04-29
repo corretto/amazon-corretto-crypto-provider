@@ -184,11 +184,9 @@ class AesCfbSpi extends CipherSpi {
               iv,
               ctxContainer,
               0,
-              null,
               input,
               inputOffset,
               inputLen,
-              null,
               output,
               outputOffset);
       context = new NativeEvpCipherCtx(ctxContainer[0]);
@@ -198,7 +196,7 @@ class AesCfbSpi extends CipherSpi {
     return context.use(
         ctxPtr ->
             nUpdate(
-                opMode, ctxPtr, null, input, inputOffset, inputLen, null, output, outputOffset));
+                opMode, ctxPtr, input, inputOffset, inputLen, output, outputOffset));
   }
 
   @Override
@@ -249,11 +247,9 @@ class AesCfbSpi extends CipherSpi {
               null,
               0,
               false,
-              null,
               input,
               inputOffset,
               inputLen,
-              null,
               output,
               outputOffset);
     } else {
@@ -263,11 +259,9 @@ class AesCfbSpi extends CipherSpi {
                       opMode,
                       ctxPtr,
                       /*saveCtx*/ false,    // then free the context at end of operation
-                      null,
                       input,
                       inputOffset,
                       inputLen,
-                      null,
                       output,
                       outputOffset);
       context = null; // nUpdateFinal releases the native context, so just null out our wrapper
@@ -288,11 +282,9 @@ class AesCfbSpi extends CipherSpi {
       long[] ctxContainer,
       long ctxPtr,
       boolean saveCtx,
-      Object inputDirect,
       byte[] inputArray,
       int inputOffset,
       int inputLen,
-      Object outputDirect,
       byte[] outputArray,
       int outputOffset);
 
@@ -303,22 +295,18 @@ class AesCfbSpi extends CipherSpi {
       byte[] iv,
       long[] ctxContainer,
       long ctxPtr,
-      Object inputDirect,
       byte[] inputArray,
       int inputOffset,
       int inputLen,
-      Object outputDirect,
       byte[] outputArray,
       int outputOffset);
 
   private static native int nUpdate(
       int opMode,
       long ctxPtr,
-      Object inputDirect,
       byte[] inputArray,
       int inputOffset,
       int inputLen,
-      Object outputDirect,
       byte[] outputArray,
       int outputOffset);
 
@@ -326,11 +314,9 @@ class AesCfbSpi extends CipherSpi {
       int opMode,
       long ctxPtr,
       boolean saveCtx,
-      Object inputDirect,
       byte[] inputArray,
       int inputOffset,
       int inputLen,
-      Object outputDirect,
       byte[] outputArray,
       int outputOffset);
 }
