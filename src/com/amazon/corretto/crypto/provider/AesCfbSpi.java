@@ -278,6 +278,10 @@ class AesCfbSpi extends CipherSpi {
     return result;
   }
 
+  // NOTE: a lot of the below functions could be decomposed into init, update,
+  // final, then combined in the java layer, but combining these functions into
+  // consolidated JNI lets us only make one JNI call per Java operation.
+
   private static native int nInitUpdateFinal(
       int opMode,
       byte[] key,

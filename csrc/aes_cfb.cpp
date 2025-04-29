@@ -26,11 +26,6 @@ class AesCfbCipher {
             return false;
         }
 
-        // If the output starts before the input, we're not clobbering anything.
-        if (output + input_len <= input) {
-            return false;
-        }
-
         return true;
     }
 
@@ -58,7 +53,7 @@ public:
 
         // We need to return the context.
         if (ctx_container == nullptr) {
-            // This should not happen. We ensure this at the call sites.
+            // This should not happen, as init should always be called with a ctx container
             EVP_CIPHER_CTX_free(ctx_);
             throw java_ex(EX_ERROR, "THIS SHOULD NOT BE REACHABLE. No container is provided to return the context.");
         }
@@ -85,7 +80,7 @@ public:
             cipher = EVP_aes_256_cfb128();
             break;
         default:
-            // This should not happen since we check this in the Java layer.
+            // This should not happen since we enforce this in the Java layer.
             throw java_ex(EX_ERROR, "THIS SHOULD NOT BE REACHABLE. Invalid AES key size.");
         }
 
@@ -97,6 +92,7 @@ public:
     int update(uint8_t const* input, int input_len, uint8_t* output)
     {
         int result = 0;
+        // If output clobbers input, pay copy cost from temp buffer
         if (output_clobbers_input(input, input_len, output)) {
             SimpleBuffer temp(input_len);
 
