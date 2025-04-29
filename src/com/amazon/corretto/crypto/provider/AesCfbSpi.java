@@ -194,9 +194,7 @@ class AesCfbSpi extends CipherSpi {
     }
     // Subsequent update
     return context.use(
-        ctxPtr ->
-            nUpdate(
-                opMode, ctxPtr, input, inputOffset, inputLen, output, outputOffset));
+        ctxPtr -> nUpdate(opMode, ctxPtr, input, inputOffset, inputLen, output, outputOffset));
   }
 
   @Override
@@ -255,15 +253,16 @@ class AesCfbSpi extends CipherSpi {
     } else {
       // Final operation, take ownership of the context from Janitor
       final long ctxPtr = context.take();
-      result = nUpdateFinal(
-                      opMode,
-                      ctxPtr,
-                      /*saveCtx*/ false,    // then free the context at end of operation
-                      input,
-                      inputOffset,
-                      inputLen,
-                      output,
-                      outputOffset);
+      result =
+          nUpdateFinal(
+              opMode,
+              ctxPtr,
+              /*saveCtx*/ false, // then free the context at end of operation
+              input,
+              inputOffset,
+              inputLen,
+              output,
+              outputOffset);
       context = null; // nUpdateFinal releases the native context, so just null out our wrapper
     }
 
