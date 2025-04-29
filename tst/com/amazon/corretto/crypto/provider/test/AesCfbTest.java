@@ -7,37 +7,30 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import java.nio.ByteBuffer;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
-import java.security.Security;
 import java.util.Arrays;
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+@Execution(ExecutionMode.CONCURRENT)
 @ExtendWith(TestResultLogger.class)
+@ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
 public class AesCfbTest {
-  private static final String PROVIDER_NAME = "AmazonCorrettoCryptoProvider";
   private static final String ALGORITHM = "AES/CFB/NoPadding";
   private static final int BLOCK_SIZE = 16;
   private static final int KEY_SIZE_128 = 128;
   private static final int KEY_SIZE_256 = 256;
   private static final SecureRandom SECURE_RANDOM = new SecureRandom();
-
-  @BeforeAll
-  public static void setUp() {
-    Security.addProvider(AmazonCorrettoCryptoProvider.INSTANCE);
-  }
 
   @Test
   public void testBasicEncryptDecrypt() throws Exception {
@@ -47,7 +40,7 @@ public class AesCfbTest {
     SECURE_RANDOM.nextBytes(iv);
     final IvParameterSpec ivSpec = new IvParameterSpec(iv);
 
-    final Cipher cipher = Cipher.getInstance(ALGORITHM, PROVIDER_NAME);
+    final Cipher cipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
     cipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
     final byte[] ciphertext = cipher.doFinal(plaintext);
     cipher.init(Cipher.DECRYPT_MODE, key, ivSpec);
@@ -73,7 +66,7 @@ public class AesCfbTest {
     SECURE_RANDOM.nextBytes(iv);
     final IvParameterSpec ivSpec = new IvParameterSpec(iv);
 
-    final Cipher encryptCipher = Cipher.getInstance(ALGORITHM, PROVIDER_NAME);
+    final Cipher encryptCipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
     encryptCipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
     final int halfway = plaintext.length / 2;
     final byte[] firstPart = encryptCipher.update(plaintext, 0, halfway);
@@ -82,7 +75,7 @@ public class AesCfbTest {
     System.arraycopy(firstPart, 0, ciphertext, 0, firstPart.length);
     System.arraycopy(secondPart, 0, ciphertext, firstPart.length, secondPart.length);
 
-    final Cipher decryptCipher = Cipher.getInstance(ALGORITHM, PROVIDER_NAME);
+    final Cipher decryptCipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
     decryptCipher.init(Cipher.DECRYPT_MODE, key, ivSpec);
     final byte[] firstDecrypted = decryptCipher.update(ciphertext, 0, 50);
     final byte[] secondDecrypted = decryptCipher.doFinal(ciphertext, 50, ciphertext.length - 50);
@@ -96,7 +89,7 @@ public class AesCfbTest {
   @Test
   public void testEncryptDecryptSameBuffer() throws Exception {
     final byte[] plaintext = "This is a test message for AES CFB mode".getBytes();
-    final Cipher cipher = Cipher.getInstance(ALGORITHM, PROVIDER_NAME);
+    final Cipher cipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
     final SecretKey key = generateKey(KEY_SIZE_128);
     final IvParameterSpec ivSpec = new IvParameterSpec(new byte[BLOCK_SIZE]);
 
@@ -126,7 +119,7 @@ public class AesCfbTest {
     SECURE_RANDOM.nextBytes(iv);
     final IvParameterSpec ivSpec = new IvParameterSpec(iv);
 
-    final Cipher encryptCipher = Cipher.getInstance(ALGORITHM, PROVIDER_NAME);
+    final Cipher encryptCipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
     encryptCipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
     final ByteBuffer plaintextBuffer = ByteBuffer.wrap(plaintext);
     final ByteBuffer ciphertextBuffer = ByteBuffer.allocate(plaintext.length);
@@ -135,7 +128,7 @@ public class AesCfbTest {
     final byte[] ciphertext = new byte[ciphertextBuffer.remaining()];
     ciphertextBuffer.get(ciphertext);
 
-    final Cipher decryptCipher = Cipher.getInstance(ALGORITHM, PROVIDER_NAME);
+    final Cipher decryptCipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
     decryptCipher.init(Cipher.DECRYPT_MODE, key, ivSpec);
     final ByteBuffer decryptedBuffer = ByteBuffer.allocate(ciphertext.length);
     decryptCipher.doFinal(ByteBuffer.wrap(ciphertext), decryptedBuffer);
@@ -158,7 +151,7 @@ public class AesCfbTest {
       final byte[] plaintext = new byte[size];
       SECURE_RANDOM.nextBytes(plaintext);
 
-      final Cipher cipher = Cipher.getInstance(ALGORITHM, PROVIDER_NAME);
+      final Cipher cipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
       cipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
       final byte[] ciphertext = cipher.doFinal(plaintext);
       assertEquals(size, ciphertext.length);
@@ -185,14 +178,14 @@ public class AesCfbTest {
     final byte[] sunCiphertext = sunEncryptCipher.doFinal(plaintext);
 
     // Decrypt with ACCP
-    final Cipher accpDecryptCipher = Cipher.getInstance(ALGORITHM, PROVIDER_NAME);
+    final Cipher accpDecryptCipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
     accpDecryptCipher.init(Cipher.DECRYPT_MODE, key, ivSpec);
     final byte[] accpDecrypted = accpDecryptCipher.doFinal(sunCiphertext);
 
     assertArrayEquals(plaintext, accpDecrypted, "ACCP should be able to decrypt SunJCE ciphertext");
 
     // Encrypt with ACCP
-    final Cipher accpEncryptCipher = Cipher.getInstance(ALGORITHM, PROVIDER_NAME);
+    final Cipher accpEncryptCipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
     accpEncryptCipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
     final byte[] accpCiphertext = accpEncryptCipher.doFinal(plaintext);
 
@@ -226,14 +219,14 @@ public class AesCfbTest {
     // Test encryption
     final SecretKeySpec keySpec = new SecretKeySpec(key, "AES");
     final IvParameterSpec ivSpec = new IvParameterSpec(iv);
-    final Cipher encryptCipher = Cipher.getInstance(ALGORITHM, PROVIDER_NAME);
+    final Cipher encryptCipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
     encryptCipher.init(Cipher.ENCRYPT_MODE, keySpec, ivSpec);
     final byte[] ciphertext = encryptCipher.doFinal(plaintext);
     assertArrayEquals(
         expectedCiphertext, ciphertext, "Encryption should match known answer vector");
 
     // Test decryption
-    final Cipher decryptCipher = Cipher.getInstance(ALGORITHM, PROVIDER_NAME);
+    final Cipher decryptCipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
     decryptCipher.init(Cipher.DECRYPT_MODE, keySpec, ivSpec);
     final byte[] decrypted = decryptCipher.doFinal(expectedCiphertext);
     assertArrayEquals(plaintext, decrypted, "Decryption should match known answer vector");
@@ -260,14 +253,14 @@ public class AesCfbTest {
     // Test encryption
     final SecretKeySpec keySpec = new SecretKeySpec(key, "AES");
     final IvParameterSpec ivSpec = new IvParameterSpec(iv);
-    final Cipher encryptCipher = Cipher.getInstance(ALGORITHM, PROVIDER_NAME);
+    final Cipher encryptCipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
     encryptCipher.init(Cipher.ENCRYPT_MODE, keySpec, ivSpec);
     final byte[] ciphertext = encryptCipher.doFinal(plaintext);
     assertArrayEquals(
         expectedCiphertext, ciphertext, "Encryption should match known answer vector");
 
     // Test decryption
-    final Cipher decryptCipher = Cipher.getInstance(ALGORITHM, PROVIDER_NAME);
+    final Cipher decryptCipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
     decryptCipher.init(Cipher.DECRYPT_MODE, keySpec, ivSpec);
     final byte[] decrypted = decryptCipher.doFinal(expectedCiphertext);
     assertArrayEquals(plaintext, decrypted, "Decryption should match known answer vector");
@@ -279,7 +272,7 @@ public class AesCfbTest {
     final byte[] iv = new byte[BLOCK_SIZE];
     SECURE_RANDOM.nextBytes(iv);
     final IvParameterSpec ivSpec = new IvParameterSpec(iv);
-    final Cipher cipher = Cipher.getInstance(ALGORITHM, PROVIDER_NAME);
+    final Cipher cipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
 
     // Test invalid IV size
     final byte[] shortIv = new byte[BLOCK_SIZE - 1];
@@ -302,13 +295,13 @@ public class AesCfbTest {
     // Test invalid padding
     assertThrows(
         NoSuchAlgorithmException.class,
-        () -> Cipher.getInstance("AES/CFB/PKCS5Padding", PROVIDER_NAME),
+        () -> Cipher.getInstance("AES/CFB/PKCS5Padding", TestUtil.NATIVE_PROVIDER),
         "Should throw exception for unsupported padding");
   }
 
   private SecretKey generateKey(int keySize)
       throws NoSuchAlgorithmException, NoSuchProviderException {
-    final KeyGenerator keyGen = KeyGenerator.getInstance("AES", PROVIDER_NAME);
+    final KeyGenerator keyGen = KeyGenerator.getInstance("AES", TestUtil.NATIVE_PROVIDER);
     keyGen.init(keySize);
     return keyGen.generateKey();
   }
