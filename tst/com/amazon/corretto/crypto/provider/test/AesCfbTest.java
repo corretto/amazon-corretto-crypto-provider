@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.nio.ByteBuffer;
+import java.security.AlgorithmParameters;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
@@ -84,6 +85,11 @@ public class AesCfbTest {
     final Cipher encryptCipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
     encryptCipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
     final int halfway = plaintext.length / 2;
+    encryptCipher.update(plaintext, 0, halfway);
+    encryptCipher.init(
+        Cipher.ENCRYPT_MODE,
+        key,
+        ivSpec); // ensure we can re-init in the middle of an update sequence
     final byte[] firstPart = encryptCipher.update(plaintext, 0, halfway);
     final byte[] secondPart = encryptCipher.doFinal(plaintext, halfway, plaintext.length - halfway);
     final byte[] ciphertext = new byte[firstPart.length + secondPart.length];
@@ -104,30 +110,30 @@ public class AesCfbTest {
   @Test
   public void testEncryptDecryptSameBuffer() throws Exception {
     final byte[] plaintext = "This is a test message for AES CFB mode".getBytes();
+    byte[] buffer = Arrays.copyOf(plaintext, plaintext.length);
     final Cipher cipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
     final SecretKey key = generateKey(KEY_SIZE_128);
     final IvParameterSpec ivSpec = new IvParameterSpec(new byte[BLOCK_SIZE]);
 
+    // One-shot in same buffer
     cipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
-    final byte[] buffer = Arrays.copyOf(plaintext, plaintext.length);
     cipher.doFinal(buffer, 0, buffer.length, buffer);
     assertFalse(Arrays.equals(plaintext, buffer));
     cipher.init(Cipher.DECRYPT_MODE, key, ivSpec);
     cipher.doFinal(buffer, 0, buffer.length, buffer);
+    assertArrayEquals(plaintext, buffer);
 
-    // TODO [childw] do it with in-place updates
-
+    // Multi-shot in same buffer
+    cipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
+    buffer = Arrays.copyOf(plaintext, plaintext.length);
+    cipher.update(buffer, 0, buffer.length / 2, buffer, 0);
+    cipher.update(buffer, buffer.length / 2, buffer.length / 2, buffer, buffer.length / 2);
+    assertFalse(Arrays.equals(plaintext, buffer));
+    cipher.init(Cipher.DECRYPT_MODE, key, ivSpec);
+    cipher.update(buffer, 0, buffer.length / 2, buffer, 0);
+    cipher.update(buffer, buffer.length / 2, buffer.length / 2, buffer, buffer.length / 2);
     assertArrayEquals(plaintext, buffer);
   }
-
-  @Test
-  public void testBlockMisaligned() throws Exception {
-    // TODO [childw] test block-misaligned crypt
-  }
-
-  // TODO [childw] guard against IV reuse?
-
-  // TODO [childw] what about un/wrap?
 
   @Test
   public void testEncryptDecryptWithByteBuffer() throws Exception {
@@ -174,7 +180,7 @@ public class AesCfbTest {
       cipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
       final byte[] ciphertext = cipher.doFinal(plaintext);
       assertEquals(size, ciphertext.length);
-      assertFalse(Arrays.equals(plaintext, ciphertext));
+      assertFalse(Arrays.equals(plaintext, ciphertext), "For size: " + size);
       cipher.init(Cipher.DECRYPT_MODE, key, ivSpec);
       final byte[] decrypted = cipher.doFinal(ciphertext);
 
@@ -343,6 +349,21 @@ public class AesCfbTest {
     final IvParameterSpec ivSpec = new IvParameterSpec(iv);
     cipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
     assertArrayEquals(iv, cipher.getIV());
+    cipher.init(Cipher.ENCRYPT_MODE, key, SECURE_RANDOM);
+    assertFalse(
+        Arrays.equals(
+            iv, cipher.getIV())); // IV gen'd by SECURE_RANDOM should be different from |iv|
+    assertThrows(
+        UnsupportedOperationException.class,
+        () -> cipher.init(Cipher.ENCRYPT_MODE, key, (AlgorithmParameters) null, SECURE_RANDOM));
+
+    // We also don't support wrap/unsrap modes (yet?)
+    assertThrows(
+        UnsupportedOperationException.class,
+        () -> cipher.init(Cipher.WRAP_MODE, key, (AlgorithmParameters) null, SECURE_RANDOM));
+    assertThrows(
+        UnsupportedOperationException.class,
+        () -> cipher.init(Cipher.UNWRAP_MODE, key, (AlgorithmParameters) null, SECURE_RANDOM));
 
     assertNull(cipher.getParameters());
   }

@@ -134,8 +134,9 @@ class AesCfbSpi extends CipherSpi {
     this.initialized = true;
 
     // Free any existing context
-    if (context != null && !context.isReleased()) {
+    if (context != null) {
       context.release();
+      context = null;
     }
   }
 
