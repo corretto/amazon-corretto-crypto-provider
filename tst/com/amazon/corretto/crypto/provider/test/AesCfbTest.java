@@ -23,12 +23,14 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.DisabledIf;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.junit.jupiter.api.parallel.ResourceAccessMode;
 import org.junit.jupiter.api.parallel.ResourceLock;
 
+@DisabledIf("com.amazon.corretto.crypto.provider.test.AesCfbTest#isDisabled")
 @Execution(ExecutionMode.CONCURRENT)
 @ExtendWith(TestResultLogger.class)
 @ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
@@ -39,6 +41,12 @@ public class AesCfbTest {
   private static final int KEY_SIZE_256 = 256;
   private static final SecureRandom SECURE_RANDOM = new SecureRandom();
   private static final Class<?> SPI_CLASS;
+
+  // TODO: remove this disablement when AWS-LC-FIPS has moved AES CFB EVP_CIPHER to FIPS module
+  public static boolean isDisabled() {
+    return TestUtil.NATIVE_PROVIDER.isFips()
+        && !TestUtil.NATIVE_PROVIDER.isExperimentalFips();
+  }
 
   static {
     try {

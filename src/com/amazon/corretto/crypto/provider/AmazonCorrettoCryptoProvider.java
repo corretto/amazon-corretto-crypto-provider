@@ -68,6 +68,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
   private final boolean shouldRegisterSecureRandom;
   private final boolean shouldRegisterEdKeyFactory;
   private final boolean shouldRegisterMLDSA;
+  private final boolean shouldRegisterAesCfb;
   private final Utils.NativeContextReleaseStrategy nativeContextReleaseStrategy;
 
   private transient SelfTestSuite selfTestSuite = new SelfTestSuite();
@@ -146,9 +147,11 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
     addService("Cipher", "AES/XTS/NoPadding", "AesXtsSpi", false);
 
-    addService("Cipher", "AES/CFB/NoPadding", "AesCfbSpi");
-    addService("Cipher", "AES_128/CFB/NoPadding", "AesCfbSpi");
-    addService("Cipher", "AES_256/CFB/NoPadding", "AesCfbSpi");
+    if (shouldRegisterAesCfb) {
+      addService("Cipher", "AES/CFB/NoPadding", "AesCfbSpi");
+      addService("Cipher", "AES_128/CFB/NoPadding", "AesCfbSpi");
+      addService("Cipher", "AES_256/CFB/NoPadding", "AesCfbSpi");
+    }
 
     addService(
         "Cipher",
@@ -539,6 +542,8 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
         Utils.getBooleanProperty(PROPERTY_REGISTER_ED_KEYFACTORY, false);
 
     this.shouldRegisterMLDSA = (!isFips() || isExperimentalFips());
+
+    this.shouldRegisterAesCfb = (!isFips() || isExperimentalFips());
 
     this.nativeContextReleaseStrategy = Utils.getNativeContextReleaseStrategyProperty();
 
