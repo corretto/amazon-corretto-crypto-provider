@@ -164,7 +164,7 @@ class AesCfbSpi extends CipherSpi {
     }
     this.keyLen = keyBytes.length;
     this.key = keyBytes.clone();
-    this.ivParamSpec = new IvParameterSpec(ivBytes); // TODO [childw] enforce IV constraints
+    this.ivParamSpec = new IvParameterSpec(ivBytes);
 
     // Free any existing context
     if (context != null) {
