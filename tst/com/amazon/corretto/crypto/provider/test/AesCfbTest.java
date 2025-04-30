@@ -9,8 +9,11 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.nio.ByteBuffer;
+import java.security.AlgorithmParameters;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
+import java.security.Key;
+import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
@@ -93,6 +96,7 @@ public class AesCfbTest {
     encryptCipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
     final int halfway = plaintext.length / 2;
     encryptCipher.update(plaintext, 0, halfway);
+    encryptCipher.update(plaintext, 0, 0); // 0-len update should do nothing
     encryptCipher.init(
         Cipher.ENCRYPT_MODE,
         key,
@@ -363,6 +367,13 @@ public class AesCfbTest {
     assertArrayEquals( // getIV() and getParameters() should return the same IV value.
         cipher.getIV(), cipher.getParameters().getParameterSpec(IvParameterSpec.class).getIV());
 
+    // Same as last test case, but initialized with different signature
+    AlgorithmParameters parameters = AlgorithmParameters.getInstance("AES");
+    parameters.init(cipher.getParameters().getParameterSpec(IvParameterSpec.class));
+    cipher.init(Cipher.ENCRYPT_MODE, key, parameters, null);
+    assertArrayEquals(
+        cipher.getIV(), cipher.getParameters().getParameterSpec(IvParameterSpec.class).getIV());
+
     // We also don't support wrap/unsrap modes (yet?)
     assertThrows(
         InvalidAlgorithmParameterException.class,
@@ -375,6 +386,17 @@ public class AesCfbTest {
     assertThrows(
         InvalidAlgorithmParameterException.class,
         () -> cipher.init(Cipher.ENCRYPT_MODE, key, new RC2ParameterSpec(16), SECURE_RANDOM));
+
+    // No null params
+    assertThrows(
+        InvalidAlgorithmParameterException.class,
+        () -> cipher.init(Cipher.ENCRYPT_MODE, key, (AlgorithmParameters) null, SECURE_RANDOM));
+
+    // Key must be an AES key
+    Key rsaKey = KeyPairGenerator.getInstance("RSA").generateKeyPair().getPrivate();
+    assertThrows(
+        InvalidKeyException.class,
+        () -> cipher.init(Cipher.ENCRYPT_MODE, rsaKey, ivSpec, SECURE_RANDOM));
 
     // If cipher is left uninitialized, it should output a random IV
     final Cipher uninitCipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);

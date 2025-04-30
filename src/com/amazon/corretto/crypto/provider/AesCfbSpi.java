@@ -10,7 +10,6 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.InvalidParameterSpecException;
-import java.util.Arrays;
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.CipherSpi;
@@ -99,8 +98,7 @@ class AesCfbSpi extends CipherSpi {
     try {
       byte[] iv = new byte[IV_SIZE_IN_BYTES];
       random.nextBytes(iv);
-      ivParamSpec = new IvParameterSpec(iv);
-      engineInit(opmode, key, ivParamSpec, random);
+      engineInit(opmode, key, new IvParameterSpec(iv), random);
     } catch (InvalidAlgorithmParameterException e) {
       throw new InvalidKeyException("Failed to initialize with random IV", e);
     }
@@ -198,10 +196,6 @@ class AesCfbSpi extends CipherSpi {
       return 0;
     }
 
-    if (ivParamSpec == null) {
-      throw new IllegalStateException("Cipher not initialized");
-    }
-
     Utils.checkArrayLimits(input, inputOffset, inputLen);
     Utils.checkArrayLimits(output, outputOffset, inputLen);
 
@@ -234,15 +228,14 @@ class AesCfbSpi extends CipherSpi {
       throws IllegalBlockSizeException, BadPaddingException {
     final byte[] output = new byte[engineGetOutputSize(inputLen)];
     try {
-      final int actualLen = engineDoFinal(input, inputOffset, inputLen, output, 0);
-      if (actualLen == output.length) {
-        return output;
-      } else {
-        return Arrays.copyOf(output, actualLen);
-      }
+      // NOTE: If we add padding support in the future, the actual output length may
+      //       be less than the calculated output length. We should detect that case
+      //       and copy the output to an appropriately truncated buffer to return.
+      engineDoFinal(input, inputOffset, inputLen, output, 0);
     } catch (ShortBufferException e) {
       throw new AssertionError("Impossible condition", e);
     }
+    return output;
   }
 
   @Override
@@ -253,10 +246,6 @@ class AesCfbSpi extends CipherSpi {
       final byte[] output,
       final int outputOffset)
       throws ShortBufferException, IllegalBlockSizeException, BadPaddingException {
-    if (ivParamSpec == null) {
-      throw new IllegalStateException("Cipher not initialized");
-    }
-
     if (inputLen > 0) {
       Utils.checkArrayLimits(input, inputOffset, inputLen);
       Utils.checkArrayLimits(output, outputOffset, inputLen);
