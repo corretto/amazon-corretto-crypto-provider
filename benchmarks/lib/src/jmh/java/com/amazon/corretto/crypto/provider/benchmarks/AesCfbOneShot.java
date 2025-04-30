@@ -16,6 +16,7 @@ import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
 
+import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -30,112 +31,32 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
-@BenchmarkMode(Mode.Throughput)
-@OutputTimeUnit(TimeUnit.SECONDS)
-@Warmup(iterations = 3, time = 5)
-@Measurement(iterations = 5, time = 5)
-@Fork(value = 1)
 @State(Scope.Benchmark)
-public class AesCfbOneShot {
-    private static final String ALGORITHM = "AES/CFB/NoPadding";
-    private static final int BLOCK_SIZE = 16;
-
+public class AesCfbOneShot extends AesCfbBase {
     @Param({"128", "256"})
-    private int keySize;
+    public int keyBits;
 
-    @Param({"16", "64", "256", "1024", "4096", "16384"})
-    private int dataSize;
+    @Param({AmazonCorrettoCryptoProvider.PROVIDER_NAME, "BC", "SunJCE"})
+    public String provider;
 
-    @Param({"SunJCE", "AmazonCorrettoCryptoProvider", "BC"})
-    private String providerName;
-
-    private Provider provider;
-    private SecretKey key;
-    private IvParameterSpec iv;
-    private byte[] plaintext;
-    private byte[] ciphertext;
-
-    @Setup(Level.Trial)
-    public void setupProvider() throws Exception {
-        if ("AmazonCorrettoCryptoProvider".equals(providerName)) {
-            provider = Security.getProvider("AmazonCorrettoCryptoProvider");
-            if (provider == null) {
-                try {
-                    // Try to load from the JAR in resources
-                    URL jarUrl = getClass().getClassLoader().getResource("AmazonCorrettoCryptoProvider.jar");
-                    if (jarUrl != null) {
-                        URLClassLoader classLoader = new URLClassLoader(new URL[]{jarUrl}, getClass().getClassLoader());
-                        Class<?> providerClass = classLoader.loadClass("com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider");
-                        provider = (Provider) providerClass.getField("INSTANCE").get(null);
-                        Security.insertProviderAt(provider, 1);
-                        System.out.println("Loaded AmazonCorrettoCryptoProvider from resources JAR");
-                    } else {
-                        // Fall back to the standard way
-                        provider = (Provider) Class.forName("com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider")
-                                .getField("INSTANCE").get(null);
-                        Security.insertProviderAt(provider, 1);
-                        System.out.println("Loaded AmazonCorrettoCryptoProvider from classpath");
-                    }
-                } catch (ReflectiveOperationException e) {
-                    throw new RuntimeException("Unable to load AmazonCorrettoCryptoProvider", e);
-                }
-            }
-        } else if ("BC".equals(providerName)) {
-            provider = Security.getProvider("BC");
-            if (provider == null) {
-                try {
-                    // Load BouncyCastle provider
-                    provider = (Provider) Class.forName("org.bouncycastle.jce.provider.BouncyCastleProvider").newInstance();
-                    Security.insertProviderAt(provider, 1);
-                    System.out.println("Loaded BouncyCastle provider");
-                } catch (ReflectiveOperationException e) {
-                    throw new RuntimeException("Unable to load BouncyCastle provider", e);
-                }
-            }
-        } else {
-            provider = Security.getProvider(providerName);
-        }
-        
-        if (provider == null) {
-            throw new RuntimeException("Provider not found: " + providerName);
-        }
-    }
-
-    @Setup(Level.Iteration)
+    @Setup
     public void setup() throws Exception {
-        // Generate key
-        KeyGenerator keyGen = KeyGenerator.getInstance("AES", provider);
-        keyGen.init(keySize);
-        key = keyGen.generateKey();
-        
-        // Generate IV
-        byte[] ivBytes = new byte[BLOCK_SIZE];
-        new SecureRandom().nextBytes(ivBytes);
-        iv = new IvParameterSpec(ivBytes);
-        
-        // Generate plaintext
-        plaintext = new byte[dataSize];
-        new SecureRandom().nextBytes(plaintext);
-        
-        // Generate ciphertext for decryption benchmark
-        Cipher encryptCipher = Cipher.getInstance(ALGORITHM, provider);
-        encryptCipher.init(Cipher.ENCRYPT_MODE, key, iv);
-        ciphertext = encryptCipher.doFinal(plaintext);
+        super.setup(keyBits, provider);
     }
 
     @Benchmark
-    public void encrypt(Blackhole blackhole) throws Exception {
-        Cipher cipher = Cipher.getInstance(ALGORITHM, provider);
-        cipher.init(Cipher.ENCRYPT_MODE, key, iv);
-        byte[] result = cipher.doFinal(plaintext);
-        blackhole.consume(result);
+    public byte[] oneShot1MiBEncrypt() throws Exception {
+        encryptor.init(Cipher.ENCRYPT_MODE, key, params1);
+        byte[] out = encryptor.doFinal(plaintext);
+        encryptor.init(Cipher.ENCRYPT_MODE, key, params2);
+        return out;
     }
 
     @Benchmark
-    public void decrypt(Blackhole blackhole) throws Exception {
-        Cipher cipher = Cipher.getInstance(ALGORITHM, provider);
-        cipher.init(Cipher.DECRYPT_MODE, key, iv);
-        byte[] result = cipher.doFinal(ciphertext);
-        blackhole.consume(result);
+    public byte[] oneShot1MiBDecrypt() throws Exception {
+        decryptor.init(Cipher.DECRYPT_MODE, key, params1);
+        byte[] out = decryptor.doFinal(ciphertext);
+        decryptor.init(Cipher.DECRYPT_MODE, key, params2);
+        return out;
     }
 }
