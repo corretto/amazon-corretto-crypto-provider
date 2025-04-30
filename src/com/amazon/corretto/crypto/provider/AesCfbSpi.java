@@ -177,10 +177,6 @@ class AesCfbSpi extends CipherSpi {
 
   @Override
   protected byte[] engineUpdate(byte[] input, int inputOffset, int inputLen) {
-    if (inputLen == 0) {
-      return new byte[0];
-    }
-
     final byte[] output = new byte[inputLen];
     try {
       engineUpdate(input, inputOffset, inputLen, output, 0);
@@ -263,9 +259,6 @@ class AesCfbSpi extends CipherSpi {
 
     if (inputLen > 0) {
       Utils.checkArrayLimits(input, inputOffset, inputLen);
-    }
-
-    if (inputLen > 0) {
       Utils.checkArrayLimits(output, outputOffset, inputLen);
     }
 

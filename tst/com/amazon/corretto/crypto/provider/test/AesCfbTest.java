@@ -5,10 +5,10 @@ package com.amazon.corretto.crypto.provider.test;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.nio.ByteBuffer;
-import java.security.AlgorithmParameters;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
@@ -20,6 +20,7 @@ import javax.crypto.KeyGenerator;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.RC2ParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledIf;
@@ -359,17 +360,21 @@ public class AesCfbTest {
     assertFalse(
         Arrays.equals(
             iv, cipher.getIV())); // IV gen'd by SECURE_RANDOM should be different from |iv|
-    assertThrows(
-        InvalidAlgorithmParameterException.class,
-        () -> cipher.init(Cipher.ENCRYPT_MODE, key, (AlgorithmParameters) null, SECURE_RANDOM));
+    assertArrayEquals( // getIV() and getParameters() should return the same IV value.
+        cipher.getIV(), cipher.getParameters().getParameterSpec(IvParameterSpec.class).getIV());
 
     // We also don't support wrap/unsrap modes (yet?)
     assertThrows(
         InvalidAlgorithmParameterException.class,
-        () -> cipher.init(Cipher.WRAP_MODE, key, (AlgorithmParameters) null, SECURE_RANDOM));
+        () -> cipher.init(Cipher.WRAP_MODE, key, ivSpec, SECURE_RANDOM));
     assertThrows(
         InvalidAlgorithmParameterException.class,
-        () -> cipher.init(Cipher.UNWRAP_MODE, key, (AlgorithmParameters) null, SECURE_RANDOM));
+        () -> cipher.init(Cipher.UNWRAP_MODE, key, ivSpec, SECURE_RANDOM));
+
+    // Only IvParameterSpec is supported
+    assertThrows(
+        InvalidAlgorithmParameterException.class,
+        () -> cipher.init(Cipher.ENCRYPT_MODE, key, new RC2ParameterSpec(16), SECURE_RANDOM));
 
     // If cipher is left uninitialized, it should output a random IV
     final Cipher uninitCipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
@@ -377,6 +382,13 @@ public class AesCfbTest {
     assertEquals(BLOCK_SIZE, specOne.getIV().length);
     IvParameterSpec specTwo = uninitCipher.getParameters().getParameterSpec(IvParameterSpec.class);
     assertFalse(Arrays.equals(specOne.getIV(), specTwo.getIV()));
+
+    // getIV(), however, should return null if cipher is not yet initialized
+    assertNull(uninitCipher.getIV());
+
+    // Uninitialized cipher can't be updated or finalized
+    assertThrows(IllegalStateException.class, () -> uninitCipher.update(new byte[16]));
+    assertThrows(IllegalStateException.class, () -> uninitCipher.doFinal(new byte[16]));
   }
 
   private SecretKey generateKey(int keySize)
