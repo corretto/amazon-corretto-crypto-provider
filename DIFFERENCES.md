@@ -115,3 +115,17 @@ Under this bug, OpenJDK will represent some EC keys' private value `s` with non-
 ACCP always uses the standard byte array length (i.e. the maximum number of bytes a key of that order can occupy).
 Because both [ACCP](https://github.com/corretto/amazon-corretto-crypto-provider/blob/main/src/com/amazon/corretto/crypto/provider/EvpKey.java#L123-L153) and [OpenJDK](https://github.com/openjdk/jdk10/blob/master/src/java.base/share/classes/sun/security/pkcs/PKCS8Key.java#L411-L423) determine equality by comparing DER encoding byte-by-byte, under this bug some JDK10 keys with an `s` value numerically equivalent to those of ACCP will be considered unequal.
 Given that this bug is only present in JDK10 (and notably not in _any_ Corretto version, nor more recent OpenJDK versions), and that OpenJDK10 is EoL'd and should be migrated away from, this incompatibility is acceptable.
+
+## AES-CBC PKCSPadding output buffer requirements
+
+Proper decryption of PKCS5Padding and PKCS7Padding ciphertexts requires the implementation to withhold the final block
+of plaintext until a `doFinal` call in order to properly remove the padding bytes from the output. In AWS-LC, this
+final block of plaintext is temporarily written to the output buffer before it is cached in its internal context and
+the reported output is truncated by the block size ([code reference](https://github.com/aws/aws-lc/blob/9dbc62b2d3b0d5a2dee297e7598dc83c0d66e4d3/crypto/fipsmodule/cipher/cipher.c#L466)).
+This requires AWS-LC callers to provide an output buffer large enough to hold the expected plaintext and one additional
+block for decrypting the final block. ACCP exposes this to its callers [here](https://github.com/corretto/amazon-corretto-crypto-provider/blob/4db841b3dbcb8d841c60c6cdd666a5c07f77c06e/src/com/amazon/corretto/crypto/provider/AesCbcSpi.java#L395-L397)
+and requires that `Cipher` callers provide an output buffer whose size matches the required size returned by
+`getOutputSize`. Failure to meet the output buffer size specified by `getOutputSize` in ACCP will result in a
+`ShortBufferException` being thrown.
+
+In SunJCE, the final block is cached and processed without the need for additional buffer space provided by the caller.
