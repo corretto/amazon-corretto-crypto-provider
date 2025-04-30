@@ -5,7 +5,6 @@ package com.amazon.corretto.crypto.provider.test;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.nio.ByteBuffer;
@@ -44,8 +43,7 @@ public class AesCfbTest {
 
   // TODO: remove this disablement when AWS-LC-FIPS has moved AES CFB EVP_CIPHER to FIPS module
   public static boolean isDisabled() {
-    return TestUtil.NATIVE_PROVIDER.isFips()
-        && !TestUtil.NATIVE_PROVIDER.isExperimentalFips();
+    return TestUtil.NATIVE_PROVIDER.isFips() && !TestUtil.NATIVE_PROVIDER.isExperimentalFips();
   }
 
   static {
@@ -329,8 +327,8 @@ public class AesCfbTest {
 
     // Test invalid padding
     assertThrows(
-        NoSuchAlgorithmException.class,
-        () -> Cipher.getInstance("AES/CFB/PKCS5Padding", TestUtil.NATIVE_PROVIDER));
+        NoSuchPaddingException.class,
+        () -> Cipher.getInstance("AES/CFB/InvalidPadding", TestUtil.NATIVE_PROVIDER));
 
     // Direct invocation via reflection
     Object spi = TestUtil.sneakyConstruct(SPI_CLASS.getName(), TestUtil.NATIVE_PROVIDER);
@@ -362,18 +360,23 @@ public class AesCfbTest {
         Arrays.equals(
             iv, cipher.getIV())); // IV gen'd by SECURE_RANDOM should be different from |iv|
     assertThrows(
-        UnsupportedOperationException.class,
+        InvalidAlgorithmParameterException.class,
         () -> cipher.init(Cipher.ENCRYPT_MODE, key, (AlgorithmParameters) null, SECURE_RANDOM));
 
     // We also don't support wrap/unsrap modes (yet?)
     assertThrows(
-        UnsupportedOperationException.class,
+        InvalidAlgorithmParameterException.class,
         () -> cipher.init(Cipher.WRAP_MODE, key, (AlgorithmParameters) null, SECURE_RANDOM));
     assertThrows(
-        UnsupportedOperationException.class,
+        InvalidAlgorithmParameterException.class,
         () -> cipher.init(Cipher.UNWRAP_MODE, key, (AlgorithmParameters) null, SECURE_RANDOM));
 
-    assertNull(cipher.getParameters());
+    // If cipher is left uninitialized, it should output a random IV
+    final Cipher uninitCipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
+    IvParameterSpec specOne = uninitCipher.getParameters().getParameterSpec(IvParameterSpec.class);
+    assertEquals(BLOCK_SIZE, specOne.getIV().length);
+    IvParameterSpec specTwo = uninitCipher.getParameters().getParameterSpec(IvParameterSpec.class);
+    assertFalse(Arrays.equals(specOne.getIV(), specTwo.getIV()));
   }
 
   private SecretKey generateKey(int keySize)

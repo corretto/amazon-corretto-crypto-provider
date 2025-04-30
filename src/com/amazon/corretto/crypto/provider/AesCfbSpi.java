@@ -9,6 +9,7 @@ import java.security.Key;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.spec.InvalidParameterSpecException;
 import java.util.Arrays;
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -27,12 +28,11 @@ class AesCfbSpi extends CipherSpi {
   static final int ENC_MODE = 1;
   static final int DEC_MODE = 0;
 
-  private final byte[] iv = new byte[IV_SIZE_IN_BYTES];
+  private IvParameterSpec ivParamSpec = null; // gets populated on initialization
   private int opMode;
   private int keyLen;
   private byte[] key = null;
   private NativeResource context = null;
-  private boolean initialized = false;
   private final AmazonCorrettoCryptoProvider provider;
 
   AesCfbSpi(final AmazonCorrettoCryptoProvider provider) {
@@ -66,21 +66,41 @@ class AesCfbSpi extends CipherSpi {
 
   @Override
   protected byte[] engineGetIV() {
-    return iv.clone();
+    if (ivParamSpec == null) {
+      return null;
+    }
+    return ivParamSpec.getIV();
   }
 
   @Override
   protected AlgorithmParameters engineGetParameters() {
-    return null;
+    try {
+      // CipherSpi docs require that we don't return null here, as the algorithm supports
+      // parameters. If we're initialized, return the IV that was specified. Else, generate a new
+      // random one but
+      // do not update cipher initialization state.
+      AlgorithmParameters parameters = AlgorithmParameters.getInstance("AES");
+      if (ivParamSpec == null) {
+        byte[] ivForParams = new byte[BLOCK_SIZE_IN_BYTES];
+        new LibCryptoRng().nextBytes(ivForParams);
+        parameters.init(new IvParameterSpec(ivForParams));
+      } else {
+        parameters.init(ivParamSpec);
+      }
+      return parameters;
+    } catch (final InvalidParameterSpecException | NoSuchAlgorithmException e) {
+      throw new RuntimeCryptoException("Unexpected error", e);
+    }
   }
 
   @Override
   protected void engineInit(final int opmode, final Key key, final SecureRandom random)
       throws InvalidKeyException {
     try {
-      byte[] newIv = new byte[IV_SIZE_IN_BYTES];
-      random.nextBytes(newIv);
-      engineInit(opmode, key, new IvParameterSpec(newIv), random);
+      byte[] iv = new byte[IV_SIZE_IN_BYTES];
+      random.nextBytes(iv);
+      ivParamSpec = new IvParameterSpec(iv);
+      engineInit(opmode, key, ivParamSpec, random);
     } catch (InvalidAlgorithmParameterException e) {
       throw new InvalidKeyException("Failed to initialize with random IV", e);
     }
@@ -98,6 +118,25 @@ class AesCfbSpi extends CipherSpi {
     }
     final IvParameterSpec ivParameterSpec = (IvParameterSpec) params;
     final byte[] ivBytes = ivParameterSpec.getIV();
+    init(opmode, key, ivBytes);
+  }
+
+  @Override
+  protected void engineInit(
+      final int opmode, final Key key, AlgorithmParameters params, final SecureRandom random)
+      throws InvalidKeyException, InvalidAlgorithmParameterException {
+    if (params == null) {
+      throw new InvalidAlgorithmParameterException("Params must not be null");
+    }
+    try {
+      engineInit(opmode, key, params.getParameterSpec(IvParameterSpec.class), random);
+    } catch (final InvalidParameterSpecException e) {
+      throw new InvalidAlgorithmParameterException(e);
+    }
+  }
+
+  private void init(final int opmode, final Key key, final byte[] ivBytes)
+      throws InvalidKeyException, InvalidAlgorithmParameterException {
     if (ivBytes.length != IV_SIZE_IN_BYTES) {
       throw new InvalidAlgorithmParameterException(
           "Provided IV must be of length " + IV_SIZE_IN_BYTES);
@@ -115,23 +154,19 @@ class AesCfbSpi extends CipherSpi {
           "Key length must be " + KEY_LEN_AES128 + " or " + KEY_LEN_AES256);
     }
 
-    init(opmode, keyBytes, ivBytes);
-  }
-
-  @Override
-  protected void engineInit(
-      final int opmode, final Key key, AlgorithmParameters params, final SecureRandom random)
-      throws InvalidKeyException, InvalidAlgorithmParameterException {
-    throw new UnsupportedOperationException(
-        "IV must be provided by passing an instance of IvParameterSpec.");
-  }
-
-  private void init(final int opmode, final byte[] keyBytes, final byte[] ivBytes) {
-    this.opMode = (opmode == Cipher.ENCRYPT_MODE) ? ENC_MODE : DEC_MODE;
+    switch (opmode) {
+      case Cipher.ENCRYPT_MODE:
+        this.opMode = ENC_MODE;
+        break;
+      case Cipher.DECRYPT_MODE:
+        this.opMode = DEC_MODE;
+        break;
+      default:
+        throw new InvalidAlgorithmParameterException("Invalid opmode: " + opmode);
+    }
     this.keyLen = keyBytes.length;
     this.key = keyBytes.clone();
-    System.arraycopy(ivBytes, 0, iv, 0, IV_SIZE_IN_BYTES);
-    this.initialized = true;
+    this.ivParamSpec = new IvParameterSpec(ivBytes); // TODO [childw] enforce IV constraints
 
     // Free any existing context
     if (context != null) {
@@ -167,7 +202,7 @@ class AesCfbSpi extends CipherSpi {
       return 0;
     }
 
-    if (!initialized) {
+    if (ivParamSpec == null) {
       throw new IllegalStateException("Cipher not initialized");
     }
 
@@ -182,7 +217,7 @@ class AesCfbSpi extends CipherSpi {
               opMode,
               key,
               keyLen,
-              iv,
+              ivParamSpec.getIV(),
               ctxContainer,
               0,
               input,
@@ -222,7 +257,7 @@ class AesCfbSpi extends CipherSpi {
       final byte[] output,
       final int outputOffset)
       throws ShortBufferException, IllegalBlockSizeException, BadPaddingException {
-    if (!initialized) {
+    if (ivParamSpec == null) {
       throw new IllegalStateException("Cipher not initialized");
     }
 
@@ -242,7 +277,7 @@ class AesCfbSpi extends CipherSpi {
               opMode,
               key,
               keyLen,
-              iv,
+              ivParamSpec.getIV(),
               null,
               0,
               false,

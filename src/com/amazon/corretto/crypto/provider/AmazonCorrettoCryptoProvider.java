@@ -148,9 +148,14 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     addService("Cipher", "AES/XTS/NoPadding", "AesXtsSpi", false);
 
     if (shouldRegisterAesCfb) {
-      addService("Cipher", "AES/CFB/NoPadding", "AesCfbSpi");
-      addService("Cipher", "AES_128/CFB/NoPadding", "AesCfbSpi");
-      addService("Cipher", "AES_256/CFB/NoPadding", "AesCfbSpi");
+      addService(
+          "Cipher",
+          "AES/CFB",
+          "AesCfbSpi",
+          true,
+          singletonMap("SupportedModes", "CFB"),
+          "AES_128/CFB",
+          "AES_256/CFB");
     }
 
     addService(
