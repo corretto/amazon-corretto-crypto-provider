@@ -191,7 +191,12 @@ public class AesCfbTest {
       cipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
       final byte[] ciphertext = cipher.doFinal(plaintext);
       assertEquals(size, ciphertext.length);
-      assertFalse(Arrays.equals(plaintext, ciphertext), "For size: " + size);
+      // Don't do this check on 1-byte plaintext, as it's equal to ciphertext w/ some non-negligible
+      // probability
+      // when the block cipher output's single byte is 0.
+      if (size > 1) {
+        assertFalse(Arrays.equals(plaintext, ciphertext), "For size: " + size);
+      }
       cipher.init(Cipher.DECRYPT_MODE, key, ivSpec);
       final byte[] decrypted = cipher.doFinal(ciphertext);
 
