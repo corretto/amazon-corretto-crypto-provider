@@ -213,10 +213,8 @@ ACCP artifacts on Maven can be verified using the following PGP keys:
 
 
 ### Gradle
-Add the following to your `build.gradle` file. If you already have a
-`dependencies` block in your `build.gradle`, you can add the ACCP line to your
-existing block.
-For more information, please see [VERSIONING.rst](https://github.com/corretto/amazon-corretto-crypto-provider/blob/main/VERSIONING.rst).
+
+Add something like following to your `build.gradle` file.
 
 ```groovy
 dependencies {
@@ -224,10 +222,16 @@ dependencies {
 }
 ```
 
+If you already have a `dependencies` block in your `build.gradle`, you can add the ACCP line to your existing block.
+
+The above sample configuration assumes you're using the `linux-x86_64` platform. If you're using another platform, please refer to the "Installation" parent section above and substitute appropriately.
+
 For Gradle builds, the [os-detector plugin](https://github.com/google/osdetector-gradle-plugin)
-could be used so that one does not have to explicitly specify the platform.
+can be used to avoid explicitly specifying the platform.
 [Here](https://github.com/corretto/amazon-corretto-crypto-provider/blob/f1d54b34cf4765789314941dbeefdafd35a4da58/examples/gradle-kt-dsl/lib/build.gradle.kts#L30)
 is an example.
+
+For more version information, please see [VERSIONING.rst](https://github.com/corretto/amazon-corretto-crypto-provider/blob/main/VERSIONING.rst).
 
 ### Bundle ACCP with JDK
 We provide two scripts that allow one to add ACCP to their JDKs: one for JDK8 and one for JDKs 11+.
