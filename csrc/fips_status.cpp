@@ -17,7 +17,8 @@ extern "C" void AWS_LC_fips_failure_callback(char const* message);
 #if defined(FIPS_SELF_TEST_SKIP_ABORT)
 void AWS_LC_fips_failure_callback(char const* message)
 {
-    const size_t char_limit = 128;
+    // Must track https://github.com/aws/aws-lc/blob/e4885d5e22f7dc482dd6bfa713b0e1b763b5c538/crypto/fipsmodule/self_check/self_check.c#L52
+    const size_t char_limit = 10315;    // (2 * (2 * 2560)) + 42 + 33
     if (strnlen(message, char_limit + 1) > char_limit) {
         fprintf(stderr, "AWS_LC_fips_failure_callback invoked with message message exceeding %lu chars\n", char_limit);
         return;
