@@ -49,6 +49,8 @@ Cipher algorithms:
   * PKCS7Padding is also accepted with AES/CBC and it is treated the same as PKCS5.
 * AES/CBC/ISO10126Padding
     * AES_\<n\>/CBC/ISO10126Padding, where n can be 128, 192, or 256
+* AES/CFB/NoPadding
+    * AES_\<n\>/CFB/NoPadding, where n can be 128 or 256
 * RSA/ECB/NoPadding
 * RSA/ECB/PKCS1Padding
 * RSA/ECB/OAEPPadding
