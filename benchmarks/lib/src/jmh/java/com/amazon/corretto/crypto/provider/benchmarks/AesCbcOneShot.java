@@ -20,7 +20,7 @@ public class AesCbcOneShot extends AesBase {
   @Param({AmazonCorrettoCryptoProvider.PROVIDER_NAME, "BC", "SunJCE"})
   public String provider;
 
-  @Param({"NoPadding"})
+  @Param({"NoPadding", "PKCS5Padding" })
   public String padding;
 
   @Setup
