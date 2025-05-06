@@ -13,14 +13,14 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 
 @State(Scope.Benchmark)
-public class AesCfbUpdate extends AesBase {
+public class AesCbcUpdate extends AesBase {
   @Param({"128", "256"})
   public int keyBits;
 
   @Param({AmazonCorrettoCryptoProvider.PROVIDER_NAME, "BC", "SunJCE"})
   public String provider;
 
-  @Param({"NoPadding"})
+  @Param({"NoPadding", "PKCS5Padding" })
   public String padding;
 
   @Param({"16", "256"})
@@ -33,7 +33,7 @@ public class AesCfbUpdate extends AesBase {
 
   @Override
   protected String getMode() {
-    return "CFB";
+    return "CBC";
   }
 
   @Override

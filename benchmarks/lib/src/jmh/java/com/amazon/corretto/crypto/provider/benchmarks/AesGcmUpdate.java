@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.amazon.corretto.crypto.provider.benchmarks;
 
-import javax.crypto.Cipher;
+import java.security.spec.AlgorithmParameterSpec;
+import javax.crypto.spec.GCMParameterSpec;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -12,43 +13,46 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 
 @State(Scope.Benchmark)
-public class AesGcmUpdate extends AesGcmBase {
+public class AesGcmUpdate extends AesBase {
   @Param({"128", "256"})
   public int keyBits;
-
-  @Param({"16", "256"})
-  public int chunkSize;
 
   @Param({AmazonCorrettoCryptoProvider.PROVIDER_NAME, "BC", "SunJCE"})
   public String provider;
 
+  @Param({"NoPadding"})
+  public String padding;
+
+  @Param({"16", "256"})
+  public int chunkSize;
+
   @Setup
   public void setup() throws Exception {
-    super.setup(keyBits, provider);
-    assert PLAINTEXT_SIZE % chunkSize == 0;
+    super.setup(keyBits, provider, padding);
+  }
+
+  @Override
+  protected String getMode() {
+    return "GCM";
+  }
+
+  @Override
+  protected AlgorithmParameterSpec createParameterSpec(byte[] iv) {
+    return new GCMParameterSpec(128, iv);
+  }
+
+  @Override
+  protected int getIvSize() {
+    return 12;
   }
 
   @Benchmark
-  public byte[] updateEncrypt() throws Exception {
-    encryptor.init(Cipher.ENCRYPT_MODE, key, params1);
-    for (int ii = 0; ii < plaintext.length; ii += chunkSize) {
-      encryptor.update(plaintext, ii, chunkSize);
-    }
-    byte[] out = encryptor.doFinal();
-    encryptor.init(Cipher.ENCRYPT_MODE, key, params2);
-    return out;
+  public byte[] encrypt() throws Exception {
+    return super.updateEncrypt(chunkSize);
   }
 
   @Benchmark
-  public byte[] updateDecrypt() throws Exception {
-    decryptor.init(Cipher.DECRYPT_MODE, key, params1);
-    for (int ii = 0; ii < plaintext.length; ii += chunkSize) {
-      decryptor.update(ciphertext, ii, chunkSize);
-    }
-    // don't forget to include the auth tag
-    decryptor.update(ciphertext, plaintext.length, ciphertext.length - plaintext.length);
-    byte[] out = decryptor.doFinal();
-    decryptor.init(Cipher.DECRYPT_MODE, key, params2);
-    return out;
+  public byte[] decrypt() throws Exception {
+    return super.updateDecrypt(chunkSize);
   }
 }

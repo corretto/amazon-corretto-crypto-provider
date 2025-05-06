@@ -13,18 +13,15 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 
 @State(Scope.Benchmark)
-public class AesCfbUpdate extends AesBase {
+public class AesCbcOneShot extends AesBase {
   @Param({"128", "256"})
   public int keyBits;
 
   @Param({AmazonCorrettoCryptoProvider.PROVIDER_NAME, "BC", "SunJCE"})
   public String provider;
 
-  @Param({"NoPadding"})
+  @Param({"NoPadding", "PKCS5Padding" })
   public String padding;
-
-  @Param({"16", "256"})
-  public int chunkSize;
 
   @Setup
   public void setup() throws Exception {
@@ -33,7 +30,7 @@ public class AesCfbUpdate extends AesBase {
 
   @Override
   protected String getMode() {
-    return "CFB";
+    return "CBC";
   }
 
   @Override
@@ -48,11 +45,11 @@ public class AesCfbUpdate extends AesBase {
 
   @Benchmark
   public byte[] encrypt() throws Exception {
-    return super.updateEncrypt(chunkSize);
+    return super.oneShot1MiBEncrypt();
   }
 
   @Benchmark
   public byte[] decrypt() throws Exception {
-    return super.updateDecrypt(chunkSize);
+    return super.oneShot1MiBDecrypt();
   }
 }
