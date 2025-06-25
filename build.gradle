@@ -43,6 +43,10 @@ if (isFipsSelfTestFailureSkipAbort && !isFips) {
     throw new GradleException("FIPS_SELF_TEST_SKIP_ABORT can only be set if FIPS is also set to true")
 }
 
+if (!System.env.JAVA_HOME) {
+    throw new GradleException("JAVA_HOME environment variable is not set. Please set JAVA_HOME to point to your JDK installation.")
+}
+
 ext.lcovIgnore = System.properties['LCOV_IGNORE']
 if (ext.lcovIgnore == null) {
     ext.lcovIgnore = 'source'
