@@ -185,11 +185,11 @@ dependencies {
     jacocoAgent group: 'org.jacoco', name: 'org.jacoco.agent', version: '0.8.13', classifier: 'runtime'
 
     // Separate so we can extract the jar for the runner specifically
-    testRunner group: 'org.junit.platform', name: 'junit-platform-console-standalone', version: '1.13.2'
+    testRunner group: 'org.junit.platform', name: 'junit-platform-console-standalone', version: '1.10.3'
 
     testDep 'org.apiguardian:apiguardian-api:1.1.2'
-    testDep 'org.junit.jupiter:junit-jupiter:5.13.2'
-    testDep 'org.junit.vintage:junit-vintage-engine:5.13.2'
+    testDep 'org.junit.jupiter:junit-jupiter:5.10.3'
+    testDep 'org.junit.vintage:junit-vintage-engine:5.10.3'
     testDep 'org.bouncycastle:bcpkix-jdk18on:1.81'
     testDep 'org.bouncycastle:bcprov-jdk18on:1.81'
     testDep 'commons-codec:commons-codec:1.18.0'
