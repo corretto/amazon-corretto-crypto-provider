@@ -90,9 +90,7 @@ public class MLDSATest {
         // support non-Bouncy-Castle keys.
         KeyFactory bcKf = KeyFactory.getInstance("ML-DSA", TestUtil.BC_PROVIDER);
         PublicKey bcPub = bcKf.generatePublic(new X509EncodedKeySpec(nativePub.getEncoded()));
-        // TODO uncomment below once BC supports CHOICE-encoded private keys
-        // PrivateKey bcPriv = bcKf.generatePrivate(new
-        // PKCS8EncodedKeySpec(nativePriv.getEncoded()));
+        PrivateKey bcPriv = bcKf.generatePrivate(new PKCS8EncodedKeySpec(nativePriv.getEncoded()));
 
         Provider nativeProv = NATIVE_PROVIDER;
         Provider bcProv = TestUtil.BC_PROVIDER;
@@ -102,8 +100,8 @@ public class MLDSATest {
 
         params.add(new TestParams(nativeProv, nativeProv, nativePriv, nativePub, message));
         params.add(new TestParams(nativeProv, bcProv, nativePriv, bcPub, message));
-        // params.add(new TestParams(bcProv, nativeProv, bcPriv, nativePub, message));
-        // params.add(new TestParams(bcProv, bcProv, bcPriv, bcPub, message));
+        params.add(new TestParams(bcProv, nativeProv, bcPriv, nativePub, message));
+        params.add(new TestParams(bcProv, bcProv, bcPriv, bcPub, message));
       }
     }
     return params;
