@@ -13,8 +13,7 @@ import org.openjdk.jmh.annotations.State;
 
 @State(Scope.Benchmark)
 public class SignatureRSA extends SignatureBase {
-  @Param({"SHA1", "SHA224", "SHA256", "SHA384", "SHA512"})
-  public String hash;
+  public String hash = "SHA256";
 
   @Param({"2048", "4096"})
   public int bits;
