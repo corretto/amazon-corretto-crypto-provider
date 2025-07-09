@@ -25,7 +25,6 @@ import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledIf;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -202,7 +201,6 @@ public class MLDSATest {
         });
   }
 
-  @Disabled("until BC updates to newer CHOICE priv key encoding format")
   @Test
   public void documentBouncyCastleDifferences() throws Exception {
     // ACCP and BouncyCastle both encode ML-DSA public keys in "expanded "form and ML-DSA private
@@ -215,7 +213,7 @@ public class MLDSATest {
     PublicKey bcPub = bcKf.generatePublic(new X509EncodedKeySpec(nativePub.getEncoded()));
     PrivateKey bcPriv = bcKf.generatePrivate(new PKCS8EncodedKeySpec(nativePriv.getEncoded()));
     TestUtil.assertArraysHexEquals(bcPub.getEncoded(), nativePub.getEncoded());
-    assertEquals(bcPriv.getEncoded().length + 2, nativePriv.getEncoded().length);
+    assertEquals(bcPriv.getEncoded().length, nativePriv.getEncoded().length);
     TestUtil.assertArraysHexEquals(bcPriv.getEncoded(), nativePriv.getEncoded());
 
     nativePair = KeyPairGenerator.getInstance("ML-DSA-65", NATIVE_PROVIDER).generateKeyPair();
@@ -224,7 +222,7 @@ public class MLDSATest {
     bcPub = bcKf.generatePublic(new X509EncodedKeySpec(nativePub.getEncoded()));
     bcPriv = bcKf.generatePrivate(new PKCS8EncodedKeySpec(nativePriv.getEncoded()));
     TestUtil.assertArraysHexEquals(bcPub.getEncoded(), nativePub.getEncoded());
-    assertEquals(bcPriv.getEncoded().length + 2, nativePriv.getEncoded().length);
+    assertEquals(bcPriv.getEncoded().length, nativePriv.getEncoded().length);
     TestUtil.assertArraysHexEquals(bcPriv.getEncoded(), nativePriv.getEncoded());
 
     nativePair = KeyPairGenerator.getInstance("ML-DSA-87", NATIVE_PROVIDER).generateKeyPair();
