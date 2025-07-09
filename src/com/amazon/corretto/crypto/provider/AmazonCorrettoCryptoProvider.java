@@ -70,6 +70,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
   private final boolean shouldRegisterMLDSA;
   private final boolean shouldRegisterAesCfb;
   private final Utils.NativeContextReleaseStrategy nativeContextReleaseStrategy;
+  private final boolean shouldRegisterMLKEM;
 
   private transient SelfTestSuite selfTestSuite = new SelfTestSuite();
 
@@ -245,6 +246,22 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     if (shouldRegisterMLDSA) {
       addService("Signature", "ML-DSA", "EvpSignatureRaw$MLDSA");
       addService("Signature", "ML-DSA-ExtMu", "EvpSignatureRaw$MLDSAExtMu");
+    }
+
+    if (shouldRegisterMLKEM) {
+      System.out.println("*** REGISTERING ML-KEM SERVICES ***");
+      addService("KEM", "ML-KEM-512", "jdk17plus.MLKemSpi$MLKem512");
+      addService("KEM", "ML-KEM-768", "jdk17plus.MLKemSpi$MLKem768");
+      addService("KEM", "ML-KEM-1024", "jdk17plus.MLKemSpi$MLKem1024");
+
+      addService("KeyPairGenerator", "ML-KEM-512", "jdk17plus.MLKemKeyGen$MLKemKeyGen512");
+      addService("KeyPairGenerator", "ML-KEM-768", "jdk17plus.MLKemKeyGen$MLKemKeyGen768");
+      addService("KeyPairGenerator", "ML-KEM-1024", "jdk17plus.MLKemKeyGen$MLKemKeyGen1024");
+
+      addService("KeyFactory", "ML-KEM", "jdk17plus.MLKemKeyFactory");
+      System.out.println("*** ML-KEM SERVICES REGISTERED ***");
+    } else {
+      System.out.println("*** NOT REGISTERING ML-KEM SERVICES ***");
     }
   }
 
@@ -547,6 +564,16 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
         Utils.getBooleanProperty(PROPERTY_REGISTER_ED_KEYFACTORY, false);
 
     this.shouldRegisterMLDSA = (!isFips() || isExperimentalFips());
+
+    this.shouldRegisterMLKEM = Utils.isKEMSupported() && (!isFips() || isExperimentalFips());
+    
+    // Debug output for ML-KEM registration decision
+    System.out.println("=== ML-KEM REGISTRATION DEBUG ===");
+    System.out.println("Utils.isKEMSupported(): " + Utils.isKEMSupported());
+    System.out.println("isFips(): " + isFips());
+    System.out.println("isExperimentalFips(): " + isExperimentalFips());
+    System.out.println("shouldRegisterMLKEM: " + this.shouldRegisterMLKEM);
+    System.out.println("================================");
 
     this.shouldRegisterAesCfb = (!isFips() || isExperimentalFips());
 

@@ -25,7 +25,9 @@ if (ext.isExperimentalFips || !ext.isFips) {
     ext.awsLcGitVersionId = ext.awsLcMainTag
 } else {
     ext.awsLcGitVersionId = ext.awsLcFipsTag
+
 }
+
 
 // Check for user inputted git version ID.
 if (System.properties["AWSLC_GITVERSION"]) {
@@ -117,6 +119,80 @@ def getClangFormatVersion() {
         return ''
     }
 }
+
+ext.targetMinJdk = project.findProperty('targetMinJdk') ?: '8'
+ext.buildJdk = System.getProperty("java.version").split('\\.')[0] as Integer
+
+def isKemSupported(String version) {
+    println "=== KEM SUPPORT DEBUG ==="
+    println "Java version string: ${version}"
+    def versionNumber = Integer.parseInt(version.split('\\.')[0])
+    println "Parsed major version: ${versionNumber}"
+    
+    if (versionNumber >= 21) {
+        println "Java 21+ detected - KEM should be supported"
+        return true
+    }
+    if (versionNumber == 17) {
+        println "Java 17 detected - checking if KEM classes are available..."
+        try {
+            Class.forName("javax.crypto.KEM")
+            println "SUCCESS: javax.crypto.KEM class found!"
+            return true
+        } catch (Exception e) {
+            println "FAILED: javax.crypto.KEM class NOT found - ${e.getMessage()}"
+            return false
+        }
+    }
+    println "Java version ${versionNumber} - KEM not supported"
+    return false
+}
+
+
+
+def shouldExcludeJdkSpecificCode() {
+    def kemSupported = isKemSupported(System.getProperty("java.version"))
+    def shouldExclude = !kemSupported
+    println "=== EXCLUSION LOGIC DEBUG ==="
+    println "KEM supported: ${kemSupported}"
+    println "Should exclude jdk17plus files: ${shouldExclude}"
+    println "=========================="
+    return shouldExclude
+}
+
+// Enhanced conditional compilation
+tasks.withType(JavaCompile) {
+    if (shouldExcludeJdkSpecificCode()) {
+        exclude '**/jdk17plus/**'
+        println "*** EXCLUDING JDK17+ specific code - building on JDK ${buildJdk} ***"
+    } else {
+        println "*** INCLUDING JDK17+ specific code - building on JDK ${buildJdk} ***"
+    }
+}
+
+tasks.withType(Test) {
+    if (shouldExcludeJdkSpecificCode()) {
+        exclude '**/jdk17plus/**'
+    }
+}
+
+sourceSets {
+    main {
+        java {
+            if (shouldExcludeJdkSpecificCode()) {
+                exclude '**/jdk17plus/**'
+            }
+        }
+    }
+    test {
+        java {
+            if (shouldExcludeJdkSpecificCode()) {
+                exclude '**/jdk17plus/**'
+            }
+        }
+    }
+}
+
 
 def awslcSrcPath = "${projectDir}/aws-lc/"
 
