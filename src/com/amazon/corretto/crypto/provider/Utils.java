@@ -231,20 +231,21 @@ final class Utils {
    */
   static boolean isKEMSupported() {
     int javaVersion = getJavaVersion();
-    
+
     if (javaVersion >= 21) {
-        return true;
+      return true;
     }
     if (javaVersion >= 17) {
-        try {
-            Class.forName("javax.crypto.KEM");
-            return true;
-        } catch (ClassNotFoundException e) {
-            return false;
-        }
+      try {
+        Class.forName("javax.crypto.KEM");
+        return true;
+      } catch (ClassNotFoundException e) {
+        return false;
+      }
     }
     return false;
-}
+  }
+
   static Key buildUnwrappedKey(final byte[] rawKey, final String algorithm, final int keyType)
       throws NoSuchAlgorithmException, InvalidKeySpecException {
     return buildUnwrappedKey(AmazonCorrettoCryptoProvider.INSTANCE, rawKey, algorithm, keyType);

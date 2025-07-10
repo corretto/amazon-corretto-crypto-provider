@@ -254,6 +254,8 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
       addService("KEM", "ML-KEM-768", "jdk17plus.MLKemSpi$MLKem768");
       addService("KEM", "ML-KEM-1024", "jdk17plus.MLKemSpi$MLKem1024");
 
+      // Default ML-KEM KeyPairGenerator (uses ML-KEM-768 as default security level)
+      addService("KeyPairGenerator", "ML-KEM", "jdk17plus.MLKemKeyGen$MLKemKeyGen768");
       addService("KeyPairGenerator", "ML-KEM-512", "jdk17plus.MLKemKeyGen$MLKemKeyGen512");
       addService("KeyPairGenerator", "ML-KEM-768", "jdk17plus.MLKemKeyGen$MLKemKeyGen768");
       addService("KeyPairGenerator", "ML-KEM-1024", "jdk17plus.MLKemKeyGen$MLKemKeyGen1024");
@@ -566,7 +568,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     this.shouldRegisterMLDSA = (!isFips() || isExperimentalFips());
 
     this.shouldRegisterMLKEM = Utils.isKEMSupported() && (!isFips() || isExperimentalFips());
-    
+
     // Debug output for ML-KEM registration decision
     System.out.println("=== ML-KEM REGISTRATION DEBUG ===");
     System.out.println("Utils.isKEMSupported(): " + Utils.isKEMSupported());
