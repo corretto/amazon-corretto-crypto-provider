@@ -129,6 +129,16 @@ def isKemSupported(String version) {
     def versionNumber = Integer.parseInt(version.split('\\.')[0])
     println "Parsed major version: ${versionNumber}"
     
+    // Check target minimum JDK version
+    def targetMinJdkVersion = Integer.parseInt(targetMinJdk)
+    println "Target minimum JDK version: ${targetMinJdkVersion}"
+    
+    // If targeting JDK < 17, don't include ML-KEM regardless of build JDK
+    if (targetMinJdkVersion < 17) {
+        println "Target JDK version is less than 17 - KEM will not be supported"
+        return false
+    }
+    
     if (versionNumber >= 21) {
         println "Java 21+ detected - KEM should be supported"
         return true
@@ -410,6 +420,7 @@ task executeCmake(type: Exec) {
     args "-DTEST_RUNNER_JAR=${configurations.testRunner.singleFile}"
     args "-DCMAKE_VERBOSE_MAKEFILE:BOOL=${isVerbose ? 'ON' : 'OFF'}"
     args "-DAWS_LC_VERSION_STRING=" + awsLcGitVersionId
+    args "-DTARGET_JDK_VERSION=" + targetMinJdk
     if (isFips) {
         args "-DFIPS=ON"
     }
