@@ -120,7 +120,7 @@ def getClangFormatVersion() {
     }
 }
 
-ext.targetMinJdk = project.findProperty('targetMinJdk') ?: '8'
+ext.targetMinJdk = System.getProperty('targetMinJdk') ?: project.findProperty('targetMinJdk') ?: '8'
 ext.buildJdk = System.getProperty("java.version").split('\\.')[0] as Integer
 
 def isKemSupported(String version) {
