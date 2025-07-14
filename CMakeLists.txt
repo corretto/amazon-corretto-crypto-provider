@@ -35,23 +35,17 @@ execute_process(
     RESULT_VARIABLE JAVAC_VERSION_RESULT
 )
 
-# Check if TARGET_JDK_VERSION is set
-# if not defined, set to legacy version at 8
 
-if(NOT DEFINED TARGET_JDK_VERSION)
-    set(TARGET_JDK_VERSION 8)
-    message(STATUS "TARGET_JDK_VERSION not defined, defaulting to: ${TARGET_JDK_VERSION}")
-endif()
 
 message(STATUS "Target JDK version set to: ${TARGET_JDK_VERSION}")
 
 # Determine KEM support based on target JDK version
 if(TARGET_JDK_VERSION LESS 17)
     set(KEM_SUPPORTED FALSE)
-    message(STATUS "Target JDK version is less than 17 - KEM will not be supported")
+    message(STATUS "Target JDK version ${TARGET_JDK_VERSION} - KEM will not be supported")
 else()
     set(KEM_SUPPORTED TRUE)
-    message(STATUS "Target JDK version is 17 or higher - KEM will be supported")
+    message(STATUS "Target JDK version ${TARGET_JDK_VERSION} - KEM will be supported")
 endif()
 
 find_package(JNI REQUIRED)
@@ -210,16 +204,23 @@ set(ACCP_SRC ${ACCP_SRC} ${ACCP_UTILS_SRC} ${GENERATED_JAVA_SRC})
 # Set base Java compile flags without -Werror to avoid build issues
 set(BASE_JAVA_COMPILE_FLAGS ${CMAKE_JAVA_COMPILE_FLAGS} -h "${JNI_HEADER_DIR}")
 
-# Java targets defined here are compiled based on target JDK version
-if(KEM_SUPPORTED)
-    # For JDK 17+ with KEM support - use the actual target JDK version
-    set(CMAKE_JAVA_COMPILE_FLAGS ${BASE_JAVA_COMPILE_FLAGS} -Xlint "-Xlint:-removal" "-Xlint:-serial" --release ${TARGET_JDK_VERSION})
-    message(STATUS "Using JDK ${TARGET_JDK_VERSION} compilation flags with KEM support")
-else()
-    # For JDK 8/11 without KEM support - use release 9 for module support
-    set(CMAKE_JAVA_COMPILE_FLAGS ${BASE_JAVA_COMPILE_FLAGS} -Xlint "-Xlint:-options" --release 9)
-    message(STATUS "Using JDK 9 release for module support (targeting JDK ${TARGET_JDK_VERSION} compatibility)")
+# Legacy version when not defined
+if(NOT DEFINED TARGET_JDK_VERSION)
+    set(TARGET_JDK_VERSION 9)
+    message(STATUS "TARGET_JDK_VERSION not defined, defaulting to: ${TARGET_JDK_VERSION}")
 endif()
+
+# If target is 8, set it to 9 for module support and support 8
+if(TARGET_JDK_VERSION EQUAL 8)
+    message(STATUS "Original Target JDK version was set to 8, upgrading to 9 for module support")
+    set(TARGET_JDK_VERSION 9)
+endif()
+
+
+# Java targets defined here are compiled based on target JDK version
+set(CMAKE_JAVA_COMPILE_FLAGS ${BASE_JAVA_COMPILE_FLAGS} -Xlint "-Xlint:-removal" "-Xlint:-serial" --release ${TARGET_JDK_VERSION})
+message(STATUS "Using JDK ${TARGET_JDK_VERSION} compilation flags with KEM support")
+
 
 set(ACCP_JAR "${CMAKE_CURRENT_BINARY_DIR}/AmazonCorrettoCryptoProvider.jar")
 set(ACCP_JAR_SOURCE "${CMAKE_CURRENT_BINARY_DIR}/AmazonCorrettoCryptoProvider-sources.jar")
@@ -246,6 +247,10 @@ add_custom_target(javadoc DEPENDS ${JNI_HEADER_DIR}/generated-headers.h ${GENERA
 
 # Add a JAR target. We can't add resources here (as discussed below) so we'll
 # build a temporary one first.
+
+# All subsequent Java targets are compatible with Java 8
+set(CMAKE_JAVA_COMPILE_FLAGS ${BASE_JAVA_COMPILE_FLAGS} -Xlint:-options --release 8)
+
 
 add_jar(
     code-only-jar

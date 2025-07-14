@@ -123,85 +123,78 @@ def getClangFormatVersion() {
 ext.targetMinJdk = System.getProperty('targetMinJdk') ?: project.findProperty('targetMinJdk') ?: '8'
 ext.buildJdk = System.getProperty("java.version").split('\\.')[0] as Integer
 
-def isKemSupported(String version) {
-    println "=== KEM SUPPORT DEBUG ==="
-    println "Java version string: ${version}"
-    def versionNumber = Integer.parseInt(version.split('\\.')[0])
-    println "Parsed major version: ${versionNumber}"
+// def shouldExcludeJdk17PlusCode() {
+//     def version = System.getProperty("java.version")
+//     def versionNumber = Integer.parseInt(version.split('\\.')[0])
+//     def targetMinJdkVersion = Integer.parseInt(targetMinJdk)
     
-    // Check target minimum JDK version
-    def targetMinJdkVersion = Integer.parseInt(targetMinJdk)
-    println "Target minimum JDK version: ${targetMinJdkVersion}"
+//     // If targeting JDK < 17, don't include ML-KEM regardless of build JDK
+//     if (targetMinJdkVersion < 17) {
+//         logger.info("Target JDK version is less than 17 - excluding JDK17+ code")
+//         return true
+//     }
+
+//     // Check if KEM is available in JDK 17
+//     if (versionNumber == 17) {
+//         try {
+//             Class.forName("javax.crypto.KEM")
+//             logger.info("KEM support detected in JDK 17 - including JDK17+ code")
+//             return false
+//         } catch (Exception e) {
+//             logger.info("KEM support not found in JDK 17 - excluding JDK17+ code")
+//             return true
+//         }
+//     }
     
-    // If targeting JDK < 17, don't include ML-KEM regardless of build JDK
-    if (targetMinJdkVersion < 17) {
-        println "Target JDK version is less than 17 - KEM will not be supported"
-        return false
-    }
-    
-    if (versionNumber >= 21) {
-        println "Java 21+ detected - KEM should be supported"
-        return true
-    }
-    if (versionNumber == 17) {
-        println "Java 17 detected - checking if KEM classes are available..."
-        try {
-            Class.forName("javax.crypto.KEM")
-            println "SUCCESS: javax.crypto.KEM class found!"
-            return true
-        } catch (Exception e) {
-            println "FAILED: javax.crypto.KEM class NOT found - ${e.getMessage()}"
-            return false
-        }
-    }
-    println "Java version ${versionNumber} - KEM not supported"
-    return false
-}
+//     // JDK 21+ should have KEM support
+//     if (versionNumber >= 21) {
+//         try {
+//             Class.forName("javax.crypto.KEM")
+//             logger.info("KEM support confirmed in JDK ${versionNumber} - including JDK17+ code")
+//             return false
+//         } catch (Exception e) {
+//             logger.info("Unexpected: KEM support not found in JDK ${versionNumber} - excluding JDK17+ code")
+//             return true
+//         }
+//     }
+   
+//     logger.info("JDK version ${versionNumber} does not support KEM - excluding JDK17+ code")
+//     return true
+// }
 
+//  Enhanced conditional compilation
+// tasks.withType(JavaCompile) {
+//     if (shouldExcludeJdk17PlusCode()) {
+//         exclude '**/jdk17plus/**'
+//         logger.info("Excluding JDK17+ specific code - building on JDK ${buildJdk}")
+//     } else {
+//         logger.info("Including JDK17+ specific code - building on JDK ${buildJdk}")
+//     }
+// }
 
+// tasks.withType(Test) {
+//     if (shouldExcludeJdk17PlusCode()) {
+//         exclude '**/jdk17plus/**'
+//         logger.info("Excluding JDK17+ specific tests")
+//     }
+// }
 
-def shouldExcludeJdkSpecificCode() {
-    def kemSupported = isKemSupported(System.getProperty("java.version"))
-    def shouldExclude = !kemSupported
-    println "=== EXCLUSION LOGIC DEBUG ==="
-    println "KEM supported: ${kemSupported}"
-    println "Should exclude jdk17plus files: ${shouldExclude}"
-    println "=========================="
-    return shouldExclude
-}
-
-// Enhanced conditional compilation
-tasks.withType(JavaCompile) {
-    if (shouldExcludeJdkSpecificCode()) {
-        exclude '**/jdk17plus/**'
-        println "*** EXCLUDING JDK17+ specific code - building on JDK ${buildJdk} ***"
-    } else {
-        println "*** INCLUDING JDK17+ specific code - building on JDK ${buildJdk} ***"
-    }
-}
-
-tasks.withType(Test) {
-    if (shouldExcludeJdkSpecificCode()) {
-        exclude '**/jdk17plus/**'
-    }
-}
-
-sourceSets {
-    main {
-        java {
-            if (shouldExcludeJdkSpecificCode()) {
-                exclude '**/jdk17plus/**'
-            }
-        }
-    }
-    test {
-        java {
-            if (shouldExcludeJdkSpecificCode()) {
-                exclude '**/jdk17plus/**'
-            }
-        }
-    }
-}
+// sourceSets {
+//     main {
+//         java {
+//             if (shouldExcludeJdk17PlusCode()) {
+//                 exclude '**/jdk17plus/**'
+//             }
+//         }
+//     }
+//     test {
+//         java {
+//             if (shouldExcludeJdk17PlusCode()) {
+//                 exclude '**/jdk17plus/**'
+//             }
+//         }
+//     }
+// }
 
 
 def awslcSrcPath = "${projectDir}/aws-lc/"
