@@ -249,7 +249,7 @@ add_custom_target(javadoc DEPENDS ${JNI_HEADER_DIR}/generated-headers.h ${GENERA
 # build a temporary one first.
 
 # All subsequent Java targets are compatible with Java 8
-set(CMAKE_JAVA_COMPILE_FLAGS ${BASE_JAVA_COMPILE_FLAGS} -Xlint:-options --release 8)
+# set(CMAKE_JAVA_COMPILE_FLAGS ${BASE_JAVA_COMPILE_FLAGS} -Xlint:-options --release 8)
 
 
 add_jar(
