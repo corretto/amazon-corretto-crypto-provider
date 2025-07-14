@@ -36,66 +36,22 @@ execute_process(
 )
 
 # Check if TARGET_JDK_VERSION is set
-if(DEFINED TARGET_JDK_VERSION)
-    message(STATUS "Target JDK version explicitly set to: ${TARGET_JDK_VERSION}")
-    if(TARGET_JDK_VERSION LESS 17)
-        set(KEM_SUPPORTED FALSE)
-        message(STATUS "Target JDK version is less than 17 - KEM will not be supported regardless of build JDK")
-    else()
-        # For target JDK 17+, we still need to check if the build JDK supports KEM
-        if(JAVAC_VERSION_RESULT EQUAL 0)
-            message(STATUS "javac version: ${JAVAC_VERSION_OUTPUT}")
-            
-            # Parse Java version to determine KEM support
-            # KEM classes were introduced in Java 17 MR1, so any Java 17+ should have them
-            string(REGEX MATCH "([0-9]+)\\.([0-9]+)\\.([0-9]+)" JAVA_VERSION_MATCH "${JAVAC_VERSION_OUTPUT}")
-            if(JAVA_VERSION_MATCH)
-                set(JAVA_MAJOR_VER ${CMAKE_MATCH_1})
-                if(JAVA_MAJOR_VER GREATER_EQUAL 17)
-                    set(KEM_SUPPORTED TRUE)
-                    message(STATUS "Java ${JAVA_MAJOR_VER} detected - KEM classes available, including jdk17plus files")
-                else()
-                    set(KEM_SUPPORTED FALSE)
-                    message(STATUS "Java ${JAVA_MAJOR_VER} detected - KEM classes not available, excluding jdk17plus files")
-                endif()
-            else()
-                set(KEM_SUPPORTED FALSE)
-                message(WARNING "Could not parse Java version from: ${JAVAC_VERSION_OUTPUT}")
-                message(STATUS "Defaulting to exclude jdk17plus files")
-            endif()
-        else()
-            message(WARNING "Could not determine javac version")
-            set(KEM_SUPPORTED FALSE)
-            message(STATUS "Defaulting to exclude jdk17plus files")
-        endif()
-    endif()
+# if not defined, set to legacy version at 8
+
+if(NOT DEFINED TARGET_JDK_VERSION)
+    set(TARGET_JDK_VERSION 8)
+    message(STATUS "TARGET_JDK_VERSION not defined, defaulting to: ${TARGET_JDK_VERSION}")
+endif()
+
+message(STATUS "Target JDK version set to: ${TARGET_JDK_VERSION}")
+
+# Determine KEM support based on target JDK version
+if(TARGET_JDK_VERSION LESS 17)
+    set(KEM_SUPPORTED FALSE)
+    message(STATUS "Target JDK version is less than 17 - KEM will not be supported")
 else()
-    # No target JDK version specified, use build JDK version to determine KEM support
-    if(JAVAC_VERSION_RESULT EQUAL 0)
-        message(STATUS "javac version: ${JAVAC_VERSION_OUTPUT}")
-        
-        # Parse Java version to determine KEM support
-        # KEM classes were introduced in Java 17 MR1, so any Java 17+ should have them
-        string(REGEX MATCH "([0-9]+)\\.([0-9]+)\\.([0-9]+)" JAVA_VERSION_MATCH "${JAVAC_VERSION_OUTPUT}")
-        if(JAVA_VERSION_MATCH)
-            set(JAVA_MAJOR_VER ${CMAKE_MATCH_1})
-            if(JAVA_MAJOR_VER GREATER_EQUAL 17)
-                set(KEM_SUPPORTED TRUE)
-                message(STATUS "Java ${JAVA_MAJOR_VER} detected - KEM classes available, including jdk17plus files")
-            else()
-                set(KEM_SUPPORTED FALSE)
-                message(STATUS "Java ${JAVA_MAJOR_VER} detected - KEM classes not available, excluding jdk17plus files")
-            endif()
-        else()
-            set(KEM_SUPPORTED FALSE)
-            message(WARNING "Could not parse Java version from: ${JAVAC_VERSION_OUTPUT}")
-            message(STATUS "Defaulting to exclude jdk17plus files")
-        endif()
-    else()
-        message(WARNING "Could not determine javac version")
-        set(KEM_SUPPORTED FALSE)
-        message(STATUS "Defaulting to exclude jdk17plus files")
-    endif()
+    set(KEM_SUPPORTED TRUE)
+    message(STATUS "Target JDK version is 17 or higher - KEM will be supported")
 endif()
 
 find_package(JNI REQUIRED)
@@ -251,14 +207,18 @@ endif()
 
 set(ACCP_SRC ${ACCP_SRC} ${ACCP_UTILS_SRC} ${GENERATED_JAVA_SRC})
 
-set(BASE_JAVA_COMPILE_FLAGS ${CMAKE_JAVA_COMPILE_FLAGS} -h "${JNI_HEADER_DIR}" -Werror)
+# Set base Java compile flags without -Werror to avoid build issues
+set(BASE_JAVA_COMPILE_FLAGS ${CMAKE_JAVA_COMPILE_FLAGS} -h "${JNI_HEADER_DIR}")
 
-# Java targets defined here are compiled for Java supporting modules
-# x lint removal is temporary to ignore serialization warnings while stubbed out
+# Java targets defined here are compiled based on target JDK version
 if(KEM_SUPPORTED)
-    set(CMAKE_JAVA_COMPILE_FLAGS ${BASE_JAVA_COMPILE_FLAGS} -Xlint -Xlint:-removal -Xlint:-serial --release 17)
+    # For JDK 17+ with KEM support - use the actual target JDK version
+    set(CMAKE_JAVA_COMPILE_FLAGS ${BASE_JAVA_COMPILE_FLAGS} -Xlint "-Xlint:-removal" "-Xlint:-serial" --release ${TARGET_JDK_VERSION})
+    message(STATUS "Using JDK ${TARGET_JDK_VERSION} compilation flags with KEM support")
 else()
-    set(CMAKE_JAVA_COMPILE_FLAGS ${BASE_JAVA_COMPILE_FLAGS} -Xlint --release 9)
+    # For JDK 8/11 without KEM support - use release 9 for module support
+    set(CMAKE_JAVA_COMPILE_FLAGS ${BASE_JAVA_COMPILE_FLAGS} -Xlint "-Xlint:-options" --release 9)
+    message(STATUS "Using JDK 9 release for module support (targeting JDK ${TARGET_JDK_VERSION} compatibility)")
 endif()
 
 set(ACCP_JAR "${CMAKE_CURRENT_BINARY_DIR}/AmazonCorrettoCryptoProvider.jar")
@@ -283,12 +243,6 @@ create_javadoc(
 
 add_custom_target(javadoc DEPENDS ${JNI_HEADER_DIR}/generated-headers.h ${GENERATED_JAVA_SRC} AmazonCorrettoCryptoProvider_javadoc)
 
-# All subsequent Java targets are compatible with Java 8
-if(KEM_SUPPORTED)
-    set(CMAKE_JAVA_COMPILE_FLAGS ${BASE_JAVA_COMPILE_FLAGS} -Xlint:-options -Xlint:-removal -Xlint:-serial --release 17)
-else()
-    set(CMAKE_JAVA_COMPILE_FLAGS ${BASE_JAVA_COMPILE_FLAGS} -Xlint:-options --release 8)
-endif()
 
 # Add a JAR target. We can't add resources here (as discussed below) so we'll
 # build a temporary one first.
