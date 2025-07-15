@@ -123,78 +123,8 @@ def getClangFormatVersion() {
 ext.targetMinJdk = System.getProperty('targetMinJdk') ?: project.findProperty('targetMinJdk') ?: '8'
 ext.buildJdk = System.getProperty("java.version").split('\\.')[0] as Integer
 
-// def shouldExcludeJdk17PlusCode() {
-//     def version = System.getProperty("java.version")
-//     def versionNumber = Integer.parseInt(version.split('\\.')[0])
-//     def targetMinJdkVersion = Integer.parseInt(targetMinJdk)
-    
-//     // If targeting JDK < 17, don't include ML-KEM regardless of build JDK
-//     if (targetMinJdkVersion < 17) {
-//         logger.info("Target JDK version is less than 17 - excluding JDK17+ code")
-//         return true
-//     }
 
-//     // Check if KEM is available in JDK 17
-//     if (versionNumber == 17) {
-//         try {
-//             Class.forName("javax.crypto.KEM")
-//             logger.info("KEM support detected in JDK 17 - including JDK17+ code")
-//             return false
-//         } catch (Exception e) {
-//             logger.info("KEM support not found in JDK 17 - excluding JDK17+ code")
-//             return true
-//         }
-//     }
-    
-//     // JDK 21+ should have KEM support
-//     if (versionNumber >= 21) {
-//         try {
-//             Class.forName("javax.crypto.KEM")
-//             logger.info("KEM support confirmed in JDK ${versionNumber} - including JDK17+ code")
-//             return false
-//         } catch (Exception e) {
-//             logger.info("Unexpected: KEM support not found in JDK ${versionNumber} - excluding JDK17+ code")
-//             return true
-//         }
-//     }
-   
-//     logger.info("JDK version ${versionNumber} does not support KEM - excluding JDK17+ code")
-//     return true
-// }
 
-//  Enhanced conditional compilation
-// tasks.withType(JavaCompile) {
-//     if (shouldExcludeJdk17PlusCode()) {
-//         exclude '**/jdk17plus/**'
-//         logger.info("Excluding JDK17+ specific code - building on JDK ${buildJdk}")
-//     } else {
-//         logger.info("Including JDK17+ specific code - building on JDK ${buildJdk}")
-//     }
-// }
-
-// tasks.withType(Test) {
-//     if (shouldExcludeJdk17PlusCode()) {
-//         exclude '**/jdk17plus/**'
-//         logger.info("Excluding JDK17+ specific tests")
-//     }
-// }
-
-// sourceSets {
-//     main {
-//         java {
-//             if (shouldExcludeJdk17PlusCode()) {
-//                 exclude '**/jdk17plus/**'
-//             }
-//         }
-//     }
-//     test {
-//         java {
-//             if (shouldExcludeJdk17PlusCode()) {
-//                 exclude '**/jdk17plus/**'
-//             }
-//         }
-//     }
-// }
 
 
 def awslcSrcPath = "${projectDir}/aws-lc/"
@@ -414,6 +344,7 @@ task executeCmake(type: Exec) {
     args "-DCMAKE_VERBOSE_MAKEFILE:BOOL=${isVerbose ? 'ON' : 'OFF'}"
     args "-DAWS_LC_VERSION_STRING=" + awsLcGitVersionId
     args "-DTARGET_JDK_VERSION=" + targetMinJdk
+    args "-DBUILD_JDK_VERSION=" + buildJdk
     if (isFips) {
         args "-DFIPS=ON"
     }
@@ -454,6 +385,8 @@ task build_objects {
     dependsOn executeCmake
     inputs.file("${buildDir}/cmake/Makefile")
     outputs.file("${buildDir}/cmake/AmazonCorrettoCryptoProvider.jar")
+    println "Building on JDK ${buildJdk}"
+
 
     doLast {
       exec {
