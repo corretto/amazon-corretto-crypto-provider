@@ -218,8 +218,12 @@ endif()
 
 
 # Java targets defined here are compiled based on target JDK version
-set(CMAKE_JAVA_COMPILE_FLAGS ${BASE_JAVA_COMPILE_FLAGS} -Xlint "-Xlint:-removal" "-Xlint:-serial" --release ${TARGET_JDK_VERSION})
-message(STATUS "Using JDK ${TARGET_JDK_VERSION} compilation flags with KEM support")
+if (KEM_SUPPORTED AND TARGET_JDK_VERSION GREATER_EQUAL 17 AND TARGET_JDK_VERSION LESS 21)
+    set(CMAKE_JAVA_COMPILE_FLAGS ${BASE_JAVA_COMPILE_FLAGS} -Xlint "-Xlint:-removal" "-Xlint:-serial" -source ${TARGET_JDK_VERSION} -source ${TARGET_JDK_VERSION})
+else()
+    set(CMAKE_JAVA_COMPILE_FLAGS ${BASE_JAVA_COMPILE_FLAGS} -Xlint "-Xlint:-removal" "-Xlint:-serial" --release ${TARGET_JDK_VERSION})
+    message(STATUS "Using JDK ${TARGET_JDK_VERSION} compilation flags with KEM support")
+endif()
 
 
 set(ACCP_JAR "${CMAKE_CURRENT_BINARY_DIR}/AmazonCorrettoCryptoProvider.jar")
