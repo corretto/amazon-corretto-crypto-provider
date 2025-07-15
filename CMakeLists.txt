@@ -37,16 +37,7 @@ execute_process(
 
 
 
-message(STATUS "Target JDK version set to: ${TARGET_JDK_VERSION}")
 
-# Determine KEM support based on target JDK version
-if(TARGET_JDK_VERSION LESS 17)
-    set(KEM_SUPPORTED FALSE)
-    message(STATUS "Target JDK version ${TARGET_JDK_VERSION} - KEM will not be supported")
-else()
-    set(KEM_SUPPORTED TRUE)
-    message(STATUS "Target JDK version ${TARGET_JDK_VERSION} - KEM will be supported")
-endif()
 
 find_package(JNI REQUIRED)
 include(FindOpenSSL)
@@ -198,6 +189,23 @@ else()
     endif()
 endif()
 
+if(NOT DEFINED TARGET_JDK_VERSION)
+    set(TARGET_JDK_VERSION ${BUILD_JDK_VERSION})
+    message(STATUS "Target JDK version set to: ${TARGET_JDK_VERSION}")
+
+    message(STATUS "TARGET_JDK_VERSION not defined, defaulting to: ${BUILD_JDK_VERSION}")
+endif()
+
+# Determine KEM support based on target JDK version
+if(TARGET_JDK_VERSION LESS 17)
+    set(KEM_SUPPORTED FALSE)
+    message(STATUS "Target JDK version ${TARGET_JDK_VERSION} - KEM will not be supported")
+else()
+    set(KEM_SUPPORTED TRUE)
+    message(STATUS "Target JDK version ${TARGET_JDK_VERSION} - KEM will be supported")
+endif()
+
+
 
 set(ACCP_SRC ${ACCP_SRC} ${ACCP_UTILS_SRC} ${GENERATED_JAVA_SRC})
 
@@ -205,10 +213,6 @@ set(ACCP_SRC ${ACCP_SRC} ${ACCP_UTILS_SRC} ${GENERATED_JAVA_SRC})
 set(BASE_JAVA_COMPILE_FLAGS ${CMAKE_JAVA_COMPILE_FLAGS} -h "${JNI_HEADER_DIR}")
 
 # Legacy version when not defined
-if(NOT DEFINED TARGET_JDK_VERSION)
-    set(TARGET_JDK_VERSION 9)
-    message(STATUS "TARGET_JDK_VERSION not defined, defaulting to: ${TARGET_JDK_VERSION}")
-endif()
 
 # If target is 8, set it to 9 for module support and support 8
 if(TARGET_JDK_VERSION EQUAL 8)
