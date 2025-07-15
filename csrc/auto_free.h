@@ -20,10 +20,10 @@
 #define AUTO_CONSTRUCTORS(name)                                                                                        \
     /* Do not allow implicit copy constructors */                                                                      \
     CLASSNAME(name)                                                                                                    \
-    (const CLASSNAME(name)&) = delete;                                                                                 \
-    CLASSNAME(name)& operator=(const CLASSNAME(name)&) = delete;                                                       \
+    (const CLASSNAME(name) &) = delete;                                                                                \
+    CLASSNAME(name) & operator=(const CLASSNAME(name) &) = delete;                                                     \
     /* Move semantics */                                                                                               \
-    CLASSNAME(name)& operator=(CLASSNAME(name) && other)                                                               \
+    CLASSNAME(name) & operator=(CLASSNAME(name) && other)                                                              \
     {                                                                                                                  \
         move(other);                                                                                                   \
         return *this;                                                                                                  \
@@ -63,7 +63,7 @@
         void releaseOwnership() { PTR_NAME(name) = NULL; }                                                             \
         void clear()                                                                                                   \
         {                                                                                                              \
-            CONCAT2(name, _free)(PTR_NAME(name));                                                                      \
+            CONCAT2(name, _free)(PTR_NAME(name));                                                                       \
             PTR_NAME(name) = NULL;                                                                                     \
         }                                                                                                              \
         name* operator->() { return *this; }                                                                           \

@@ -7,15 +7,13 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 
 final class ReflectiveTools {
   private static MethodHandle mh_getArray;
   private static MethodHandle mh_arrayOffset;
 
   static {
-    AccessController.doPrivileged((PrivilegedAction<Void>) ReflectiveTools::initReflection);
+    ReflectiveTools.initReflection();
   }
 
   private static Void initReflection() {
