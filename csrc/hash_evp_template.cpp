@@ -92,7 +92,92 @@ JNIEXPORT void JNICALL JNI_NAME(updateContextByteArray)(
 }
 
 
+JNIEXPORT void JNICALL JNI_NAME(finish)(
+    JNIEnv* pEnv, jclass, jbyteArray contextArray, jbyteArray digestArray, jint offset)
+{
+    try {
+        raii_env env(pEnv);
+        bounce_buffer<CTX> ctx = bounce_buffer<CTX>::from_array(env, contextArray);
 
+        java_buffer digestbuf = java_buffer::from_array(env, digestArray);
+        jni_borrow digestBorrow(env, digestbuf, "digestbuf");
+
+        int success = CHECK_OPENSSL(EVP_DigestFinal(digestBorrow.check_range(offset, MD->md_size), ctx));
+
+        // Always clear the context on final()
+        ctx.zeroize();
+
+        if (unlikely(!success)) {
+            digestBorrow.zeroize();
+            throw_openssl();
+        }
+    } catch (java_ex& ex) {
+        ex.throw_to_java(pEnv);
+    }
+}
+
+
+JNIEXPORT void JNICALL JNI_NAME(updateNativeByteBuffer)(
+    JNIEnv* pEnv, jclass, jbyteArray contextArray, jobject dataDirectBuf)
+{
+    try {
+        raii_env env(pEnv);
+        bounce_buffer<CTX> ctx = bounce_buffer<CTX>::from_array(env, contextArray);
+
+        java_buffer dataBuf = java_buffer::from_direct(env, dataDirectBuf);
+        jni_borrow dataBorrow(env, dataBuf, "dataBorrow");
+
+        try {
+            CHECK_OPENSSL(EVP_DigestUpdate(ctx.ptr(), dataBorrow.data(), dataBorrow.len()));
+        } catch (...) {
+            ctx.zeroize();
+            throw;
+        }
+    } catch (java_ex& ex) {
+        ex.throw_to_java(pEnv);
+    }
+}
+
+JNIEXPORT void JNICALL JNI_NAME(fastDigest)(
+    JNIEnv* pEnv, jclass, jbyteArray digestArray, jbyteArray dataArray, jint bufOffset, jint dataLength)
+{
+    // As this method needs to be extremely high speed, we are omitting use of java_buffer
+    // to avoid the extra JNI calls it requires. Instead we are trusting that dataLength
+    // is correct.
+    try {
+        raii_env env(pEnv);
+
+        SecureBuffer<CTX, 1> ctx;
+        const size_t scratchSize = DIGEST_BLOCK_SIZE; // Size is arbitrarily chosen
+        SecureBuffer<uint8_t, MD->md_size > digest;
+
+        if (unlikely(!EVP_DigestInit(ctx, MD))) {
+            throw java_ex::from_openssl(EX_RUNTIME_CRYPTO, "Unable to initialize context");
+        }
+
+        if (static_cast<size_t>(dataLength) > scratchSize) {
+            java_buffer dataBuffer = java_buffer::from_array(env, dataArray, bufOffset, dataLength);
+            jni_borrow dataBorrow(env, dataBuffer, "data");
+            if (unlikely(EVP_DigestUpdate(ctx, dataBorrow.data(), dataBorrow.len()))) {
+                throw java_ex::from_openssl(EX_RUNTIME_CRYPTO, "Unable to update context");
+            }
+        } else {
+            SecureBuffer<uint8_t, scratchSize> scratch;
+            env->GetByteArrayRegion(dataArray, bufOffset, dataLength, reinterpret_cast<jbyte*>(scratch.buf));
+            if (unlikely(!EVP_DigestUpdate(ctx, scratch, dataLength))) {
+                throw java_ex::from_openssl(EX_RUNTIME_CRYPTO, "Unable to update context");
+            }
+        }
+
+        if (unlikely(!EVP_DigestFinal(ctx, digest, MD->md_size))) {
+            throw java_ex::from_openssl(EX_RUNTIME_CRYPTO, "Unable to finish digest");
+        }
+        env->SetByteArrayRegion(digestArray, 0, MD->md_size , reinterpret_cast<const jbyte*>(digest.buf));
+
+    } catch (java_ex& ex) {
+        ex.throw_to_java(pEnv);
+    }
+}
 
 
 
