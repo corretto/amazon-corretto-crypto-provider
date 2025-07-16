@@ -1,4 +1,3 @@
-#include <openssl/digest.h>
 #include "buffer.h"
 #include "env.h"
 #include "generated-headers.h"
@@ -35,8 +34,30 @@
     //Example: #define DIGEST_NAME sha3_224(Needs to be written in this format to align with the aws-lc implementation name)
     
 
+// Transform DIGEST_NAME from "sha3_224" format to "SHA3224" format for JNI class names
+// This macro needs to be defined for each digest algorithm
+#define TRANSFORM_sha3_224 SHA3_224
+#define TRANSFORM_sha3_256 SHA3_256
+#define TRANSFORM_sha3_384 SHA3_384
+#define TRANSFORM_sha3_512 SHA3_512
+#define TRANSFORM_sha224 SHA224
+#define TRANSFORM_sha256 SHA256
+#define TRANSFORM_sha384 SHA384
+#define TRANSFORM_sha512 SHA512
+#define TRANSFORM_sha512_224 SHA512_224
+#define TRANSFORM_sha512_256 SHA512_256
+#define TRANSFORM_sha1 SHA1
+#define TRANSFORM_md5 MD5
+#define TRANSFORM_md4 MD4
+#define TRANSFORM_ripemd160 RIPEMD160
+#define TRANSFORM_shake128 SHAKE128
+#define TRANSFORM_shake256 SHAKE256
+#define TRANSFORM_blake2b256 BLAKE2B256
+
+#define GET_TRANSFORMED_NAME(digest) TRANSFORM_##digest
+
 #define JNI_NAME(name) CONCAT2( \
-        CONCAT2(Java_com_amazon_corretto_crypto_provider_, DIGEST_NAME), \
+        CONCAT2(Java_com_amazon_corretto_crypto_provider_, GET_TRANSFORMED_NAME(DIGEST_NAME)), \
         CONCAT2(Spi_, name) \
     )
 
@@ -148,7 +169,7 @@ JNIEXPORT void JNICALL JNI_NAME(fastDigest)(
         raii_env env(pEnv);
 
         SecureBuffer<CTX, 1> ctx;
-        const size_t scratchSize = DIGEST_BLOCK_SIZE; // Size is arbitrarily chosen
+        const size_t scratchSize = MD->block_size; // Size is arbitrarily chosen
         SecureBuffer<uint8_t, MD->md_size > digest;
 
         if (unlikely(!EVP_DigestInit(ctx, MD))) {
@@ -178,7 +199,3 @@ JNIEXPORT void JNICALL JNI_NAME(fastDigest)(
         ex.throw_to_java(pEnv);
     }
 }
-
-
-
-
