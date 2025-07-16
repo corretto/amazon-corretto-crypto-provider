@@ -106,25 +106,30 @@ class AccessibleByteArrayOutputStream extends OutputStream implements Cloneable 
   /**
    * Double the internal capacity on every resize, up to INT_MAX.
    *
-   * We manually check for values greater than Integer.MAX_VALUE/2 since left-shifting integers
+   * <p>We manually check for values greater than Integer.MAX_VALUE/2 since left-shifting integers
    * above that value results in a negative integer.
    */
   private int increaseCapacity(int currentCapacity) {
     if (currentCapacity >= (Integer.MAX_VALUE >> 1)) {
-        return Integer.MAX_VALUE;
+      return Integer.MAX_VALUE;
     } else {
-        return currentCapacity << 1;
+      return currentCapacity << 1;
     }
   }
 
-  private int calculateNewCapacity(final int currentCapacity, final int minimumNewCapacity, final boolean doNotAllocateMoreThanNeeded) {
-    int newCapacity = doNotAllocateMoreThanNeeded
-        ? minimumNewCapacity
-        : Math.max(Math.min(limit, increaseCapacity(currentCapacity)), minimumNewCapacity);
+  private int calculateNewCapacity(
+      final int currentCapacity,
+      final int minimumNewCapacity,
+      final boolean doNotAllocateMoreThanNeeded) {
+    int newCapacity =
+        doNotAllocateMoreThanNeeded
+            ? minimumNewCapacity
+            : Math.max(Math.min(limit, increaseCapacity(currentCapacity)), minimumNewCapacity);
     return newCapacity;
   }
 
-  private void growCapacity(final int minimumNewCapacity, final boolean doNotAllocateMoreThanNeeded) {
+  private void growCapacity(
+      final int minimumNewCapacity, final boolean doNotAllocateMoreThanNeeded) {
     if (minimumNewCapacity < 0 || minimumNewCapacity > limit) {
       throw new IllegalArgumentException(
           String.format("Invalid capacity. Limit: %d, Requested: %d.", limit, minimumNewCapacity));
@@ -134,7 +139,8 @@ class AccessibleByteArrayOutputStream extends OutputStream implements Cloneable 
     }
 
     final byte[] tmp =
-        Arrays.copyOf(buf, calculateNewCapacity(buf.length, minimumNewCapacity, doNotAllocateMoreThanNeeded));
+        Arrays.copyOf(
+            buf, calculateNewCapacity(buf.length, minimumNewCapacity, doNotAllocateMoreThanNeeded));
     final byte[] toZeroize = buf;
     buf = tmp;
     Arrays.fill(toZeroize, 0, count, (byte) 0);

@@ -62,8 +62,11 @@ public class AccessibleByteArrayOutputStreamTest {
         IllegalArgumentException.class, () -> instance.write(null, 0, Integer.MAX_VALUE - 512));
   }
 
-  private void assertNewCapacity(OutputStream instance, int currentCapacity, int minimumNewCapacity, int expectedNewCapacity) throws Throwable {
-    int actualNewCapacity = sneakyInvoke(instance, "calculateNewCapacity", currentCapacity, minimumNewCapacity, false);
+  private void assertNewCapacity(
+      OutputStream instance, int currentCapacity, int minimumNewCapacity, int expectedNewCapacity)
+      throws Throwable {
+    int actualNewCapacity =
+        sneakyInvoke(instance, "calculateNewCapacity", currentCapacity, minimumNewCapacity, false);
     assertEquals(expectedNewCapacity, actualNewCapacity);
   }
 
@@ -81,8 +84,13 @@ public class AccessibleByteArrayOutputStreamTest {
     assertNewCapacity(instance, 400, 400 + 1, 800);
 
     /* Ensure resizing capacities between INT_MAX/2 and INT_MAX are clamped to INT_MAX */
-    assertNewCapacity(instance, (Integer.MAX_VALUE / 2), (Integer.MAX_VALUE / 2) + 1, Integer.MAX_VALUE);
-    assertNewCapacity(instance, (int) (Integer.MAX_VALUE * 0.75), (int) (Integer.MAX_VALUE * 0.75) + 1, Integer.MAX_VALUE);
+    assertNewCapacity(
+        instance, (Integer.MAX_VALUE / 2), (Integer.MAX_VALUE / 2) + 1, Integer.MAX_VALUE);
+    assertNewCapacity(
+        instance,
+        (int) (Integer.MAX_VALUE * 0.75),
+        (int) (Integer.MAX_VALUE * 0.75) + 1,
+        Integer.MAX_VALUE);
     assertNewCapacity(instance, Integer.MAX_VALUE - 10, Integer.MAX_VALUE - 9, Integer.MAX_VALUE);
     assertNewCapacity(instance, Integer.MAX_VALUE - 1, Integer.MAX_VALUE, Integer.MAX_VALUE);
   }
