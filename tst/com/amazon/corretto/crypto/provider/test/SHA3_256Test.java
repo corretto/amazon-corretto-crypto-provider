@@ -117,14 +117,14 @@ public class SHA3_256Test {
   @Test
   public void cavpShortVectors() throws Throwable {
     try (final InputStream is =
-        new GZIPInputStream(TestUtil.getTestData(""))) {
+        new GZIPInputStream(TestUtil.getTestData("SHA3_256ShortMsg.rsp.gz"))) {
       new HashFunctionTester(SHA3_256).test(RspTestEntry.iterateOverResource(is));
     }
   }
 
   @Test
   public void cavpLongVectors() throws Throwable {
-    try (final InputStream is = new GZIPInputStream(TestUtil.getTestData(""))) {
+    try (final InputStream is = new GZIPInputStream(TestUtil.getTestData("SHA3_256LongMsg.rsp.gz"))) {
       new HashFunctionTester(SHA3_256).test(RspTestEntry.iterateOverResource(is));
     }
   }
