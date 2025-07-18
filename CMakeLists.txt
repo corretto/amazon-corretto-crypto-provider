@@ -189,12 +189,11 @@ else()
     endif()
 endif()
 
-if(NOT DEFINED TARGET_JDK_VERSION)
-    set(TARGET_JDK_VERSION ${BUILD_JDK_VERSION})
-    message(STATUS "Target JDK version set to: ${TARGET_JDK_VERSION}")
-
-    message(STATUS "TARGET_JDK_VERSION not defined, defaulting to: ${BUILD_JDK_VERSION}")
-endif()
+# if(NOT DEFINED TARGET_JDK_VERSION)
+#     set(TARGET_JDK_VERSION 8)
+#     message(STATUS "Target JDK version set to: ${TARGET_JDK_VERSION}")
+#     message(STATUS "TARGET_JDK_VERSION not defined, defaulting to: ${BUILD_JDK_VERSION}")
+# endif()
 
 # Determine KEM support based on target JDK version
 if(TARGET_JDK_VERSION LESS 17)
@@ -214,7 +213,7 @@ set(BASE_JAVA_COMPILE_FLAGS ${CMAKE_JAVA_COMPILE_FLAGS} -h "${JNI_HEADER_DIR}")
 
 # Legacy version when not defined
 
-# If target is 8, set it to 9 for module support and support 8
+# If target is 8, set it to 9 for module support and support 8 subsequently 
 if(TARGET_JDK_VERSION EQUAL 8)
     message(STATUS "Original Target JDK version was set to 8, upgrading to 9 for module support")
     set(TARGET_JDK_VERSION 9)
@@ -257,7 +256,7 @@ add_custom_target(javadoc DEPENDS ${JNI_HEADER_DIR}/generated-headers.h ${GENERA
 # build a temporary one first.
 
 # All subsequent Java targets are compatible with Java 8
-# set(CMAKE_JAVA_COMPILE_FLAGS ${BASE_JAVA_COMPILE_FLAGS} -Xlint:-options --release 8)
+set(CMAKE_JAVA_COMPILE_FLAGS ${BASE_JAVA_COMPILE_FLAGS} -Xlint:-options --release 8)
 
 
 add_jar(
