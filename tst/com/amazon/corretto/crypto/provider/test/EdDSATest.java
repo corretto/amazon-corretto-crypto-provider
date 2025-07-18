@@ -4,6 +4,7 @@ package com.amazon.corretto.crypto.provider.test;
 
 import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -481,7 +482,15 @@ public class EdDSATest {
     TestUtil.assertThrows(NullPointerException.class, () -> jceSig.update((byte[]) null));
     // Test with null signature
     jceSig.initVerify(keyPair.getPublic());
-    assertFalse(jceSig.verify(null));
+    try {
+      boolean result = jceSig.verify(null);
+      // JDK 17 returns false for null signature
+      assertFalse(result);
+    } catch(SignatureException e) {
+      // JDK 21 throws SignatureException for null signature
+      // which is more in line with BC and ACCP behavior, even though it's a checked Exception
+      assertEquals("signature was null", e.getMessage());
+    }
 
     // Test BouncyCastle behavior
     KeyPair keyPair2 = bcGen.generateKeyPair();
