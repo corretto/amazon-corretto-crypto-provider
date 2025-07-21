@@ -15,7 +15,7 @@ static void generateXECKey(EVP_PKEY_auto& key)
     CHECK_OPENSSL(EVP_PKEY_keygen(ctx, key.getAddressOfPtr()) == 1);
 }
 
-JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_XECGen_generateEvpXECKey(JNIEnv* pEnv, jclass)
+JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_XDHGen_generateEvpXECKey(JNIEnv* pEnv, jclass)
 {
     try {
         raii_env env(pEnv);
