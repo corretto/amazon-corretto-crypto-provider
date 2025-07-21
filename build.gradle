@@ -160,13 +160,7 @@ ext.assertJceSigned = { pathToJar ->
 
 configurations {
     jacocoAgent
-    testDep {
-        extendsFrom(jacocoAgent)
-        attributes {
-            // Make sure gradle knows to resolve the dependency which actually has the code
-            attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling, 'external'))
-        }
-    }
+    testDep.extendsFrom(testImplementation)
     stagingJar
     testRunner {
         attributes {
@@ -187,15 +181,17 @@ dependencies {
     // Separate so we can extract the jar for the runner specifically
     testRunner group: 'org.junit.platform', name: 'junit-platform-console-standalone', version: '1.10.3'
 
-    testDep 'org.apiguardian:apiguardian-api:1.1.2'
-    testDep 'org.junit.jupiter:junit-jupiter:5.10.3'
-    testDep 'org.junit.vintage:junit-vintage-engine:5.10.3'
-    testDep 'org.bouncycastle:bcpkix-jdk18on:1.81'
-    testDep 'org.bouncycastle:bcprov-jdk18on:1.81'
-    testDep 'commons-codec:commons-codec:1.18.0'
-    testDep 'org.hamcrest:hamcrest:3.0'
-    testDep 'org.jacoco:org.jacoco.core:0.8.13'
-    testDep 'org.jacoco:org.jacoco.report:0.8.13'
+    // Using the inbuilt 'testImplementation' dependency configuration enables Gradle,
+    // and IDEs that import Gradle projects, to correctly identify and setup the test dependency libs
+    testImplementation 'org.apiguardian:apiguardian-api:1.1.2'
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.3'
+    testImplementation 'org.junit.vintage:junit-vintage-engine:5.10.3'
+    testImplementation 'org.bouncycastle:bcpkix-jdk18on:1.81'
+    testImplementation 'org.bouncycastle:bcprov-jdk18on:1.81'
+    testImplementation 'commons-codec:commons-codec:1.18.0'
+    testImplementation 'org.hamcrest:hamcrest:3.0'
+    testImplementation 'org.jacoco:org.jacoco.core:0.8.13'
+    testImplementation 'org.jacoco:org.jacoco.report:0.8.13'
 }
 
 defaultTasks 'release'
@@ -905,7 +901,7 @@ task generateEclipseClasspath {
                     }
                 }
 
-                configurations.testDep.files.each{f ->
+                configurations.testDep.getIncoming().getFiles().each{f ->
                     classpathentry('kind': 'lib', 'path': f) {
                         attribute('name': 'test', 'value': 'true')
                     }
@@ -914,3 +910,24 @@ task generateEclipseClasspath {
         } // file.withWriter
     } // doLast
 } // generateEclipseClasspath
+
+// Defining sourceSets will make gradle find the correct main and test folders,
+// instead of the default 'src/main/java' and 'src/test/java'.
+// This helps IDEs like IntelliJ that import Gradle projects to load and setup ACCP correctly
+// with indexing and code navigation.
+sourceSets {
+    main {
+        java {
+            srcDirs 'src', 'template-src', 'build/cmake/generated-java'
+        }
+    }
+    test {
+        java {
+            srcDirs 'tst'
+        }
+    }
+}
+// The Java plugin's compileJava and compileTestJava tasks will compile the above main and test code
+// into the default 'build/classes' location. Since we use cmake for all compilation, we can skip Gradle's tasks.
+compileJava.enabled = false
+compileTestJava.enabled = false
