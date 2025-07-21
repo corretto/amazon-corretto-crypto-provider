@@ -731,7 +731,9 @@ public class EvpKeyFactoryTest {
         // Similarly, JDK doesn't support EdDSA/Ed25519 until JDK15
         || ((algorithm.equals("Ed25519")
                 || algorithm.equals("Ed25519ph")
-                || algorithm.equals("EdDSA"))
+                || algorithm.equals("EdDSA")
+                || algorithm.equals("XDH")
+                || algorithm.equals("X25519"))
             && TestUtil.getJavaVersion() < 15)) {
       return NATIVE_PROVIDER;
     }

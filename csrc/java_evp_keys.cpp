@@ -329,6 +329,37 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpEcPriva
 }
 
 /*
+ * Class:     com_amazon_corretto_crypto_provider_EvpXECPrivateKey
+ * Method:    getPrivateScalar
+ */
+JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpXECPrivateKey_getPrivateScalar(
+    JNIEnv* pEnv, jclass, jlong keyHandle)
+{
+    jbyteArray result = NULL;
+
+    try {
+        raii_env env(pEnv);
+
+        EVP_PKEY* key = reinterpret_cast<EVP_PKEY*>(keyHandle);
+
+        size_t bufSize;
+
+        CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(key, NULL, &bufSize) == 1);
+        SimpleBuffer privateKeyBuffer(bufSize);
+        CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(key, privateKeyBuffer.get_buffer(), &bufSize) == 1);
+
+        result = env->NewByteArray(bufSize);
+        if (!result) {
+            throw_java_ex(EX_OOM, "Unable to allocate private key array");
+        }
+        env->SetByteArrayRegion(result, 0, bufSize, (jbyte*)privateKeyBuffer.get_buffer());
+    } catch (java_ex& ex) {
+        ex.throw_to_java(pEnv);
+    }
+    return result;
+}
+
+/*
  * Class:     com_amazon_corretto_crypto_provider_EvpEdPrivateKey
  * Method:    getPrivateKey
  */

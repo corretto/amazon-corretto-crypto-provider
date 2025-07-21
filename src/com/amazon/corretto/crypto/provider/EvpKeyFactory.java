@@ -327,6 +327,12 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
     }
   }
 
+  static class XDH extends StandardEvpKeyFactory {
+    XDH(AmazonCorrettoCryptoProvider provider) {
+      super(EvpKeyType.XDH, provider);
+    }
+  }
+
   static class EdDSA extends StandardEvpKeyFactory {
     EdDSA(AmazonCorrettoCryptoProvider provider) {
       super(EvpKeyType.EdDSA, provider);
