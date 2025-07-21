@@ -211,7 +211,7 @@ JNIEXPORT void JNICALL JNI_NAME(updateNativeByteBuffer)(
             CHECK_OPENSSL(EVP_DigestInit(evp_ctx, MD()));
             memcpy(evp_ctx->md_data, contextBorrow.data(), digestContextSize);
         }
-        
+
         {
             java_buffer dataBuf = java_buffer::from_direct(env, dataDirectBuf);
             jni_borrow dataBorrow(env, dataBuf, "dataBorrow");
@@ -235,8 +235,8 @@ JNIEXPORT void JNICALL JNI_NAME(fastDigest)(
     // is correct.
     try {
         raii_env env(pEnv);
-
-        SecureBuffer<CTX, 1> ctx;
+        
+        SecureBuffer<CTX,1> ctx;
         const size_t scratchSize = DIGEST_BLOCK_SIZE; // Size is arbitrarily chosen
         SecureBuffer<uint8_t, DIGEST_LENGTH> digest;
 
@@ -247,7 +247,7 @@ JNIEXPORT void JNICALL JNI_NAME(fastDigest)(
         if (static_cast<size_t>(dataLength) > scratchSize) {
             java_buffer dataBuffer = java_buffer::from_array(env, dataArray, bufOffset, dataLength);
             jni_borrow dataBorrow(env, dataBuffer, "data");
-            if (unlikely(EVP_DigestUpdate(ctx, dataBorrow.data(), dataBorrow.len()))) {
+            if (unlikely(!EVP_DigestUpdate(ctx, dataBorrow.data(), dataBorrow.len()))) {
                 throw java_ex::from_openssl(EX_RUNTIME_CRYPTO, "Unable to update context");
             }
         } else {
@@ -261,7 +261,7 @@ JNIEXPORT void JNICALL JNI_NAME(fastDigest)(
         if (unlikely(!EVP_DigestFinal(ctx, digest, &out_size))) {
             throw java_ex::from_openssl(EX_RUNTIME_CRYPTO, "Unable to finish digest");
         }
-        env->SetByteArrayRegion(digestArray, 0, EVP_MD_size(MD()) , reinterpret_cast<const jbyte*>(digest.buf));
+        env->SetByteArrayRegion(digestArray, 0, DIGEST_LENGTH, reinterpret_cast<const jbyte*>(digest.buf));
 
     } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);
