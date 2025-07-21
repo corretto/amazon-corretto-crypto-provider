@@ -104,27 +104,23 @@ class AccessibleByteArrayOutputStream extends OutputStream implements Cloneable 
   }
 
   /**
-   * Double the internal capacity on every resize, up to INT_MAX.
+   * Double the current capacity on every resize, up to limit.
    *
-   * <p>We manually check for values greater than Integer.MAX_VALUE/2 since left-shifting integers
-   * above that value results in a negative integer.
+   * <p>We check for "currentCapacity >= limit/2" to ensure that we do not overflow when "limit ==
+   * Integer.MAX_VALUE". Left-shifting integers above INT_MAX/2 results in a negative integer.
    */
-  private int increaseCapacity(int currentCapacity) {
-    if (currentCapacity >= (Integer.MAX_VALUE >> 1)) {
-      return Integer.MAX_VALUE;
-    } else {
-      return currentCapacity << 1;
-    }
+  private int increaseCapacity(final int currentCapacity) {
+    return (currentCapacity >= limit >> 1) ? limit : (currentCapacity << 1);
   }
 
   private int calculateNewCapacity(
       final int currentCapacity,
       final int minimumNewCapacity,
       final boolean doNotAllocateMoreThanNeeded) {
-    int newCapacity =
-        doNotAllocateMoreThanNeeded
-            ? minimumNewCapacity
-            : Math.max(Math.min(limit, increaseCapacity(currentCapacity)), minimumNewCapacity);
+
+    int defaultCapacityIncrease = Math.max(increaseCapacity(currentCapacity), minimumNewCapacity);
+
+    int newCapacity = doNotAllocateMoreThanNeeded ? minimumNewCapacity : defaultCapacityIncrease;
     return newCapacity;
   }
 
