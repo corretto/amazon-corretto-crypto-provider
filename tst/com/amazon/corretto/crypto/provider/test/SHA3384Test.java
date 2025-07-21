@@ -22,7 +22,7 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 @Execution(ExecutionMode.SAME_THREAD)
 @ResourceLock(value = TestUtil.RESOURCE_REFLECTION)
 @ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ_WRITE)
-public class SHA3_384Test {
+public class SHA3384Test {
 
   private static final String SHA3_384 = "SHA3-384";
 

@@ -22,12 +22,12 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 @Execution(ExecutionMode.SAME_THREAD)
 @ResourceLock(value = TestUtil.RESOURCE_REFLECTION)
 @ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ_WRITE)
-public class SHA3_512Test {
+public class SHA3256Test {
 
-  private static final String SHA3_512 = "SHA3-512";
+  private static final String SHA3_256 = "SHA3-256";
 
   private MessageDigest getDigest() throws Exception {
-    return MessageDigest.getInstance(SHA3_512, TestUtil.NATIVE_PROVIDER);
+    return MessageDigest.getInstance(SHA3_256, TestUtil.NATIVE_PROVIDER);
   }
 
   @Test
@@ -50,19 +50,19 @@ public class SHA3_512Test {
     MessageDigest digest = getDigest();
     assertArrayEquals(
         Hex.decodeHex(
-            "a69f73cca23a9ac5c8b567dc185a756e97c982164fe25859e0d1dcc1475c80a615b2123af1f5f94c11e3e9402c3ac558f500199d95b6d3e301758586281dcd26".toCharArray()),
+            "a7ffc6f8bf1ed76651c14756a061d662f580ff4de43b49fa82d80a4b80f8434a".toCharArray()),
         digest.digest());
     digest = getDigest();
     digest.update(new byte[0]);
     assertArrayEquals(
         Hex.decodeHex(
-            "a69f73cca23a9ac5c8b567dc185a756e97c982164fe25859e0d1dcc1475c80a615b2123af1f5f94c11e3e9402c3ac558f500199d95b6d3e301758586281dcd26".toCharArray()),
+            "a7ffc6f8bf1ed76651c14756a061d662f580ff4de43b49fa82d80a4b80f8434a".toCharArray()),
         digest.digest());
     digest = getDigest();
     digest.update(ByteBuffer.allocateDirect(0));
     assertArrayEquals(
         Hex.decodeHex(
-            "a69f73cca23a9ac5c8b567dc185a756e97c982164fe25859e0d1dcc1475c80a615b2123af1f5f94c11e3e9402c3ac558f500199d95b6d3e301758586281dcd26".toCharArray()),
+            "a7ffc6f8bf1ed76651c14756a061d662f580ff4de43b49fa82d80a4b80f8434a".toCharArray()),
         digest.digest());
   }
 
@@ -73,7 +73,7 @@ public class SHA3_512Test {
 
     assertArrayEquals(
         Hex.decodeHex(
-            "881c7d6ba98678bcd96e253086c4048c3ea15306d0d13ff48341c6285ee71102a47b6f16e20e4d65c0c3d677be689dfda6d326695609cbadfafa1800e9eb7fc1".toCharArray()),
+            "7f5979fb78f082e8b1c676635db8795c4ac6faba03525fb708cb5fd68fd40c5e".toCharArray()),
         digest.digest());
   }
 
@@ -83,7 +83,7 @@ public class SHA3_512Test {
 
     assertArrayEquals(
         Hex.decodeHex(
-            "881c7d6ba98678bcd96e253086c4048c3ea15306d0d13ff48341c6285ee71102a47b6f16e20e4d65c0c3d677be689dfda6d326695609cbadfafa1800e9eb7fc1".toCharArray()),
+            "7f5979fb78f082e8b1c676635db8795c4ac6faba03525fb708cb5fd68fd40c5e".toCharArray()),
         digest.digest("testing".getBytes()));
   }
 
@@ -100,32 +100,32 @@ public class SHA3_512Test {
 
     assertArrayEquals(
         Hex.decodeHex(
-            "881c7d6ba98678bcd96e253086c4048c3ea15306d0d13ff48341c6285ee71102a47b6f16e20e4d65c0c3d677be689dfda6d326695609cbadfafa1800e9eb7fc1".toCharArray()),
+            "7f5979fb78f082e8b1c676635db8795c4ac6faba03525fb708cb5fd68fd40c5e".toCharArray()),
         digest.digest());
   }
 
   @Test
   public void testRandomly() throws Exception {
-    new HashFunctionTester(SHA3_512).testRandomly(1000);
+    new HashFunctionTester(SHA3_256).testRandomly(1000);
   }
 
   @Test
   public void testAPIDetails() throws Exception {
-    new HashFunctionTester(SHA3_512).testAPI();
+    new HashFunctionTester(SHA3_256).testAPI();
   }
 
   @Test
   public void cavpShortVectors() throws Throwable {
     try (final InputStream is =
-        new GZIPInputStream(TestUtil.getTestData("SHA3_512ShortMsg.rsp.gz"))) {
-      new HashFunctionTester(SHA3_512).test(RspTestEntry.iterateOverResource(is));
+        new GZIPInputStream(TestUtil.getTestData("SHA3_256ShortMsg.rsp.gz"))) {
+      new HashFunctionTester(SHA3_256).test(RspTestEntry.iterateOverResource(is));
     }
   }
 
   @Test
   public void cavpLongVectors() throws Throwable {
-    try (final InputStream is = new GZIPInputStream(TestUtil.getTestData("SHA3_512LongMsg.rsp.gz"))) {
-      new HashFunctionTester(SHA3_512).test(RspTestEntry.iterateOverResource(is));
+    try (final InputStream is = new GZIPInputStream(TestUtil.getTestData("SHA3_256LongMsg.rsp.gz"))) {
+      new HashFunctionTester(SHA3_256).test(RspTestEntry.iterateOverResource(is));
     }
   }
 }
