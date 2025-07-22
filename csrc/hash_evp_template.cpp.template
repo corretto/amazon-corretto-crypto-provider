@@ -3,9 +3,6 @@
 #include "env.h"
 #include "generated-headers.h"
 #include "util.h"
-//Need to build out the template for this
-
-//With regards to what is actually called, we need the get context size, get hash size, init, update context buffer and native buffer, finish, and fast digest functionalities
 
 //These are exposed using the functions in digest.h 
 
@@ -27,13 +24,6 @@
 // OPENSSL_EXPORT const EVP_MD *EVP_shake256(void);
 // OPENSSL_EXPORT const EVP_MD *EVP_blake2b256(void);
 
-//Need to write out a new template to work with the EVP template exposed in AWS-LC
-
-
-//What would we need as a unique identifier for each use?
-    //Just the function name 
-    //Example: #define DIGEST_NAME sha3_224(Needs to be written in this format to align with the aws-lc implementation name)
-    
 
 // Transform DIGEST_NAME from "sha3_224" format to "SHA3224" format for JNI class names
 // This macro needs to be defined for each digest algorithm
@@ -64,36 +54,31 @@
 
 #define MD CONCAT2(EVP_, DIGEST_NAME)
 #define CTX EVP_MD_CTX
-#define digestContextSize 400
+
 using namespace AmazonCorrettoCryptoProvider;
 
-//Currently a constant for SHA3 purposes because of complications with EVP size getting
-JNIEXPORT jint JNICALL JNI_NAME(getContextSize)(JNIEnv*, jclass) { return digestContextSize; }
 
-JNIEXPORT jint JNICALL JNI_NAME(getHashSize)(JNIEnv*, jclass) { return EVP_MD_size(MD()); }
+
+JNIEXPORT jint JNICALL JNI_NAME(getContextSize)(JNIEnv*, jclass) { return MD_CTX_SIZE; }
+
+JNIEXPORT jint JNICALL JNI_NAME(getHashSize)(JNIEnv*, jclass) { return MD_DIGEST_SIZE; }
 
 JNIEXPORT void JNICALL JNI_NAME(initContext)(JNIEnv* pEnv, jclass, jbyteArray contextArray)
 {
     try {
         raii_env env(pEnv);
         
-        // Allocate EVP_MD_CTX on heap instead of stack
-        CTX* ctx = EVP_MD_CTX_new();
-        if (!ctx) {
-            throw_java_ex(EX_RUNTIME_CRYPTO, "Failed to allocate EVP_MD_CTX");
-        }
+        CTX ctx;
         
-        CHECK_OPENSSL(EVP_DigestInit(ctx, MD()));
+        CHECK_OPENSSL(EVP_DigestInit(&ctx, MD()));
 
         java_buffer contextBuffer = java_buffer::from_array(env, contextArray);
 
-        if (unlikely(contextBuffer.len() != digestContextSize)) {
+        if (unlikely(contextBuffer.len() != MD_CTX_SIZE)) {
             throw_java_ex(EX_ILLEGAL_ARGUMENT, "Bad context buffer size");
         }
-        // Store the pointer to the heap-allocated context
-        contextBuffer.put_bytes(env, reinterpret_cast<const uint8_t*>(ctx->md_data), 0, digestContextSize);
 
-        EVP_MD_CTX_free(ctx);
+        contextBuffer.put_bytes(env, reinterpret_cast<const uint8_t*>(ctx.md_data), 0, MD_CTX_SIZE);
 
     } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);
@@ -106,33 +91,28 @@ JNIEXPORT void JNICALL JNI_NAME(updateContextByteArray)(
 {
     try {
         raii_env env(pEnv);
-        CTX* evp_ctx = EVP_MD_CTX_new();
 
-        if (!evp_ctx) {
-            throw_java_ex(EX_RUNTIME_CRYPTO, "Failed to allocate EVP_MD_CTX");
-        }
-
+        CTX ctx;
+        
         java_buffer contextBuffer = java_buffer::from_array(env, contextArray);
 
         {
-            CHECK_OPENSSL(EVP_DigestInit(evp_ctx, MD()));
+            CHECK_OPENSSL(EVP_DigestInit(&ctx, MD()));
 
             jni_borrow contextBorrow(env, contextBuffer, "contextBuffer");
 
             //Setting the state of the ctx pointer to the context passed in through the function call
-            memcpy(evp_ctx->md_data, contextBorrow.data(), digestContextSize);
+            memcpy(ctx.md_data, contextBorrow.data(), MD_CTX_SIZE);
         }
 
         {
             java_buffer databuf = java_buffer::from_array(env, dataArray, offset, length);
             jni_borrow dataBorrow(env, databuf, "databuf");
             
-            CHECK_OPENSSL(EVP_DigestUpdate(evp_ctx, dataBorrow.data(), dataBorrow.len()));
+            CHECK_OPENSSL(EVP_DigestUpdate(&ctx, dataBorrow.data(), dataBorrow.len()));
 
         }
-        contextBuffer.put_bytes(env, reinterpret_cast<const uint8_t*>(evp_ctx->md_data), 0, digestContextSize);
-
-        EVP_MD_CTX_free(evp_ctx);
+        contextBuffer.put_bytes(env, reinterpret_cast<const uint8_t*>(ctx.md_data), 0, MD_CTX_SIZE);
 
     } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);
@@ -148,19 +128,15 @@ JNIEXPORT void JNICALL JNI_NAME(finish)(
     try {
         raii_env env(pEnv);
         
-        CTX* evp_ctx = EVP_MD_CTX_new();
-
-        if (!evp_ctx) {
-            throw_java_ex(EX_RUNTIME_CRYPTO, "Failed to allocate EVP_MD_CTX");
-        }
+        CTX ctx;
 
         java_buffer contextBuffer = java_buffer::from_array(env, contextArray);
         {            
-            CHECK_OPENSSL(EVP_DigestInit(evp_ctx, MD()));
+            CHECK_OPENSSL(EVP_DigestInit(&ctx, MD()));
 
             jni_borrow contextBorrow(env, contextBuffer, "contextBuffer");
 
-            memcpy(evp_ctx->md_data, contextBorrow.data(), digestContextSize);
+            memcpy(ctx.md_data, contextBorrow.data(), MD_CTX_SIZE);
         }
         
         int success;
@@ -169,18 +145,16 @@ JNIEXPORT void JNICALL JNI_NAME(finish)(
             jni_borrow digestBorrow(env, digestbuf, "digestbuf");
 
             unsigned out_size;
-            success = EVP_DigestFinal(evp_ctx, digestBorrow.check_range(offset, EVP_MD_size(MD())), &out_size);
+            success = EVP_DigestFinal(&ctx, digestBorrow.check_range(offset, MD_DIGEST_SIZE), &out_size);
 
             if (unlikely(!success)) {
                 digestBorrow.zeroize();
             }
         }
 
-        uint8_t zeros[digestContextSize] = {0};
-        contextBuffer.put_bytes(env, zeros, 0, digestContextSize);
+        uint8_t zeros[MD_CTX_SIZE] = {0};
+        contextBuffer.put_bytes(env, zeros, 0, MD_CTX_SIZE);
         
-        EVP_MD_CTX_free(evp_ctx);
-
         if (unlikely(!success)) {
             throw_openssl();
         }
@@ -198,28 +172,23 @@ JNIEXPORT void JNICALL JNI_NAME(updateNativeByteBuffer)(
     try {
         raii_env env(pEnv);
         
-        CTX* evp_ctx = EVP_MD_CTX_new();
-        if (!evp_ctx) {
-                throw_java_ex(EX_RUNTIME_CRYPTO, "Failed to allocate EVP_MD_CTX");
-        }
+        CTX ctx;
 
         java_buffer contextBuffer = java_buffer::from_array(env, contextArray);
 
-
         {
             jni_borrow contextBorrow(env, contextBuffer, "contextBuffer");
-            CHECK_OPENSSL(EVP_DigestInit(evp_ctx, MD()));
-            memcpy(evp_ctx->md_data, contextBorrow.data(), digestContextSize);
+            CHECK_OPENSSL(EVP_DigestInit(&ctx, MD()));
+            memcpy(ctx.md_data, contextBorrow.data(), MD_CTX_SIZE);
         }
 
         {
             java_buffer dataBuf = java_buffer::from_direct(env, dataDirectBuf);
             jni_borrow dataBorrow(env, dataBuf, "dataBorrow");
-            CHECK_OPENSSL(EVP_DigestUpdate(evp_ctx, dataBorrow.data(), dataBorrow.len()));
+            CHECK_OPENSSL(EVP_DigestUpdate(&ctx, dataBorrow.data(), dataBorrow.len()));
         }
-        contextBuffer.put_bytes(env, reinterpret_cast<const uint8_t*>(evp_ctx->md_data), 0, digestContextSize);
-        
-        EVP_MD_CTX_free(evp_ctx);
+        contextBuffer.put_bytes(env, reinterpret_cast<const uint8_t*>(ctx.md_data), 0, MD_CTX_SIZE);
+
     } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);
     }
