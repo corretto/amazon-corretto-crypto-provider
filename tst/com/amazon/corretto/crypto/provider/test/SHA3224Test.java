@@ -49,20 +49,17 @@ public class SHA3224Test {
   public void testNullDigest() throws Exception {
     MessageDigest digest = getDigest();
     assertArrayEquals(
-        Hex.decodeHex(
-            "6b4e03423667dbb73b6e15454f0eb1abd4597f9a1b078e3f5b5a6bc7".toCharArray()),
+        Hex.decodeHex("6b4e03423667dbb73b6e15454f0eb1abd4597f9a1b078e3f5b5a6bc7".toCharArray()),
         digest.digest());
     digest = getDigest();
     digest.update(new byte[0]);
     assertArrayEquals(
-        Hex.decodeHex(
-            "6b4e03423667dbb73b6e15454f0eb1abd4597f9a1b078e3f5b5a6bc7".toCharArray()),
+        Hex.decodeHex("6b4e03423667dbb73b6e15454f0eb1abd4597f9a1b078e3f5b5a6bc7".toCharArray()),
         digest.digest());
     digest = getDigest();
     digest.update(ByteBuffer.allocateDirect(0));
     assertArrayEquals(
-        Hex.decodeHex(
-            "6b4e03423667dbb73b6e15454f0eb1abd4597f9a1b078e3f5b5a6bc7".toCharArray()),
+        Hex.decodeHex("6b4e03423667dbb73b6e15454f0eb1abd4597f9a1b078e3f5b5a6bc7".toCharArray()),
         digest.digest());
   }
 
@@ -72,8 +69,7 @@ public class SHA3224Test {
     digest.update("testing".getBytes());
 
     assertArrayEquals(
-        Hex.decodeHex(
-            "04eaf0c175aa45299155aca3f97e41c2d684eb0978c9af6cd88c5a51".toCharArray()),
+        Hex.decodeHex("04eaf0c175aa45299155aca3f97e41c2d684eb0978c9af6cd88c5a51".toCharArray()),
         digest.digest());
   }
 
@@ -82,8 +78,7 @@ public class SHA3224Test {
     MessageDigest digest = getDigest();
 
     assertArrayEquals(
-        Hex.decodeHex(
-            "04eaf0c175aa45299155aca3f97e41c2d684eb0978c9af6cd88c5a51".toCharArray()),
+        Hex.decodeHex("04eaf0c175aa45299155aca3f97e41c2d684eb0978c9af6cd88c5a51".toCharArray()),
         digest.digest("testing".getBytes()));
   }
 
@@ -99,8 +94,7 @@ public class SHA3224Test {
     assertEquals(nativeBuf.position(), nativeBuf.limit());
 
     assertArrayEquals(
-        Hex.decodeHex(
-            "04eaf0c175aa45299155aca3f97e41c2d684eb0978c9af6cd88c5a51".toCharArray()),
+        Hex.decodeHex("04eaf0c175aa45299155aca3f97e41c2d684eb0978c9af6cd88c5a51".toCharArray()),
         digest.digest());
   }
 
@@ -124,7 +118,8 @@ public class SHA3224Test {
 
   @Test
   public void cavpLongVectors() throws Throwable {
-    try (final InputStream is = new GZIPInputStream(TestUtil.getTestData("SHA3_224LongMsg.rsp.gz"))) {
+    try (final InputStream is =
+        new GZIPInputStream(TestUtil.getTestData("SHA3_224LongMsg.rsp.gz"))) {
       new HashFunctionTester(SHA3_224).test(RspTestEntry.iterateOverResource(is));
     }
   }
