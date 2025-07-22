@@ -13,10 +13,6 @@ import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Properties;
@@ -93,32 +89,21 @@ final class Loader {
     if (!TEST_FILENAME_PATTERN.matcher(fileName).matches()) {
       throw new IllegalArgumentException("Invalid filename: " + fileName);
     }
-    final InputStream result =
-        AccessController.doPrivileged(
-            (PrivilegedAction<InputStream>)
-                () -> Loader.class.getResourceAsStream("testdata/" + fileName));
+    final InputStream result = Loader.class.getResourceAsStream("testdata/" + fileName);
     if (result == null) {
       throw new AssertionError("Unable to load test data from file testdata/" + fileName);
     }
     return result;
   }
 
-  /**
-   * Prepends {@link #PROPERTY_BASE} and then calls {@link System#getProperty(String)} in a
-   * privileged context.
-   */
+  /** Prepends {@link #PROPERTY_BASE} and then calls {@link System#getProperty(String)} */
   static String getProperty(String propertyName) {
-    return AccessController.doPrivileged(
-        (PrivilegedAction<String>) () -> System.getProperty(PROPERTY_BASE + propertyName));
+    return System.getProperty(PROPERTY_BASE + propertyName);
   }
 
-  /**
-   * Prepends {@link #PROPERTY_BASE} and then calls {@link System#getProperty(String, String)} in a
-   * privileged context.
-   */
-  static String getProperty(String propertyName, String def) {
-    return AccessController.doPrivileged(
-        (PrivilegedAction<String>) () -> System.getProperty(PROPERTY_BASE + propertyName, def));
+  /** Prepends {@link #PROPERTY_BASE} and then calls {@link System#getProperty(String, String)} */
+  static String getProperty(String propertyName, String defaultValue) {
+    return System.getProperty(PROPERTY_BASE + propertyName, defaultValue);
   }
 
   static {
@@ -138,19 +123,13 @@ final class Loader {
 
       awsLcVersionStr = readProperty(VERSION_PROPERTY_FILE, PROPERTY_AWS_LC_VERSION_STR);
 
-      available =
-          AccessController.doPrivileged(
-              (PrivilegedExceptionAction<Boolean>)
-                  () -> {
-                    // This is to work a JVM runtime bug where FileSystems.getDefault() and
-                    // System.loadLibrary() can deadlock. Calling this explicitly should prevent
-                    // the problem from happening, but since we don't know what other threads are
-                    // doing, we cannot promise success.
-                    FileSystems.getDefault();
-                    tryLoadLibrary();
-                    return true;
-                  });
-
+      // This is to work a JVM runtime bug where FileSystems.getDefault() and
+      // System.loadLibrary() can deadlock. Calling this explicitly should prevent
+      // the problem from happening, but since we don't know what other threads are
+      // doing, we cannot promise success.
+      FileSystems.getDefault();
+      tryLoadLibrary();
+      available = true;
     } catch (final Throwable t) {
       available = false;
       error = t;
@@ -189,20 +168,15 @@ final class Loader {
    * Loads a properties file and reads the value for the given key. If file is unavailable, falls
    * back to {@link System#getProperty(String)}.
    */
-  private static String readProperty(String propertyFile, String propertyKey)
-      throws PrivilegedActionException {
-    return AccessController.doPrivileged(
-        (PrivilegedExceptionAction<String>)
-            () -> {
-              try (InputStream is = Loader.class.getResourceAsStream(propertyFile)) {
-                if (is == null) {
-                  return System.getProperty(propertyKey);
-                }
-                Properties p = new Properties();
-                p.load(is);
-                return p.getProperty(propertyKey);
-              }
-            });
+  private static String readProperty(String propertyFile, String propertyKey) throws IOException {
+    try (InputStream is = Loader.class.getResourceAsStream(propertyFile)) {
+      if (is == null) {
+        return System.getProperty(propertyKey);
+      }
+      Properties p = new Properties();
+      p.load(is);
+      return p.getProperty(propertyKey);
+    }
   }
 
   private static void tryLoadLibraryFromJar() throws IOException {
