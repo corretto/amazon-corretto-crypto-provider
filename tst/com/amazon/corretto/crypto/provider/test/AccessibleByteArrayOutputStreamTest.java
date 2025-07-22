@@ -92,6 +92,7 @@ public class AccessibleByteArrayOutputStreamTest {
         (int) (Integer.MAX_VALUE * 0.75) + 1,
         Integer.MAX_VALUE);
     assertNewCapacity(instance, Integer.MAX_VALUE - 10, Integer.MAX_VALUE - 9, Integer.MAX_VALUE);
+    assertNewCapacity(instance, Integer.MAX_VALUE - 2, Integer.MAX_VALUE - 1, Integer.MAX_VALUE);
     assertNewCapacity(instance, Integer.MAX_VALUE - 1, Integer.MAX_VALUE, Integer.MAX_VALUE);
   }
 
