@@ -124,7 +124,8 @@ public class SHA3256Test {
 
   @Test
   public void cavpLongVectors() throws Throwable {
-    try (final InputStream is = new GZIPInputStream(TestUtil.getTestData("SHA3_256LongMsg.rsp.gz"))) {
+    try (final InputStream is =
+        new GZIPInputStream(TestUtil.getTestData("SHA3_256LongMsg.rsp.gz"))) {
       new HashFunctionTester(SHA3_256).test(RspTestEntry.iterateOverResource(is));
     }
   }

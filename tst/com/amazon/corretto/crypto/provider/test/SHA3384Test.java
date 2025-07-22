@@ -50,19 +50,22 @@ public class SHA3384Test {
     MessageDigest digest = getDigest();
     assertArrayEquals(
         Hex.decodeHex(
-            "0c63a75b845e4f7d01107d852e4c2485c51a50aaaa94fc61995e71bbee983a2ac3713831264adb47fb6bd1e058d5f004".toCharArray()),
+            "0c63a75b845e4f7d01107d852e4c2485c51a50aaaa94fc61995e71bbee983a2ac3713831264adb47fb6bd1e058d5f004"
+                .toCharArray()),
         digest.digest());
     digest = getDigest();
     digest.update(new byte[0]);
     assertArrayEquals(
         Hex.decodeHex(
-            "0c63a75b845e4f7d01107d852e4c2485c51a50aaaa94fc61995e71bbee983a2ac3713831264adb47fb6bd1e058d5f004".toCharArray()),
+            "0c63a75b845e4f7d01107d852e4c2485c51a50aaaa94fc61995e71bbee983a2ac3713831264adb47fb6bd1e058d5f004"
+                .toCharArray()),
         digest.digest());
     digest = getDigest();
     digest.update(ByteBuffer.allocateDirect(0));
     assertArrayEquals(
         Hex.decodeHex(
-            "0c63a75b845e4f7d01107d852e4c2485c51a50aaaa94fc61995e71bbee983a2ac3713831264adb47fb6bd1e058d5f004".toCharArray()),
+            "0c63a75b845e4f7d01107d852e4c2485c51a50aaaa94fc61995e71bbee983a2ac3713831264adb47fb6bd1e058d5f004"
+                .toCharArray()),
         digest.digest());
   }
 
@@ -73,7 +76,8 @@ public class SHA3384Test {
 
     assertArrayEquals(
         Hex.decodeHex(
-            "e15a44d4e12ac138db4b8d77e954d78d94de4391ec2d1d8b2b8ace1a2f4b3d2fb9efd0546d6fcafacbe5b1640639b005".toCharArray()),
+            "e15a44d4e12ac138db4b8d77e954d78d94de4391ec2d1d8b2b8ace1a2f4b3d2fb9efd0546d6fcafacbe5b1640639b005"
+                .toCharArray()),
         digest.digest());
   }
 
@@ -83,7 +87,8 @@ public class SHA3384Test {
 
     assertArrayEquals(
         Hex.decodeHex(
-            "e15a44d4e12ac138db4b8d77e954d78d94de4391ec2d1d8b2b8ace1a2f4b3d2fb9efd0546d6fcafacbe5b1640639b005".toCharArray()),
+            "e15a44d4e12ac138db4b8d77e954d78d94de4391ec2d1d8b2b8ace1a2f4b3d2fb9efd0546d6fcafacbe5b1640639b005"
+                .toCharArray()),
         digest.digest("testing".getBytes()));
   }
 
@@ -100,7 +105,8 @@ public class SHA3384Test {
 
     assertArrayEquals(
         Hex.decodeHex(
-            "e15a44d4e12ac138db4b8d77e954d78d94de4391ec2d1d8b2b8ace1a2f4b3d2fb9efd0546d6fcafacbe5b1640639b005".toCharArray()),
+            "e15a44d4e12ac138db4b8d77e954d78d94de4391ec2d1d8b2b8ace1a2f4b3d2fb9efd0546d6fcafacbe5b1640639b005"
+                .toCharArray()),
         digest.digest());
   }
 
@@ -124,7 +130,8 @@ public class SHA3384Test {
 
   @Test
   public void cavpLongVectors() throws Throwable {
-    try (final InputStream is = new GZIPInputStream(TestUtil.getTestData("SHA3_384LongMsg.rsp.gz"))) {
+    try (final InputStream is =
+        new GZIPInputStream(TestUtil.getTestData("SHA3_384LongMsg.rsp.gz"))) {
       new HashFunctionTester(SHA3_384).test(RspTestEntry.iterateOverResource(is));
     }
   }
