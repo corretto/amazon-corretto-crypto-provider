@@ -196,8 +196,17 @@ dependencies {
 
 defaultTasks 'release'
 
-ext.buildJdk = System.getProperty("java.version").split('\\.')[0] as Integer
-ext.targetMinJdk = System.getProperty('targetMinJdk') ?: project.findProperty('targetMinJdk') ?: '8'
+ext.buildJdk = {
+    def version = System.getProperty("java.version")
+    def parts = version.split('\\.')
+    if (parts[0] == "1") {
+        return parts[1] as Integer
+    }
+    else {
+        return parts[0] as Integer
+    }
+}()
+ext.targetMinJdk = System.getProperty('TARGET_MIN_JDK') ?: '8'
 
 task buildAwsLc {
     def sharedObjectOutDir = "${buildDir}/awslc/bin"
@@ -333,8 +342,8 @@ task executeCmake(type: Exec) {
     args "-DTEST_RUNNER_JAR=${configurations.testRunner.singleFile}"
     args "-DCMAKE_VERBOSE_MAKEFILE:BOOL=${isVerbose ? 'ON' : 'OFF'}"
     args "-DAWS_LC_VERSION_STRING=" + awsLcGitVersionId
-    args "-DTARGET_JDK_VERSION=" + targetMinJdk
-    args "-DBUILD_JDK_VERSION=" + buildJdk
+    args "-DTARGET_JDK_VERSION=${targetMinJdk}"
+    args "-DBUILD_JDK_VERSION=${buildJdk}"
     if (isFips) {
         args "-DFIPS=ON"
     }

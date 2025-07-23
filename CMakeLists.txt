@@ -160,23 +160,30 @@ add_custom_command(
     COMMENT "Generating hash function SPI classes..."
     )
 
+# The KEM API was introduced in JDK 21 and backported to JDK 17
+# It is not supported on anything below JDK 17 or on JDK 18-20
 if((TARGET_JDK_VERSION VERSION_LESS "17") OR ((TARGET_JDK_VERSION VERSION_GREATER_EQUAL "18") AND (TARGET_JDK_VERSION VERSION_LESS "21")))
     set(KEM_SUPPORTED FALSE)
 else()
     set(KEM_SUPPORTED TRUE)
 endif()
 
-# These two macros below conditionally include/exclude the Jdk17plus based onif the KEM API is supported in the release target
-macro(filter_kem_sources SOURCE_LIST)
-    set(JDK17PLUS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/com/amazon/corretto/crypto/provider/jdk17plus")
-    if(NOT (KEM_SUPPORTED AND EXISTS "${JDK17PLUS_DIR}"))
-        list(FILTER ${SOURCE_LIST} EXCLUDE REGEX ".*/jdk17plus/.*")
+# macro to filter source lists based on conditions and directory existence checks
+# FILTER_LIST: The list variable to filter
+# PATH_PATTERN: Regex pattern to match paths for filtering (".*/jdk17plus/.*")
+# CONDITION: Boolean condition - if false, items matching PATH_PATTERN are excluded
+# Optional 4th argument: Check if directory exists 
+macro(filter_sources_by_condition FILTER_LIST PATH_PATTERN CONDITION)
+    set(SHOULD_INCLUDE ${CONDITION})
+    if(${ARGC} GREATER 3)
+        set(CHECK_DIR ${ARGV3})
+        if(NOT EXISTS "${CHECK_DIR}")
+            set(SHOULD_INCLUDE FALSE)
+        endif()
     endif()
-endmacro()
-
-macro(filter_kem_tests TEST_LIST)
-    if(NOT KEM_SUPPORTED)
-        list(FILTER ${TEST_LIST} EXCLUDE REGEX ".*/jdk17plus/.*")
+    
+    if(NOT SHOULD_INCLUDE)
+        list(FILTER ${FILTER_LIST} EXCLUDE REGEX "${PATH_PATTERN}")
     endif()
 endmacro()
 
@@ -187,15 +194,14 @@ endmacro()
 if (${CMAKE_VERSION} VERSION_LESS "3.12.0")
     file(GLOB_RECURSE ACCP_SRC "src/com/amazon/corretto/crypto/provider/*.java")
     file(GLOB_RECURSE ACCP_UTILS_SRC "src/com/amazon/corretto/crypto/utils/*.java")
-    filter_kem_sources(ACCP_SRC)
+    filter_sources_by_condition(ACCP_SRC ".*/jdk17plus/.*" ${KEM_SUPPORTED} "${CMAKE_CURRENT_SOURCE_DIR}/src/com/amazon/corretto/crypto/provider/jdk17plus")
 else()
     file(GLOB_RECURSE ACCP_SRC CONFIGURE_DEPENDS "src/com/amazon/corretto/crypto/provider/*.java")
     file(GLOB_RECURSE ACCP_UTILS_SRC CONFIGURE_DEPENDS "src/com/amazon/corretto/crypto/utils/*.java")
-    filter_kem_sources(ACCP_SRC)
+    filter_sources_by_condition(ACCP_SRC ".*/jdk17plus/.*" ${KEM_SUPPORTED} "${CMAKE_CURRENT_SOURCE_DIR}/src/com/amazon/corretto/crypto/provider/jdk17plus")
 endif()
-
-
 set(ACCP_SRC ${ACCP_SRC} ${ACCP_UTILS_SRC} ${GENERATED_JAVA_SRC})
+
 set(BASE_JAVA_COMPILE_FLAGS ${CMAKE_JAVA_COMPILE_FLAGS} -h "${JNI_HEADER_DIR}" -Werror)
 
 # This macro checks if the build time JDK is 21 above and the target is 17. If so, it uses
@@ -225,10 +231,6 @@ macro(set_java_compile_flags)
     endif()
     set_conditional_compile_flags(CMAKE_JAVA_COMPILE_FLAGS)
 endmacro()
-
-if(NOT DEFINED TARGET_JDK_VERSION OR TARGET_JDK_VERSION STREQUAL "")
-    set(TARGET_JDK_VERSION "8")
-endif()
 
 set(ORIGINAL_TARGET_JDK_VERSION ${TARGET_JDK_VERSION})
 
@@ -306,7 +308,6 @@ else()
     )
 endif()
 
-# All subsequent Java targets are compatible with Java 8 and beyond
 add_custom_target(accp-jar ALL DEPENDS ${ACCP_JAR})
 
 # Attach the JAR_FILE property to our custom jar target; this allows add_jar
@@ -672,10 +673,10 @@ link_with_openssl(amazonCorrettoCryptoProvider)
 #       detected by CMake.
 if (${CMAKE_VERSION} VERSION_LESS "3.12.0")
     file(GLOB_RECURSE ACCP_TEST_SRC "tst/com/amazon/corretto/crypto/provider/*.java")
-    filter_kem_tests(ACCP_TEST_SRC)
+    filter_sources_by_condition(ACCP_TEST_SRC ".*/jdk17plus/.*" ${KEM_SUPPORTED})
 else()
     file(GLOB_RECURSE ACCP_TEST_SRC CONFIGURE_DEPENDS "tst/com/amazon/corretto/crypto/provider/*.java")
-    filter_kem_tests(ACCP_TEST_SRC)
+    filter_sources_by_condition(ACCP_TEST_SRC ".*/jdk17plus/.*" ${KEM_SUPPORTED})
 endif()
 
 
