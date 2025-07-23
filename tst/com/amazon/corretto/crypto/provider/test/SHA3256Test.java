@@ -106,14 +106,14 @@ public class SHA3256Test {
 
   @Test
   public void testRandomly() throws Exception {
-    //SHA3 is not exposed in SUN JDK8, so we can't test against it
+    // SHA3 is not exposed in SUN JDK8, so we can't test against it
     TestUtil.assumeMinimumJavaVersion(11);
     new HashFunctionTester(SHA3_256).testRandomly(1000);
   }
 
   @Test
   public void testAPIDetails() throws Exception {
-    //SHA3 is not exposed in SUN JDK8, so we can't test against it
+    // SHA3 is not exposed in SUN JDK8, so we can't test against it
     TestUtil.assumeMinimumJavaVersion(11);
     new HashFunctionTester(SHA3_256).testAPI();
   }
