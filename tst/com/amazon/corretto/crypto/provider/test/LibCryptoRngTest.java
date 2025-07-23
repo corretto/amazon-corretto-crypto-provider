@@ -82,7 +82,6 @@ public class LibCryptoRngTest {
       final byte[] arr = new byte[size];
       for (int trial = 0; trial < 4; trial++) {
         rnd.nextBytes(arr);
-        System.out.println(Hex.encodeHex(arr));
         for (int x = 0; x < size; x++) {
           checkArr[x] = (byte) (checkArr[x] | arr[x]);
         }
@@ -104,7 +103,6 @@ public class LibCryptoRngTest {
       final byte[] checkArr = new byte[size];
       for (int trial = 0; trial < 4; trial++) {
         final byte[] arr = rnd.generateSeed(size);
-        System.out.println(Hex.encodeHex(arr));
         for (int x = 0; x < size; x++) {
           checkArr[x] = (byte) (checkArr[x] | arr[x]);
         }
