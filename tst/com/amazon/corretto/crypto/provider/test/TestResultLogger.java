@@ -25,7 +25,6 @@ public class TestResultLogger implements TestWatcher {
 
   private static final String BRIGHT_TEXT = maybeColor("1");
   private static final String BRIGHT_RED_TEXT = maybeColor("31;1");
-  private static final String BRIGHT_GREEN_TEXT = maybeColor("32;1");
   private static final String BRIGHT_CYAN_TEXT = maybeColor("36;1");
   private static final String NORMAL_TEXT = maybeColor("0");
   private static final String NOT_YET_FAILED_NOTICE = " ";
@@ -34,8 +33,6 @@ public class TestResultLogger implements TestWatcher {
   @SuppressWarnings("unused")
   private static final String STARTED_NOTICE = BRIGHT_TEXT + "[STARTED]         " + NORMAL_TEXT;
 
-  private static final String PASSED_NOTICE =
-      BRIGHT_GREEN_TEXT + "[PASSED]          " + NORMAL_TEXT;
   private static final String ASSUMPTION_FAILED_NOTICE =
       BRIGHT_CYAN_TEXT + "[FALSE_ASSUMPTION]" + NORMAL_TEXT;
   private static final String FAILED_NOTICE = BRIGHT_RED_TEXT + "[FAILED]          " + NORMAL_TEXT;
@@ -51,7 +48,7 @@ public class TestResultLogger implements TestWatcher {
 
   @Override
   public void testSuccessful(ExtensionContext context) {
-    printNotice(PASSED_NOTICE, context);
+    // No-op
   }
 
   @Override
