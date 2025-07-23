@@ -232,6 +232,10 @@ macro(set_java_compile_flags)
     set_conditional_compile_flags(CMAKE_JAVA_COMPILE_FLAGS)
 endmacro()
 
+if(NOT DEFINED TARGET_JDK_VERSION OR TARGET_JDK_VERSION STREQUAL "")
+    set(TARGET_JDK_VERSION "8")
+endif()
+
 set(ORIGINAL_TARGET_JDK_VERSION ${TARGET_JDK_VERSION})
 
 # Java targets defined here are compiled for Java supporting modules
