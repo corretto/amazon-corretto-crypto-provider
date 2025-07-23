@@ -64,7 +64,7 @@ using namespace AmazonCorrettoCryptoProvider;
 
 JNIEXPORT jint JNICALL JNI_NAME(getContextSize)(JNIEnv*, jclass) { return MD_CTX_SIZE; }
 
-JNIEXPORT jint JNICALL JNI_NAME(getHashSize)(JNIEnv*, jclass) { return MD_DIGEST_SIZE; }
+JNIEXPORT jint JNICALL JNI_NAME(getHashSize)(JNIEnv*, jclass) { return DIGEST_LENGTH; }
 
 JNIEXPORT void JNICALL JNI_NAME(initContext)(JNIEnv* pEnv, jclass, jbyteArray contextArray)
 {
@@ -148,7 +148,7 @@ JNIEXPORT void JNICALL JNI_NAME(finish)(
             jni_borrow digestBorrow(env, digestbuf, "digestbuf");
 
             unsigned out_size;
-            success = EVP_DigestFinal(&ctx, digestBorrow.check_range(offset, MD_DIGEST_SIZE), &out_size);
+            success = EVP_DigestFinal(&ctx, digestBorrow.check_range(offset, DIGEST_LENGTH), &out_size);
 
             if (unlikely(!success)) {
                 digestBorrow.zeroize();
