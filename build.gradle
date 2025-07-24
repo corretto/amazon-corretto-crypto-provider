@@ -206,7 +206,7 @@ ext.buildJdk = {
         return parts[0] as Integer
     }
 }()
-ext.targetMinJdk = System.getProperty('TARGET_MIN_JDK') ?: '8'
+ext.targetJdkVersion = System.getProperty('TARGET_JDK_VERSION') ?: '8'
 
 task buildAwsLc {
     def sharedObjectOutDir = "${buildDir}/awslc/bin"
@@ -342,7 +342,7 @@ task executeCmake(type: Exec) {
     args "-DTEST_RUNNER_JAR=${configurations.testRunner.singleFile}"
     args "-DCMAKE_VERBOSE_MAKEFILE:BOOL=${isVerbose ? 'ON' : 'OFF'}"
     args "-DAWS_LC_VERSION_STRING=" + awsLcGitVersionId
-    args "-DTARGET_JDK_VERSION=${targetMinJdk}"
+    args "-DTARGET_JDK_VERSION=${targetJdkVersion}"
     args "-DBUILD_JDK_VERSION=${buildJdk}"
     if (isFips) {
         args "-DFIPS=ON"
@@ -560,7 +560,7 @@ task coverage_cmake(type: Exec) {
     workingDir "${buildDir}/cmake-coverage"
     executable cmakeBin
     args "-DTEST_CLASSPATH=${configurations.testDep.asPath}"
-    args "-DTARGET_JDK_VERSION=${targetMinJdk}"
+    args "-DTARGET_JDK_VERSION=${targetJdkVersion}"
     args "-DBUILD_JDK_VERSION=${buildJdk}"
     args "-DJACOCO_AGENT_JAR=${configurations.jacocoAgent.singleFile}"
     args "-DOPENSSL_ROOT_DIR=${buildDir}/awslc/bin"

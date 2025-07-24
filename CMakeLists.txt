@@ -169,19 +169,14 @@ else()
 endif()
 
 # macro to filter source lists based on conditions and directory existence checks
-# FILTER_LIST: The list variable to filter
-# PATH_PATTERN: Regex pattern to match paths for filtering (".*/jdk17plus/.*")
-# CONDITION: Boolean condition - if false, items matching PATH_PATTERN are excluded
-# Optional 4th argument: Check if directory exists 
-macro(filter_sources_by_condition FILTER_LIST PATH_PATTERN CONDITION)
-    set(SHOULD_INCLUDE ${CONDITION})
-    if(${ARGC} GREATER 3)
-        set(CHECK_DIR ${ARGV3})
-        if(NOT EXISTS "${CHECK_DIR}")
-            set(SHOULD_INCLUDE FALSE)
-        endif()
-    endif()
-    if(NOT SHOULD_INCLUDE)
+# FILTER_LIST: the list variable to filter
+# PATH_PATTERN: regex pattern to match paths for filtering (".*/jdk17plus/.*")
+# CONDITION: Boolean condition for whether or not the path PATH_PATTERN is excluded
+# CHECK_DIR: Directory path to check for existence
+macro(filter_sources_by_condition FILTER_LIST PATH_PATTERN CONDITION CHECK_DIR)
+    if(NOT ${CONDITION})
+        list(FILTER ${FILTER_LIST} EXCLUDE REGEX "${PATH_PATTERN}")
+    elseif(CHECK_DIR AND NOT EXISTS "${CHECK_DIR}")
         list(FILTER ${FILTER_LIST} EXCLUDE REGEX "${PATH_PATTERN}")
     endif()
 endmacro()
@@ -658,10 +653,10 @@ link_with_openssl(amazonCorrettoCryptoProvider)
 #       detected by CMake.
 if (${CMAKE_VERSION} VERSION_LESS "3.12.0")
     file(GLOB_RECURSE ACCP_TEST_SRC "tst/com/amazon/corretto/crypto/provider/*.java")
-    filter_sources_by_condition(ACCP_TEST_SRC ".*/jdk17plus/.*" ${KEM_SUPPORTED})
+    filter_sources_by_condition(ACCP_TEST_SRC ".*/jdk17plus/.*" ${KEM_SUPPORTED} "")
 else()
     file(GLOB_RECURSE ACCP_TEST_SRC CONFIGURE_DEPENDS "tst/com/amazon/corretto/crypto/provider/*.java")
-    filter_sources_by_condition(ACCP_TEST_SRC ".*/jdk17plus/.*" ${KEM_SUPPORTED})
+    filter_sources_by_condition(ACCP_TEST_SRC ".*/jdk17plus/.*" ${KEM_SUPPORTED} "")
 endif()
 
 
