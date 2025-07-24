@@ -181,7 +181,6 @@ macro(filter_sources_by_condition FILTER_LIST PATH_PATTERN CONDITION)
             set(SHOULD_INCLUDE FALSE)
         endif()
     endif()
-    
     if(NOT SHOULD_INCLUDE)
         list(FILTER ${FILTER_LIST} EXCLUDE REGEX "${PATH_PATTERN}")
     endif()
@@ -228,24 +227,18 @@ macro(set_conditional_compile_flags OUTPUT_VAR)
 endmacro()
 
 
-set(ORIGINAL_TARGET_JDK_VERSION ${TARGET_JDK_VERSION})
-
-set_conditional_compile_flags(MODULE_COMPILE_FLAGS MODULE)
-
 set(ACCP_JAR "${CMAKE_CURRENT_BINARY_DIR}/AmazonCorrettoCryptoProvider.jar")
 set(ACCP_JAR_SOURCE "${CMAKE_CURRENT_BINARY_DIR}/AmazonCorrettoCryptoProvider-sources.jar")
 
-set(CMAKE_JAVA_COMPILE_FLAGS ${MODULE_COMPILE_FLAGS})
+# Java targets defined here are compiled for Java supporting modules
+set_conditional_compile_flags(CMAKE_JAVA_COMPILE_FLAGS MODULE)
+
 add_jar(
     module-jar
     SOURCES ${ACCP_SRC}
         src/module-info.java
     INCLUDE_JARS ${BUILD_CLASSPATH_LIST}
 )
-
-# Reset TARGET_JDK_VERSION to original value for subsequent targets - if runtime is JDK8, it gets changed to
-# 9 for the module-info jar and now back to 8 
-set(TARGET_JDK_VERSION ${ORIGINAL_TARGET_JDK_VERSION})
 
 create_javadoc(
     AmazonCorrettoCryptoProvider
