@@ -172,7 +172,7 @@ endif()
 # FILTER_LIST: the list variable to filter
 # PATH_PATTERN: regex pattern to match paths for filtering (".*/jdk17plus/.*")
 # CONDITION: Boolean condition for whether or not the path PATH_PATTERN is excluded
-# CHECK_DIR: Directory path to check for existence
+# CHECK_DIR: Directory path to check for existence - can remove after jdk17plus directory is merged to ACCP 
 macro(filter_sources_by_condition FILTER_LIST PATH_PATTERN CONDITION CHECK_DIR)
     if(NOT ${CONDITION})
         list(FILTER ${FILTER_LIST} EXCLUDE REGEX "${PATH_PATTERN}")
