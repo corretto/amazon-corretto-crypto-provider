@@ -196,7 +196,7 @@ else()
 endif()
 set(ACCP_SRC ${ACCP_SRC} ${ACCP_UTILS_SRC} ${GENERATED_JAVA_SRC})
 
-set(BASE_JAVA_COMPILE_FLAGS ${CMAKE_JAVA_COMPILE_FLAGS} -h "${JNI_HEADER_DIR}")
+set(BASE_JAVA_COMPILE_FLAGS ${CMAKE_JAVA_COMPILE_FLAGS} -h "${JNI_HEADER_DIR}" -Werror)
 
 # This macro checks if the build time JDK is 21 above and the target is 17. If so, it uses
 # -source and -target instead of --release to properly support the backported KEM API on JDK 17.
@@ -227,7 +227,6 @@ set(ACCP_JAR_SOURCE "${CMAKE_CURRENT_BINARY_DIR}/AmazonCorrettoCryptoProvider-so
 
 # Java targets defined here are compiled for Java supporting modules
 set_conditional_compile_flags(CMAKE_JAVA_COMPILE_FLAGS MODULE)
-
 add_jar(
     module-jar
     SOURCES ${ACCP_SRC}
