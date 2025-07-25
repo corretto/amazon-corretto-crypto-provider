@@ -163,9 +163,9 @@ add_custom_command(
 # The KEM API was introduced in JDK 21 and backported to JDK 17
 # It is not supported on anything below JDK 17 or on JDK 18-20
 if((TARGET_JDK_VERSION VERSION_LESS "17") OR ((TARGET_JDK_VERSION VERSION_GREATER_EQUAL "18") AND (TARGET_JDK_VERSION VERSION_LESS "21")))
-    set(KEM_SUPPORTED FALSE)
+    set(INCLUDE_JDK17PLUS_DIR FALSE)
 else()
-    set(KEM_SUPPORTED TRUE)
+    set(INCLUDE_JDK17PLUS_DIR TRUE)
 endif()
 
 # macro to filter source lists based on conditions and directory existence checks
@@ -188,11 +188,11 @@ endmacro()
 if (${CMAKE_VERSION} VERSION_LESS "3.12.0")
     file(GLOB_RECURSE ACCP_SRC "src/com/amazon/corretto/crypto/provider/*.java")
     file(GLOB_RECURSE ACCP_UTILS_SRC "src/com/amazon/corretto/crypto/utils/*.java")
-    filter_sources_by_condition(ACCP_SRC ".*/jdk17plus/.*" ${KEM_SUPPORTED} "${CMAKE_CURRENT_SOURCE_DIR}/src/com/amazon/corretto/crypto/provider/jdk17plus")
+    filter_sources_by_condition(ACCP_SRC ".*/jdk17plus/.*" ${INCLUDE_JDK17PLUS_DIR} "${CMAKE_CURRENT_SOURCE_DIR}/src/com/amazon/corretto/crypto/provider/jdk17plus")
 else()
     file(GLOB_RECURSE ACCP_SRC CONFIGURE_DEPENDS "src/com/amazon/corretto/crypto/provider/*.java")
     file(GLOB_RECURSE ACCP_UTILS_SRC CONFIGURE_DEPENDS "src/com/amazon/corretto/crypto/utils/*.java")
-    filter_sources_by_condition(ACCP_SRC ".*/jdk17plus/.*" ${KEM_SUPPORTED} "${CMAKE_CURRENT_SOURCE_DIR}/src/com/amazon/corretto/crypto/provider/jdk17plus")
+    filter_sources_by_condition(ACCP_SRC ".*/jdk17plus/.*" ${INCLUDE_JDK17PLUS_DIR} "${CMAKE_CURRENT_SOURCE_DIR}/src/com/amazon/corretto/crypto/provider/jdk17plus")
 endif()
 set(ACCP_SRC ${ACCP_SRC} ${ACCP_UTILS_SRC} ${GENERATED_JAVA_SRC})
 
@@ -214,7 +214,7 @@ macro(set_conditional_compile_flags OUTPUT_VAR)
         else()
             set(${OUTPUT_VAR} ${BASE_JAVA_COMPILE_FLAGS} -Xlint:-options --release 8)
         endif()
-    elseif(KEM_SUPPORTED AND TARGET_JDK_VERSION EQUAL 17 AND BUILD_JDK_VERSION GREATER_EQUAL 21)
+    elseif(INCLUDE_JDK17PLUS_DIR AND TARGET_JDK_VERSION EQUAL 17 AND BUILD_JDK_VERSION GREATER_EQUAL 21)
         set(${OUTPUT_VAR} ${BASE_JAVA_COMPILE_FLAGS} -Xlint:-options -source ${TARGET_JDK_VERSION} -target ${TARGET_JDK_VERSION})
     else()
         set(${OUTPUT_VAR} ${BASE_JAVA_COMPILE_FLAGS} -Xlint:-options --release ${TARGET_JDK_VERSION})
@@ -326,6 +326,7 @@ set(C_SRC
     csrc/ec_gen.cpp
     csrc/ec_utils.cpp
     csrc/ed_gen.cpp
+    csrc/mlkem_gen.cpp          # add to fips later
     csrc/env.cpp
     csrc/hkdf.cpp
     csrc/hmac.cpp
@@ -652,10 +653,10 @@ link_with_openssl(amazonCorrettoCryptoProvider)
 #       detected by CMake.
 if (${CMAKE_VERSION} VERSION_LESS "3.12.0")
     file(GLOB_RECURSE ACCP_TEST_SRC "tst/com/amazon/corretto/crypto/provider/*.java")
-    filter_sources_by_condition(ACCP_TEST_SRC ".*/jdk17plus/.*" ${KEM_SUPPORTED} "")
+    filter_sources_by_condition(ACCP_TEST_SRC ".*/jdk17plus/.*" ${INCLUDE_JDK17PLUS_DIR} "")
 else()
     file(GLOB_RECURSE ACCP_TEST_SRC CONFIGURE_DEPENDS "tst/com/amazon/corretto/crypto/provider/*.java")
-    filter_sources_by_condition(ACCP_TEST_SRC ".*/jdk17plus/.*" ${KEM_SUPPORTED} "")
+    filter_sources_by_condition(ACCP_TEST_SRC ".*/jdk17plus/.*" ${INCLUDE_JDK17PLUS_DIR} "")
 endif()
 
 
