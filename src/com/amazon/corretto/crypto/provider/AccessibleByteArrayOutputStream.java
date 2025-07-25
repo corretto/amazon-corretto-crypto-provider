@@ -103,21 +103,40 @@ class AccessibleByteArrayOutputStream extends OutputStream implements Cloneable 
     growCapacity(newCapacity, false);
   }
 
-  private void growCapacity(final int newCapacity, final boolean doNotAllocateMoreThanNeeded) {
-    if (newCapacity < 0 || newCapacity > limit) {
+  /**
+   * Double the current capacity on every resize, up to limit.
+   *
+   * <p>We check for "currentCapacity >= limit/2" to ensure that we do not overflow when "limit ==
+   * Integer.MAX_VALUE". Left-shifting integers above INT_MAX/2 results in a negative integer.
+   */
+  private int increaseCapacity(final int currentCapacity) {
+    return (currentCapacity >= limit >> 1) ? limit : (currentCapacity << 1);
+  }
+
+  private int calculateNewCapacity(
+      final int currentCapacity,
+      final int minimumNewCapacity,
+      final boolean doNotAllocateMoreThanNeeded) {
+
+    int defaultCapacityIncrease = Math.max(increaseCapacity(currentCapacity), minimumNewCapacity);
+
+    int newCapacity = doNotAllocateMoreThanNeeded ? minimumNewCapacity : defaultCapacityIncrease;
+    return newCapacity;
+  }
+
+  private void growCapacity(
+      final int minimumNewCapacity, final boolean doNotAllocateMoreThanNeeded) {
+    if (minimumNewCapacity < 0 || minimumNewCapacity > limit) {
       throw new IllegalArgumentException(
-          String.format("Invalid capacity. Limit: %d, Requested: %d.", limit, newCapacity));
+          String.format("Invalid capacity. Limit: %d, Requested: %d.", limit, minimumNewCapacity));
     }
-    if (newCapacity <= buf.length) {
+    if (minimumNewCapacity <= buf.length) {
       return;
     }
 
     final byte[] tmp =
         Arrays.copyOf(
-            buf,
-            doNotAllocateMoreThanNeeded
-                ? newCapacity
-                : Math.max(Math.min(limit, buf.length << 1), newCapacity));
+            buf, calculateNewCapacity(buf.length, minimumNewCapacity, doNotAllocateMoreThanNeeded));
     final byte[] toZeroize = buf;
     buf = tmp;
     Arrays.fill(toZeroize, 0, count, (byte) 0);
