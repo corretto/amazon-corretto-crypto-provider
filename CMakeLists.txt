@@ -326,7 +326,6 @@ set(C_SRC
     csrc/ec_gen.cpp
     csrc/ec_utils.cpp
     csrc/ed_gen.cpp
-    csrc/mlkem_gen.cpp          # add to fips later
     csrc/env.cpp
     csrc/hkdf.cpp
     csrc/hmac.cpp
