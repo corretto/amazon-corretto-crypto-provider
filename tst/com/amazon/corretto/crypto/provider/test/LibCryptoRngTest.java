@@ -19,7 +19,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import org.apache.commons.codec.binary.Hex;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -82,7 +81,6 @@ public class LibCryptoRngTest {
       final byte[] arr = new byte[size];
       for (int trial = 0; trial < 4; trial++) {
         rnd.nextBytes(arr);
-        System.out.println(Hex.encodeHex(arr));
         for (int x = 0; x < size; x++) {
           checkArr[x] = (byte) (checkArr[x] | arr[x]);
         }
@@ -104,7 +102,6 @@ public class LibCryptoRngTest {
       final byte[] checkArr = new byte[size];
       for (int trial = 0; trial < 4; trial++) {
         final byte[] arr = rnd.generateSeed(size);
-        System.out.println(Hex.encodeHex(arr));
         for (int x = 0; x < size; x++) {
           checkArr[x] = (byte) (checkArr[x] | arr[x]);
         }

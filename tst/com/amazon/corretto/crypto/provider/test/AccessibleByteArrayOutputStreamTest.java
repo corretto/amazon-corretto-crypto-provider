@@ -62,6 +62,40 @@ public class AccessibleByteArrayOutputStreamTest {
         IllegalArgumentException.class, () -> instance.write(null, 0, Integer.MAX_VALUE - 512));
   }
 
+  private void assertNewCapacity(
+      OutputStream instance, int currentCapacity, int minimumNewCapacity, int expectedNewCapacity)
+      throws Throwable {
+    int actualNewCapacity =
+        sneakyInvoke(instance, "calculateNewCapacity", currentCapacity, minimumNewCapacity, false);
+    assertEquals(expectedNewCapacity, actualNewCapacity);
+  }
+
+  @Test
+  public void bufferGrowthResizeToIntMax() throws Throwable {
+    OutputStream instance = getInstance();
+
+    /* If we have a buffer of 32 bytes, and we need 1 more byte, we should resize to 64 bytes */
+    assertNewCapacity(instance, 32, 32 + 1, 64);
+
+    /* Ensure other buffer sizes have the same pattern of doubling the current capacity. */
+    assertNewCapacity(instance, 33, 33 + 1, 66);
+    assertNewCapacity(instance, 100, 100 + 1, 200);
+    assertNewCapacity(instance, 200, 200 + 1, 400);
+    assertNewCapacity(instance, 400, 400 + 1, 800);
+
+    /* Ensure resizing capacities between INT_MAX/2 and INT_MAX are clamped to INT_MAX */
+    assertNewCapacity(
+        instance, (Integer.MAX_VALUE / 2), (Integer.MAX_VALUE / 2) + 1, Integer.MAX_VALUE);
+    assertNewCapacity(
+        instance,
+        (int) (Integer.MAX_VALUE * 0.75),
+        (int) (Integer.MAX_VALUE * 0.75) + 1,
+        Integer.MAX_VALUE);
+    assertNewCapacity(instance, Integer.MAX_VALUE - 10, Integer.MAX_VALUE - 9, Integer.MAX_VALUE);
+    assertNewCapacity(instance, Integer.MAX_VALUE - 2, Integer.MAX_VALUE - 1, Integer.MAX_VALUE);
+    assertNewCapacity(instance, Integer.MAX_VALUE - 1, Integer.MAX_VALUE, Integer.MAX_VALUE);
+  }
+
   @Test
   public void resetWorks() throws Throwable {
     OutputStream instance = getInstance(2, 5);
