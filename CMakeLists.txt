@@ -294,6 +294,10 @@ set(C_SRC
     csrc/sha256.cpp
     csrc/sha384.cpp
     csrc/sha512.cpp
+    csrc/sha3_224.cpp
+    csrc/sha3_256.cpp
+    csrc/sha3_384.cpp
+    csrc/sha3_512.cpp
     csrc/sign.cpp
     csrc/test_util.cpp
     csrc/testhooks.cpp
