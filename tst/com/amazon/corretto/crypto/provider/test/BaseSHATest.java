@@ -2,22 +2,21 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.amazon.corretto.crypto.provider.test;
 
+import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.zip.GZIPInputStream;
-
 import org.apache.commons.codec.binary.Hex;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.junit.jupiter.api.parallel.ResourceAccessMode;
 import org.junit.jupiter.api.parallel.ResourceLock;
-
-import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
 
 @ExtendWith(TestResultLogger.class)
 @Execution(ExecutionMode.SAME_THREAD)
@@ -26,9 +25,13 @@ import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
 public abstract class BaseSHATest {
 
   protected abstract String getAlgorithm();
+
   protected abstract String getNullDigest();
+
   protected abstract String getTestVector();
+
   protected abstract String getCavpShortFile();
+
   protected abstract String getCavpLongFile();
 
   protected MessageDigest getDigest() throws Exception {
