@@ -10,7 +10,6 @@ path=$3
 
 for i in SHA-512 SHA-384 SHA-256 SHA-1 MD5 SHA3-224 SHA3-256 SHA3-384 SHA3-512; do
     CODENAME=`echo $i | tr -d "-"`
-    
     case $mode in
         generate)
             mkdir -p $path
