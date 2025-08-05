@@ -5,48 +5,12 @@
 #include "util.h"
 
 
-//This template allows for the exposure of any of the below algorithms through the EVP_MD API
-
-// Follow the same structure as the existing sha3_224, sha3_256, sha3_384, and sha3_512 files 
-
-// OPENSSL_EXPORT const EVP_MD *EVP_md4(void);
-// OPENSSL_EXPORT const EVP_MD *EVP_md5(void);
-// OPENSSL_EXPORT const EVP_MD *EVP_ripemd160(void);
-// OPENSSL_EXPORT const EVP_MD *EVP_sha1(void);
-// OPENSSL_EXPORT const EVP_MD *EVP_sha224(void);
-// OPENSSL_EXPORT const EVP_MD *EVP_sha256(void);
-// OPENSSL_EXPORT const EVP_MD *EVP_sha384(void);
-// OPENSSL_EXPORT const EVP_MD *EVP_sha512(void);
-// OPENSSL_EXPORT const EVP_MD *EVP_sha512_224(void);
-// OPENSSL_EXPORT const EVP_MD *EVP_sha512_256(void);
-// OPENSSL_EXPORT const EVP_MD *EVP_sha3_224(void);
-// OPENSSL_EXPORT const EVP_MD *EVP_sha3_256(void);
-// OPENSSL_EXPORT const EVP_MD *EVP_sha3_384(void);
-// OPENSSL_EXPORT const EVP_MD *EVP_sha3_512(void);
-// OPENSSL_EXPORT const EVP_MD *EVP_shake128(void);
-// OPENSSL_EXPORT const EVP_MD *EVP_shake256(void);
-// OPENSSL_EXPORT const EVP_MD *EVP_blake2b256(void);
-
-
 // Transform DIGEST_NAME from "sha3_224" format to "SHA3224" format for JNI class names
 // This macro needs to be defined for each digest algorithm
 #define TRANSFORM_sha3_224 SHA3224
 #define TRANSFORM_sha3_256 SHA3256
 #define TRANSFORM_sha3_384 SHA3384
 #define TRANSFORM_sha3_512 SHA3512
-#define TRANSFORM_sha224 SHA224
-#define TRANSFORM_sha256 SHA256
-#define TRANSFORM_sha384 SHA384
-#define TRANSFORM_sha512 SHA512
-#define TRANSFORM_sha512_224 SHA512_224
-#define TRANSFORM_sha512_256 SHA512_256
-#define TRANSFORM_sha1 SHA1
-#define TRANSFORM_md5 MD5
-#define TRANSFORM_md4 MD4
-#define TRANSFORM_ripemd160 RIPEMD160
-#define TRANSFORM_shake128 SHAKE128
-#define TRANSFORM_shake256 SHAKE256
-#define TRANSFORM_blake2b256 BLAKE2B256
 
 #define GET_TRANSFORMED_NAME(digest) CONCAT2(TRANSFORM_, digest)
 

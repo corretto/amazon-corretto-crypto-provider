@@ -333,7 +333,7 @@ When changing between FIPS and non-FIPS builds, be sure to do a full `clean` of 
 * release: **Default target** depends on build, test, and coverage
 * overkill: Run **all** tests (no coverage)
 * generateEclipseClasspath: Generates a `.classpath` file which is understandable by Eclipse and VS Code to make development easier. (This should ideally be run prior to opening ACCP in your IDE.)
-* single_test: Runs a single unit test. The test is selected with the Java system property `SINGLE_TEST`. For example: `./gradlew singleTest -DSINGLE_TEST=com.amazon.corretto.crypto.provider.test.EcGenTest`
+* singleTest: Runs a single unit test. The test is selected with the Java system property `SINGLE_TEST`. For example: `./gradlew singleTest -DSINGLE_TEST=com.amazon.corretto.crypto.provider.test.EcGenTest`
   (You may need to do a clean build when switching between selected tests.)
 
 ## Configuration

@@ -35,7 +35,6 @@ public abstract class BaseSHATest {
   protected abstract String getCavpLongFile();
 
   protected MessageDigest getDigest() throws Exception {
-    System.out.print(getAlgorithm());
     return MessageDigest.getInstance(getAlgorithm(), TestUtil.NATIVE_PROVIDER);
   }
 
