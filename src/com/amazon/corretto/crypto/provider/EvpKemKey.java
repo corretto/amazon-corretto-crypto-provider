@@ -19,15 +19,14 @@ public abstract class EvpKemKey extends EvpKey {
       synchronized (this) {
         result = parameterSet;
         if (result == null) {
-          if (Utils.getJavaVersion() == 17 || Utils.getJavaVersion() >= 21) {
-            try {
-              result = use(ptr -> KemUtils.nativeGetParameterSet(ptr)); 
-            } catch (NoClassDefFoundError e) {
-              // KemUtils not available (JDK8 build)
-              result = -1;
-            }
-          } else {
-            result = -1; // JDK < 17
+          try {
+            Class<?> kemUtilsClass = Class.forName("com.amazon.corretto.crypto.provider.KemUtils");
+            java.lang.reflect.Method method =
+                kemUtilsClass.getDeclaredMethod("nativeGetParameterSet", long.class);
+            method.setAccessible(true);
+            result = use(ptr -> (Integer) method.invoke(null, ptr));
+          } catch (Exception e) {
+            result = -1;
           }
           parameterSet = result;
         }
