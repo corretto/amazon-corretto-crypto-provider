@@ -956,4 +956,3 @@ sourceSets {
 // into the default 'build/classes' location. Since we use cmake for all compilation, we can skip Gradle's tasks.
 compileJava.enabled = false
 compileTestJava.enabled = false
-
