@@ -206,7 +206,7 @@ ext.buildJdk = {
     }
 }()
 ext.targetJdkVersion = System.properties['TARGET_JDK_VERSION'] ?: '8'
-
+    
 task buildAwsLc {
     def sharedObjectOutDir = "${buildDir}/awslc/bin"
     def cMakeBuildDir = "${buildDir}/awslc/build"
