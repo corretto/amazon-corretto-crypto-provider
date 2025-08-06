@@ -26,7 +26,6 @@ import java.util.List;
 import javax.crypto.KEM;
 import javax.crypto.SecretKey;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.DisabledIf;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
@@ -232,7 +231,8 @@ public class MlKemTest {
       }
     }
 
-    // Test always passes, this is to compare ACCP keys and BC keys to learn about ASN.1 encoding differences
+    // Test always passes, this is to compare ACCP keys and BC keys to learn about ASN.1 encoding
+    // differences
     assertTrue(
         true, "Key byte comparison completed - check output for ASN.1 encoding requirements");
   }
@@ -267,7 +267,7 @@ public class MlKemTest {
         });
 
     KEM.Decapsulator decapsulator = kem.newDecapsulator(pair.getPrivate(), paramSpec);
-    byte[] invalidCiphertext = new byte[10]; 
+    byte[] invalidCiphertext = new byte[10];
 
     assertThrows(
         Exception.class,

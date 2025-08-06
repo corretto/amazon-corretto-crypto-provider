@@ -19,7 +19,17 @@ public abstract class EvpKemKey extends EvpKey {
       synchronized (this) {
         result = parameterSet;
         if (result == null) {
-          result = use(ptr -> KemUtils.nativeGetParameterSet(ptr));
+          if (Utils.getJavaVersion() >= 17
+              && (Utils.getJavaVersion() == 17 || Utils.getJavaVersion() >= 21)) {
+            try {
+              result = use(ptr -> KemUtils.nativeGetParameterSet(ptr));
+            } catch (NoClassDefFoundError e) {
+              // KemUtils not available (JDK8 build)
+              result = -1;
+            }
+          } else {
+            result = -1; // JDK < 17
+          }
           parameterSet = result;
         }
       }
