@@ -934,11 +934,21 @@ sourceSets {
     main {
         java {
             srcDirs 'src', 'template-src', 'build/cmake/generated-java'
+            // exclude jdk17plus when KEM API not available 
+            def targetJdk = targetJdkVersion as Integer
+            if (targetJdk < 17 || (targetJdk >= 18 && targetJdk < 21)) {
+                exclude '**/jdk17plus/**'
+            }
         }
     }
     test {
         java {
             srcDirs 'tst'
+            // Same exclusion logic for test sources
+            def targetJdk = targetJdkVersion as Integer
+            if (targetJdk < 17 || (targetJdk >= 18 && targetJdk < 21)) {
+                exclude '**/jdk17plus/**'
+            }
         }
     }
 }
@@ -946,3 +956,4 @@ sourceSets {
 // into the default 'build/classes' location. Since we use cmake for all compilation, we can skip Gradle's tasks.
 compileJava.enabled = false
 compileTestJava.enabled = false
+
