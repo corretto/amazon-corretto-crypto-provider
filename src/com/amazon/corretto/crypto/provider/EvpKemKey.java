@@ -17,10 +17,11 @@ public abstract class EvpKemKey extends EvpKey {
   private MlKemParameter initializeParameterSet() {
     try {
       Class<?> kemUtilsClass = Class.forName("com.amazon.corretto.crypto.provider.KemUtils");
-      java.lang.reflect.Method method = kemUtilsClass.getDeclaredMethod("nativeGetParameterSet", long.class);
+      java.lang.reflect.Method method =
+          kemUtilsClass.getDeclaredMethod("nativeGetParameterSet", long.class);
       method.setAccessible(true);
       Integer paramSetInt = use(ptr -> (Integer) method.invoke(null, ptr));
-      
+
       if (paramSetInt != null && paramSetInt != -1) {
         return MlKemParameter.fromParameterSize(paramSetInt);
       }
@@ -34,7 +35,8 @@ public abstract class EvpKemKey extends EvpKey {
 
   public MlKemParameter getParameterSet() {
     if (parameterSet == null) {
-      throw new RuntimeCryptoException("ML-KEM parameter set not available (JDK8 compatibility mode)");
+      throw new RuntimeCryptoException(
+          "ML-KEM parameter set not available (JDK8 compatibility mode)");
     }
     return parameterSet;
   }

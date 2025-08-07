@@ -6,7 +6,10 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.NamedParameterSpec;
 
-/** Utility class for ML-KEM native integration and JDK 11+ features (parameter specifications use NamedParameterSpec). */
+/**
+ * Utility class for ML-KEM native integration and JDK 11+ features (parameter specifications use
+ * NamedParameterSpec).
+ */
 public final class KemUtils {
 
   private KemUtils() {}
@@ -30,13 +33,13 @@ public final class KemUtils {
     }
     if (spec instanceof NamedParameterSpec) {
       NamedParameterSpec namedSpec = (NamedParameterSpec) spec;
-      
+
       // Get parameter set directly from key
       int paramSet = key.use(ptr -> nativeGetParameterSet(ptr));
       if (paramSet == -1) {
         throw new RuntimeCryptoException("Unknown ML-KEM parameter set");
       }
-      
+
       MlKemParameter parameter = MlKemParameter.fromParameterSize(paramSet);
       String expectedName = parameter.getAlgorithmName();
 
