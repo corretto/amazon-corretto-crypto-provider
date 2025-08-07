@@ -10,12 +10,12 @@ import java.security.spec.AlgorithmParameterSpec;
 
 class MlKemGen extends KeyPairGeneratorSpi {
   private final AmazonCorrettoCryptoProvider provider_;
-  private int parameterSet = -1;
+  private MlKemParameter parameterSet = null;
 
   /** Generates a new ML-KEM key and returns a pointer to it. */
   private static native long generateEvpMlKemKey(int parameterSet);
 
-  private MlKemGen(AmazonCorrettoCryptoProvider provider, Integer parameterSet) {
+  private MlKemGen(AmazonCorrettoCryptoProvider provider, MlKemParameter parameterSet) {
     Loader.checkNativeLibraryAvailability();
     provider_ = provider;
     this.parameterSet = parameterSet;
@@ -38,10 +38,10 @@ class MlKemGen extends KeyPairGeneratorSpi {
 
   @Override
   public KeyPair generateKeyPair() {
-    if (parameterSet < 0) {
+    if (parameterSet == null) {
       throw new IllegalStateException("Key type not set");
     }
-    long pkey_ptr = generateEvpMlKemKey(parameterSet);
+    long pkey_ptr = generateEvpMlKemKey(parameterSet.getParameterSize());
     final EvpKemPrivateKey privateKey = new EvpKemPrivateKey(pkey_ptr);
     final EvpKemPublicKey publicKey = privateKey.getPublicKey();
     return new KeyPair(publicKey, privateKey);
@@ -49,19 +49,19 @@ class MlKemGen extends KeyPairGeneratorSpi {
 
   public static final class MlKemGen512 extends MlKemGen {
     public MlKemGen512(AmazonCorrettoCryptoProvider provider) {
-      super(provider, 512);
+      super(provider, MlKemParameter.MLKEM_512);
     }
   }
 
   public static final class MlKemGen768 extends MlKemGen {
     public MlKemGen768(AmazonCorrettoCryptoProvider provider) {
-      super(provider, 768);
+      super(provider, MlKemParameter.MLKEM_768);
     }
   }
 
   public static final class MlKemGen1024 extends MlKemGen {
     public MlKemGen1024(AmazonCorrettoCryptoProvider provider) {
-      super(provider, 1024);
+      super(provider, MlKemParameter.MLKEM_1024);
     }
   }
 }

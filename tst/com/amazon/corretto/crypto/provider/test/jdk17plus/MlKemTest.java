@@ -145,9 +145,9 @@ public class MlKemTest {
     EvpKemPublicKey pub768 = (EvpKemPublicKey) pair768.getPublic();
     EvpKemPublicKey pub1024 = (EvpKemPublicKey) pair1024.getPublic();
 
-    assertEquals(512, pub512.getParameterSet());
-    assertEquals(768, pub768.getParameterSet());
-    assertEquals(1024, pub1024.getParameterSet());
+    assertEquals(512, pub512.getParameterSet().getParameterSize());
+    assertEquals(768, pub768.getParameterSet().getParameterSize());
+    assertEquals(1024, pub1024.getParameterSet().getParameterSize());
 
     assertEquals("ML-KEM-512", pub512.getAlgorithm());
     assertEquals("ML-KEM-768", pub768.getAlgorithm());
@@ -278,7 +278,6 @@ public class MlKemTest {
 
   @Test
   public void testCiphertextSizes() throws Exception {
-    // Verify ciphertext sizes match expected values
     String[] paramSets = {"ML-KEM-512", "ML-KEM-768", "ML-KEM-1024"};
     int[] expectedSizes = {768, 1088, 1568};
 
