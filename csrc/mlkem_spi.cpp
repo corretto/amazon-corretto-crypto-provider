@@ -44,10 +44,6 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_KemUtils_nativeG
         CHECK_OPENSSL(EVP_PKEY_encapsulate(ctx, NULL, &ciphertext_len, NULL, &shared_secret_len));
         
         int paramSet = ciphertextLengthToParameterSet(ciphertext_len);
-        if (paramSet == -1) {
-            throw_java_ex(EX_RUNTIME_CRYPTO, "Unknown ML-KEM parameter set");
-        }
-        
         return paramSet;
     } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);

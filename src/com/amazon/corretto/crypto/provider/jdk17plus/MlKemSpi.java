@@ -16,7 +16,7 @@ import javax.crypto.spec.SecretKeySpec;
 
 abstract class MlKemSpi implements KEMSpi {
 
-  protected final int parameterSet;
+  protected final MlKemParameter parameterSet;
   protected final int publicKeySize;
   protected final int privateKeySize;
   protected final int ciphertextSize;
@@ -27,12 +27,12 @@ abstract class MlKemSpi implements KEMSpi {
   private static native void nativeDecapsulate(
       long evpKeyPtr, byte[] ciphertext, byte[] sharedSecret);
 
-  protected MlKemSpi(int parameterSet) {
+  protected MlKemSpi(MlKemParameter parameterSet) {
     Loader.checkNativeLibraryAvailability();
     this.parameterSet = parameterSet;
-    this.publicKeySize = KemUtils.getPublicKeySize(parameterSet);
-    this.privateKeySize = KemUtils.getPrivateKeySize(parameterSet);
-    this.ciphertextSize = KemUtils.getCiphertextSize(parameterSet);
+    this.publicKeySize = parameterSet.getPublicKeySize();
+    this.privateKeySize = parameterSet.getSecretKeySize();
+    this.ciphertextSize = parameterSet.getCiphertextSize();
   }
 
   @Override
@@ -75,19 +75,19 @@ abstract class MlKemSpi implements KEMSpi {
 
   public static final class MlKem512 extends MlKemSpi {
     public MlKem512() {
-      super(KemUtils.MLKEM_512);
+      super(MlKemParameter.MLKEM_512);
     }
   }
 
   public static final class MlKem768 extends MlKemSpi {
     public MlKem768() {
-      super(KemUtils.MLKEM_768);
+      super(MlKemParameter.MLKEM_768);
     }
   }
 
   public static final class MlKem1024 extends MlKemSpi {
     public MlKem1024() {
-      super(KemUtils.MLKEM_1024);
+      super(MlKemParameter.MLKEM_1024);
     }
   }
 
@@ -102,14 +102,14 @@ abstract class MlKemSpi implements KEMSpi {
 
     @Override
     public KEM.Encapsulated engineEncapsulate(int from, int to, String algorithm) {
-      if (from < 0 || from > to || to > KemUtils.SHARED_SECRET_SIZE) {
+      if (from < 0 || from > to || to > MlKemParameter.SHARED_SECRET_SIZE) {
         throw new IndexOutOfBoundsException("Invalid range: from=" + from + ", to=" + to);
       }
       if (!("ML-KEM".equals(algorithm) || "Generic".equals(algorithm))) {
         throw new UnsupportedOperationException(
             "Only ML-KEM algorithm is supported, got: " + algorithm);
       }
-      if (from != 0 || to != KemUtils.SHARED_SECRET_SIZE) {
+      if (from != 0 || to != MlKemParameter.SHARED_SECRET_SIZE) {
         throw new UnsupportedOperationException("Only full secret size is supported");
       }
 
@@ -117,7 +117,7 @@ abstract class MlKemSpi implements KEMSpi {
           ptr -> {
             byte[] ciphertext = new byte[ciphertextSize];
             // shared secret size of ML-KEM is always 32 bytes regardless of parameter set
-            byte[] sharedSecret = new byte[KemUtils.SHARED_SECRET_SIZE];
+            byte[] sharedSecret = new byte[MlKemParameter.SHARED_SECRET_SIZE];
 
             nativeEncapsulate(ptr, ciphertext, sharedSecret);
             return new KEM.Encapsulated(
@@ -127,7 +127,7 @@ abstract class MlKemSpi implements KEMSpi {
 
     @Override
     public int engineSecretSize() {
-      return KemUtils.SHARED_SECRET_SIZE;
+      return MlKemParameter.SHARED_SECRET_SIZE;
     }
 
     @Override
@@ -151,14 +151,14 @@ abstract class MlKemSpi implements KEMSpi {
       if (encapsulation == null) {
         throw new NullPointerException("Encapsulation cannot be null");
       }
-      if (from < 0 || from > to || to > KemUtils.SHARED_SECRET_SIZE) {
+      if (from < 0 || from > to || to > MlKemParameter.SHARED_SECRET_SIZE) {
         throw new IndexOutOfBoundsException("Invalid range: from=" + from + ", to=" + to);
       }
 
       return privateKey.use(
           ptr -> {
             // shared secret size of ML-KEM is always 32 bytes regardless of parameter set
-            byte[] sharedSecret = new byte[KemUtils.SHARED_SECRET_SIZE];
+            byte[] sharedSecret = new byte[MlKemParameter.SHARED_SECRET_SIZE];
             nativeDecapsulate(ptr, encapsulation, sharedSecret);
             return new SecretKeySpec(sharedSecret, algorithm);
           });
