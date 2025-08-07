@@ -8,6 +8,7 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.spec.NamedParameterSpec;
 import javax.crypto.DecapsulateException;
 import javax.crypto.KEM;
 import javax.crypto.KEMSpi;
@@ -26,6 +27,7 @@ abstract class MlKemSpi implements KEMSpi {
 
   private static native void nativeDecapsulate(
       long evpKeyPtr, byte[] ciphertext, byte[] sharedSecret);
+
 
   protected MlKemSpi(MlKemParameter parameterSet) {
     Loader.checkNativeLibraryAvailability();
@@ -166,7 +168,7 @@ abstract class MlKemSpi implements KEMSpi {
 
     @Override
     public int engineSecretSize() {
-      return KemUtils.SHARED_SECRET_SIZE;
+      return MlKemParameter.SHARED_SECRET_SIZE;
     }
 
     @Override
