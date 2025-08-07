@@ -1,5 +1,6 @@
 val accpVersion: String? by project
 val accpLocalJar: String by project
+val panamaLocal: String by project 
 val fips: Boolean by project
 val includeBenchmark: String by project
 val nativeContextReleaseStrategy: String by project
@@ -40,6 +41,10 @@ dependencies {
         }
     }
 
+    if(project.hasProperty(panamaLocal)){
+        jmh(files(panamaLocal))
+    }
+
 }
 
 jmh {
@@ -60,6 +65,7 @@ jmh {
     if (project.hasProperty("nativeContextReleaseStrategy")) {
         jvmArgs.add("-Dcom.amazon.corretto.crypto.provider.nativeContextReleaseStrategy=${nativeContextReleaseStrategy}")
     }
+    jvmArgs.add("--enable-preview")
 }
 
 jmhReport {

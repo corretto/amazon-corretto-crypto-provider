@@ -13,6 +13,7 @@ import java.util.Set;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.example.AccpPanama;
 
 class BenchmarkUtils {
   private BenchmarkUtils() {}
@@ -21,13 +22,16 @@ class BenchmarkUtils {
   private static final List<Provider> DEFAULT_PROVIDERS = new ArrayList<>();
   private static AmazonCorrettoCryptoProvider accp = null;
   private static BouncyCastleProvider bc = null;
+  private static AccpPanama panama = null;
 
   static {
     // For BC and ACCP, if they are installed statically, we just remove them.
     for (Provider provider : Security.getProviders()) {
       if ("AmazonCorrettoCryptoProvider".equals(provider.getName())) {
         accp = (AmazonCorrettoCryptoProvider) provider;
-      } else if ("BC".equals(provider.getName())) {
+      } else if ("AccpPanama".equals(provider.getName())){
+        panama = (AccpPanama) provider;
+      }else if ("BC".equals(provider.getName())) {
         bc = (BouncyCastleProvider) provider;
       } else {
         DEFAULT_PROVIDERS.add(provider);
@@ -35,6 +39,9 @@ class BenchmarkUtils {
     }
     if (accp == null) {
       accp = AmazonCorrettoCryptoProvider.INSTANCE;
+    }
+    if (panama == null){
+      panama = AccpPanama.INSTANCE;
     }
     if (bc == null) {
       bc = new BouncyCastleProvider();
@@ -61,6 +68,9 @@ class BenchmarkUtils {
         installDefaultProviders();
         Security.insertProviderAt(accp, 1);
         accp.assertHealthy();
+        break;
+      case "AccpPanama":
+        Security.insertProviderAt(panama, 1);
         break;
       case "BC":
         Security.insertProviderAt(bc, 1);
