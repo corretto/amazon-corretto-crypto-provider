@@ -35,6 +35,7 @@ JNIEXPORT void JNICALL JNI_NAME(initContext)(JNIEnv* pEnv, jclass, jbyteArray co
     try {
         raii_env env(pEnv);
         
+        //We are unable to use bounce buffers like hash_template.cpp.template does because of the way EVP_MD_CTX is set up
         CTX ctx;
         
         CHECK_OPENSSL(EVP_DigestInit(&ctx, MD()));
@@ -59,6 +60,7 @@ JNIEXPORT void JNICALL JNI_NAME(updateContextByteArray)(
     try {
         raii_env env(pEnv);
 
+        //We are unable to use bounce buffers like hash_template.cpp.template does because of the way EVP_MD_CTX is set up
         CTX ctx;
         
         java_buffer contextBuffer = java_buffer::from_array(env, contextArray);
@@ -95,6 +97,7 @@ JNIEXPORT void JNICALL JNI_NAME(finish)(
     try {
         raii_env env(pEnv);
         
+        //We are unable to use bounce buffers like hash_template.cpp.template does because of the way EVP_MD_CTX is set up
         CTX ctx;
 
         java_buffer contextBuffer = java_buffer::from_array(env, contextArray);
@@ -139,6 +142,7 @@ JNIEXPORT void JNICALL JNI_NAME(updateNativeByteBuffer)(
     try {
         raii_env env(pEnv);
         
+        //We are unable to use bounce buffers like hash_template.cpp.template does because of the way EVP_MD_CTX is set up
         CTX ctx;
 
         java_buffer contextBuffer = java_buffer::from_array(env, contextArray);
