@@ -338,4 +338,10 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
       super(EvpKeyType.MLDSA, provider);
     }
   }
+
+  static class KEM extends StandardEvpKeyFactory {
+    KEM(AmazonCorrettoCryptoProvider provider) {
+      super(EvpKeyType.KEM, provider);
+    }
+  }
 }
