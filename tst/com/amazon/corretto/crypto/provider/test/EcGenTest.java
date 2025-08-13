@@ -346,7 +346,7 @@ public class EcGenTest {
 
   public static void assertECEquals(
       final String message, final ECPrivateKey expected, final ECPrivateKey actual) {
-    final boolean expectEncodingCompat = TestUtil.getJavaVersion() != 10;
+    final boolean expectEncodingCompat = TestUtil.JAVA_VERSION != 10;
     if (expectEncodingCompat) {
       assertArrayEquals(expected.getEncoded(), actual.getEncoded(), message);
     }

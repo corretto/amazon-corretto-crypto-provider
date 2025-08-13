@@ -603,7 +603,7 @@ public class EvpKeyFactoryTest {
 
     // Currently only Java 10 ECPrivateKeys are not expected to be compatible.
     final boolean expectJceEncodingCompatibility =
-        !((TestUtil.getJavaVersion() == 10
+        !((TestUtil.JAVA_VERSION == 10
             && ((jceSample instanceof ECPrivateKeySpec) || (jceSample instanceof ECPrivateKey))));
 
     assertEquals(jceSample.getAlgorithm(), nativeSample.getAlgorithm(), "Algorithm");
@@ -696,7 +696,7 @@ public class EvpKeyFactoryTest {
     // expect byte-for-byte compatibility of encoded EC private keys in Java 10, but do expect the
     // private value S to be logically equivalent.
     final boolean expectJceEncodingCompatibility =
-        !((TestUtil.getJavaVersion() == 10
+        !((TestUtil.JAVA_VERSION == 10
                 && ((jceSample instanceof ECPrivateKeySpec) || (jceSample instanceof ECPrivateKey)))
             || RSAPrivateKeySpec.class.equals(specKlass));
     if (expectJceEncodingCompatibility) {
@@ -724,18 +724,18 @@ public class EvpKeyFactoryTest {
   // will be returned. In cases where JCE does support the requested algorithm, null will be
   // returned.
   private static Provider getAlternateProvider(String algorithm) {
-    // JCE doesn't support ML-DSA until JDK24, and BouncyCastle currently serializes ML-DSA private
-    // keys via seeds.
+    // JCE doesn't support ML-DSA until JDK24, and BouncyCastle currently serializes ML-DSA private keys via seeds.
     // TODO: switch to BouncyCastle once BC supports CHOICE-encoded private keys
-    if ((algorithm.startsWith("ML-DSA") && TestUtil.getJavaVersion() < 24)
-        // Similarly, JDK doesn't support EdDSA/Ed25519 until JDK15
-        || ((algorithm.equals("Ed25519")
-                || algorithm.equals("Ed25519ph")
-                || algorithm.equals("EdDSA")
-                || algorithm.equals("XDH")
-                || algorithm.equals("X25519"))
-            && TestUtil.getJavaVersion() < 15)) {
-      return NATIVE_PROVIDER;
+    // Similarly, JDK doesn't support EdDSA/Ed25519 until JDK15, and XDH/X25519 until JDK11
+    Map<Integer, List<String>> jdkAlgorithmSupport = Map.of(
+            24, List.of("ML-DSA"),
+            15, List.of("Ed25519", "Ed25519ph", "EdDSA"),
+            11, List.of("XDH", "X25519")
+    );
+    for (Map.Entry<Integer, List<String>> entry : jdkAlgorithmSupport.entrySet()) {
+        if (TestUtil.JAVA_VERSION < entry.getKey() && entry.getValue().stream().anyMatch(algorithm::startsWith)) {
+            return NATIVE_PROVIDER;
+        }
     }
     return null;
   }

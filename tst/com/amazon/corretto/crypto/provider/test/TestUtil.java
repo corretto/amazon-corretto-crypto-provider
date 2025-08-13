@@ -55,6 +55,8 @@ public class TestUtil {
    */
   public static final String RESOURCE_GLOBAL = "GLOBAL_TEST_LOCK";
 
+  public static final int JAVA_VERSION = getJavaVersion();
+
   static final byte[] EMPTY_ARRAY = new byte[0];
 
   static SecretKeyFactory getHkdfSecretKeyFactory(final String digest) {
@@ -445,7 +447,7 @@ public class TestUtil {
         String.format("Required version %s, Actual version %s", minVersion, providerVersion));
   }
 
-  public static int getJavaVersion() {
+  private static int getJavaVersion() {
     final String[] parts = System.getProperty("java.specification.version").split("\\.");
     if (parts[0].equals("1")) {
       return Integer.parseInt(parts[1]);
