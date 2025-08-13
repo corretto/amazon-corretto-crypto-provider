@@ -7,6 +7,7 @@ import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGeneratorSpi;
 import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
@@ -24,8 +25,8 @@ class XDHGen extends KeyPairGeneratorSpi {
     Loader.checkNativeLibraryAvailability();
     provider_ = provider;
     try {
-      kf = KeyFactory.getInstance("X25519");
-    } catch (final NoSuchAlgorithmException e) {
+      kf = KeyFactory.getInstance("X25519", "SunEC");
+    } catch (final NoSuchAlgorithmException | NoSuchProviderException e) {
       // This case indicates that either:
       // 1.) The current JDK runtime version does not support X25519 (i.e. JDK version <11) or
       // 2.) No SunEC is registered with JCA
