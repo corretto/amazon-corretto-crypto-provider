@@ -724,7 +724,8 @@ public class EvpKeyFactoryTest {
   // will be returned. In cases where JCE does support the requested algorithm, null will be
   // returned.
   private static Provider getAlternateProvider(String algorithm) {
-    // JCE doesn't support ML-DSA until JDK24, and BouncyCastle currently serializes ML-DSA private keys via seeds.
+    // JCE doesn't support ML-DSA until JDK24, and BouncyCastle currently serializes ML-DSA private
+    // keys via seeds.
     // TODO: switch to BouncyCastle once BC supports CHOICE-encoded private keys
     // Similarly, JDK doesn't support EdDSA/Ed25519 until JDK15, and XDH/X25519 until JDK11
     Map<Integer, List<String>> jdkAlgorithmSupport = new HashMap<>();
@@ -732,9 +733,10 @@ public class EvpKeyFactoryTest {
     jdkAlgorithmSupport.put(15, Arrays.asList("Ed25519", "Ed25519ph", "EdDSA"));
     jdkAlgorithmSupport.put(11, Arrays.asList("XDH", "X25519"));
     for (Map.Entry<Integer, List<String>> entry : jdkAlgorithmSupport.entrySet()) {
-        if (TestUtil.JAVA_VERSION < entry.getKey() && entry.getValue().stream().anyMatch(algorithm::startsWith)) {
-            return NATIVE_PROVIDER;
-        }
+      if (TestUtil.JAVA_VERSION < entry.getKey()
+          && entry.getValue().stream().anyMatch(algorithm::startsWith)) {
+        return NATIVE_PROVIDER;
+      }
     }
     return null;
   }

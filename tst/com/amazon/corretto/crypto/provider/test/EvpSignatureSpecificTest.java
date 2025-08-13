@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.amazon.corretto.crypto.provider.test;
 
-import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.JAVA_VERSION;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assumeMinimumVersion;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.versionCompare;
