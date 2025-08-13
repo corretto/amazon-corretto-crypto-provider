@@ -728,9 +728,9 @@ public class EvpKeyFactoryTest {
     // TODO: switch to BouncyCastle once BC supports CHOICE-encoded private keys
     // Similarly, JDK doesn't support EdDSA/Ed25519 until JDK15, and XDH/X25519 until JDK11
     Map<Integer, List<String>> jdkAlgorithmSupport = Map.of(
-            24, List.of("ML-DSA"),
-            15, List.of("Ed25519", "Ed25519ph", "EdDSA"),
-            11, List.of("XDH", "X25519")
+            24, Arrays.asList("ML-DSA"),
+            15, Arrays.asList("Ed25519", "Ed25519ph", "EdDSA"),
+            11, Arrays.asList("XDH", "X25519")
     );
     for (Map.Entry<Integer, List<String>> entry : jdkAlgorithmSupport.entrySet()) {
         if (TestUtil.JAVA_VERSION < entry.getKey() && entry.getValue().stream().anyMatch(algorithm::startsWith)) {
