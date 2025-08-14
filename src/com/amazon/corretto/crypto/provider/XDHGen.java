@@ -25,7 +25,17 @@ class XDHGen extends KeyPairGeneratorSpi {
     Loader.checkNativeLibraryAvailability();
     provider_ = provider;
     try {
-      kf = KeyFactory.getInstance("X25519", "SunEC");
+      /* Though XEC keys were introduced in JDK11, while checking key size against the spec parameters,
+       * JDK 11 XDHPrivateKeyImpl checks the wrapped key which is 34 bytes long
+       * and fails the check with message `key length must be 32`
+       * https://github.com/openjdk/jdk/blob/jdk-11%2B28/src/jdk.crypto.ec/share/classes/sun/security/ec/XDHPrivateKeyImpl.java#L66
+       * whereas JDK12+ checks just the key (octet string) which is 32 bytes long and passes the check as expected
+       * https://github.com/openjdk/jdk/blob/jdk-12%2B28/src/jdk.crypto.ec/share/classes/sun/security/ec/XDHPrivateKeyImpl.java#L89
+       * So, just for JDK11, keep key factory null to avoid ser/deser in generateKeyPair(), which will fail.
+       */
+      if (Utils.getJavaVersion() > 11) {
+        kf = KeyFactory.getInstance("X25519", "SunEC");
+      }
     } catch (final NoSuchAlgorithmException | NoSuchProviderException e) {
       // This case indicates that either:
       // 1.) The current JDK runtime version does not support X25519 (i.e. JDK version <11) or
