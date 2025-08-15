@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.amazon.corretto.crypto.provider.test;
 
+import static com.amazon.corretto.crypto.provider.test.TestUtil.JAVA_VERSION;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assumeMinimumVersion;
-import static com.amazon.corretto.crypto.provider.test.TestUtil.getJavaVersion;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.versionCompare;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -454,7 +454,7 @@ public final class EvpSignatureSpecificTest {
     // it throws "java.security.NoSuchAlgorithmException: no such algorithm: RSASSA-PSS for provider
     // SunRsaSign".
     assertThrows(InvalidAlgorithmParameterException.class, () -> signature.setParameter(null));
-    if (getJavaVersion() != 10) {
+    if (JAVA_VERSION != 10) {
       assertThrows(
           InvalidAlgorithmParameterException.class,
           () -> Signature.getInstance("RSASSA-PSS", "SunRsaSign").setParameter(null));

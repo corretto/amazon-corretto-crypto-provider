@@ -71,10 +71,10 @@ public class KeyReuseThreadStormTest {
       EC_KEY_GEN.initialize(new ECGenParameterSpec("NIST P-521"));
       PAIR_EC_P521 = EC_KEY_GEN.generateKeyPair();
       ED_KEY_GEN =
-          TestUtil.getJavaVersion() >= 15
+          TestUtil.JAVA_VERSION >= 15
               ? KeyPairGenerator.getInstance("Ed25519", NATIVE_PROVIDER)
               : null;
-      PAIR_ED25519 = TestUtil.getJavaVersion() >= 15 ? ED_KEY_GEN.generateKeyPair() : null;
+      PAIR_ED25519 = TestUtil.JAVA_VERSION >= 15 ? ED_KEY_GEN.generateKeyPair() : null;
       if (canUseMlDsa()) {
         PAIR_MLDSA_44 =
             KeyPairGenerator.getInstance("ML-DSA-44", NATIVE_PROVIDER).generateKeyPair();
