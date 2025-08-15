@@ -456,7 +456,7 @@ public class TestUtil {
   }
 
   public static void assumeMinimumJavaVersion(int minVersion) {
-    Assumptions.assumeTrue(getJavaVersion() >= minVersion);
+    Assumptions.assumeTrue(JAVA_VERSION >= minVersion);
   }
 
   public static synchronized Provider[] saveProviders() {

@@ -3,6 +3,7 @@
 package com.amazon.corretto.crypto.provider.test;
 
 import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.assumeMinimumJavaVersion;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assumeMinimumVersion;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyGetField;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -191,6 +192,9 @@ public class EvpKeyFactoryTest {
   @ParameterizedTest(name = "{1}")
   @MethodSource("allPairs")
   public void keysSerialize(final KeyPair keyPair, final String testName) throws Exception {
+    if ("XDH".equals(testName) || "X25519".equals(testName)) {
+      assumeMinimumJavaVersion(12);
+    }
     final KeyFactory kf =
         KeyFactory.getInstance(keyPair.getPrivate().getAlgorithm(), NATIVE_PROVIDER);
     final Key privateKey = kf.translateKey(keyPair.getPrivate());
