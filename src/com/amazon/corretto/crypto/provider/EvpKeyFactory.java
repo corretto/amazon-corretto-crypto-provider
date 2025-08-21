@@ -113,8 +113,7 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
     try {
       final EvpKey result;
       if (PKCS8_FORMAT.equalsIgnoreCase(key.getFormat())) {
-        result =
-            (EvpKey) engineGeneratePrivate(new PKCS8EncodedKeySpec(requireNonNullEncoding(key)));
+        result = (EvpKey) engineGeneratePrivate(new PKCS8EncodedKeySpec(requireNonNullEncoding(key)));
       } else if (X509_FORMAT.equalsIgnoreCase(key.getFormat())) {
         result = (EvpKey) engineGeneratePublic(new X509EncodedKeySpec(requireNonNullEncoding(key)));
       } else {
@@ -339,9 +338,21 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
     }
   }
 
-  static class KEM extends StandardEvpKeyFactory {
-    KEM(AmazonCorrettoCryptoProvider provider) {
-      super(EvpKeyType.KEM, provider);
+  static class MLKEM512 extends StandardEvpKeyFactory {
+    MLKEM512(AmazonCorrettoCryptoProvider provider) {
+      super(EvpKeyType.MLKEM_512, provider);
+    }
+  }
+
+  static class MLKEM768 extends StandardEvpKeyFactory {
+    MLKEM768(AmazonCorrettoCryptoProvider provider) {
+      super(EvpKeyType.MLKEM_768, provider);
+    }
+  }
+
+  static class MLKEM1024 extends StandardEvpKeyFactory {
+    MLKEM1024(AmazonCorrettoCryptoProvider provider) {
+      super(EvpKeyType.MLKEM_1024, provider);
     }
   }
 }
