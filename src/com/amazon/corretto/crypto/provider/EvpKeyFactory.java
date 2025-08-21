@@ -113,7 +113,8 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
     try {
       final EvpKey result;
       if (PKCS8_FORMAT.equalsIgnoreCase(key.getFormat())) {
-        result = (EvpKey) engineGeneratePrivate(new PKCS8EncodedKeySpec(requireNonNullEncoding(key)));
+        result =
+            (EvpKey) engineGeneratePrivate(new PKCS8EncodedKeySpec(requireNonNullEncoding(key)));
       } else if (X509_FORMAT.equalsIgnoreCase(key.getFormat())) {
         result = (EvpKey) engineGeneratePublic(new X509EncodedKeySpec(requireNonNullEncoding(key)));
       } else {
