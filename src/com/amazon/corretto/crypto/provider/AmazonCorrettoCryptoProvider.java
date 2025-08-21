@@ -106,10 +106,10 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     }
 
     if (shouldRegisterMLKEM) {
-      addService("KeyFactory", "ML-KEM", "EvpKeyFactory$KEM");
-      addService("KeyFactory", "ML-KEM-512", "EvpKeyFactory$KEM");
-      addService("KeyFactory", "ML-KEM-768", "EvpKeyFactory$KEM");
-      addService("KeyFactory", "ML-KEM-1024", "EvpKeyFactory$KEM");
+      addService("KeyFactory", "ML-KEM", "EvpKeyFactory$MLKEM768");
+      addService("KeyFactory", "ML-KEM-512", "EvpKeyFactory$MLKEM512");
+      addService("KeyFactory", "ML-KEM-768", "EvpKeyFactory$MLKEM768");
+      addService("KeyFactory", "ML-KEM-1024", "EvpKeyFactory$MLKEM1024");
     }
 
     // KeyFactories are used to convert key encodings to Java Key objects. ACCP's KeyFactory for
@@ -856,7 +856,9 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
             mlDsaFactory = KeyFactory.getInstance(keyType.jceName, this);
           }
           return mlDsaFactory;
-        case KEM:
+        case MLKEM_512:
+        case MLKEM_768:
+        case MLKEM_1024:
           if (kemFactory == null) {
             kemFactory = KeyFactory.getInstance(keyType.jceName, this);
           }
