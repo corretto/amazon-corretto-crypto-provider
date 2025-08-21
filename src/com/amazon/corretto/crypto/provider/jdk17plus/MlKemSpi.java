@@ -17,22 +17,15 @@ import javax.crypto.spec.SecretKeySpec;
 abstract class MlKemSpi implements KEMSpi {
 
   protected final MlKemParameter parameterSet;
-  protected final int publicKeySize;
-  protected final int privateKeySize;
-  protected final int ciphertextSize;
 
   private static native void nativeEncapsulate(
       long evpKeyPtr, byte[] ciphertext, byte[] sharedSecret);
-
   private static native void nativeDecapsulate(
       long evpKeyPtr, byte[] ciphertext, byte[] sharedSecret);
 
   protected MlKemSpi(MlKemParameter parameterSet) {
     Loader.checkNativeLibraryAvailability();
     this.parameterSet = parameterSet;
-    this.publicKeySize = parameterSet.getPublicKeySize();
-    this.privateKeySize = parameterSet.getSecretKeySize();
-    this.ciphertextSize = parameterSet.getCiphertextSize();
   }
 
   @Override
@@ -53,7 +46,7 @@ abstract class MlKemSpi implements KEMSpi {
 
     EvpKemPublicKey kemKey = (EvpKemPublicKey) publicKey;
     KemUtils.validateParameterSpec(spec, kemKey);
-    return new MlKemEncapsulatorSpi(kemKey, ciphertextSize);
+    return new MlKemEncapsulatorSpi(kemKey, kemKey.getParameterSet());
   }
 
   @Override
@@ -70,7 +63,7 @@ abstract class MlKemSpi implements KEMSpi {
 
     EvpKemPrivateKey kemKey = (EvpKemPrivateKey) privateKey;
     KemUtils.validateParameterSpec(spec, kemKey);
-    return new MlKemDecapsulatorSpi(kemKey, ciphertextSize);
+    return new MlKemDecapsulatorSpi(kemKey, kemKey.getParameterSet());
   }
 
   public static final class MlKem512 extends MlKemSpi {
@@ -93,11 +86,11 @@ abstract class MlKemSpi implements KEMSpi {
 
   private static class MlKemEncapsulatorSpi implements KEMSpi.EncapsulatorSpi {
     private final EvpKemPublicKey publicKey;
-    private final int ciphertextSize;
+    private final MlKemParameter parameterSet;
 
-    MlKemEncapsulatorSpi(EvpKemPublicKey publicKey, int ciphertextSize) {
+    MlKemEncapsulatorSpi(EvpKemPublicKey publicKey, MlKemParameter parameterSet) {
       this.publicKey = publicKey;
-      this.ciphertextSize = ciphertextSize;
+      this.parameterSet = parameterSet;
     }
 
     @Override
@@ -115,7 +108,7 @@ abstract class MlKemSpi implements KEMSpi {
 
       return publicKey.use(
           ptr -> {
-            byte[] ciphertext = new byte[ciphertextSize];
+            byte[] ciphertext = new byte[parameterSet.getCiphertextSize()];
             // shared secret size of ML-KEM is always 32 bytes regardless of parameter set
             byte[] sharedSecret = new byte[MlKemParameter.SHARED_SECRET_SIZE];
 
@@ -132,17 +125,17 @@ abstract class MlKemSpi implements KEMSpi {
 
     @Override
     public int engineEncapsulationSize() {
-      return ciphertextSize;
+      return parameterSet.getCiphertextSize();
     }
   }
 
   private static class MlKemDecapsulatorSpi implements KEMSpi.DecapsulatorSpi {
     private final EvpKemPrivateKey privateKey;
-    private final int ciphertextSize;
+    private final MlKemParameter parameterSet;
 
-    MlKemDecapsulatorSpi(EvpKemPrivateKey privateKey, int ciphertextSize) {
+    MlKemDecapsulatorSpi(EvpKemPrivateKey privateKey, MlKemParameter parameterSet) {
       this.privateKey = privateKey;
-      this.ciphertextSize = ciphertextSize;
+      this.parameterSet = parameterSet;
     }
 
     @Override
@@ -171,7 +164,7 @@ abstract class MlKemSpi implements KEMSpi {
 
     @Override
     public int engineEncapsulationSize() {
-      return ciphertextSize;
+      return parameterSet.getCiphertextSize();
     }
   }
 }

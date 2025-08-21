@@ -20,7 +20,10 @@ enum EvpKeyType {
   EC("EC", 408, ECPublicKey.class, ECPrivateKey.class),
   EdDSA("EdDSA", 949, PublicKey.class, PrivateKey.class),
   MLDSA("ML-DSA", 993, PublicKey.class, PrivateKey.class),
-  KEM("ML-KEM", 988, PublicKey.class, PrivateKey.class);
+  MLKEM_512("ML-KEM-512", 988, PublicKey.class, PrivateKey.class),
+  MLKEM_768("ML-KEM-768", 989, PublicKey.class, PrivateKey.class),
+  MLKEM_1024("ML-KEM-1024", 990, PublicKey.class, PrivateKey.class);
+
 
   final String jceName;
   final int nativeValue;
@@ -62,7 +65,9 @@ enum EvpKeyType {
         return new EvpEdPrivateKey(fn.applyAsLong(der.getEncoded(), nativeValue));
       case MLDSA:
         return new EvpMlDsaPrivateKey(fn.applyAsLong(der.getEncoded(), nativeValue));
-      case KEM:
+      case MLKEM_512:
+      case MLKEM_768:
+      case MLKEM_1024:
         return new EvpKemPrivateKey(fn.applyAsLong(der.getEncoded(), nativeValue));
       default:
         throw new AssertionError("Unsupported key type");
@@ -81,7 +86,9 @@ enum EvpKeyType {
         return new EvpEdPublicKey(fn.applyAsLong(der.getEncoded(), nativeValue));
       case MLDSA:
         return new EvpMlDsaPublicKey(fn.applyAsLong(der.getEncoded(), nativeValue));
-      case KEM:
+      case MLKEM_512:
+      case MLKEM_768:
+      case MLKEM_1024:
         return new EvpKemPublicKey(fn.applyAsLong(der.getEncoded(), nativeValue));
       default:
         throw new AssertionError("Unsupported key type");
