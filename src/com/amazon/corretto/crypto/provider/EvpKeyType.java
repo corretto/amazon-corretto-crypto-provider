@@ -24,7 +24,6 @@ enum EvpKeyType {
   MLKEM_768("ML-KEM-768", 989, PublicKey.class, PrivateKey.class),
   MLKEM_1024("ML-KEM-1024", 990, PublicKey.class, PrivateKey.class);
 
-
   final String jceName;
   final int nativeValue;
   final Class<? extends PublicKey> publicKeyClass;

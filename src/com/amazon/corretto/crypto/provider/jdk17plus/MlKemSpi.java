@@ -20,6 +20,7 @@ abstract class MlKemSpi implements KEMSpi {
 
   private static native void nativeEncapsulate(
       long evpKeyPtr, byte[] ciphertext, byte[] sharedSecret);
+
   private static native void nativeDecapsulate(
       long evpKeyPtr, byte[] ciphertext, byte[] sharedSecret);
 

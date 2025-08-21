@@ -1,3 +1,5 @@
+// Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
+// SPDX-License-Identifier: Apache-2.0
 #include "auto_free.h"
 #include "env.h"
 #include "generated-headers.h"
@@ -29,7 +31,7 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_MlKemGen_genera
         default:
             throw java_ex(EX_ILLEGAL_ARGUMENT, "Invalid parameter set");
         }
-        
+
         CHECK_OPENSSL(EVP_PKEY_CTX_kem_set_params(ctx, nid));
         CHECK_OPENSSL(EVP_PKEY_keygen_init(ctx) == 1);
         CHECK_OPENSSL(EVP_PKEY_keygen(ctx, key.getAddressOfPtr()));
