@@ -83,7 +83,7 @@ public enum MlKemParameter {
     }
   }
 
-  public static MlKemParameter getParamSetFromInternal(EvpKey.InternalKey internalKey) {
+  public static MlKemParameter getParamSetFromInternalKey(EvpKey.InternalKey internalKey) {
     try {
       Class<?> kemUtilsClass = Class.forName("com.amazon.corretto.crypto.provider.KemUtils");
       Method method = kemUtilsClass.getDeclaredMethod("nativeGetParameterSet", long.class);
@@ -103,6 +103,6 @@ public enum MlKemParameter {
   }
 
   public static EvpKeyType getEvpKeyTypeFromInternalKey(EvpKey.InternalKey internalKey) {
-    return getParameterSetFromInternalKey(internalKey).getEvpKeyType();
+    return getParamSetFromInternalKey(internalKey).getEvpKeyType();
   }
 }
