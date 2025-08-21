@@ -6,8 +6,7 @@ import java.lang.reflect.Method;
 
 public enum MlKemParameter {
   // (parameterSize, publicKeySize, secretKeySize, ciphertextSize, NID Value) -
-  // constants
-  // defined in AWS-LC
+  // constants defined in AWS-LC
   MLKEM_512(512, 800, 1632, 768, 988),
   MLKEM_768(768, 1184, 2400, 1088, 989),
   MLKEM_1024(1024, 1568, 3168, 1568, 990);
@@ -17,10 +16,11 @@ public enum MlKemParameter {
   private final int secretKeySize;
   private final int ciphertextSize;
   private final int nid;
-  public static final int SHARED_SECRET_SIZE = 32; // Shared secret size is constant across all parameter sets for
-                                                   // ML-KEM
+  public static final int SHARED_SECRET_SIZE =
+      32; // Shared secret size is constant across all parameter sets for ML-KEM
 
-  MlKemParameter(int parameterSize, int publicKeySize, int secretKeySize, int ciphertextSize, int nid) {
+  MlKemParameter(
+      int parameterSize, int publicKeySize, int secretKeySize, int ciphertextSize, int nid) {
     this.parameterSize = parameterSize;
     this.publicKeySize = publicKeySize;
     this.secretKeySize = secretKeySize;
@@ -44,20 +44,6 @@ public enum MlKemParameter {
       }
     }
     throw new IllegalArgumentException("Invalid ML-KEM NID: " + nid);
-
-  }
-
-  public EvpKeyType getEvpKeyType() {
-    switch (this) {
-      case MLKEM_512:
-        return EvpKeyType.MLKEM_512;
-      case MLKEM_768:
-        return EvpKeyType.MLKEM_768;
-      case MLKEM_1024:
-        return EvpKeyType.MLKEM_1024;
-      default:
-        throw new AssertionError("Unknown parameter set");
-    }
   }
 
   public int getPublicKeySize() {
@@ -84,31 +70,39 @@ public enum MlKemParameter {
     return "ML-KEM-" + parameterSize;
   }
 
-  private static int getParameterSetFromInternalKey(EvpKey.InternalKey internalKey) {
+  public EvpKeyType getEvpKeyType() {
+    switch (this) {
+      case MLKEM_512:
+        return EvpKeyType.MLKEM_512;
+      case MLKEM_768:
+        return EvpKeyType.MLKEM_768;
+      case MLKEM_1024:
+        return EvpKeyType.MLKEM_1024;
+      default:
+        throw new AssertionError("Unknown parameter set");
+    }
+  }
+
+  public static MlKemParameter getParamSetFromInternal(EvpKey.InternalKey internalKey) {
     try {
       Class<?> kemUtilsClass = Class.forName("com.amazon.corretto.crypto.provider.KemUtils");
       Method method = kemUtilsClass.getDeclaredMethod("nativeGetParameterSet", long.class);
-      method.setAccessible(true);
-
       Integer paramSetInt = internalKey.use(ptr -> (Integer) method.invoke(null, ptr));
       if (paramSetInt == -1) {
-        throw new RuntimeCryptoException("Failed to get ML-KEM parameter set. Check for valid input.");
+        throw new RuntimeCryptoException(
+            "Failed to get ML-KEM parameter set. Check for valid input.");
       }
+
+      return MlKemParameter.fromParameterSize(paramSetInt);
 
     } catch (ClassNotFoundException e) {
       throw new UnsupportedOperationException("ML-KEM not supported on this JDK version", e);
-    } catch (Exception e) {
+    } catch (ReflectiveOperationException | IllegalArgumentException e) {
       throw new RuntimeCryptoException("Failed to initialize ML-KEM key", e);
     }
   }
 
-  public static MlKemParameter fromInternalKey(EvpKey.InternalKey internalKey) {
-    int paramSetInt = getParameterSetFromInternalKey(internalKey);
-    return MlKemParameter.fromParameterSize(paramSetInt);
-  }
-
   public static EvpKeyType getEvpKeyTypeFromInternalKey(EvpKey.InternalKey internalKey) {
-    return fromInternalKey(internalKey).getEvpKeyType();
+    return getParameterSetFromInternalKey(internalKey).getEvpKeyType();
   }
-
 }

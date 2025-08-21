@@ -730,7 +730,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpKemPriv
 
         size_t keyLen;
         CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(key, NULL, &keyLen) == 1);
-        
+
         SimpleBuffer keyBuffer(keyLen);
         CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(key, keyBuffer.get_buffer(), &keyLen) == 1);
 
@@ -756,10 +756,10 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpKemPubl
     try {
         raii_env env(pEnv);
         EVP_PKEY* key = reinterpret_cast<EVP_PKEY*>(keyHandle);
-        
+
         size_t keyLen;
         CHECK_OPENSSL(EVP_PKEY_get_raw_public_key(key, NULL, &keyLen) == 1);
-        
+
         SimpleBuffer keyBuffer(keyLen);
         CHECK_OPENSSL(EVP_PKEY_get_raw_public_key(key, keyBuffer.get_buffer(), &keyLen) == 1);
 
