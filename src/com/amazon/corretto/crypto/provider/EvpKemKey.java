@@ -9,7 +9,7 @@ public abstract class EvpKemKey extends EvpKey {
 
   EvpKemKey(final InternalKey key, final boolean isPublicKey) {
     super(key, MlKemParameter.getEvpKeyTypeFromInternalKey(key), isPublicKey);
-    this.parameterSet = MlKemParameter.getParameterSetFromInternalKey(key);
+    this.parameterSet = MlKemParameter.getParamSetFromInternalKey(key);
   }
 
   public MlKemParameter getParameterSet() {
