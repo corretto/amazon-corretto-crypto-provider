@@ -202,6 +202,7 @@ set(BASE_JAVA_COMPILE_FLAGS ${CMAKE_JAVA_COMPILE_FLAGS} -h "${JNI_HEADER_DIR}" -
 # On JDK 8: uses --release 9 for module compilation as modules are supported in JDK 9+, and uses --release 8 for code
 # JDK 17 with KEM support: when targeting JDK 17 on newer build-time JDKs (21+), uses -source/-target instead of --release.
 # This is because using --release 17 would exclude backported APIs and cause runtime errors when accessing KEM functionality or other JDK 17 APIs.
+# On default, it uses the specified target JDK version.
 # Parameters:
 #   FLAGS_VAR - CMake variable name to store the resulting compiler flags
 #   IS_MODULE - TRUE for module compilation, FALSE for regular code
