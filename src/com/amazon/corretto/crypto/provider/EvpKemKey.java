@@ -12,7 +12,7 @@ public abstract class EvpKemKey extends EvpKey {
     this.parameterSet = MlKemParameter.getParameterSet(this.type);
   }
 
-  public MlKemParameter ggtParameterSet() {
+  public MlKemParameter getParameterSet() {
     return parameterSet;
   }
 }
