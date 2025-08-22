@@ -16,8 +16,10 @@ public enum MlKemParameter {
   private final int secretKeySize;
   private final int ciphertextSize;
   private final int nid;
-  public static final int SHARED_SECRET_SIZE = 32; // Shared secret size is constant across all parameter sets for
-                                                   // ML-KEM
+  public static final int SHARED_SECRET_SIZE =
+      32; // Shared secret size is constant across all parameter sets for
+
+  // ML-KEM
 
   MlKemParameter(
       int parameterSize, int publicKeySize, int secretKeySize, int ciphertextSize, int nid) {
