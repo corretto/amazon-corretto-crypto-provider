@@ -16,8 +16,8 @@ public enum MlKemParameter {
   private final int secretKeySize;
   private final int ciphertextSize;
   private final int nid;
-  public static final int SHARED_SECRET_SIZE =
-      32; // Shared secret size is constant across all parameter sets for ML-KEM
+  public static final int SHARED_SECRET_SIZE = 32; // Shared secret size is constant across all parameter sets for
+                                                   // ML-KEM
 
   MlKemParameter(
       int parameterSize, int publicKeySize, int secretKeySize, int ciphertextSize, int nid) {
@@ -70,19 +70,6 @@ public enum MlKemParameter {
     return "ML-KEM-" + parameterSize;
   }
 
-  public EvpKeyType getEvpKeyType() {
-    switch (this) {
-      case MLKEM_512:
-        return EvpKeyType.MLKEM_512;
-      case MLKEM_768:
-        return EvpKeyType.MLKEM_768;
-      case MLKEM_1024:
-        return EvpKeyType.MLKEM_1024;
-      default:
-        throw new AssertionError("Unknown parameter set");
-    }
-  }
-
   public static MlKemParameter getParamSetFromInternalKey(EvpKey.InternalKey internalKey) {
     try {
       Class<?> kemUtilsClass = Class.forName("com.amazon.corretto.crypto.provider.KemUtils");
@@ -97,12 +84,37 @@ public enum MlKemParameter {
 
     } catch (ClassNotFoundException e) {
       throw new UnsupportedOperationException("ML-KEM not supported on this JDK version", e);
-    } catch (ReflectiveOperationException | IllegalArgumentException e) {
+    } catch (ReflectiveOperationException e) {
       throw new RuntimeCryptoException("Failed to initialize ML-KEM key", e);
     }
   }
 
-  public static EvpKeyType getEvpKeyTypeFromInternalKey(EvpKey.InternalKey internalKey) {
-    return getParamSetFromInternalKey(internalKey).getEvpKeyType();
+  public static EvpKeyType getEvpKeyType(EvpKey.InternalKey internalKey) {
+
+    MlKemParameter param = getParamSetFromInternalKey(internalKey);
+    switch (param) {
+      case MLKEM_512:
+        return EvpKeyType.MLKEM_512;
+      case MLKEM_768:
+        return EvpKeyType.MLKEM_768;
+      case MLKEM_1024:
+        return EvpKeyType.MLKEM_1024;
+      default:
+        throw new IllegalArgumentException("Invalid ML-KEM parameter set: " + param);
+    }
+  }
+
+  public static MlKemParameter getParameterSet(EvpKeyType type) {
+
+    switch (type) {
+      case MLKEM_512:
+        return MLKEM_512;
+      case MLKEM_768:
+        return MLKEM_768;
+      case MLKEM_1024:
+        return MLKEM_1024;
+      default:
+        throw new IllegalArgumentException("Unsupported EvpKeyType: " + type);
+    }
   }
 }

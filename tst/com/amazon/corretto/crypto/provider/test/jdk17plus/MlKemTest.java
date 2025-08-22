@@ -184,60 +184,6 @@ public class MlKemTest {
   }
 
   @Test
-  public void testBouncyCastleKeyByteComparison() throws Exception {
-    for (String paramSet : new String[] {"ML-KEM-512", "ML-KEM-768", "ML-KEM-1024"}) {
-      try {
-        KeyPair accpPair =
-            KeyPairGenerator.getInstance(paramSet, NATIVE_PROVIDER).generateKeyPair();
-        EvpKemPublicKey accpPub = (EvpKemPublicKey) accpPair.getPublic();
-        EvpKemPrivateKey accpPriv = (EvpKemPrivateKey) accpPair.getPrivate();
-
-        byte[] accpPubRaw = accpPub.getRawBytes();
-        byte[] accpPrivRaw = accpPriv.getRawBytes();
-
-        try {
-          KeyPair bcPair =
-              KeyPairGenerator.getInstance(paramSet, TestUtil.BC_PROVIDER).generateKeyPair();
-
-          // Get BC encoded bytes (ASN.1 format)
-          byte[] bcPubEncoded = bcPair.getPublic().getEncoded();
-          byte[] bcPrivEncoded = bcPair.getPrivate().getEncoded();
-
-          // Compare sizes
-          System.out.println(paramSet + " Key size comparison:");
-          System.out.println("  ACCP raw public: " + accpPubRaw.length + " bytes");
-          System.out.println("  BC encoded public: " + bcPubEncoded.length + " bytes");
-          System.out.println("  ACCP raw private: " + accpPrivRaw.length + " bytes");
-          System.out.println("  BC encoded private: " + bcPrivEncoded.length + " bytes");
-
-          if (bcPubEncoded.length > accpPubRaw.length
-              || bcPrivEncoded.length > accpPrivRaw.length) {
-            System.out.println(
-                "  → BC keys are larger (include ASN.1 overhead) - ACCP keys need ASN.1 encoding"
-                    + " for interoperability");
-          } else {
-            System.out.println("  → Unexpected: BC keys are not larger - check implementation");
-          }
-
-        } catch (Exception e) {
-          System.out.println("BouncyCastle doesn't support " + paramSet + ": " + e.getMessage());
-          System.out.println("  ACCP raw public: " + accpPubRaw.length + " bytes");
-          System.out.println("  ACCP raw private: " + accpPrivRaw.length + " bytes");
-          System.out.println("  → ACCP keys need ASN.1 encoding for future interoperability");
-        }
-
-      } catch (Exception e) {
-        System.out.println("Key generation failed for " + paramSet + ": " + e.getMessage());
-      }
-    }
-
-    // Test always passes, this is to compare ACCP keys and BC keys to learn about ASN.1 encoding
-    // differences
-    assertTrue(
-        true, "Key byte comparison completed - check output for ASN.1 encoding requirements");
-  }
-
-  @Test
   public void testInvalidKeyInitialization() {
     assertThrows(
         InvalidKeyException.class,
