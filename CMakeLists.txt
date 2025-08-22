@@ -198,7 +198,6 @@ set(ACCP_SRC ${ACCP_SRC} ${ACCP_UTILS_SRC} ${GENERATED_JAVA_SRC})
 
 set(BASE_JAVA_COMPILE_FLAGS ${CMAKE_JAVA_COMPILE_FLAGS} -h "${JNI_HEADER_DIR}" -Werror)
 
-
 # This macro sets the Java compile flags for ACCP based on JDK version and compilation type
 # On JDK 8: uses --release 9 for module compilation as modules are supported in JDK 9+, and uses --release 8 for code
 # JDK 17 with KEM support: when targeting JDK 17 on newer build-time JDKs (21+), uses -source/-target instead of --release.
@@ -219,7 +218,6 @@ macro(set_java_compile_flags FLAGS_VAR IS_MODULE)
         set(${FLAGS_VAR} ${BASE_JAVA_COMPILE_FLAGS} -Xlint:-options --release ${TARGET_JDK_VERSION})
     endif()
 endmacro()
-
 
 set(ACCP_JAR "${CMAKE_CURRENT_BINARY_DIR}/AmazonCorrettoCryptoProvider.jar")
 set(ACCP_JAR_SOURCE "${CMAKE_CURRENT_BINARY_DIR}/AmazonCorrettoCryptoProvider-sources.jar")
