@@ -198,26 +198,25 @@ set(ACCP_SRC ${ACCP_SRC} ${ACCP_UTILS_SRC} ${GENERATED_JAVA_SRC})
 
 set(BASE_JAVA_COMPILE_FLAGS ${CMAKE_JAVA_COMPILE_FLAGS} -h "${JNI_HEADER_DIR}" -Werror)
 
-# This macro checks if the build time JDK is 21 above and the target is 17. If so, it uses
-# -source and -target instead of --release to properly support the backported KEM API on JDK 17.
-# For JDK 8 targets, it uses --release 9 for module compilation and --release 8 for code compilation.
-# Otherwise, releases on user specified target.
-macro(set_conditional_compile_flags OUTPUT_VAR)
-    set(IS_MODULE_COMPILATION FALSE)
-    if(${ARGC} GREATER 1 AND "${ARGV1}" STREQUAL "MODULE")
-        set(IS_MODULE_COMPILATION TRUE)
-    endif()
-    
+
+# This macro sets the Java compile flags for ACCP based on JDK version and compilation type
+# On JDK 8: uses --release 9 for module compilation as modules are supported in JDK 9+, and uses --release 8 for code
+# JDK 17 with KEM support: when targeting JDK 17 on newer build-time JDKs (21+), uses -source/-target instead of --release.
+# This is because using --release 17 would exclude backported APIs and cause runtime errors when accessing KEM functionality or other JDK 17 APIs.
+# Parameters:
+#   FLAGS_VAR - CMake variable name to store the resulting compiler flags
+#   IS_MODULE - TRUE for module compilation, FALSE for regular code
+macro(set_java_compile_flags FLAGS_VAR IS_MODULE)
     if(TARGET_JDK_VERSION EQUAL 8)
-        if(IS_MODULE_COMPILATION)
-            set(${OUTPUT_VAR} ${BASE_JAVA_COMPILE_FLAGS} -Xlint:-options --release 9)
+        if(${IS_MODULE})
+            set(${FLAGS_VAR} ${BASE_JAVA_COMPILE_FLAGS} -Xlint:-options --release 9)
         else()
-            set(${OUTPUT_VAR} ${BASE_JAVA_COMPILE_FLAGS} -Xlint:-options --release 8)
+            set(${FLAGS_VAR} ${BASE_JAVA_COMPILE_FLAGS} -Xlint:-options --release 8)
         endif()
     elseif(INCLUDE_JDK17PLUS_DIR AND TARGET_JDK_VERSION EQUAL 17 AND BUILD_JDK_VERSION GREATER_EQUAL 21)
-        set(${OUTPUT_VAR} ${BASE_JAVA_COMPILE_FLAGS} -Xlint:-options -source ${TARGET_JDK_VERSION} -target ${TARGET_JDK_VERSION})
+        set(${FLAGS_VAR} ${BASE_JAVA_COMPILE_FLAGS} -Xlint:-options -source ${TARGET_JDK_VERSION} -target ${TARGET_JDK_VERSION})
     else()
-        set(${OUTPUT_VAR} ${BASE_JAVA_COMPILE_FLAGS} -Xlint:-options --release ${TARGET_JDK_VERSION})
+        set(${FLAGS_VAR} ${BASE_JAVA_COMPILE_FLAGS} -Xlint:-options --release ${TARGET_JDK_VERSION})
     endif()
 endmacro()
 
@@ -226,7 +225,9 @@ set(ACCP_JAR "${CMAKE_CURRENT_BINARY_DIR}/AmazonCorrettoCryptoProvider.jar")
 set(ACCP_JAR_SOURCE "${CMAKE_CURRENT_BINARY_DIR}/AmazonCorrettoCryptoProvider-sources.jar")
 
 # Java targets defined here are compiled for Java supporting modules
-set_conditional_compile_flags(CMAKE_JAVA_COMPILE_FLAGS MODULE)
+# CMAKE_JAVA_COMPILE_FLAGS - variable to store the resulting compiler flags
+# TRUE - indicates module compilation 
+set_java_compile_flags(CMAKE_JAVA_COMPILE_FLAGS TRUE)
 add_jar(
     module-jar
     SOURCES ${ACCP_SRC}
@@ -247,7 +248,9 @@ create_javadoc(
 add_custom_target(javadoc DEPENDS ${JNI_HEADER_DIR}/generated-headers.h ${GENERATED_JAVA_SRC} AmazonCorrettoCryptoProvider_javadoc)
 
 # Set compilation flags for regular code (non-module) targets
-set_conditional_compile_flags(CMAKE_JAVA_COMPILE_FLAGS)
+# CMAKE_JAVA_COMPILE_FLAGS - variable to store the resulting compiler flags
+# FALSE - indicates regular code compilation 
+set_java_compile_flags(CMAKE_JAVA_COMPILE_FLAGS FALSE)
 
 # Add a JAR target. We can't add resources here (as discussed below) so we'll
 # build a temporary one first.
