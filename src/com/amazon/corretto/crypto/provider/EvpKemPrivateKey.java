@@ -7,8 +7,6 @@ import java.security.PrivateKey;
 public class EvpKemPrivateKey extends EvpKemKey implements PrivateKey {
   private static final long serialVersionUID = 1;
 
-  private static native byte[] getRawPrivateKey(long ptr);
-
   EvpKemPrivateKey(final long ptr) {
     this(new InternalKey(ptr));
   }
@@ -23,9 +21,5 @@ public class EvpKemPrivateKey extends EvpKemKey implements PrivateKey {
     final EvpKemPublicKey result = new EvpKemPublicKey(internalKey);
     result.sharedKey = true;
     return result;
-  }
-
-  public byte[] getRawBytes() {
-    return use(EvpKemPrivateKey::getRawPrivateKey);
   }
 }
