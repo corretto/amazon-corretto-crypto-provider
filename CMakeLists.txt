@@ -204,19 +204,18 @@ set(BASE_JAVA_COMPILE_FLAGS ${CMAKE_JAVA_COMPILE_FLAGS} -h "${JNI_HEADER_DIR}" -
 # This is because using --release 17 would exclude backported APIs and cause runtime errors when accessing KEM functionality or other JDK 17 APIs.
 # On default, it uses the specified target JDK version.
 # Parameters:
-#   FLAGS_VAR - CMake variable name to store the resulting compiler flags
 #   IS_MODULE - TRUE for module compilation, FALSE for regular code
-macro(set_java_compile_flags FLAGS_VAR IS_MODULE)
+macro(set_java_compile_flags IS_MODULE)
     if(TARGET_JDK_VERSION EQUAL 8)
         if(${IS_MODULE})
-            set(${FLAGS_VAR} ${BASE_JAVA_COMPILE_FLAGS} -Xlint:-options --release 9)
+            set(CMAKE_JAVA_COMPILE_FLAGS ${BASE_JAVA_COMPILE_FLAGS} -Xlint:-options --release 9)
         else()
-            set(${FLAGS_VAR} ${BASE_JAVA_COMPILE_FLAGS} -Xlint:-options --release 8)
+            set(CMAKE_JAVA_COMPILE_FLAGS ${BASE_JAVA_COMPILE_FLAGS} -Xlint:-options --release 8)
         endif()
     elseif(INCLUDE_JDK17PLUS_DIR AND TARGET_JDK_VERSION EQUAL 17 AND BUILD_JDK_VERSION GREATER_EQUAL 21)
-        set(${FLAGS_VAR} ${BASE_JAVA_COMPILE_FLAGS} -Xlint:-options -source ${TARGET_JDK_VERSION} -target ${TARGET_JDK_VERSION})
+        set(CMAKE_JAVA_COMPILE_FLAGS ${BASE_JAVA_COMPILE_FLAGS} -Xlint:-options -source ${TARGET_JDK_VERSION} -target ${TARGET_JDK_VERSION})
     else()
-        set(${FLAGS_VAR} ${BASE_JAVA_COMPILE_FLAGS} -Xlint:-options --release ${TARGET_JDK_VERSION})
+        set(CMAKE_JAVA_COMPILE_FLAGS ${BASE_JAVA_COMPILE_FLAGS} -Xlint:-options --release ${TARGET_JDK_VERSION})
     endif()
 endmacro()
 
@@ -224,9 +223,8 @@ set(ACCP_JAR "${CMAKE_CURRENT_BINARY_DIR}/AmazonCorrettoCryptoProvider.jar")
 set(ACCP_JAR_SOURCE "${CMAKE_CURRENT_BINARY_DIR}/AmazonCorrettoCryptoProvider-sources.jar")
 
 # Java targets defined here are compiled for Java supporting modules
-# CMAKE_JAVA_COMPILE_FLAGS - variable to store the resulting compiler flags
 # TRUE - indicates module compilation 
-set_java_compile_flags(CMAKE_JAVA_COMPILE_FLAGS TRUE)
+set_java_compile_flags(TRUE)
 add_jar(
     module-jar
     SOURCES ${ACCP_SRC}
@@ -247,9 +245,8 @@ create_javadoc(
 add_custom_target(javadoc DEPENDS ${JNI_HEADER_DIR}/generated-headers.h ${GENERATED_JAVA_SRC} AmazonCorrettoCryptoProvider_javadoc)
 
 # Set compilation flags for regular code (non-module) targets
-# CMAKE_JAVA_COMPILE_FLAGS - variable to store the resulting compiler flags
 # FALSE - indicates regular code compilation 
-set_java_compile_flags(CMAKE_JAVA_COMPILE_FLAGS FALSE)
+set_java_compile_flags(FALSE)
 
 # Add a JAR target. We can't add resources here (as discussed below) so we'll
 # build a temporary one first.
