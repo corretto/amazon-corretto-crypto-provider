@@ -203,8 +203,7 @@ set(BASE_JAVA_COMPILE_FLAGS ${CMAKE_JAVA_COMPILE_FLAGS} -h "${JNI_HEADER_DIR}" -
 # JDK 17 with KEM support: when targeting JDK 17 on newer build-time JDKs (21+), uses -source/-target instead of --release.
 # This is because using --release 17 would exclude backported APIs and cause runtime errors when accessing KEM functionality or other JDK 17 APIs.
 # On default, it uses the specified target JDK version.
-# Parameters:
-#   IS_MODULE - TRUE for module compilation, FALSE for regular code
+# Parameters: IS_MODULE - TRUE for module compilation, FALSE for regular code
 macro(set_java_compile_flags IS_MODULE)
     if(TARGET_JDK_VERSION EQUAL 8)
         if(${IS_MODULE})
@@ -212,7 +211,7 @@ macro(set_java_compile_flags IS_MODULE)
         else()
             set(CMAKE_JAVA_COMPILE_FLAGS ${BASE_JAVA_COMPILE_FLAGS} -Xlint:-options --release 8)
         endif()
-    elseif(INCLUDE_JDK17PLUS_DIR AND TARGET_JDK_VERSION EQUAL 17 AND BUILD_JDK_VERSION GREATER_EQUAL 21)
+    elseif(TARGET_JDK_VERSION EQUAL 17 AND BUILD_JDK_VERSION GREATER_EQUAL 21)
         set(CMAKE_JAVA_COMPILE_FLAGS ${BASE_JAVA_COMPILE_FLAGS} -Xlint:-options -source ${TARGET_JDK_VERSION} -target ${TARGET_JDK_VERSION})
     else()
         set(CMAKE_JAVA_COMPILE_FLAGS ${BASE_JAVA_COMPILE_FLAGS} -Xlint:-options --release ${TARGET_JDK_VERSION})
