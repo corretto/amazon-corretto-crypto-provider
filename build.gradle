@@ -197,7 +197,7 @@ dependencies {
 defaultTasks 'release'
 
 ext.buildJdk = {
-    def version = System.properties["java.version"]
+    def version = System.properties['java.version']
     def parts = version.split('\\.')
     if (parts[0] == "1") {
         return parts[1] as Integer
@@ -205,7 +205,7 @@ ext.buildJdk = {
         return parts[0] as Integer
     }
 }()
-ext.targetJdkVersion = System.properties["TARGET_JDK_VERSION"] ?: '8'
+ext.targetJdkVersion = System.properties['TARGET_JDK_VERSION'] ?: '8'
 
 task buildAwsLc {
     def sharedObjectOutDir = "${buildDir}/awslc/bin"

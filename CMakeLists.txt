@@ -201,8 +201,7 @@ set(BASE_JAVA_COMPILE_FLAGS ${CMAKE_JAVA_COMPILE_FLAGS} -h "${JNI_HEADER_DIR}" -
 # This macro sets the Java compile flags for ACCP based on JDK version and compilation type
 # On JDK 8: uses --release 9 for module compilation as modules are supported in JDK 9+, and uses --release 8 for code
 # JDK 17 with KEM support: when targeting JDK 17 on newer build-time JDKs (21+), uses -source/-target instead of --release.
-# This is because using --release 17 would exclude backported APIs and cause runtime errors when accessing KEM functionality or other JDK 17 APIs.
-# On default, it uses the specified target JDK version.
+# This is because using --release 17 would exclude backported APIs and cause runtime errors when accessing KEM functionality or other JDK 17 APIs. On default, it uses the specified target JDK version.
 # Parameters: IS_MODULE - TRUE for module compilation, FALSE for regular code
 macro(set_java_compile_flags IS_MODULE)
     if(TARGET_JDK_VERSION EQUAL 8)
