@@ -249,7 +249,7 @@ Usage example:
 ./bin/bundle-accp.sh 2.3.3 linux-x86_64
 ```
 
-To find the available versions and classifiers, please checkout Maven central.
+To find the available versions and classifiers, please check out Maven central.
 
 Some notes on the bundling scripts:
 * One needs to run the bundling script only once.
