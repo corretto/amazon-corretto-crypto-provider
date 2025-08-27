@@ -97,14 +97,12 @@ JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_MlKemSpi_nativeD
         }
 
         EVP_PKEY* key = reinterpret_cast<EVP_PKEY*>(evpKeyPtr);
-
         EVP_PKEY_CTX_auto ctx = EVP_PKEY_CTX_auto::from(EVP_PKEY_CTX_new(key, NULL));
         if (unlikely(!ctx.isInitialized())) {
             throw_java_ex(EX_RUNTIME_CRYPTO, "Failed to create EVP context");
         }
 
         jsize ciphertext_array_len = env->GetArrayLength(ciphertextArray);
-
         JBinaryBlob ciphertext(pEnv, nullptr, ciphertextArray);
         JBinaryBlob shared_secret(pEnv, nullptr, sharedSecretArray);
 

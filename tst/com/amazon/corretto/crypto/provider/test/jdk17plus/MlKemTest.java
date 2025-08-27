@@ -304,36 +304,46 @@ public class MlKemTest {
 
       // Test encapsulation with "Generic" algorithm
       KEM.Encapsulated encapsulatedGeneric = encapsulator.encapsulate(0, 32, "Generic");
-      
+
       assertNotNull(encapsulatedGeneric, "Encapsulated result should not be null");
       assertNotNull(encapsulatedGeneric.key(), "Shared secret should not be null");
-      assertEquals(32, encapsulatedGeneric.key().getEncoded().length, "Shared secret should be 32 bytes");
-      
+      assertEquals(
+          32, encapsulatedGeneric.key().getEncoded().length, "Shared secret should be 32 bytes");
+
       // "Generic" should be converted to specific algorithm name
-      assertEquals(paramSet, encapsulatedGeneric.key().getAlgorithm(), 
+      assertEquals(
+          paramSet,
+          encapsulatedGeneric.key().getAlgorithm(),
           "Generic algorithm should be converted to " + paramSet);
 
-      // Test decapsulation with "Generic" algorithm  
-      SecretKey recoveredGeneric = decapsulator.decapsulate(encapsulatedGeneric.encapsulation(), 0, 32, "Generic");
-      
+      // Test decapsulation with "Generic" algorithm
+      SecretKey recoveredGeneric =
+          decapsulator.decapsulate(encapsulatedGeneric.encapsulation(), 0, 32, "Generic");
+
       assertNotNull(recoveredGeneric, "Recovered secret should not be null");
       assertEquals(32, recoveredGeneric.getEncoded().length, "Recovered secret should be 32 bytes");
-      assertEquals(paramSet, recoveredGeneric.getAlgorithm(), 
+      assertEquals(
+          paramSet,
+          recoveredGeneric.getAlgorithm(),
           "Generic algorithm should be converted to " + paramSet);
 
       // Verify secrets match
-      assertArrayEquals(encapsulatedGeneric.key().getEncoded(), recoveredGeneric.getEncoded(),
+      assertArrayEquals(
+          encapsulatedGeneric.key().getEncoded(),
+          recoveredGeneric.getEncoded(),
           "Encapsulated and decapsulated secrets should match");
 
       // Test that specific algorithm name also works
       KEM.Encapsulated encapsulatedSpecific = encapsulator.encapsulate(0, 32, paramSet);
-      assertEquals(paramSet, encapsulatedSpecific.key().getAlgorithm(),
+      assertEquals(
+          paramSet,
+          encapsulatedSpecific.key().getAlgorithm(),
           "Specific algorithm should be preserved");
 
       // Test that ML-KEM generic also works
       KEM.Encapsulated encapsulatedMlKem = encapsulator.encapsulate(0, 32, "ML-KEM");
-      assertEquals("ML-KEM", encapsulatedMlKem.key().getAlgorithm(),
-          "ML-KEM algorithm should be preserved");
+      assertEquals(
+          "ML-KEM", encapsulatedMlKem.key().getAlgorithm(), "ML-KEM algorithm should be preserved");
     }
   }
 }
