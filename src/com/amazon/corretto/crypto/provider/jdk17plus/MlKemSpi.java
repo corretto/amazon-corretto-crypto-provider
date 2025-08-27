@@ -99,23 +99,29 @@ abstract class MlKemSpi implements KEMSpi {
       if (from < 0 || from > to || to > MlKemParameter.SHARED_SECRET_SIZE) {
         throw new IndexOutOfBoundsException("Invalid range: from=" + from + ", to=" + to);
       }
-      if (!("ML-KEM".equals(algorithm) || "Generic".equals(algorithm))) {
-        throw new UnsupportedOperationException(
-            "Only ML-KEM algorithm is supported, got: " + algorithm);
-      }
       if (from != 0 || to != MlKemParameter.SHARED_SECRET_SIZE) {
         throw new UnsupportedOperationException("Only full secret size is supported");
       }
-
+      
+      // if algorithm is Generic then use parameterSet algorithm name to wrap key
+      String keyAlgorithm = "Generic".equals(algorithm) ? parameterSet.getAlgorithmName() : algorithm;
+      
+      // Accept ML-KEM, Generic, and specific variants like ML-KEM-512
+      if (!("ML-KEM".equals(keyAlgorithm) || "Generic".equals(algorithm) || 
+            parameterSet.getAlgorithmName().equals(keyAlgorithm))) {
+        throw new UnsupportedOperationException(
+            "Only ML-KEM algorithm is supported, got: " + algorithm);
+      }
+      
+      byte[] ciphertext = new byte[parameterSet.getCiphertextSize()];
+      // shared secret size of ML-KEM is always 32 bytes regardless of parameter set
+      byte[] sharedSecret = new byte[MlKemParameter.SHARED_SECRET_SIZE];
+      
       return publicKey.use(
           ptr -> {
-            byte[] ciphertext = new byte[parameterSet.getCiphertextSize()];
-            // shared secret size of ML-KEM is always 32 bytes regardless of parameter set
-            byte[] sharedSecret = new byte[MlKemParameter.SHARED_SECRET_SIZE];
-
             nativeEncapsulate(ptr, ciphertext, sharedSecret);
             return new KEM.Encapsulated(
-                new SecretKeySpec(sharedSecret, algorithm), ciphertext, null);
+                new SecretKeySpec(sharedSecret, keyAlgorithm), ciphertext, null);
           });
     }
 
@@ -148,13 +154,17 @@ abstract class MlKemSpi implements KEMSpi {
       if (from < 0 || from > to || to > MlKemParameter.SHARED_SECRET_SIZE) {
         throw new IndexOutOfBoundsException("Invalid range: from=" + from + ", to=" + to);
       }
-
+      
+      // if algorithm is Generic then use parameterSet algorithm name to wrap key
+      String keyAlgorithm = "Generic".equals(algorithm) ? parameterSet.getAlgorithmName() : algorithm;
+      
+      byte[] sharedSecret = new byte[MlKemParameter.SHARED_SECRET_SIZE];
+      
       return privateKey.use(
           ptr -> {
             // shared secret size of ML-KEM is always 32 bytes regardless of parameter set
-            byte[] sharedSecret = new byte[MlKemParameter.SHARED_SECRET_SIZE];
             nativeDecapsulate(ptr, encapsulation, sharedSecret);
-            return new SecretKeySpec(sharedSecret, algorithm);
+            return new SecretKeySpec(sharedSecret, keyAlgorithm);
           });
     }
 

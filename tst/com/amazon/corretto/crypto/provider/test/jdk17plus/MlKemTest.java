@@ -291,31 +291,49 @@ public class MlKemTest {
   }
 
   @Test
-  public void testMultipleKeyPairs() throws Exception {
-    for (String paramSet : new String[] {"ML-KEM-512", "ML-KEM-768", "ML-KEM-1024"}) {
-      KeyPairGenerator keyGen = KeyPairGenerator.getInstance(paramSet, NATIVE_PROVIDER);
+  public void testGenericAlgorithmHandling() throws Exception {
+    String[] paramSets = {"ML-KEM-512", "ML-KEM-768", "ML-KEM-1024"};
 
-      KeyPair pair1 = keyGen.generateKeyPair();
-      KeyPair pair2 = keyGen.generateKeyPair();
-
-      // avoid direct key as getEncoded() and ASN.1 encoding is not implemented for KEM keys
-      assertTrue(pair1.getPublic() != pair2.getPublic(), "Public keys should be different objects");
-      assertTrue(
-          pair1.getPrivate() != pair2.getPrivate(), "Private keys should be different objects");
-
+    for (String paramSet : paramSets) {
+      KeyPair pair = KeyPairGenerator.getInstance(paramSet, NATIVE_PROVIDER).generateKeyPair();
       KEM kem = KEM.getInstance(paramSet, NATIVE_PROVIDER);
       NamedParameterSpec paramSpec = new NamedParameterSpec(paramSet);
 
-      KEM.Encapsulator enc1 = kem.newEncapsulator(pair1.getPublic(), paramSpec, null);
-      KEM.Encapsulator enc2 = kem.newEncapsulator(pair2.getPublic(), paramSpec, null);
+      KEM.Encapsulator encapsulator = kem.newEncapsulator(pair.getPublic(), paramSpec, null);
+      KEM.Decapsulator decapsulator = kem.newDecapsulator(pair.getPrivate(), paramSpec);
 
-      KEM.Encapsulated result1 = enc1.encapsulate();
-      KEM.Encapsulated result2 = enc2.encapsulate();
+      // Test encapsulation with "Generic" algorithm
+      KEM.Encapsulated encapsulatedGeneric = encapsulator.encapsulate(0, 32, "Generic");
+      
+      assertNotNull(encapsulatedGeneric, "Encapsulated result should not be null");
+      assertNotNull(encapsulatedGeneric.key(), "Shared secret should not be null");
+      assertEquals(32, encapsulatedGeneric.key().getEncoded().length, "Shared secret should be 32 bytes");
+      
+      // "Generic" should be converted to specific algorithm name
+      assertEquals(paramSet, encapsulatedGeneric.key().getAlgorithm(), 
+          "Generic algorithm should be converted to " + paramSet);
 
-      assertNotNull(result1.key());
-      assertNotNull(result2.key());
-      assertEquals(32, result1.key().getEncoded().length);
-      assertEquals(32, result2.key().getEncoded().length);
+      // Test decapsulation with "Generic" algorithm  
+      SecretKey recoveredGeneric = decapsulator.decapsulate(encapsulatedGeneric.encapsulation(), 0, 32, "Generic");
+      
+      assertNotNull(recoveredGeneric, "Recovered secret should not be null");
+      assertEquals(32, recoveredGeneric.getEncoded().length, "Recovered secret should be 32 bytes");
+      assertEquals(paramSet, recoveredGeneric.getAlgorithm(), 
+          "Generic algorithm should be converted to " + paramSet);
+
+      // Verify secrets match
+      assertArrayEquals(encapsulatedGeneric.key().getEncoded(), recoveredGeneric.getEncoded(),
+          "Encapsulated and decapsulated secrets should match");
+
+      // Test that specific algorithm name also works
+      KEM.Encapsulated encapsulatedSpecific = encapsulator.encapsulate(0, 32, paramSet);
+      assertEquals(paramSet, encapsulatedSpecific.key().getAlgorithm(),
+          "Specific algorithm should be preserved");
+
+      // Test that ML-KEM generic also works
+      KEM.Encapsulated encapsulatedMlKem = encapsulator.encapsulate(0, 32, "ML-KEM");
+      assertEquals("ML-KEM", encapsulatedMlKem.key().getAlgorithm(),
+          "ML-KEM algorithm should be preserved");
     }
   }
 }
