@@ -14,4 +14,3 @@ tests/ci/cdk/.idea
 tests/ci/cdk/venv
 coverage/
 /classes
-.project

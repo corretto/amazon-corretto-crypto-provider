@@ -224,7 +224,6 @@ set(ACCP_JAR_SOURCE "${CMAKE_CURRENT_BINARY_DIR}/AmazonCorrettoCryptoProvider-so
 # Java targets defined here are compiled for Java supporting modules
 # TRUE - indicates module compilation 
 set_java_compile_flags(TRUE)
-
 add_jar(
     module-jar
     SOURCES ${ACCP_SRC}
@@ -247,7 +246,6 @@ add_custom_target(javadoc DEPENDS ${JNI_HEADER_DIR}/generated-headers.h ${GENERA
 # Set compilation flags for regular code (non-module) targets
 # FALSE - indicates regular code compilation 
 set_java_compile_flags(FALSE)
-
 
 # Add a JAR target. We can't add resources here (as discussed below) so we'll
 # build a temporary one first.
