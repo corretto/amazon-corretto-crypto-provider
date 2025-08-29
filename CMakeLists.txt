@@ -323,8 +323,7 @@ set(C_SRC
     csrc/counter_kdf.cpp
     csrc/ec_gen.cpp
     csrc/ec_utils.cpp
-    csrc/xdh_gen.cpp
-    csrc/ed_gen.cpp
+    csrc/evp_gen.cpp
     csrc/env.cpp
     csrc/hkdf.cpp
     csrc/hmac.cpp

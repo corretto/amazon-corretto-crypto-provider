@@ -5,16 +5,17 @@ package com.amazon.corretto.crypto.provider;
 import java.security.KeyFactory;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
+import java.security.PrivateKey;
 
 class XDHGen extends EvpKeyPairGenerator {
 
   XDHGen(AmazonCorrettoCryptoProvider provider) {
-    super(provider);
+    super(provider, EvpKeyType.XDH);
   }
 
   @Override
   protected KeyFactory getKeyFactory() {
-    KeyFactory kf = null;
+    KeyFactory keyFactory = null;
     try {
       /* Though XEC keys were introduced in JDK11, while checking key size against the spec parameters,
        * JDK 11 XDHPrivateKeyImpl checks the encoded key which is 34 bytes long
@@ -25,18 +26,26 @@ class XDHGen extends EvpKeyPairGenerator {
        * So, just for JDK11, keep key factory null to avoid ser/deser in generateKeyPair(), which will fail.
        */
       if (Utils.getJavaVersion() > 11) {
-        kf = KeyFactory.getInstance(EvpKeyType.XDH.jceName, "SunEC");
+        keyFactory = KeyFactory.getInstance(evpKeyType.jceName, "SunEC");
       }
     } catch (final NoSuchAlgorithmException | NoSuchProviderException e) {
       // This case indicates that either:
       // 1.) The current JDK runtime version does not support X25519 (i.e. JDK version <11) or
       // 2.) No SunEC is registered with JCA
     }
-    return kf;
+    return keyFactory;
   }
 
   @Override
-  protected long generateEvpKey() {
-    return generateEvpKey(EvpKeyType.XDH.nativeValue);
+  protected EvpXECPrivateKey getPrivateKey(long keyPtr) {
+    return new EvpXECPrivateKey(keyPtr);
+  }
+
+  @Override
+  protected EvpXECPublicKey getPublicKey(PrivateKey privateKey) {
+    if (privateKey instanceof EvpXECPrivateKey) {
+      return ((EvpXECPrivateKey) privateKey).getPublicKey();
+    }
+    throw new IllegalArgumentException("Private key must be EvpXECPrivateKey");
   }
 }

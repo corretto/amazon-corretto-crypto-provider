@@ -14,19 +14,18 @@ import java.security.spec.X509EncodedKeySpec;
 
 abstract class EvpKeyPairGenerator extends KeyPairGeneratorSpi {
 
-  private final AmazonCorrettoCryptoProvider provider_;
-  private final KeyFactory kf;
+  private final AmazonCorrettoCryptoProvider provider;
+  private final KeyFactory keyFactory;
+  protected final EvpKeyType evpKeyType;
 
-  EvpKeyPairGenerator(AmazonCorrettoCryptoProvider provider) {
+  EvpKeyPairGenerator(AmazonCorrettoCryptoProvider provider, EvpKeyType evpKeyType) {
     Loader.checkNativeLibraryAvailability();
-    provider_ = provider;
-    kf = getKeyFactory();
+    this.provider = provider;
+    this.evpKeyType = evpKeyType;
+    this.keyFactory = getKeyFactory();
   }
 
-  // Generates a new EVP key based on the given native Key ID
-  // and returns a pointer to it encoded as a java |long|
-  protected static native long generateEvpKey(int nativeKeyId);
-
+  @Override
   public void initialize(final int keysize, final SecureRandom random) {
     throw new UnsupportedOperationException();
   }
@@ -34,16 +33,22 @@ abstract class EvpKeyPairGenerator extends KeyPairGeneratorSpi {
   // Provides an appropriate KeyFactory for this key type
   protected abstract KeyFactory getKeyFactory();
 
-  // Invokes similar named native function with appropriate native Key ID
-  // to generate a new EVP key of the required type
-  protected abstract long generateEvpKey();
+  // Generates a private key of `evpKeyType`, from the provided native resource reference
+  protected abstract PrivateKey getPrivateKey(long keyPtr);
+
+  // Generates a public key of `evpKeyType`, from the private key
+  protected abstract PublicKey getPublicKey(PrivateKey privateKey);
+
+  // Generates a new EVP key based on the given native Key ID
+  // and returns a pointer to it encoded as a java |long|
+  private static native long generateEvpKey(int nativeKeyId);
 
   @Override
   public KeyPair generateKeyPair() {
-    long keyPtr = generateEvpKey();
-    final EvpXECPrivateKey privateKey = new EvpXECPrivateKey(keyPtr);
-    final EvpXECPublicKey publicKey = privateKey.getPublicKey();
-    if (kf == null) {
+    long keyPtr = generateEvpKey(evpKeyType.nativeValue);
+    final PrivateKey privateKey = getPrivateKey(keyPtr);
+    final PublicKey publicKey = getPublicKey(privateKey);
+    if (keyFactory == null) {
       // This case indicates situations where a KeyFactory is not available
       // for this key type due to JDK incompatibility or JCA provider issues.
       return new KeyPair(publicKey, privateKey);
@@ -51,8 +56,8 @@ abstract class EvpKeyPairGenerator extends KeyPairGeneratorSpi {
     try {
       final PKCS8EncodedKeySpec privateKeyPkcs8 = new PKCS8EncodedKeySpec(privateKey.getEncoded());
       final X509EncodedKeySpec publicKeyX509 = new X509EncodedKeySpec(publicKey.getEncoded());
-      final PrivateKey jcePrivateKey = kf.generatePrivate(privateKeyPkcs8);
-      final PublicKey jcePublicKey = kf.generatePublic(publicKeyX509);
+      final PrivateKey jcePrivateKey = keyFactory.generatePrivate(privateKeyPkcs8);
+      final PublicKey jcePublicKey = keyFactory.generatePublic(publicKeyX509);
       return new KeyPair(jcePublicKey, jcePrivateKey);
     } catch (final GeneralSecurityException e) {
       throw new RuntimeException("Error generating key pair", e);
