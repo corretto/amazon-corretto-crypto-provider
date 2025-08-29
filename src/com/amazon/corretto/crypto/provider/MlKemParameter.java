@@ -16,8 +16,8 @@ public enum MlKemParameter {
   private final int secretKeySize;
   private final int ciphertextSize;
   private final int nid;
-  public static final int SHARED_SECRET_SIZE =
-      32; // Shared secret size is constant across all parameter sets for ML-KEM
+  public static final int SHARED_SECRET_SIZE = 32; // Shared secret size is constant across all parameter sets for
+                                                   // ML-KEM
 
   MlKemParameter(
       int parameterSize, int publicKeySize, int secretKeySize, int ciphertextSize, int nid) {
@@ -70,22 +70,20 @@ public enum MlKemParameter {
     return "ML-KEM-" + parameterSize;
   }
 
+  // Use reflection to access nativeGetParameterSet as it is in MlKemSpi in the jdk17plus folder
+  // On targets such as JDK 8/11, the reflection should fail and be caught as an exception
   public static MlKemParameter getParamSetFromInternalKey(EvpKey.InternalKey internalKey) {
     try {
-      Class<?> kemUtilsClass = Class.forName("com.amazon.corretto.crypto.provider.KemUtils");
-      Method method = kemUtilsClass.getDeclaredMethod("nativeGetParameterSet", long.class);
-      Integer paramSetInt = internalKey.use(ptr -> (Integer) method.invoke(null, ptr));
+      Method method = Class.forName("com.amazon.corretto.crypto.provider.MlKemSpi")
+          .getMethod("nativeGetParameterSet", long.class);
+
+      int paramSetInt = internalKey.use(ptr -> (Integer) method.invoke(null, ptr));
       if (paramSetInt == -1) {
-        throw new RuntimeCryptoException(
-            "Failed to get ML-KEM parameter set. Check for valid input.");
+        throw new RuntimeCryptoException("Failed to get ML-KEM parameter set. Check for valid input.");
       }
-
       return MlKemParameter.fromParameterSize(paramSetInt);
-
-    } catch (ClassNotFoundException e) {
-      throw new UnsupportedOperationException("ML-KEM not supported on this JDK version", e);
     } catch (ReflectiveOperationException e) {
-      throw new RuntimeCryptoException("Failed to initialize ML-KEM key", e);
+      throw new RuntimeCryptoException("Failed to initialize ML-KEM key - MlKemSpi was not found.", e);
     }
   }
 

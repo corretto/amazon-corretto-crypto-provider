@@ -13,6 +13,8 @@ import javax.crypto.KEM;
 import javax.crypto.KEMSpi;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
+import java.util.Objects;
+import java.security.spec.NamedParameterSpec;
 
 abstract class MlKemSpi implements KEMSpi {
 
@@ -24,9 +26,50 @@ abstract class MlKemSpi implements KEMSpi {
   private static native void nativeDecapsulate(
       long evpKeyPtr, byte[] ciphertext, byte[] sharedSecret);
 
+  public static native int nativeGetParameterSet(long keyPtr);
+
   protected MlKemSpi(MlKemParameter parameterSet) {
     Loader.checkNativeLibraryAvailability();
     this.parameterSet = parameterSet;
+  }
+
+  /**
+   * Validates that a NamedParameterSpec is compatible with the given ML-KEM key.
+   * Ensures the spec's algorithm name matches the key's parameter set.
+   *
+   * @param spec the algorithm parameter spec (must not be null)
+   * @param key  the ML-KEM key to validate against
+   * @throws InvalidAlgorithmParameterException if spec is null, wrong type, or
+   *                                            incompatible with key
+   */
+  private static void validateParameterSpec(AlgorithmParameterSpec spec, EvpKemKey key)
+      throws InvalidAlgorithmParameterException {
+
+    if (spec == null) {
+      throw new InvalidAlgorithmParameterException("Please pass in a non-null parameter spec.");
+    }
+    if (spec instanceof NamedParameterSpec) {
+      NamedParameterSpec namedSpec = (NamedParameterSpec) spec;
+
+      int paramSet = key.use(ptr -> nativeGetParameterSet(ptr));
+      if (paramSet == -1) {
+        throw new RuntimeCryptoException("Unknown ML-KEM parameter set");
+      }
+
+      // Get the parameter set's algorithm name (e.g "ML-KEM-512")
+      String keyParamSetName = MlKemParameter.fromParameterSize(paramSet).getAlgorithmName();
+
+      if (!(namedSpec.getName().equals(keyParamSetName))) {
+        throw new InvalidAlgorithmParameterException(
+            "Parameter spec mismatch. Expected: "
+                + keyParamSetName
+                + ", but got: "
+                + namedSpec.getName());
+      }
+    } else {
+      throw new InvalidAlgorithmParameterException(
+          "Unsupported parameter spec type: " + spec.getClass().getName());
+    }
   }
 
   @Override
@@ -46,7 +89,7 @@ abstract class MlKemSpi implements KEMSpi {
     }
 
     EvpKemPublicKey kemKey = (EvpKemPublicKey) publicKey;
-    KemUtils.validateParameterSpec(spec, kemKey);
+    validateParameterSpec(spec, kemKey);
     return new MlKemEncapsulatorSpi(kemKey, kemKey.getParameterSet());
   }
 
@@ -63,7 +106,7 @@ abstract class MlKemSpi implements KEMSpi {
     }
 
     EvpKemPrivateKey kemKey = (EvpKemPrivateKey) privateKey;
-    KemUtils.validateParameterSpec(spec, kemKey);
+    validateParameterSpec(spec, kemKey);
     return new MlKemDecapsulatorSpi(kemKey, kemKey.getParameterSet());
   }
 
@@ -96,18 +139,17 @@ abstract class MlKemSpi implements KEMSpi {
 
     @Override
     public KEM.Encapsulated engineEncapsulate(int from, int to, String algorithm) {
-      if (from < 0 || from > to || to > MlKemParameter.SHARED_SECRET_SIZE) {
-        throw new IndexOutOfBoundsException("Invalid range: from=" + from + ", to=" + to);
-      }
-      if (from != 0 || to != MlKemParameter.SHARED_SECRET_SIZE) {
+
+      Objects.checkFromToIndex(from, to, engineSecretSize());
+
+      // Only support full shared secret extraction
+      if (from != 0 || to != engineSecretSize()) {
         throw new UnsupportedOperationException("Only full secret size is supported");
       }
 
-      // if algorithm is Generic then use parameterSet algorithm name to wrap key
-      String keyAlgorithm =
-          "Generic".equals(algorithm) ? parameterSet.getAlgorithmName() : algorithm;
+      // if algorithm is Generic then use the key's parameter set
+      String keyAlgorithm = "Generic".equals(algorithm) ? parameterSet.getAlgorithmName() : algorithm;
 
-      // Accept ML-KEM, Generic, and specific variants like ML-KEM-512
       if (!("ML-KEM".equals(keyAlgorithm)
           || "Generic".equals(algorithm)
           || parameterSet.getAlgorithmName().equals(keyAlgorithm))) {
@@ -115,9 +157,9 @@ abstract class MlKemSpi implements KEMSpi {
             "Only ML-KEM algorithm is supported, got: " + algorithm);
       }
 
-      byte[] ciphertext = new byte[parameterSet.getCiphertextSize()];
-      // shared secret size of ML-KEM is always 32 bytes regardless of parameter set
-      byte[] sharedSecret = new byte[MlKemParameter.SHARED_SECRET_SIZE];
+      byte[] ciphertext = new byte[engineEncapsulationSize()];
+      byte[] sharedSecret = new byte[engineSecretSize()]; // shared secret size of ML-KEM is always 32 bytes regardless
+                                                          // of parameter set
 
       return publicKey.use(
           ptr -> {
@@ -150,22 +192,20 @@ abstract class MlKemSpi implements KEMSpi {
     @Override
     public SecretKey engineDecapsulate(byte[] encapsulation, int from, int to, String algorithm)
         throws DecapsulateException {
+
+      Objects.checkFromToIndex(from, to, engineSecretSize());
       if (encapsulation == null) {
         throw new NullPointerException("Encapsulation cannot be null");
       }
-      if (from < 0 || from > to || to > MlKemParameter.SHARED_SECRET_SIZE) {
-        throw new IndexOutOfBoundsException("Invalid range: from=" + from + ", to=" + to);
-      }
 
       // if algorithm is Generic then use parameterSet algorithm name to wrap key
-      String keyAlgorithm =
-          "Generic".equals(algorithm) ? parameterSet.getAlgorithmName() : algorithm;
+      String keyAlgorithm = "Generic".equals(algorithm) ? parameterSet.getAlgorithmName() : algorithm;
 
-      byte[] sharedSecret = new byte[MlKemParameter.SHARED_SECRET_SIZE];
+      // shared secret size of ML-KEM is always 32 bytes regardless of parameter set
+      byte[] sharedSecret = new byte[engineSecretSize()];
 
       return privateKey.use(
           ptr -> {
-            // shared secret size of ML-KEM is always 32 bytes regardless of parameter set
             nativeDecapsulate(ptr, encapsulation, sharedSecret);
             return new SecretKeySpec(sharedSecret, keyAlgorithm);
           });
