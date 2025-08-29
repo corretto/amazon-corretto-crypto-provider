@@ -7,11 +7,11 @@ import java.security.PublicKey;
 public class EvpKemPublicKey extends EvpKemKey implements PublicKey {
   private static final long serialVersionUID = 1;
 
-  EvpKemPublicKey(final long ptr) {
-    this(new InternalKey(ptr));
+  EvpKemPublicKey(final long ptr, final EvpKeyType type) {
+    this(new InternalKey(ptr), type);
   }
 
-  EvpKemPublicKey(final InternalKey key) {
-    super(key, true);
+  EvpKemPublicKey(final InternalKey key, final EvpKeyType type) {
+    super(key, type, true);
   }
 }

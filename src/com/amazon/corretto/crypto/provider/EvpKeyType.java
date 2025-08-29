@@ -67,7 +67,7 @@ enum EvpKeyType {
       case MLKEM_512:
       case MLKEM_768:
       case MLKEM_1024:
-        return new EvpKemPrivateKey(fn.applyAsLong(der.getEncoded(), nativeValue));
+        return new EvpKemPrivateKey(fn.applyAsLong(der.getEncoded(), nativeValue), this);
       default:
         throw new AssertionError("Unsupported key type");
     }
@@ -88,7 +88,7 @@ enum EvpKeyType {
       case MLKEM_512:
       case MLKEM_768:
       case MLKEM_1024:
-        return new EvpKemPublicKey(fn.applyAsLong(der.getEncoded(), nativeValue));
+        return new EvpKemPublicKey(fn.applyAsLong(der.getEncoded(), nativeValue), this);
       default:
         throw new AssertionError("Unsupported key type");
     }

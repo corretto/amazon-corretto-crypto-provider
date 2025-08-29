@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.amazon.corretto.crypto.provider;
 
-import java.lang.reflect.Method;
-
 public enum MlKemParameter {
   // (parameterSize, publicKeySize, secretKeySize, ciphertextSize, NID Value) -
   // constants defined in AWS-LC
@@ -16,8 +14,10 @@ public enum MlKemParameter {
   private final int secretKeySize;
   private final int ciphertextSize;
   private final int nid;
-  public static final int SHARED_SECRET_SIZE = 32; // Shared secret size is constant across all parameter sets for
-                                                   // ML-KEM
+  public static final int SHARED_SECRET_SIZE =
+      32; // Shared secret size is constant across all parameter sets for
+
+  // ML-KEM
 
   MlKemParameter(
       int parameterSize, int publicKeySize, int secretKeySize, int ciphertextSize, int nid) {
@@ -29,21 +29,29 @@ public enum MlKemParameter {
   }
 
   public static MlKemParameter fromParameterSize(int parameterSet) {
-    for (MlKemParameter param : values()) {
-      if (param.parameterSize == parameterSet) {
-        return param;
-      }
+    switch (parameterSet) {
+      case 512:
+        return MLKEM_512;
+      case 768:
+        return MLKEM_768;
+      case 1024:
+        return MLKEM_1024;
+      default:
+        throw new IllegalArgumentException("Invalid ML-KEM parameter set: " + parameterSet);
     }
-    throw new IllegalArgumentException("Invalid ML-KEM parameter set: " + parameterSet);
   }
 
   public static MlKemParameter fromNid(int nid) {
-    for (MlKemParameter param : values()) {
-      if (param.nid == nid) {
-        return param;
-      }
+    switch (nid) {
+      case 988:
+        return MLKEM_512;
+      case 989:
+        return MLKEM_768;
+      case 990:
+        return MLKEM_1024;
+      default:
+        throw new IllegalArgumentException("Invalid ML-KEM NID: " + nid);
     }
-    throw new IllegalArgumentException("Invalid ML-KEM NID: " + nid);
   }
 
   public int getPublicKeySize() {
@@ -68,38 +76,6 @@ public enum MlKemParameter {
 
   public String getAlgorithmName() {
     return "ML-KEM-" + parameterSize;
-  }
-
-  // Use reflection to access nativeGetParameterSet as it is in MlKemSpi in the jdk17plus folder
-  // On targets such as JDK 8/11, the reflection should fail and be caught as an exception
-  public static MlKemParameter getParamSetFromInternalKey(EvpKey.InternalKey internalKey) {
-    try {
-      Method method = Class.forName("com.amazon.corretto.crypto.provider.MlKemSpi")
-          .getMethod("nativeGetParameterSet", long.class);
-
-      int paramSetInt = internalKey.use(ptr -> (Integer) method.invoke(null, ptr));
-      if (paramSetInt == -1) {
-        throw new RuntimeCryptoException("Failed to get ML-KEM parameter set. Check for valid input.");
-      }
-      return MlKemParameter.fromParameterSize(paramSetInt);
-    } catch (ReflectiveOperationException e) {
-      throw new RuntimeCryptoException("Failed to initialize ML-KEM key - MlKemSpi was not found.", e);
-    }
-  }
-
-  public static EvpKeyType getEvpKeyType(EvpKey.InternalKey internalKey) {
-
-    MlKemParameter param = getParamSetFromInternalKey(internalKey);
-    switch (param) {
-      case MLKEM_512:
-        return EvpKeyType.MLKEM_512;
-      case MLKEM_768:
-        return EvpKeyType.MLKEM_768;
-      case MLKEM_1024:
-        return EvpKeyType.MLKEM_1024;
-      default:
-        throw new IllegalArgumentException("Invalid ML-KEM parameter set: " + param);
-    }
   }
 
   public static MlKemParameter getParameterSet(EvpKeyType type) {

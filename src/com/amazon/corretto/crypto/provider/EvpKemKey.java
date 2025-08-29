@@ -7,8 +7,8 @@ public abstract class EvpKemKey extends EvpKey {
   private final MlKemParameter parameterSet;
   private static final long serialVersionUID = 1;
 
-  EvpKemKey(final InternalKey key, final boolean isPublicKey) {
-    super(key, MlKemParameter.getEvpKeyType(key), isPublicKey);
+  EvpKemKey(final InternalKey key, final EvpKeyType type, final boolean isPublicKey) {
+    super(key, type, isPublicKey);
     this.parameterSet = MlKemParameter.getParameterSet(this.type);
   }
 

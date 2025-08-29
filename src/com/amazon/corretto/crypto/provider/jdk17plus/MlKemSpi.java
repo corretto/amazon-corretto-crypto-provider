@@ -8,13 +8,13 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.spec.NamedParameterSpec;
+import java.util.Objects;
 import javax.crypto.DecapsulateException;
 import javax.crypto.KEM;
 import javax.crypto.KEMSpi;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
-import java.util.Objects;
-import java.security.spec.NamedParameterSpec;
 
 abstract class MlKemSpi implements KEMSpi {
 
@@ -26,21 +26,19 @@ abstract class MlKemSpi implements KEMSpi {
   private static native void nativeDecapsulate(
       long evpKeyPtr, byte[] ciphertext, byte[] sharedSecret);
 
-  public static native int nativeGetParameterSet(long keyPtr);
-
   protected MlKemSpi(MlKemParameter parameterSet) {
     Loader.checkNativeLibraryAvailability();
     this.parameterSet = parameterSet;
   }
 
   /**
-   * Validates that a NamedParameterSpec is compatible with the given ML-KEM key.
-   * Ensures the spec's algorithm name matches the key's parameter set.
+   * Validates that a NamedParameterSpec is compatible with the given ML-KEM key. Ensures the spec's
+   * algorithm name matches the key's parameter set.
    *
    * @param spec the algorithm parameter spec (must not be null)
-   * @param key  the ML-KEM key to validate against
-   * @throws InvalidAlgorithmParameterException if spec is null, wrong type, or
-   *                                            incompatible with key
+   * @param key the ML-KEM key to validate against
+   * @throws InvalidAlgorithmParameterException if spec is null, wrong type, or incompatible with
+   *     key
    */
   private static void validateParameterSpec(AlgorithmParameterSpec spec, EvpKemKey key)
       throws InvalidAlgorithmParameterException {
@@ -51,14 +49,7 @@ abstract class MlKemSpi implements KEMSpi {
     if (spec instanceof NamedParameterSpec) {
       NamedParameterSpec namedSpec = (NamedParameterSpec) spec;
 
-      int paramSet = key.use(ptr -> nativeGetParameterSet(ptr));
-      if (paramSet == -1) {
-        throw new RuntimeCryptoException("Unknown ML-KEM parameter set");
-      }
-
-      // Get the parameter set's algorithm name (e.g "ML-KEM-512")
-      String keyParamSetName = MlKemParameter.fromParameterSize(paramSet).getAlgorithmName();
-
+      String keyParamSetName = key.getParameterSet().getAlgorithmName();
       if (!(namedSpec.getName().equals(keyParamSetName))) {
         throw new InvalidAlgorithmParameterException(
             "Parameter spec mismatch. Expected: "
@@ -148,7 +139,8 @@ abstract class MlKemSpi implements KEMSpi {
       }
 
       // if algorithm is Generic then use the key's parameter set
-      String keyAlgorithm = "Generic".equals(algorithm) ? parameterSet.getAlgorithmName() : algorithm;
+      String keyAlgorithm =
+          "Generic".equals(algorithm) ? parameterSet.getAlgorithmName() : algorithm;
 
       if (!("ML-KEM".equals(keyAlgorithm)
           || "Generic".equals(algorithm)
@@ -158,9 +150,10 @@ abstract class MlKemSpi implements KEMSpi {
       }
 
       byte[] ciphertext = new byte[engineEncapsulationSize()];
-      byte[] sharedSecret = new byte[engineSecretSize()]; // shared secret size of ML-KEM is always 32 bytes regardless
-                                                          // of parameter set
-
+      byte[] sharedSecret =
+          new byte
+              [engineSecretSize()]; // shared secret size of ML-KEM is always 32 bytes regardless
+      // of parameter set
       return publicKey.use(
           ptr -> {
             nativeEncapsulate(ptr, ciphertext, sharedSecret);
@@ -199,7 +192,8 @@ abstract class MlKemSpi implements KEMSpi {
       }
 
       // if algorithm is Generic then use parameterSet algorithm name to wrap key
-      String keyAlgorithm = "Generic".equals(algorithm) ? parameterSet.getAlgorithmName() : algorithm;
+      String keyAlgorithm =
+          "Generic".equals(algorithm) ? parameterSet.getAlgorithmName() : algorithm;
 
       // shared secret size of ML-KEM is always 32 bytes regardless of parameter set
       byte[] sharedSecret = new byte[engineSecretSize()];
