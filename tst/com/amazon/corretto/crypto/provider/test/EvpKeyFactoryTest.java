@@ -192,8 +192,27 @@ public class EvpKeyFactoryTest {
   @ParameterizedTest(name = "{1}")
   @MethodSource("allPairs")
   public void keysSerialize(final KeyPair keyPair, final String testName) throws Exception {
+    /*
+    Though XDH support was introduced in JDK11, while DER encoding a key, its AlgorithmId (sun.security.x509.AlgorithmId)
+    implementation encodes a NULL for algorithm parameters, when the params is null.
+    https://github.com/openjdk/jdk/blob/jdk-11%2B28/src/java.base/share/classes/sun/security/x509/AlgorithmId.java#L193
+    Only from JDK16, the NULL encoding is skipped,
+    https://github.com/openjdk/jdk/blob/jdk-16%2B33/src/java.base/share/classes/sun/security/x509/AlgorithmId.java#L207-L224
+    as it should be acc to RFC 8410 3 (https://datatracker.ietf.org/doc/html/rfc8410#section-3)
+      "For all of the OIDs, the parameters MUST be absent."
+    So, the DER encoding for AlgorithmId in SunEC, and hence the PrivateKey (PKCS8Key) and PublicKey (X509Key),
+    is non-compliant until JDK 16.
+
+    Corresponding JDK Bug Report: https://bugs.openjdk.org/browse/JDK-8253912
+    and fix: https://github.com/openjdk/jdk/commit/0e855fe5
+
+    In this test, during setup, we use ACCP key factory to construct Evp keys from SunEC keys.
+    When trying to construct Evp keys from such non-compliant DER encoded SunEC keys, aws-lc will throw a decode error
+      error:06000066:public key routines:OPENSSL_internal:DECODE_ERROR
+    So this test is skipped for XDH/X25519 algorithms until JDK16.
+    */
     if ("XDH".equals(testName) || "X25519".equals(testName)) {
-      assumeMinimumJavaVersion(12);
+      assumeMinimumJavaVersion(16);
     }
     final KeyFactory kf =
         KeyFactory.getInstance(keyPair.getPrivate().getAlgorithm(), NATIVE_PROVIDER);
