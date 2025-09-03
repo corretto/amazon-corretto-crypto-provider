@@ -84,6 +84,7 @@ KeyPairGenerator:
 * EC
 * RSA
 * ED25519 (JDK 15+)
+* X25519 (JDK 11+)
 
 KeyGenerator:
 * AES

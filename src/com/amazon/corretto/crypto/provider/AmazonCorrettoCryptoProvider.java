@@ -115,6 +115,11 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     addService("KeyPairGenerator", "EdDSA", "EdGen");
     addService("KeyPairGenerator", "Ed25519", "EdGen");
 
+    addService("KeyFactory", "XDH", "EvpKeyFactory$XDH");
+    addService("KeyFactory", "X25519", "EvpKeyFactory$XDH");
+    addService("KeyPairGenerator", "XDH", "XDHGen");
+    addService("KeyPairGenerator", "X25519", "XDHGen");
+
     final String hkdfSpi = "HkdfSecretKeyFactorySpi";
     addService("SecretKeyFactory", HKDF_WITH_SHA1, hkdfSpi, false);
     addService("SecretKeyFactory", HKDF_WITH_SHA256, hkdfSpi, false);
@@ -806,6 +811,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
   // Provider.getService logic.
   private transient volatile KeyFactory rsaFactory;
   private transient volatile KeyFactory ecFactory;
+  private transient volatile KeyFactory xdhFactory;
   private transient volatile KeyFactory edFactory;
   private transient volatile KeyFactory mlDsaFactory;
 
@@ -822,6 +828,11 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
             ecFactory = KeyFactory.getInstance(keyType.jceName, this);
           }
           return ecFactory;
+        case XDH:
+          if (xdhFactory == null) {
+            xdhFactory = KeyFactory.getInstance(keyType.jceName, this);
+          }
+          return xdhFactory;
         case EdDSA:
           if (edFactory == null) {
             edFactory = new EdKeyFactory(this);

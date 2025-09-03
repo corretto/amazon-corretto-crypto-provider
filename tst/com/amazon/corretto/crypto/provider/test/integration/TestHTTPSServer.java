@@ -173,7 +173,7 @@ public class TestHTTPSServer {
         TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
     tmf.init(keyStore);
 
-    String tlsVersion = TestUtil.getJavaVersion() == 10 ? "TLS" : "TLSv1.3";
+    String tlsVersion = TestUtil.JAVA_VERSION == 10 ? "TLS" : "TLSv1.3";
     SSLContext sslContext = SSLContext.getInstance(tlsVersion);
     sslContext.init(new KeyManager[] {new SNIKeyManager()}, tmf.getTrustManagers(), null);
 
