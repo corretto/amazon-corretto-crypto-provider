@@ -106,10 +106,10 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     }
 
     if (shouldRegisterMLKEM) {
-      addService("KeyFactory", "ML-KEM", "EvpKeyFactory$MLKEM768");
-      addService("KeyFactory", "ML-KEM-512", "EvpKeyFactory$MLKEM512");
-      addService("KeyFactory", "ML-KEM-768", "EvpKeyFactory$MLKEM768");
-      addService("KeyFactory", "ML-KEM-1024", "EvpKeyFactory$MLKEM1024");
+      addService("KeyFactory", "ML-KEM", "EvpKeyFactory$MLKEM");
+      addService("KeyFactory", "ML-KEM-512", "EvpKeyFactory$MLKEM");
+      addService("KeyFactory", "ML-KEM-768", "EvpKeyFactory$MLKEM");
+      addService("KeyFactory", "ML-KEM-1024", "EvpKeyFactory$MLKEM");
     }
 
     // KeyFactories are used to convert key encodings to Java Key objects. ACCP's KeyFactory for
@@ -576,7 +576,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
     this.shouldRegisterAesCfb = (!isFips() || isExperimentalFips());
 
-    this.shouldRegisterMLKEM = (Utils.isKemSupported() && (!isFips() || isExperimentalFips())); 
+    this.shouldRegisterMLKEM = (Utils.isKemSupported() && (!isFips() || isExperimentalFips()));
     this.nativeContextReleaseStrategy = Utils.getNativeContextReleaseStrategyProperty();
 
     Utils.optionsFromProperty(ExtraCheck.class, extraChecks, "extrachecks");
@@ -836,9 +836,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
   private transient volatile KeyFactory xdhFactory;
   private transient volatile KeyFactory edFactory;
   private transient volatile KeyFactory mlDsaFactory;
-  private transient volatile KeyFactory kemFactory512;
-  private transient volatile KeyFactory kemFactory768;
-  private transient volatile KeyFactory kemFactory1024;
+  private transient volatile KeyFactory kemFactory;
 
   KeyFactory getKeyFactory(EvpKeyType keyType) {
     try {
@@ -869,10 +867,10 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
           }
           return mlDsaFactory;
         case MLKEM:
-          if (kemFactory768 == null) {
-            kemFactory768 = KeyFactory.getInstance("ML-KEM-768", this);
+          if (kemFactory == null) {
+            kemFactory = KeyFactory.getInstance("ML-KEM", this);
           }
-          return kemFactory768;
+          return kemFactory;
         default:
           throw new AssertionError(String.format("Unsupported key type: %s", keyType.jceName));
       }

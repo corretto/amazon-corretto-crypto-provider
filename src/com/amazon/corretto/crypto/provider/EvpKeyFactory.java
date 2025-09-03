@@ -345,20 +345,8 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
     }
   }
 
-  static class MLKEM512 extends StandardEvpKeyFactory {
-    MLKEM512(AmazonCorrettoCryptoProvider provider) {
-      super(EvpKeyType.MLKEM, provider);
-    }
-  }
-
-  static class MLKEM768 extends StandardEvpKeyFactory {
-    MLKEM768(AmazonCorrettoCryptoProvider provider) {
-      super(EvpKeyType.MLKEM, provider);
-    }
-  }
-
-  static class MLKEM1024 extends StandardEvpKeyFactory {
-    MLKEM1024(AmazonCorrettoCryptoProvider provider) {
+  static class MLKEM extends StandardEvpKeyFactory {
+    MLKEM(AmazonCorrettoCryptoProvider provider) {
       super(EvpKeyType.MLKEM, provider);
     }
   }
