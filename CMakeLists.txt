@@ -168,15 +168,12 @@ else()
     set(INCLUDE_JDK17PLUS_DIR TRUE)
 endif()
 
-# macro to filter source lists based on conditions and directory existence checks
+# macro to filter source lists based on conditions
 # FILTER_LIST: the list variable to filter
 # PATH_PATTERN: regex pattern to match paths for filtering (".*/jdk17plus/.*")
 # CONDITION: Boolean condition for whether or not the path PATH_PATTERN is excluded
-# CHECK_DIR: Directory path to check for existence - can remove after jdk17plus directory is merged to ACCP 
-macro(filter_sources_by_condition FILTER_LIST PATH_PATTERN CONDITION CHECK_DIR)
+macro(filter_sources_by_condition FILTER_LIST PATH_PATTERN CONDITION)
     if(NOT ${CONDITION})
-        list(FILTER ${FILTER_LIST} EXCLUDE REGEX "${PATH_PATTERN}")
-    elseif(CHECK_DIR AND NOT EXISTS "${CHECK_DIR}")
         list(FILTER ${FILTER_LIST} EXCLUDE REGEX "${PATH_PATTERN}")
     endif()
 endmacro()
@@ -188,11 +185,11 @@ endmacro()
 if (${CMAKE_VERSION} VERSION_LESS "3.12.0")
     file(GLOB_RECURSE ACCP_SRC "src/com/amazon/corretto/crypto/provider/*.java")
     file(GLOB_RECURSE ACCP_UTILS_SRC "src/com/amazon/corretto/crypto/utils/*.java")
-    filter_sources_by_condition(ACCP_SRC ".*/jdk17plus/.*" ${INCLUDE_JDK17PLUS_DIR} "${CMAKE_CURRENT_SOURCE_DIR}/src/com/amazon/corretto/crypto/provider/jdk17plus")
+    filter_sources_by_condition(ACCP_SRC ".*/jdk17plus/.*" ${INCLUDE_JDK17PLUS_DIR})
 else()
     file(GLOB_RECURSE ACCP_SRC CONFIGURE_DEPENDS "src/com/amazon/corretto/crypto/provider/*.java")
     file(GLOB_RECURSE ACCP_UTILS_SRC CONFIGURE_DEPENDS "src/com/amazon/corretto/crypto/utils/*.java")
-    filter_sources_by_condition(ACCP_SRC ".*/jdk17plus/.*" ${INCLUDE_JDK17PLUS_DIR} "${CMAKE_CURRENT_SOURCE_DIR}/src/com/amazon/corretto/crypto/provider/jdk17plus")
+    filter_sources_by_condition(ACCP_SRC ".*/jdk17plus/.*" ${INCLUDE_JDK17PLUS_DIR})
 endif()
 set(ACCP_SRC ${ACCP_SRC} ${ACCP_UTILS_SRC} ${GENERATED_JAVA_SRC})
 
@@ -360,6 +357,9 @@ if(EXPERIMENTAL_FIPS OR (NOT FIPS))
     set(C_SRC ${C_SRC} csrc/mldsa_gen.cpp)
 endif()
 
+if(INCLUDE_JDK17PLUS_DIR)
+    set(C_SRC ${C_SRC} csrc/mlkem_gen.cpp csrc/mlkem_spi.cpp)
+endif()
 add_library(amazonCorrettoCryptoProvider SHARED ${C_SRC})
 
 add_custom_command(
@@ -650,10 +650,10 @@ link_with_openssl(amazonCorrettoCryptoProvider)
 #       detected by CMake.
 if (${CMAKE_VERSION} VERSION_LESS "3.12.0")
     file(GLOB_RECURSE ACCP_TEST_SRC "tst/com/amazon/corretto/crypto/provider/*.java")
-    filter_sources_by_condition(ACCP_TEST_SRC ".*/jdk17plus/.*" ${INCLUDE_JDK17PLUS_DIR} "")
+    filter_sources_by_condition(ACCP_TEST_SRC ".*/jdk17plus/.*" ${INCLUDE_JDK17PLUS_DIR})
 else()
     file(GLOB_RECURSE ACCP_TEST_SRC CONFIGURE_DEPENDS "tst/com/amazon/corretto/crypto/provider/*.java")
-    filter_sources_by_condition(ACCP_TEST_SRC ".*/jdk17plus/.*" ${INCLUDE_JDK17PLUS_DIR} "")
+    filter_sources_by_condition(ACCP_TEST_SRC ".*/jdk17plus/.*" ${INCLUDE_JDK17PLUS_DIR})
 endif()
 
 

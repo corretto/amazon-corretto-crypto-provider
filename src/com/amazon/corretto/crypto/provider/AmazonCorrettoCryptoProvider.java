@@ -69,6 +69,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
   private final boolean shouldRegisterEdKeyFactory;
   private final boolean shouldRegisterMLDSA;
   private final boolean shouldRegisterAesCfb;
+  private final boolean shouldRegisterMLKEM;
   private final Utils.NativeContextReleaseStrategy nativeContextReleaseStrategy;
 
   private transient SelfTestSuite selfTestSuite = new SelfTestSuite();
@@ -102,6 +103,13 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
       addService("KeyFactory", "ML-DSA-44", "EvpKeyFactory$MLDSA");
       addService("KeyFactory", "ML-DSA-65", "EvpKeyFactory$MLDSA");
       addService("KeyFactory", "ML-DSA-87", "EvpKeyFactory$MLDSA");
+    }
+
+    if (shouldRegisterMLKEM) {
+      addService("KeyFactory", "ML-KEM", "EvpKeyFactory$MLKEM768");
+      addService("KeyFactory", "ML-KEM-512", "EvpKeyFactory$MLKEM512");
+      addService("KeyFactory", "ML-KEM-768", "EvpKeyFactory$MLKEM768");
+      addService("KeyFactory", "ML-KEM-1024", "EvpKeyFactory$MLKEM1024");
     }
 
     // KeyFactories are used to convert key encodings to Java Key objects. ACCP's KeyFactory for
@@ -146,6 +154,19 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
       addService("KeyPairGenerator", "ML-DSA-44", "MlDsaGen$MlDsaGen44");
       addService("KeyPairGenerator", "ML-DSA-65", "MlDsaGen$MlDsaGen65");
       addService("KeyPairGenerator", "ML-DSA-87", "MlDsaGen$MlDsaGen87");
+    }
+
+    if (shouldRegisterMLKEM) {
+      addService("KeyPairGenerator", "ML-KEM", "MlKemGen$MlKemGen768");
+      addService("KeyPairGenerator", "ML-KEM-512", "MlKemGen$MlKemGen512");
+      addService("KeyPairGenerator", "ML-KEM-768", "MlKemGen$MlKemGen768");
+      addService("KeyPairGenerator", "ML-KEM-1024", "MlKemGen$MlKemGen1024");
+    }
+
+    if (shouldRegisterMLKEM) {
+      addService("KEM", "ML-KEM-512", "MlKemSpi$MlKem512");
+      addService("KEM", "ML-KEM-768", "MlKemSpi$MlKem768");
+      addService("KEM", "ML-KEM-1024", "MlKemSpi$MlKem1024");
     }
 
     addService("KeyGenerator", "AES", "SecretKeyGenerator", false);
@@ -555,6 +576,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
     this.shouldRegisterAesCfb = (!isFips() || isExperimentalFips());
 
+    this.shouldRegisterMLKEM = Utils.isKemSupported();
     this.nativeContextReleaseStrategy = Utils.getNativeContextReleaseStrategyProperty();
 
     Utils.optionsFromProperty(ExtraCheck.class, extraChecks, "extrachecks");
@@ -814,6 +836,9 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
   private transient volatile KeyFactory xdhFactory;
   private transient volatile KeyFactory edFactory;
   private transient volatile KeyFactory mlDsaFactory;
+  private transient volatile KeyFactory kemFactory512;
+  private transient volatile KeyFactory kemFactory768;
+  private transient volatile KeyFactory kemFactory1024;
 
   KeyFactory getKeyFactory(EvpKeyType keyType) {
     try {
@@ -843,6 +868,21 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
             mlDsaFactory = KeyFactory.getInstance(keyType.jceName, this);
           }
           return mlDsaFactory;
+        case MLKEM_512:
+          if (kemFactory512 == null) {
+            kemFactory512 = KeyFactory.getInstance("ML-KEM-512", this);
+          }
+          return kemFactory512;
+        case MLKEM_768:
+          if (kemFactory768 == null) {
+            kemFactory768 = KeyFactory.getInstance("ML-KEM-768", this);
+          }
+          return kemFactory768;
+        case MLKEM_1024:
+          if (kemFactory1024 == null) {
+            kemFactory1024 = KeyFactory.getInstance("ML-KEM-1024", this);
+          }
+          return kemFactory1024;
         default:
           throw new AssertionError(String.format("Unsupported key type: %s", keyType.jceName));
       }
