@@ -18,6 +18,10 @@ class MlKemGen extends KeyPairGeneratorSpi {
   private MlKemGen(AmazonCorrettoCryptoProvider provider, MlKemParameter parameterSet) {
     Loader.checkNativeLibraryAvailability();
     provider_ = provider;
+
+    if (parameterSet == null) {
+      throw new IllegalStateException("Key type not set");
+    }
     this.parameterSet = parameterSet;
   }
 
@@ -38,26 +42,9 @@ class MlKemGen extends KeyPairGeneratorSpi {
 
   @Override
   public KeyPair generateKeyPair() {
-    if (parameterSet == null) {
-      throw new IllegalStateException("Key type not set");
-    }
     long pkey_ptr = generateEvpMlKemKey(parameterSet.getParameterSize());
-    final EvpKeyType keyType;
-    switch (parameterSet) {
-      case MLKEM_512:
-        keyType = EvpKeyType.MLKEM_512;
-        break;
-      case MLKEM_768:
-        keyType = EvpKeyType.MLKEM_768;
-        break;
-      case MLKEM_1024:
-        keyType = EvpKeyType.MLKEM_1024;
-        break;
-      default:
-        throw new IllegalStateException("Unknown ML-KEM Parameter Set.");
-    }
 
-    final EvpKemPrivateKey privateKey = new EvpKemPrivateKey(pkey_ptr, keyType);
+    final EvpKemPrivateKey privateKey = new EvpKemPrivateKey(pkey_ptr);
     final EvpKemPublicKey publicKey = privateKey.getPublicKey();
     return new KeyPair(publicKey, privateKey);
   }

@@ -576,7 +576,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
     this.shouldRegisterAesCfb = (!isFips() || isExperimentalFips());
 
-    this.shouldRegisterMLKEM = Utils.isKemSupported();
+    this.shouldRegisterMLKEM = (Utils.isKemSupported() && (!isFips() || isExperimentalFips())); 
     this.nativeContextReleaseStrategy = Utils.getNativeContextReleaseStrategyProperty();
 
     Utils.optionsFromProperty(ExtraCheck.class, extraChecks, "extrachecks");
@@ -868,21 +868,11 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
             mlDsaFactory = KeyFactory.getInstance(keyType.jceName, this);
           }
           return mlDsaFactory;
-        case MLKEM_512:
-          if (kemFactory512 == null) {
-            kemFactory512 = KeyFactory.getInstance("ML-KEM-512", this);
-          }
-          return kemFactory512;
-        case MLKEM_768:
+        case MLKEM:
           if (kemFactory768 == null) {
             kemFactory768 = KeyFactory.getInstance("ML-KEM-768", this);
           }
           return kemFactory768;
-        case MLKEM_1024:
-          if (kemFactory1024 == null) {
-            kemFactory1024 = KeyFactory.getInstance("ML-KEM-1024", this);
-          }
-          return kemFactory1024;
         default:
           throw new AssertionError(String.format("Unsupported key type: %s", keyType.jceName));
       }

@@ -56,16 +56,16 @@ public enum MlKemParameter {
     return "ML-KEM-" + parameterSize;
   }
 
-  public static MlKemParameter getParameterSet(EvpKeyType type) {
-    switch (type) {
-      case MLKEM_512:
-        return MLKEM_512;
-      case MLKEM_768:
-        return MLKEM_768;
-      case MLKEM_1024:
-        return MLKEM_1024;
-      default:
-        throw new IllegalArgumentException("Unsupported EvpKeyType: " + type);
+  public static MlKemParameter fromKeySize(int keySize) {
+    if (keySize == MLKEM_512.publicKeySize || keySize == MLKEM_512.secretKeySize) {
+      return MLKEM_512;
+    } else if (keySize == MLKEM_768.publicKeySize || keySize == MLKEM_768.secretKeySize) {
+      return MLKEM_768;
+    } else if (keySize == MLKEM_1024.publicKeySize || keySize == MLKEM_1024.secretKeySize) {
+      return MLKEM_1024;
+    } else {
+      throw new IllegalArgumentException(
+          "Cannot determine ML-KEM parameter set from key size: " + keySize);
     }
   }
 }

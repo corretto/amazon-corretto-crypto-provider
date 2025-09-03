@@ -760,7 +760,6 @@ public class EvpKeyFactoryTest {
           && entry.getValue().stream().anyMatch(algorithm::startsWith)) {
         return NATIVE_PROVIDER;
       }
-
     }
     return null;
   }
