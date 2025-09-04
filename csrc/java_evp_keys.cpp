@@ -715,12 +715,13 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpMlDsaPr
     return result;
 }
 #endif // !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
+
 /*
  * Class:     com_amazon_corretto_crypto_provider_EvpKemKey
  * Method:    getKeySize
  * Signature: (J)I
  */
-JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_EvpKemKey_getKeySize(
+JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_EvpKemKey_nativeGetKeySize(
     JNIEnv* pEnv, jclass, jlong pkeyPtr)
 {
     EVP_PKEY* pkey = reinterpret_cast<EVP_PKEY*>(pkeyPtr);
