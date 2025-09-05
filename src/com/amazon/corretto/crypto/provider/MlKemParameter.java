@@ -36,6 +36,19 @@ public enum MlKemParameter {
     }
   }
 
+  public static MlKemParameter fromKemName(String name) {
+    switch (name) {
+      case "ML-KEM-512":
+        return MLKEM_512;
+      case "ML-KEM-768":
+        return MLKEM_768;
+      case "ML-KEM-1024":
+        return MLKEM_1024;
+      default:
+        throw new IllegalArgumentException("Invalid ML-KEM name: " + name);
+    }
+  }
+
   public int getPublicKeySize() {
     return publicKeySize;
   }
