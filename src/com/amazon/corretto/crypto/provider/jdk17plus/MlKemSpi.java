@@ -57,6 +57,26 @@ abstract class MlKemSpi implements KEMSpi {
     }
   }
 
+  /**
+   * Validates that the algorithm is supported for ML-KEM operations.
+   *
+   * @param algorithm the algorithm name to validate
+   * @param algorithm the algorithm name to validate (must be "Generic", "ML-KEM", or match the
+   *     parameter set)
+   * @throws UnsupportedOperationException if the algorithm is not supported
+   */
+  private static void validateAlgorithm(String algorithm, String parameterSetAlgorithmName) {
+    if (!"Generic".equals(algorithm)
+        && !"ML-KEM".equals(algorithm)
+        && !parameterSetAlgorithmName.equals(algorithm)) {
+      throw new UnsupportedOperationException(
+          "Only Generic, ML-KEM, or "
+              + parameterSetAlgorithmName
+              + " algorithm is supported, got: "
+              + algorithm);
+    }
+  }
+
   @Override
   public KEMSpi.EncapsulatorSpi engineNewEncapsulator(
       PublicKey publicKey, AlgorithmParameterSpec spec, SecureRandom secureRandom)
@@ -132,6 +152,7 @@ abstract class MlKemSpi implements KEMSpi {
 
       Objects.checkFromToIndex(from, to, engineSecretSize());
       Objects.requireNonNull(algorithm, "Please specify an algorithm.");
+      validateAlgorithm(algorithm, parameterSet.getAlgorithmName());
 
       // ACCP currently only supports full shared secret extraction
       if (from != 0 || to != engineSecretSize()) {
@@ -140,18 +161,7 @@ abstract class MlKemSpi implements KEMSpi {
                 + " always 32 bytes.");
       }
 
-      if (!"Generic".equals(algorithm)
-          && !"ML-KEM".equals(algorithm)
-          && !parameterSet.getAlgorithmName().equals(algorithm)) {
-        throw new UnsupportedOperationException(
-            "Only Generic, ML-KEM, or "
-                + parameterSet.getAlgorithmName()
-                + " algorithm is supported, got: "
-                + algorithm);
-      }
-
       byte[] ciphertext = new byte[engineEncapsulationSize()];
-      // shared secret size of ML-KEM is always 32 bytes regardless of parameter set
       byte[] sharedSecret = new byte[engineSecretSize()];
       publicKey.useVoid(ptr -> nativeEncapsulate(ptr, ciphertext, sharedSecret));
       return new KEM.Encapsulated(new SecretKeySpec(sharedSecret, algorithm), ciphertext, null);
@@ -184,18 +194,8 @@ abstract class MlKemSpi implements KEMSpi {
       Objects.checkFromToIndex(from, to, engineSecretSize());
       Objects.requireNonNull(algorithm);
       Objects.requireNonNull(encapsulation);
+      validateAlgorithm(algorithm, parameterSet.getAlgorithmName());
 
-      if (!"Generic".equals(algorithm)
-          && !"ML-KEM".equals(algorithm)
-          && !parameterSet.getAlgorithmName().equals(algorithm)) {
-        throw new UnsupportedOperationException(
-            "Only Generic or "
-                + parameterSet.getAlgorithmName()
-                + " algorithm is supported, got: "
-                + algorithm);
-      }
-
-      // shared secret size of ML-KEM is always 32 bytes regardless of parameter set
       byte[] sharedSecret = new byte[engineSecretSize()];
       privateKey.useVoid(ptr -> nativeDecapsulate(ptr, encapsulation, sharedSecret));
       return new SecretKeySpec(sharedSecret, algorithm);
@@ -203,6 +203,7 @@ abstract class MlKemSpi implements KEMSpi {
 
     @Override
     public int engineSecretSize() {
+      // shared secret size of ML-KEM is always 32 bytes regardless of parameter set
       return MlKemParameter.SHARED_SECRET_SIZE;
     }
 
