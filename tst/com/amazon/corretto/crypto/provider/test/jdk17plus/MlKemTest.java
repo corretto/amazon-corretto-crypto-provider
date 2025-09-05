@@ -173,6 +173,22 @@ public class MlKemTest {
         () -> kem512.newDecapsulator(pair768.getPrivate(), wrongSpec));
   }
 
+  @Test
+  public void testKeyFactorySelfConversion() throws Exception {
+    KeyPairGenerator keyGen = KeyPairGenerator.getInstance("ML-KEM", NATIVE_PROVIDER);
+    KeyPair originalKeyPair = keyGen.generateKeyPair();
+
+    KeyFactory keyFactory = KeyFactory.getInstance("ML-KEM", NATIVE_PROVIDER);
+
+    byte[] publicKeyEncoded = originalKeyPair.getPublic().getEncoded();
+    PublicKey publicKey = keyFactory.generatePublic(new X509EncodedKeySpec(publicKeyEncoded));
+    assertArrayEquals(publicKeyEncoded, publicKey.getEncoded());
+
+    byte[] privateKeyEncoded = originalKeyPair.getPrivate().getEncoded();
+    PrivateKey privateKey = keyFactory.generatePrivate(new PKCS8EncodedKeySpec(privateKeyEncoded));
+    assertArrayEquals(privateKeyEncoded, privateKey.getEncoded());
+  }
+
   @ParameterizedTest
   @ValueSource(strings = {"ML-KEM-512", "ML-KEM-768", "ML-KEM-1024"})
   public void testCiphertextSizes(String paramSet) throws Exception {
