@@ -164,9 +164,10 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     }
 
     if (shouldRegisterMLKEM) {
-      addService("KEM", "ML-KEM-512", "MlKemSpi$MlKem512");
-      addService("KEM", "ML-KEM-768", "MlKemSpi$MlKem768");
-      addService("KEM", "ML-KEM-1024", "MlKemSpi$MlKem1024");
+      addService("KEM", "ML-KEM", "MlKemSpi$MlKemSpi768");
+      addService("KEM", "ML-KEM-512", "MlKemSpi$MlKemSpi512");
+      addService("KEM", "ML-KEM-768", "MlKemSpi$MlKemSpi768");
+      addService("KEM", "ML-KEM-1024", "MlKemSpi$MlKemSpi1024");
     }
 
     addService("KeyGenerator", "AES", "SecretKeyGenerator", false);

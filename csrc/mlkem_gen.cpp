@@ -16,7 +16,7 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_MlKemGen_genera
         raii_env env(pEnv);
         EVP_PKEY_auto key;
         EVP_PKEY_CTX_auto ctx = EVP_PKEY_CTX_auto::from(EVP_PKEY_CTX_new_id(EVP_PKEY_KEM, NULL));
-        CHECK_OPENSSL(ctx.isInitialized())
+        CHECK_OPENSSL(ctx.isInitialized());
         int nid;
         switch (parameterSet) {
         case 512:

@@ -120,20 +120,20 @@ abstract class MlKemSpi implements KEMSpi {
     return new MlKemDecapsulatorSpi(kemKey, kemKey.getParameterSet());
   }
 
-  public static final class MlKem512 extends MlKemSpi {
-    public MlKem512() {
+  public static final class MlKemSpi512 extends MlKemSpi {
+    public MlKemSpi512() {
       super(MlKemParameter.MLKEM_512);
     }
   }
 
-  public static final class MlKem768 extends MlKemSpi {
-    public MlKem768() {
+  public static final class MlKemSpi768 extends MlKemSpi {
+    public MlKemSpi768() {
       super(MlKemParameter.MLKEM_768);
     }
   }
 
-  public static final class MlKem1024 extends MlKemSpi {
-    public MlKem1024() {
+  public static final class MlKemSpi1024 extends MlKemSpi {
+    public MlKemSpi1024() {
       super(MlKemParameter.MLKEM_1024);
     }
   }
