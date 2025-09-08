@@ -577,7 +577,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
     this.shouldRegisterAesCfb = (!isFips() || isExperimentalFips());
 
-    this.shouldRegisterMLKEM = (Utils.isKemSupported() && (!isFips() || isExperimentalFips()));
+    this.shouldRegisterMLKEM = Utils.isKemSupported();
     this.nativeContextReleaseStrategy = Utils.getNativeContextReleaseStrategyProperty();
 
     Utils.optionsFromProperty(ExtraCheck.class, extraChecks, "extrachecks");
