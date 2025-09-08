@@ -26,7 +26,6 @@ import javax.crypto.KEM;
 import javax.crypto.SecretKey;
 import org.bouncycastle.jcajce.interfaces.MLKEMPrivateKey;
 import org.bouncycastle.jcajce.spec.KTSParameterSpec;
-import org.bouncycastle.jcajce.spec.MLKEMParameterSpec;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.parallel.Execution;
@@ -311,7 +310,7 @@ public class MlKemTest {
 
     // Test BC keys and convert to ACCP using ACCP's key factory, test if they're equal
     KeyPairGenerator bcKeyGen = KeyPairGenerator.getInstance("ML-KEM", TestUtil.BC_PROVIDER);
-    bcKeyGen.initialize(getMLKEMParamSpec(paramSet));
+    bcKeyGen.initialize(TestUtil.getMlKemParamSpec(paramSet));
     KeyPair bcKeyPair = bcKeyGen.generateKeyPair();
 
     // set BC's private key to be encoded in expandedKey format, not seed, by passing false to
@@ -360,20 +359,6 @@ public class MlKemTest {
           encapsulated.key().getEncoded(),
           bcSecret.getEncoded(),
           "ACCP and BouncyCastle should produce identical shared secrets for " + paramSet);
-    }
-  }
-
-  // Map ACCP parameter set names to BouncyCastle MLKEMParameterSpec constants
-  private MLKEMParameterSpec getMLKEMParamSpec(String paramSet) {
-    switch (paramSet) {
-      case "ML-KEM-512":
-        return MLKEMParameterSpec.ml_kem_512;
-      case "ML-KEM-768":
-        return MLKEMParameterSpec.ml_kem_768;
-      case "ML-KEM-1024":
-        return MLKEMParameterSpec.ml_kem_1024;
-      default:
-        throw new IllegalArgumentException("Unknown parameter set: " + paramSet);
     }
   }
 }
