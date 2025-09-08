@@ -869,7 +869,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
           return mlDsaFactory;
         case MLKEM:
           if (kemFactory == null) {
-            kemFactory = KeyFactory.getInstance("ML-KEM", this);
+            kemFactory = KeyFactory.getInstance(keyType.jceName, this);
           }
           return kemFactory;
         default:
