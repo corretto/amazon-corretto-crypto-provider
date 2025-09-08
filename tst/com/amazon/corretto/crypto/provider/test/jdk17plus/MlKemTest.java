@@ -342,6 +342,7 @@ public class MlKemTest {
     try {
       KEM.getInstance("ML-KEM", TestUtil.BC_PROVIDER);
       bcHasKemProvider = true;
+      System.out.println("We caught");
     } catch (java.security.NoSuchAlgorithmException e) {
       System.out.println(
           "BouncyCastle does not register the KEM API on JDK versions older than 21. Please try"
