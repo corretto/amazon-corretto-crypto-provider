@@ -196,6 +196,10 @@ abstract class MlKemSpi implements KEMSpi {
       Objects.requireNonNull(encapsulation);
       validateAlgorithm(algorithm, parameterSet.getAlgorithmName());
 
+      if (encapsulation.length != engineEncapsulationSize()) {
+        throw new DecapsulateException("The size of the encapsulation is invalid.");
+      }
+
       byte[] sharedSecret = new byte[engineSecretSize()];
       privateKey.useVoid(ptr -> nativeDecapsulate(ptr, encapsulation, sharedSecret));
       return new SecretKeySpec(sharedSecret, algorithm);
