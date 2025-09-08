@@ -335,18 +335,34 @@ public class MlKemTest {
     NamedParameterSpec accpParamSpec = new NamedParameterSpec(paramSet);
     KEM.Encapsulated encapsulated =
         accpKem.newEncapsulator(accpKeyPair.getPublic(), accpParamSpec, null).encapsulate();
-    KEM bcKem = KEM.getInstance("ML-KEM", TestUtil.BC_PROVIDER); // BC uses Generic ML-KEM
 
-    // Configure BC to not apply KDF processing to get raw shared secret
-    KTSParameterSpec bcParamSpec = new KTSParameterSpec.Builder("Generic", 256).withNoKdf().build();
-    SecretKey bcSecret =
-        bcKem.newDecapsulator(bcPriv, bcParamSpec).decapsulate(encapsulated.encapsulation());
-    assertArrayEquals(
-        encapsulated.key().getEncoded(),
-        bcSecret.getEncoded(),
-        "ACCP and BouncyCastle should produce identical shared secrets for " + paramSet);
+    // BouncyCastle does not register the KEM API for ML-KEM on JDK versions older than JDK 21
+    // We need to check if the runtime environment supports BouncyCastle's KEM API
+    boolean bcHasKemProvider = false;
+    try {
+      KEM.getInstance("ML-KEM", TestUtil.BC_PROVIDER);
+      bcHasKemProvider = true;
+    } catch (java.security.NoSuchAlgorithmException e) {
+      System.out.println(
+          "BouncyCastle does not register the KEM API on JDK versions older than 21. Please try"
+              + " building with JDK 21 or above.");
+    }
+    if (bcHasKemProvider) {
+      KEM bcKem = KEM.getInstance("ML-KEM", TestUtil.BC_PROVIDER); // BC uses Generic ML-KEM
+
+      // Configure BC to not apply KDF processing to get raw shared secret
+      KTSParameterSpec bcParamSpec =
+          new KTSParameterSpec.Builder("Generic", 256).withNoKdf().build();
+      SecretKey bcSecret =
+          bcKem.newDecapsulator(bcPriv, bcParamSpec).decapsulate(encapsulated.encapsulation());
+      assertArrayEquals(
+          encapsulated.key().getEncoded(),
+          bcSecret.getEncoded(),
+          "ACCP and BouncyCastle should produce identical shared secrets for " + paramSet);
+    }
   }
 
+  // Map ACCP parameter set names to BouncyCastle MLKEMParameterSpec constants
   private MLKEMParameterSpec getMLKEMParamSpec(String paramSet) {
     switch (paramSet) {
       case "ML-KEM-512":
