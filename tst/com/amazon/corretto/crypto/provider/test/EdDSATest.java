@@ -484,8 +484,7 @@ public class EdDSATest {
     try {
       assertFalse(jceSig.verify(null));
     } catch (SignatureException e) {
-      e.printStackTrace();
-      fail("Failed to verify null signature.");
+      throw new SignatureException(e);
     }
     // Test BouncyCastle behavior
     KeyPair keyPair2 = bcGen.generateKeyPair();
