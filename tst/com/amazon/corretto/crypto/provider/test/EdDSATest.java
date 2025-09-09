@@ -481,6 +481,12 @@ public class EdDSATest {
     TestUtil.assertThrows(NullPointerException.class, () -> jceSig.update((byte[]) null));
     // Test with null signature
     jceSig.initVerify(keyPair.getPublic());
+    try {
+      assertFalse(jceSig.verify(null));
+    } catch (SignatureException e) {
+      e.printStackTrace();
+      fail("Failed to verify null signature.");
+    }
     assertFalse(jceSig.verify(null));
 
     // Test BouncyCastle behavior

@@ -86,7 +86,7 @@ jobs:
         java-version: '11'
         distribution: 'corretto'
 
-    # Test on Corretto 11.
+    # Test on Corretto 11 targetting JDK 8.
     - name: Build and run tests for ${{ env.PACKAGE_NAME }} in corretto 11
       env:
         TEST_JAVA_HOME: ${{ env.JAVA_HOME }}
@@ -118,7 +118,7 @@ jobs:
       with:
         java-version: '17'
         distribution: 'corretto'
-    # Test on Corretto 17.
+    # Test on Corretto 17 targetting JDK 8.
     - name: Build and run tests for ${{ env.PACKAGE_NAME }} in corretto 17
       env:
         TEST_JAVA_HOME: ${{ env.JAVA_HOME }}
@@ -197,7 +197,7 @@ jobs:
         java-version: '11'
         distribution: 'corretto'
 
-    # Test on Corretto 11.
+    # Test on Corretto 11 targetting JDK 8.
     - name: Build and run tests for ${{ env.PACKAGE_NAME }} in corretto 11
       env:
         TEST_JAVA_HOME: ${{ env.JAVA_HOME }}
@@ -229,7 +229,7 @@ jobs:
       with:
         java-version: '17'
         distribution: 'corretto'
-    # Test on Corretto 17.
+    # Test on Corretto 17 build targetting JDK 8.
     - name: Build and run tests for ${{ env.PACKAGE_NAME }} in corretto 17
       env:
         TEST_JAVA_HOME: ${{ env.JAVA_HOME }}
@@ -260,7 +260,7 @@ jobs:
       with:
         java-version: '17'
         distribution: 'corretto'
-    # Test on Corretto 17 with JDK 17 target.
+    # Test on Corretto 17 build targetting JDK 17.
     - name: Build and run tests for ${{ env.PACKAGE_NAME }} in corretto 17 targetting JDK 17 to include the jdk17plus folder
       env:
         TEST_JAVA_HOME: ${{ env.JAVA_HOME }}
@@ -291,7 +291,7 @@ jobs:
       with:
         java-version: '21'
         distribution: 'corretto'
-    # Test on Corretto 21 targetting JDK 21 .
+    # Test on Corretto 21 build targetting JDK 21 .
     - name: Build and run tests for ${{ env.PACKAGE_NAME }} in corretto 21 targetting JDK 21 to include the jdk17plus folder
       env:
         TEST_JAVA_HOME: ${{ env.JAVA_HOME }}
