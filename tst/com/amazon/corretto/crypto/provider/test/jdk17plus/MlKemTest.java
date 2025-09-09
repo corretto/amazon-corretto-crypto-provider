@@ -6,6 +6,7 @@ import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import com.amazon.corretto.crypto.provider.EvpKemPublicKey;
@@ -336,29 +337,30 @@ public class MlKemTest {
         accpKem.newEncapsulator(accpKeyPair.getPublic(), accpParamSpec, null).encapsulate();
 
     // BouncyCastle does not register the KEM API for ML-KEM on JDK versions older than JDK 21
-    // We need to check if the runtime environment supports BouncyCastle's KEM API
+    // We need to check the runtime environment supports BouncyCastle's KEM API
     boolean bcHasKemProvider = false;
     try {
       KEM.getInstance("ML-KEM", TestUtil.BC_PROVIDER);
       bcHasKemProvider = true;
-      System.out.println("We caught");
     } catch (java.security.NoSuchAlgorithmException e) {
-      System.out.println(
-          "BouncyCastle does not register the KEM API on JDK versions older than 21. Please try"
-              + " building with JDK 21 or above.");
-    }
-    if (bcHasKemProvider) {
-      KEM bcKem = KEM.getInstance("ML-KEM", TestUtil.BC_PROVIDER); // BC uses Generic ML-KEM
 
-      // Configure BC to not apply KDF processing to get raw shared secret
-      KTSParameterSpec bcParamSpec =
-          new KTSParameterSpec.Builder("Generic", 256).withNoKdf().build();
-      SecretKey bcSecret =
-          bcKem.newDecapsulator(bcPriv, bcParamSpec).decapsulate(encapsulated.encapsulation());
-      assertArrayEquals(
-          encapsulated.key().getEncoded(),
-          bcSecret.getEncoded(),
-          "ACCP and BouncyCastle should produce identical shared secrets for " + paramSet);
+      bcHasKemProvider = false;
     }
+    // Skip the test if BouncyCastle doesn't support KEM API
+    assumeTrue(
+        bcHasKemProvider,
+        "BouncyCastle does not register the KEM API on JDK versions older than 21. Please try"
+            + " building with JDK 21 or above.");
+
+    KEM bcKem = KEM.getInstance("ML-KEM", TestUtil.BC_PROVIDER); // BC uses Generic ML-KEM
+
+    // Configure BC to not apply KDF processing to get raw shared secret
+    KTSParameterSpec bcParamSpec = new KTSParameterSpec.Builder("Generic", 256).withNoKdf().build();
+    SecretKey bcSecret =
+        bcKem.newDecapsulator(bcPriv, bcParamSpec).decapsulate(encapsulated.encapsulation());
+    assertArrayEquals(
+        encapsulated.key().getEncoded(),
+        bcSecret.getEncoded(),
+        "ACCP and BouncyCastle should produce identical shared secrets for " + paramSet);
   }
 }
