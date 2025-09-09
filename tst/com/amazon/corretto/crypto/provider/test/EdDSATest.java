@@ -484,7 +484,7 @@ public class EdDSATest {
     try {
       assertFalse(jceSig.verify(null));
     } catch (SignatureException e) {
-      throw new SignatureException(e);
+      // JDK 21 throws SignatureException for null signature
     }
     // Test BouncyCastle behavior
     KeyPair keyPair2 = bcGen.generateKeyPair();
