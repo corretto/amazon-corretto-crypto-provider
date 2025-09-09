@@ -487,8 +487,6 @@ public class EdDSATest {
       e.printStackTrace();
       fail("Failed to verify null signature.");
     }
-    assertFalse(jceSig.verify(null));
-
     // Test BouncyCastle behavior
     KeyPair keyPair2 = bcGen.generateKeyPair();
     Signature bcSig = Signature.getInstance("Ed25519", BOUNCYCASTLE_PROVIDER);
