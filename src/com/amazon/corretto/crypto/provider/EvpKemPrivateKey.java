@@ -4,7 +4,7 @@ package com.amazon.corretto.crypto.provider;
 
 import java.security.PrivateKey;
 
-public class EvpKemPrivateKey extends EvpKemKey implements PrivateKey {
+class EvpKemPrivateKey extends EvpKemKey implements PrivateKey {
   private static final long serialVersionUID = 1;
 
   EvpKemPrivateKey(final long ptr) {

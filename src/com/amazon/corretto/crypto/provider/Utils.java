@@ -626,7 +626,7 @@ final class Utils {
    *
    * @return true if both Java KEM support and ACCP ML-KEM implementation are available
    */
-  static boolean isKemSupported() {
+  static boolean isMlKemSupported() {
     int javaVersion = getJavaVersion();
 
     if (javaVersion == 17 || javaVersion >= 21) {

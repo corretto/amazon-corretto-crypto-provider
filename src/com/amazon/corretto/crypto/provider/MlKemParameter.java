@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.amazon.corretto.crypto.provider;
 
-public enum MlKemParameter {
+enum MlKemParameter {
   // (parameterSize, publicKeySize, secretKeySize, ciphertextSize) -
   // https://github.com/aws/aws-lc/blob/765955a298614877554522143f12c86200f61551/crypto/fipsmodule/ml_kem/ml_kem.h#L4
   MLKEM_512(512, 800, 1632, 768),

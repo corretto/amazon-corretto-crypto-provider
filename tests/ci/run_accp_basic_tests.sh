@@ -8,6 +8,7 @@ testing_fips=false
 testing_experimental_fips=false
 testing_fips_self_test_skip_abort=false
 testing_fips_test_break=false
+target_jdk_version=""
 
 # Depending on lcov version, either inconsistent or source needs to be passed
 lcov_ignore=source
@@ -33,6 +34,10 @@ while [[ $# -gt 0 ]]; do
         testing_fips_test_break=true
         shift
         ;;
+    --target-jdk-version)
+        target_jdk_version="$2"
+        shift 2
+        ;;
     *)
         echo "$1 is not supported."
         exit 1
@@ -54,6 +59,7 @@ if (( "$version" <= "10" )); then
         -DALLOW_FIPS_TEST_BREAK=$testing_fips_test_break \
         -DFIPS=$testing_fips \
         -DLCOV_IGNORE=$lcov_ignore \
+        -DTARGET_JDK_VERSION=$target_jdk_version \
         coverage test
     exit $?
 fi
@@ -70,4 +76,5 @@ export PATH=$JAVA_HOME/bin:$PATH
     -DALLOW_FIPS_TEST_BREAK=$testing_fips_test_break \
     -DFIPS=$testing_fips \
     -DLCOV_IGNORE=$lcov_ignore \
+    -DTARGET_JDK_VERSION=$target_jdk_version \
     release

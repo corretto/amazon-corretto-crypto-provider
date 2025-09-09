@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.amazon.corretto.crypto.provider;
 
-public abstract class EvpKemKey extends EvpKey {
-  private final int keySize;
+abstract class EvpKemKey extends EvpKey {
   private final MlKemParameter parameterSet;
   private static final long serialVersionUID = 1;
 
@@ -12,8 +11,7 @@ public abstract class EvpKemKey extends EvpKey {
 
   EvpKemKey(final InternalKey key, final boolean isPublicKey) {
     super(key, EvpKeyType.MLKEM, isPublicKey);
-    this.keySize = use(EvpKemKey::nativeGetKeySize);
-    this.parameterSet = MlKemParameter.fromKeySize(keySize);
+    this.parameterSet = MlKemParameter.fromKeySize(use(EvpKemKey::nativeGetKeySize));
   }
 
   public MlKemParameter getParameterSet() {

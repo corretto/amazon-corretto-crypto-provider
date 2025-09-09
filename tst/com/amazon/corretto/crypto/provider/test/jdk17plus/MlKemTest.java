@@ -9,8 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
-import com.amazon.corretto.crypto.provider.EvpKemPublicKey;
-import com.amazon.corretto.crypto.provider.MlKemParameter;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
@@ -43,6 +41,13 @@ import org.junit.jupiter.params.provider.ValueSource;
 public class MlKemTest {
   private static final AmazonCorrettoCryptoProvider NATIVE_PROVIDER =
       AmazonCorrettoCryptoProvider.INSTANCE;
+  private static final int SHARED_SECRET_SIZE = 32;
+
+  private static int getCiphertextSizeForParamSet(String paramSet) throws Throwable {
+    Class<?> mlKemParamClass = Class.forName("com.amazon.corretto.crypto.provider.MlKemParameter");
+    Object mlKemParam = TestUtil.sneakyInvoke(mlKemParamClass, "fromKemName", paramSet);
+    return TestUtil.sneakyInvoke_int(mlKemParam, "getCiphertextSize");
+  }
 
   private static class TestParams {
     private final Provider encapsulatorProv;
@@ -103,7 +108,7 @@ public class MlKemTest {
     SecretKey sharedSecret = encapsulated.key();
     byte[] ciphertext = encapsulated.encapsulation();
     assertEquals(
-        MlKemParameter.SHARED_SECRET_SIZE,
+        SHARED_SECRET_SIZE,
         sharedSecret.getEncoded().length,
         "Shared secret should be 32 bytes");
 
@@ -111,7 +116,7 @@ public class MlKemTest {
     SecretKey recoveredSecret = decapsulator.decapsulate(ciphertext);
     assertNotNull(recoveredSecret, "Recovered secret should not be null");
     assertEquals(
-        MlKemParameter.SHARED_SECRET_SIZE,
+        SHARED_SECRET_SIZE,
         recoveredSecret.getEncoded().length,
         "Recovered secret should be 32 bytes");
     assertArrayEquals(
@@ -132,29 +137,6 @@ public class MlKemTest {
 
     assertEquals(paramSet, keyPair.getPrivate().getAlgorithm());
     assertEquals(paramSet, keyPair.getPublic().getAlgorithm());
-  }
-
-  @Test
-  public void testParameterSetValidation() throws Exception {
-    KeyPair pair512 = KeyPairGenerator.getInstance("ML-KEM-512", NATIVE_PROVIDER).generateKeyPair();
-    KeyPair pair768 = KeyPairGenerator.getInstance("ML-KEM-768", NATIVE_PROVIDER).generateKeyPair();
-    KeyPair pair1024 =
-        KeyPairGenerator.getInstance("ML-KEM-1024", NATIVE_PROVIDER).generateKeyPair();
-
-    EvpKemPublicKey pub512 = (EvpKemPublicKey) pair512.getPublic();
-    EvpKemPublicKey pub768 = (EvpKemPublicKey) pair768.getPublic();
-    EvpKemPublicKey pub1024 = (EvpKemPublicKey) pair1024.getPublic();
-
-    assertEquals(
-        MlKemParameter.MLKEM_512.getParameterSize(), pub512.getParameterSet().getParameterSize());
-    assertEquals(
-        MlKemParameter.MLKEM_768.getParameterSize(), pub768.getParameterSet().getParameterSize());
-    assertEquals(
-        MlKemParameter.MLKEM_1024.getParameterSize(), pub1024.getParameterSet().getParameterSize());
-
-    assertEquals("ML-KEM-512", pub512.getAlgorithm());
-    assertEquals("ML-KEM-768", pub768.getAlgorithm());
-    assertEquals("ML-KEM-1024", pub1024.getAlgorithm());
   }
 
   @Test
@@ -191,8 +173,8 @@ public class MlKemTest {
 
   @ParameterizedTest
   @ValueSource(strings = {"ML-KEM-512", "ML-KEM-768", "ML-KEM-1024"})
-  public void testCiphertextSizes(String paramSet) throws Exception {
-    int expectedSize = MlKemParameter.fromKemName(paramSet).getCiphertextSize();
+  public void testCiphertextSizes(String paramSet) throws Throwable {
+    int expectedSize = getCiphertextSizeForParamSet(paramSet);
 
     KeyPair pair = KeyPairGenerator.getInstance(paramSet, NATIVE_PROVIDER).generateKeyPair();
     KEM kem = KEM.getInstance(paramSet, NATIVE_PROVIDER);
@@ -209,8 +191,8 @@ public class MlKemTest {
 
   @ParameterizedTest
   @ValueSource(strings = {"ML-KEM-512", "ML-KEM-768", "ML-KEM-1024"})
-  public void testEncapsulatorProperties(String paramSet) throws Exception {
-    int expectedCiphertextSize = MlKemParameter.fromKemName(paramSet).getCiphertextSize();
+  public void testEncapsulatorProperties(String paramSet) throws Throwable {
+    int expectedCiphertextSize = getCiphertextSizeForParamSet(paramSet);
 
     KeyPair pair = KeyPairGenerator.getInstance(paramSet, NATIVE_PROVIDER).generateKeyPair();
     KEM kem = KEM.getInstance(paramSet, NATIVE_PROVIDER);
@@ -219,7 +201,7 @@ public class MlKemTest {
     KEM.Encapsulator encapsulator = kem.newEncapsulator(pair.getPublic(), paramSpec, null);
 
     assertEquals(
-        MlKemParameter.SHARED_SECRET_SIZE,
+        SHARED_SECRET_SIZE,
         encapsulator.secretSize(),
         "Secret size should be 32 bytes");
     assertEquals(
@@ -239,12 +221,12 @@ public class MlKemTest {
     KEM.Decapsulator decapsulator = kem.newDecapsulator(pair.getPrivate(), paramSpec);
 
     KEM.Encapsulated encapsulatedGeneric =
-        encapsulator.encapsulate(0, MlKemParameter.SHARED_SECRET_SIZE, "Generic");
+        encapsulator.encapsulate(0, SHARED_SECRET_SIZE, "Generic");
 
     assertNotNull(encapsulatedGeneric, "Encapsulated result should not be null");
     assertNotNull(encapsulatedGeneric.key(), "Shared secret should not be null");
     assertEquals(
-        MlKemParameter.SHARED_SECRET_SIZE,
+        SHARED_SECRET_SIZE,
         encapsulatedGeneric.key().getEncoded().length,
         "Shared secret should be 32 bytes");
 
@@ -256,11 +238,11 @@ public class MlKemTest {
 
     SecretKey recoveredGeneric =
         decapsulator.decapsulate(
-            encapsulatedGeneric.encapsulation(), 0, MlKemParameter.SHARED_SECRET_SIZE, "Generic");
+            encapsulatedGeneric.encapsulation(), 0, SHARED_SECRET_SIZE, "Generic");
 
     assertNotNull(recoveredGeneric, "Recovered secret should not be null");
     assertEquals(
-        MlKemParameter.SHARED_SECRET_SIZE,
+        SHARED_SECRET_SIZE,
         recoveredGeneric.getEncoded().length,
         "Recovered secret should be 32 bytes");
     assertEquals(
@@ -272,7 +254,7 @@ public class MlKemTest {
         "Encapsulated and decapsulated secrets should match");
 
     KEM.Encapsulated encapsulatedSpecific =
-        encapsulator.encapsulate(0, MlKemParameter.SHARED_SECRET_SIZE, paramSet);
+        encapsulator.encapsulate(0, SHARED_SECRET_SIZE, paramSet);
     assertEquals(
         paramSet,
         encapsulatedSpecific.key().getAlgorithm(),
@@ -280,7 +262,7 @@ public class MlKemTest {
 
     // Test that ML-KEM generic also works
     KEM.Encapsulated encapsulatedMlKem =
-        encapsulator.encapsulate(0, MlKemParameter.SHARED_SECRET_SIZE, "ML-KEM");
+        encapsulator.encapsulate(0, SHARED_SECRET_SIZE, "ML-KEM");
     assertEquals(
         "ML-KEM", encapsulatedMlKem.key().getAlgorithm(), "ML-KEM algorithm should be preserved");
   }

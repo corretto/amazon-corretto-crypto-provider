@@ -351,14 +351,13 @@ else()
     set(TEST_FIPS_PROPERTY "-DFIPS=false")
 endif()
 
-if(INCLUDE_JDK17PLUS_DIR)
-    set(C_SRC ${C_SRC} csrc/mlkem_gen.cpp csrc/mlkem_spi.cpp)
-endif()
-
 # The source files under this guard should be removed and added to all builds, including FIPS,
 # once the corresponding algorithms are added to a FIPS branch of AWS-LC consumable by ACCP.
 if(EXPERIMENTAL_FIPS OR (NOT FIPS))
     set(C_SRC ${C_SRC} csrc/mldsa_gen.cpp)
+    if(INCLUDE_JDK17PLUS_DIR)
+        set(C_SRC ${C_SRC} csrc/mlkem_gen.cpp csrc/mlkem_spi.cpp)
+    endif()
 endif()
 
 add_library(amazonCorrettoCryptoProvider SHARED ${C_SRC})
