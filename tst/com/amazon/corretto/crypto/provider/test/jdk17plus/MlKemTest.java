@@ -108,9 +108,7 @@ public class MlKemTest {
     SecretKey sharedSecret = encapsulated.key();
     byte[] ciphertext = encapsulated.encapsulation();
     assertEquals(
-        SHARED_SECRET_SIZE,
-        sharedSecret.getEncoded().length,
-        "Shared secret should be 32 bytes");
+        SHARED_SECRET_SIZE, sharedSecret.getEncoded().length, "Shared secret should be 32 bytes");
 
     KEM.Decapsulator decapsulator = decapsulatorKem.newDecapsulator(params.priv, paramSpec);
     SecretKey recoveredSecret = decapsulator.decapsulate(ciphertext);
@@ -200,10 +198,7 @@ public class MlKemTest {
 
     KEM.Encapsulator encapsulator = kem.newEncapsulator(pair.getPublic(), paramSpec, null);
 
-    assertEquals(
-        SHARED_SECRET_SIZE,
-        encapsulator.secretSize(),
-        "Secret size should be 32 bytes");
+    assertEquals(SHARED_SECRET_SIZE, encapsulator.secretSize(), "Secret size should be 32 bytes");
     assertEquals(
         expectedCiphertextSize,
         encapsulator.encapsulationSize(),
@@ -261,8 +256,7 @@ public class MlKemTest {
         "Specific algorithm should be preserved");
 
     // Test that ML-KEM generic also works
-    KEM.Encapsulated encapsulatedMlKem =
-        encapsulator.encapsulate(0, SHARED_SECRET_SIZE, "ML-KEM");
+    KEM.Encapsulated encapsulatedMlKem = encapsulator.encapsulate(0, SHARED_SECRET_SIZE, "ML-KEM");
     assertEquals(
         "ML-KEM", encapsulatedMlKem.key().getAlgorithm(), "ML-KEM algorithm should be preserved");
   }
