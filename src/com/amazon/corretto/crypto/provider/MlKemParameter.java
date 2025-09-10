@@ -23,19 +23,6 @@ enum MlKemParameter {
     this.ciphertextSize = ciphertextSize;
   }
 
-  public static MlKemParameter fromParameterSize(int parameterSet) {
-    switch (parameterSet) {
-      case 512:
-        return MLKEM_512;
-      case 768:
-        return MLKEM_768;
-      case 1024:
-        return MLKEM_1024;
-      default:
-        throw new IllegalArgumentException("Invalid ML-KEM parameter set: " + parameterSet);
-    }
-  }
-
   public static MlKemParameter fromKemName(String name) {
     switch (name) {
       case "ML-KEM-512":
@@ -47,14 +34,6 @@ enum MlKemParameter {
       default:
         throw new IllegalArgumentException("Invalid ML-KEM name: " + name);
     }
-  }
-
-  public int getPublicKeySize() {
-    return publicKeySize;
-  }
-
-  public int getSecretKeySize() {
-    return secretKeySize;
   }
 
   public int getCiphertextSize() {
