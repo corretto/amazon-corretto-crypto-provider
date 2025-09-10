@@ -501,7 +501,6 @@ public class EdDSATest {
       // https://github.com/openjdk/jdk/blob/jdk-21%2B35/src/jdk.crypto.ec/share/classes/sun/security/ec/ed/EdDSASignature.java#L213-L215
       assertEquals("signature was null", e.getMessage());
     }
-
     // Test BouncyCastle behavior
     KeyPair keyPair2 = bcGen.generateKeyPair();
     Signature bcSig = Signature.getInstance("Ed25519", BOUNCYCASTLE_PROVIDER);
