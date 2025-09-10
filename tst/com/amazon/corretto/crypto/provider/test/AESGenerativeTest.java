@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.amazon.corretto.crypto.provider.test;
 
+import static com.amazon.corretto.crypto.provider.test.TestUtil.JAVA_VERSION;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
-import static com.amazon.corretto.crypto.provider.test.TestUtil.getJavaVersion;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.versionCompare;
 import static org.junit.Assume.assumeTrue;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -78,7 +78,7 @@ public class AESGenerativeTest {
     // -DSINGLE_TEST=com.amazon.corretto.crypto.provider.test.AESGenerativeTest`
     // The buggy implementation is available here:
     // https://github.com/openjdk/jdk/blob/f98aad58dea1d0b818706215166bcbbc349d1c6d/src/java.base/share/classes/javax/crypto/CipherSpi.java#L736-L857
-    assumeTrue(getJavaVersion() != 10);
+    assumeTrue(JAVA_VERSION != 10);
     try {
       testEncrypt(91, 10);
     } catch (Throwable t) {

@@ -3,6 +3,7 @@
 package com.amazon.corretto.crypto.provider.test;
 
 import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.assumeMinimumJavaVersion;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assumeMinimumVersion;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyGetField;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -191,6 +192,28 @@ public class EvpKeyFactoryTest {
   @ParameterizedTest(name = "{1}")
   @MethodSource("allPairs")
   public void keysSerialize(final KeyPair keyPair, final String testName) throws Exception {
+    /*
+    Though XDH support was introduced in JDK11, while DER encoding a key, its AlgorithmId (sun.security.x509.AlgorithmId)
+    implementation encodes a NULL for algorithm parameters, when the params is null.
+    https://github.com/openjdk/jdk/blob/jdk-11%2B28/src/java.base/share/classes/sun/security/x509/AlgorithmId.java#L193
+    Only from JDK16, the NULL encoding is skipped,
+    https://github.com/openjdk/jdk/blob/jdk-16%2B33/src/java.base/share/classes/sun/security/x509/AlgorithmId.java#L207-L224
+    as it should be acc to RFC 8410 3 (https://datatracker.ietf.org/doc/html/rfc8410#section-3)
+      "For all of the OIDs, the parameters MUST be absent."
+    So, the DER encoding for AlgorithmId in SunEC, and hence the PrivateKey (PKCS8Key) and PublicKey (X509Key),
+    is non-compliant until JDK 16.
+
+    Corresponding JDK Bug Report: https://bugs.openjdk.org/browse/JDK-8253912
+    and fix: https://github.com/openjdk/jdk/commit/0e855fe5
+
+    In this test, during setup, we use ACCP key factory to construct Evp keys from SunEC keys.
+    When trying to construct Evp keys from such non-compliant DER encoded SunEC keys, aws-lc will throw a decode error
+      error:06000066:public key routines:OPENSSL_internal:DECODE_ERROR
+    So this test is skipped for XDH/X25519 algorithms until JDK16.
+    */
+    if ("XDH".equals(testName) || "X25519".equals(testName)) {
+      assumeMinimumJavaVersion(16);
+    }
     final KeyFactory kf =
         KeyFactory.getInstance(keyPair.getPrivate().getAlgorithm(), NATIVE_PROVIDER);
     final Key privateKey = kf.translateKey(keyPair.getPrivate());
@@ -603,7 +626,7 @@ public class EvpKeyFactoryTest {
 
     // Currently only Java 10 ECPrivateKeys are not expected to be compatible.
     final boolean expectJceEncodingCompatibility =
-        !((TestUtil.getJavaVersion() == 10
+        !((TestUtil.JAVA_VERSION == 10
             && ((jceSample instanceof ECPrivateKeySpec) || (jceSample instanceof ECPrivateKey))));
 
     assertEquals(jceSample.getAlgorithm(), nativeSample.getAlgorithm(), "Algorithm");
@@ -696,7 +719,7 @@ public class EvpKeyFactoryTest {
     // expect byte-for-byte compatibility of encoded EC private keys in Java 10, but do expect the
     // private value S to be logically equivalent.
     final boolean expectJceEncodingCompatibility =
-        !((TestUtil.getJavaVersion() == 10
+        !((TestUtil.JAVA_VERSION == 10
                 && ((jceSample instanceof ECPrivateKeySpec) || (jceSample instanceof ECPrivateKey)))
             || RSAPrivateKeySpec.class.equals(specKlass));
     if (expectJceEncodingCompatibility) {
@@ -727,13 +750,16 @@ public class EvpKeyFactoryTest {
     // JCE doesn't support ML-DSA until JDK24, and BouncyCastle currently serializes ML-DSA private
     // keys via seeds.
     // TODO: switch to BouncyCastle once BC supports CHOICE-encoded private keys
-    if ((algorithm.startsWith("ML-DSA") && TestUtil.getJavaVersion() < 24)
-        // Similarly, JDK doesn't support EdDSA/Ed25519 until JDK15
-        || ((algorithm.equals("Ed25519")
-                || algorithm.equals("Ed25519ph")
-                || algorithm.equals("EdDSA"))
-            && TestUtil.getJavaVersion() < 15)) {
-      return NATIVE_PROVIDER;
+    // Similarly, JDK doesn't support EdDSA/Ed25519 until JDK15, and XDH/X25519 until JDK11
+    Map<Integer, List<String>> jdkAlgorithmSupport = new HashMap<>();
+    jdkAlgorithmSupport.put(24, Arrays.asList("ML-DSA"));
+    jdkAlgorithmSupport.put(15, Arrays.asList("Ed25519", "Ed25519ph", "EdDSA"));
+    jdkAlgorithmSupport.put(11, Arrays.asList("XDH", "X25519"));
+    for (Map.Entry<Integer, List<String>> entry : jdkAlgorithmSupport.entrySet()) {
+      if (TestUtil.JAVA_VERSION < entry.getKey()
+          && entry.getValue().stream().anyMatch(algorithm::startsWith)) {
+        return NATIVE_PROVIDER;
+      }
     }
     return null;
   }
