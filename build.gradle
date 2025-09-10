@@ -926,6 +926,13 @@ task generateEclipseClasspath {
     } // doLast
 } // generateEclipseClasspath
 
+// Exclude the JDK17Plus Folder when the target is below 17 or between 18-20 to exclude code containing the KEM API
+// as the KEM API was introduced in JDK 21 and backported to JDK 17
+def shouldExcludeJdk17Plus = {
+    def targetJdk = targetJdkVersion as Integer
+    return targetJdk < 17 || (targetJdk >= 18 && targetJdk < 21)
+}
+
 // Defining sourceSets will make gradle find the correct main and test folders,
 // instead of the default 'src/main/java' and 'src/test/java'.
 // This helps IDEs like IntelliJ that import Gradle projects to load and setup ACCP correctly
@@ -934,11 +941,17 @@ sourceSets {
     main {
         java {
             srcDirs 'src', 'template-src', 'build/cmake/generated-java'
+            if (shouldExcludeJdk17Plus()) {
+                exclude '**/jdk17plus/**'
+            }
         }
     }
     test {
         java {
             srcDirs 'tst'
+            if (shouldExcludeJdk17Plus()) {
+                exclude '**/jdk17plus/**'
+            }
         }
     }
 }

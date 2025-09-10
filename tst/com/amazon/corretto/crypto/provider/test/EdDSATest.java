@@ -481,8 +481,13 @@ public class EdDSATest {
     TestUtil.assertThrows(NullPointerException.class, () -> jceSig.update((byte[]) null));
     // Test with null signature
     jceSig.initVerify(keyPair.getPublic());
-    assertFalse(jceSig.verify(null));
-
+    // On older targets such as JDK 17, verifying a null signature will return false.
+    // However, in JDK 21, this returns a SignatureException why is we must catch the exception.
+    try {
+      assertFalse(jceSig.verify(null));
+    } catch (SignatureException e) {
+      // JDK 21 throws SignatureException for null signature
+    }
     // Test BouncyCastle behavior
     KeyPair keyPair2 = bcGen.generateKeyPair();
     Signature bcSig = Signature.getInstance("Ed25519", BOUNCYCASTLE_PROVIDER);

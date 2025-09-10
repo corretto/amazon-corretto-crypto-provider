@@ -619,6 +619,32 @@ final class Utils {
     return getNativeContextReleaseStrategyProperty(PROPERTY_NATIVE_CONTEXT_RELEASE_STRATEGY);
   }
 
+  /**
+   * Determines if ML-KEM support is available. Checks both Java KEM support (Java 17 with
+   * javax.crypto.KEM or Java 21+) and ACCP implementation availability. Requires ML-KEM classes to
+   * be compiled into JAR via -DTARGET_JDK_VERSION.
+   *
+   * @return true if both Java KEM support and ACCP ML-KEM implementation are available
+   */
+  static boolean isMlKemSupported() {
+    int javaVersion = getJavaVersion();
+
+    if (javaVersion == 17 || javaVersion >= 21) {
+      try {
+        // Check KEM availability for both Java 17 and 21+
+        Class.forName("javax.crypto.KEM");
+
+        // Check ACCP implementation was compiled for both versions
+        Class.forName("com.amazon.corretto.crypto.provider.MlKemSpi");
+        return true;
+      } catch (ClassNotFoundException e) {
+        return false;
+      }
+    }
+
+    return false;
+  }
+
   static native void releaseEvpCipherCtx(long ctxPtr);
 
   public static byte[] checkAesKey(final Key key) throws InvalidKeyException {
