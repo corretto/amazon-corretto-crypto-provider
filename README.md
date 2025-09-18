@@ -92,6 +92,9 @@ KeyGenerator:
 KeyAgreement:
 * ECDH
 
+KEM algorithms:
+* ML-KEM
+
 SecretKeyFactory:
 * HkdfWithHmacSHA1
 * HkdfWithHmacSHA256
