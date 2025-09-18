@@ -93,7 +93,7 @@ KeyAgreement:
 * ECDH
 
 KEM algorithms:
-* ML-KEM
+* ML-KEM (JDK 17+ only)
 
 SecretKeyFactory:
 * HkdfWithHmacSHA1
