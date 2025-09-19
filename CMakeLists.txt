@@ -312,6 +312,7 @@ set(C_SRC
     csrc/aes_xts.cpp
     csrc/aes_cbc.cpp
     csrc/aes_cfb.cpp
+    csrc/aes_kw.cpp
     csrc/aes_kwp.cpp
     csrc/agreement.cpp
     csrc/bn.cpp
