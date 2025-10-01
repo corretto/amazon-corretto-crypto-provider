@@ -15,6 +15,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
+import java.security.GeneralSecurityException;
 import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
 import java.security.SecureRandom;
@@ -859,6 +860,19 @@ public class TestUtil {
   static boolean edKeyFactoryRegistered() {
     return "true"
         .equals(System.getProperty("com.amazon.corretto.crypto.provider.registerEdKeyFactory"));
+  }
+
+  public static Cipher getCipher(Provider provider, List<String> cypherAliaces)
+      throws GeneralSecurityException {
+    GeneralSecurityException lastEx = null;
+    for (final String alias : cypherAliaces) {
+      try {
+        return (provider != null) ? Cipher.getInstance(alias, provider) : Cipher.getInstance(alias);
+      } catch (GeneralSecurityException e) {
+        lastEx = e;
+      }
+    }
+    throw lastEx;
   }
 
   /**
