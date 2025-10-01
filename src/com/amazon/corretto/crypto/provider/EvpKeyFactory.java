@@ -72,7 +72,8 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
   @Override
   protected PrivateKey engineGeneratePrivate(KeySpec keySpec) throws InvalidKeySpecException {
     if (!(keySpec instanceof PKCS8EncodedKeySpec)) {
-      throw new InvalidKeySpecException("Unsupported KeySpec");
+      throw new InvalidKeySpecException("Unsupported KeySpec : " +
+              (keySpec != null ? keySpec.getClass().getName() : "null"));
     }
     PKCS8EncodedKeySpec pkcs8 = (PKCS8EncodedKeySpec) keySpec;
 
@@ -82,7 +83,8 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
   @Override
   protected PublicKey engineGeneratePublic(KeySpec keySpec) throws InvalidKeySpecException {
     if (!(keySpec instanceof X509EncodedKeySpec)) {
-      throw new InvalidKeySpecException("Unsupported KeySpec " + keySpec.getClass());
+      throw new InvalidKeySpecException("Unsupported KeySpec : " +
+              (keySpec != null ? keySpec.getClass().getName() : "null"));
     }
     X509EncodedKeySpec x509 = (X509EncodedKeySpec) keySpec;
 

@@ -55,6 +55,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
   private static final String PROPERTY_REGISTER_EC_PARAMS = "registerEcParams";
   private static final String PROPERTY_REGISTER_SECURE_RANDOM = "registerSecureRandom";
   private static final String PROPERTY_REGISTER_ED_KEYFACTORY = "registerEdKeyFactory";
+  private static final String PROPERTY_REGISTER_XEC = "registerXEC";
 
   private static final long serialVersionUID = 1L;
 
@@ -67,6 +68,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
   private final boolean shouldRegisterEcParams;
   private final boolean shouldRegisterSecureRandom;
   private final boolean shouldRegisterEdKeyFactory;
+  private final boolean shouldRegisterXEC;
   private final boolean shouldRegisterMLDSA;
   private final boolean shouldRegisterAesCfb;
   private final boolean shouldRegisterMLKEM;
@@ -123,10 +125,12 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     addService("KeyPairGenerator", "EdDSA", "EdGen");
     addService("KeyPairGenerator", "Ed25519", "EdGen");
 
-    addService("KeyFactory", "XDH", "EvpKeyFactory$XDH");
-    addService("KeyFactory", "X25519", "EvpKeyFactory$XDH");
-    addService("KeyPairGenerator", "XDH", "XDHGen");
-    addService("KeyPairGenerator", "X25519", "XDHGen");
+    if (shouldRegisterXEC) {
+      addService("KeyFactory", "XDH", "EvpKeyFactory$XDH");
+      addService("KeyFactory", "X25519", "EvpKeyFactory$XDH");
+      addService("KeyPairGenerator", "XDH", "XDHGen");
+      addService("KeyPairGenerator", "X25519", "XDHGen");
+    }
 
     final String hkdfSpi = "HkdfSecretKeyFactorySpi";
     addService("SecretKeyFactory", HKDF_WITH_SHA1, hkdfSpi, false);
@@ -572,6 +576,8 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
     this.shouldRegisterEdKeyFactory =
         Utils.getBooleanProperty(PROPERTY_REGISTER_ED_KEYFACTORY, false);
+
+    this.shouldRegisterXEC = Utils.getBooleanProperty(PROPERTY_REGISTER_XEC, false);
 
     this.shouldRegisterMLDSA = (!isFips() || isExperimentalFips());
 
