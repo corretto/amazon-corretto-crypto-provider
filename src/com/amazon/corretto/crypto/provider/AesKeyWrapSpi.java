@@ -131,7 +131,7 @@ final class AesKeyWrapSpi extends CipherSpi {
   }
 
   @Override
-  protected void engineInit(int opmode, Key key, AlgorithmParameters params, SecureRandom ignored2)
+  protected void engineInit(int opmode, Key key, AlgorithmParameters params, SecureRandom ignored)
       throws InvalidKeyException, InvalidAlgorithmParameterException {
     IvParameterSpec ivParameterSpec = null;
     if (params != null) {
@@ -141,7 +141,7 @@ final class AesKeyWrapSpi extends CipherSpi {
         throw new InvalidAlgorithmParameterException(e);
       }
     }
-    engineInit(opmode, key, ivParameterSpec, ignored2);
+    engineInit(opmode, key, ivParameterSpec, ignored);
   }
 
   @Override
@@ -189,8 +189,8 @@ final class AesKeyWrapSpi extends CipherSpi {
   }
 
   private void validateIv(byte[] iv) throws InvalidAlgorithmParameterException {
-    if (iv != null && iv.length < 8) {
-      throw new InvalidAlgorithmParameterException("IV length is less than 8 bytes");
+    if (iv != null && iv.length != 8) {
+      throw new InvalidAlgorithmParameterException("IV length is not 8 bytes");
     }
   }
 
@@ -272,6 +272,9 @@ final class AesKeyWrapSpi extends CipherSpi {
     try {
       if ((buffer.size() % 8) != 0) {
         throw new BadPaddingException("Wrap data must be a multiple of 8 bytes");
+      }
+      if (buffer.size() < 16) {
+        throw new BadPaddingException("Wrap data must be 16 bytes or larger");
       }
 
       switch (opmode) {

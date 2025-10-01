@@ -88,12 +88,13 @@ public final class AesKeyWrapTest {
           4096 // RSA keys
           );
 
-  public static List<Arguments> getParamsGeneric() {
-    final int[] ivSizes = {0, 8};
+  private static final int[] IV_SIZES = {0, 8};
+
+  private static List<Arguments> getParamsGeneric() {
     List<Arguments> args = new ArrayList<>();
-    for (int wrappingKeySize : AES_KEY_SIZES) {
-      for (int secretSize : SECRET_SIZES) {
-        for (int ivSize : ivSizes) {
+    for (int ivSize : IV_SIZES) {
+      for (int wrappingKeySize : AES_KEY_SIZES) {
+        for (int secretSize : SECRET_SIZES) {
           args.add(Arguments.of(ivSize, wrappingKeySize, secretSize));
         }
       }
@@ -190,17 +191,16 @@ public final class AesKeyWrapTest {
   public void testNativeSameCipherIncremental() throws Exception {
     final SecretKey wrappingKey = getAesKey(16);
     final byte[] secret = TestUtil.getRandomBytes(32);
-    final Cipher c = getCipher(TestUtil.NATIVE_PROVIDER);
 
-    c.init(Cipher.ENCRYPT_MODE, wrappingKey);
-    c.update(Arrays.copyOfRange(secret, 0, 16));
-    c.update(Arrays.copyOfRange(secret, 16, 32));
-    final byte[] ciphertext = c.doFinal();
+    final Cipher encrypt = initCipher(Cipher.ENCRYPT_MODE, wrappingKey);
+    encrypt.update(Arrays.copyOfRange(secret, 0, 16));
+    encrypt.update(Arrays.copyOfRange(secret, 16, 32));
+    final byte[] ciphertext = encrypt.doFinal();
     assertFalse(Arrays.equals(secret, ciphertext));
 
-    c.init(Cipher.DECRYPT_MODE, wrappingKey);
-    c.update(ciphertext);
-    final byte[] plaintext = c.doFinal();
+    final Cipher decrypt = initCipher(Cipher.DECRYPT_MODE, wrappingKey);
+    decrypt.update(ciphertext);
+    final byte[] plaintext = decrypt.doFinal();
     assertArraysHexEquals(secret, plaintext);
   }
 
@@ -209,98 +209,88 @@ public final class AesKeyWrapTest {
     // this test asserts that all expected aliases for the AES KW cipher
     // are adequatly supplied by the native provider
     for (String alias : KW_CIPHER_ALIASES) {
-      Cipher.getInstance(alias, TestUtil.NATIVE_PROVIDER);
+      Cipher cipher = Cipher.getInstance(alias, TestUtil.NATIVE_PROVIDER);
+      assertEquals(cipher.getAlgorithm(), alias);
     }
   }
 
   @Test
-  public void testEngineGetOtputSize() throws Exception {
+  public void testEngineGetOutputSize() throws Exception {
     final int[] inputSizes = new int[] {16, 32};
-    Cipher c = getCipher(TestUtil.NATIVE_PROVIDER);
     final SecretKey kek = getAesKey(128 / 8);
-    c.init(Cipher.ENCRYPT_MODE, kek);
+    final Cipher encrypt = initCipher(Cipher.ENCRYPT_MODE, kek);
     // first pass, no buffered data
     for (int inputSize : inputSizes) {
-      assertTrue(c.getOutputSize(inputSize) % 8 == 0);
-      assertTrue(c.getOutputSize(inputSize) == inputSize + 8);
+      assertTrue(encrypt.getOutputSize(inputSize) % 8 == 0);
+      assertTrue(encrypt.getOutputSize(inputSize) == inputSize + 8);
     }
     // second pass, buffer data
     int bytesBuffered = 0;
     for (int inputSize : inputSizes) {
-      c.update(new byte[inputSize]);
+      encrypt.update(new byte[inputSize]);
       bytesBuffered += inputSize;
-      assertTrue(c.getOutputSize(0) == bytesBuffered + 8);
+      assertTrue(encrypt.getOutputSize(0) == bytesBuffered + 8);
     }
-    int finalOutputSize = c.getOutputSize(0);
-    byte[] ciphertext = c.doFinal();
+    int finalOutputSize = encrypt.getOutputSize(0);
+    byte[] ciphertext = encrypt.doFinal();
     assertEquals(ciphertext.length, finalOutputSize);
 
-    c.init(Cipher.DECRYPT_MODE, kek);
+    Cipher decrypt = initCipher(Cipher.DECRYPT_MODE, kek);
     // first pass, no buffered data
     for (int inputSize : inputSizes) {
-      assertTrue(c.getOutputSize(inputSize) == Math.max(inputSize - 8, 8));
+      assertTrue(decrypt.getOutputSize(inputSize) == Math.max(inputSize - 8, 8));
     }
     // second pass, buffer data
     for (int inputSize : inputSizes) {
-      c.update(new byte[inputSize]);
+      decrypt.update(new byte[inputSize]);
     }
     // reset and update w/ ciphertext otherwise decrypt will fail.
-    c.init(Cipher.DECRYPT_MODE, kek);
-    c.update(ciphertext);
-    finalOutputSize = c.getOutputSize(0);
-    assertTrue(c.doFinal().length <= finalOutputSize);
+    decrypt.init(Cipher.DECRYPT_MODE, kek);
+    decrypt.update(ciphertext);
+    finalOutputSize = decrypt.getOutputSize(0);
+    assertTrue(decrypt.doFinal().length <= finalOutputSize);
   }
 
-  @Test
-  public void testEngineGetParametersAndIv() throws Exception {
-    final IvParameterSpec iv = TestUtil.genIv(1, 16);
-    final Cipher c = getCipher(TestUtil.NATIVE_PROVIDER);
-    assertTrue(c.getParameters() == null);
-    assertTrue(c.getIV() == null);
-    final int[] modes =
-        new int[] {
-          Cipher.ENCRYPT_MODE, Cipher.ENCRYPT_MODE, Cipher.ENCRYPT_MODE, Cipher.ENCRYPT_MODE
-        };
-    for (int mode : modes) {
-      c.init(mode, getAesKey(128 / 8));
-      assertTrue(c.getParameters() == null);
-      assertTrue(c.getIV() == null);
-      c.init(mode, getAesKey(128 / 8), (AlgorithmParameterSpec) null, (SecureRandom) null);
-      assertTrue(c.getParameters() == null);
-      assertTrue(c.getIV() == null);
-      c.init(mode, getAesKey(128 / 8), (AlgorithmParameters) null, (SecureRandom) null);
-      assertTrue(c.getParameters() == null);
-      assertTrue(c.getIV() == null);
-      c.init(mode, getAesKey(128 / 8), iv);
-      assertTrue(c.getParameters() != null);
-      assertTrue(c.getIV() != null);
-      assertArraysHexEquals(c.getIV(), iv.getIV());
+  private static final int[] CIPHER_MODES =
+      new int[] {Cipher.ENCRYPT_MODE, Cipher.WRAP_MODE, Cipher.DECRYPT_MODE, Cipher.UNWRAP_MODE};
+
+  private static List<Arguments> getCipherModeParams() {
+    List<Arguments> args = new ArrayList<>();
+    for (int mode : CIPHER_MODES) {
+      args.add(Arguments.of(mode));
     }
+    return args;
   }
 
-  @Test
-  public void testUpdateWithOversizedInputLen() throws Exception {
-    final Cipher c = getCipher(TestUtil.NATIVE_PROVIDER);
-    final Key kek = getAesKey(128 / 8);
-    c.init(Cipher.ENCRYPT_MODE, kek);
-    final byte[] plaintext = TestUtil.getRandomBytes(1024);
+  @ParameterizedTest
+  @MethodSource("getCipherModeParams")
+  public void testEngineGetParametersAndIv(int mode) throws Exception {
+    TestUtil.assumeMinimumJavaVersion(
+        17); // KW added to JCE in 17 https://bugs.openjdk.org/browse/JDK-8248268
 
-    assertThrows(
-        IllegalArgumentException.class, () -> c.update(plaintext, 0, plaintext.length + 8));
-    assertThrows(IllegalArgumentException.class, () -> c.update(plaintext, 1, plaintext.length));
-    assertThrows(
-        IllegalArgumentException.class, () -> c.update(plaintext, plaintext.length + 8, 0));
+    final SecretKey kek = getAesKey(128 / 8);
+    final IvParameterSpec iv = TestUtil.genIv(1, 8);
 
-    c.update(plaintext, 0, plaintext.length);
-    final byte[] ciphertext = c.doFinal();
+    final Cipher c1 = getCipher(TestUtil.NATIVE_PROVIDER);
+    c1.init(mode, kek);
+    assertTrue(c1.getParameters() == null);
+    assertTrue(c1.getIV() == null);
 
-    c.init(Cipher.DECRYPT_MODE, kek);
-    assertThrows(
-        IllegalArgumentException.class, () -> c.doFinal(ciphertext, 0, ciphertext.length + 8));
-    assertThrows(IllegalArgumentException.class, () -> c.doFinal(ciphertext, 1, ciphertext.length));
-    assertThrows(
-        IllegalArgumentException.class, () -> c.doFinal(ciphertext, ciphertext.length + 8, 0));
-    assertArraysHexEquals(plaintext, c.doFinal(ciphertext, 0, ciphertext.length));
+    final Cipher c2 = getCipher(TestUtil.NATIVE_PROVIDER);
+    c2.init(mode, kek, (AlgorithmParameterSpec) null, (SecureRandom) null);
+    assertTrue(c2.getParameters() == null);
+    assertTrue(c2.getIV() == null);
+
+    final Cipher c3 = getCipher(TestUtil.NATIVE_PROVIDER);
+    c3.init(mode, kek, (AlgorithmParameters) null, (SecureRandom) null);
+    assertTrue(c3.getParameters() == null);
+    assertTrue(c3.getIV() == null);
+
+    final Cipher c4 = getCipher(TestUtil.NATIVE_PROVIDER);
+    c4.init(mode, kek, iv);
+    assertTrue(c4.getParameters() != null);
+    assertTrue(c4.getIV() != null);
+    assertArraysHexEquals(c4.getIV(), iv.getIV());
   }
 
   @Test
@@ -335,9 +325,8 @@ public final class AesKeyWrapTest {
 
   @Test
   public void testBadInputs_getOutputSize() throws Throwable {
-    final Cipher c = getCipher(TestUtil.NATIVE_PROVIDER);
     final SecretKey kek = getAesKey(128 / 8);
-    c.init(Cipher.ENCRYPT_MODE, kek);
+    final Cipher c = initCipher(Cipher.ENCRYPT_MODE, kek);
     assertThrows(ArithmeticException.class, () -> c.getOutputSize(Integer.MAX_VALUE));
     c.update(new byte[1024]);
     assertThrows(ArithmeticException.class, () -> c.getOutputSize(Integer.MAX_VALUE));
@@ -375,38 +364,46 @@ public final class AesKeyWrapTest {
 
   @Test
   public void testBadInputs_bufferSize() throws Exception {
-    final Cipher c = getCipher(TestUtil.NATIVE_PROVIDER);
     final SecretKey key = getAesKey(128 / 8);
 
-    c.init(Cipher.WRAP_MODE, key);
+    final Cipher wrap = initCipher(Cipher.WRAP_MODE, key);
     for (int secretSize : SECRET_SIZES) {
       final byte[] secretBytes1 = TestUtil.getRandomBytes(secretSize + 1);
       final byte[] secretBytes2 = TestUtil.getRandomBytes(secretSize - 1);
       assertThrows(
-          InvalidKeyException.class, () -> c.wrap(new SecretKeySpec(secretBytes1, "Generic")));
+          InvalidKeyException.class, () -> wrap.wrap(new SecretKeySpec(secretBytes1, "Generic")));
       assertThrows(
-          InvalidKeyException.class, () -> c.wrap(new SecretKeySpec(secretBytes2, "Generic")));
+          InvalidKeyException.class, () -> wrap.wrap(new SecretKeySpec(secretBytes2, "Generic")));
     }
 
-    c.init(Cipher.ENCRYPT_MODE, key);
+    final Cipher encrypt = initCipher(Cipher.ENCRYPT_MODE, key);
     for (int secretSize : SECRET_SIZES) {
       final byte[] secretBytes = TestUtil.getRandomBytes(secretSize + 1);
-      c.update(secretBytes);
-      assertThrows(BadPaddingException.class, () -> c.doFinal());
+      encrypt.update(secretBytes);
+      assertThrows(BadPaddingException.class, () -> encrypt.doFinal());
     }
     for (int secretSize : SECRET_SIZES) {
       final byte[] secretBytes1 = TestUtil.getRandomBytes(secretSize + 1);
       final byte[] secretBytes2 = TestUtil.getRandomBytes(secretSize - 1);
-      assertThrows(BadPaddingException.class, () -> c.doFinal(secretBytes1));
-      assertThrows(BadPaddingException.class, () -> c.doFinal(secretBytes2));
+      assertThrows(BadPaddingException.class, () -> encrypt.doFinal(secretBytes1));
+      assertThrows(BadPaddingException.class, () -> encrypt.doFinal(secretBytes2));
     }
   }
 
   @Test
-  public void testBadInputs_ivSize() throws Exception {
-    final IvParameterSpec iv =
-        TestUtil.genIv(
-            1, 5); // RFC-3394 iv must point to an 8 byte value or be NULL to use the default
+  public void testBadInputs_ivSize5() throws Exception {
+    // RFC-3394 iv must point to an 8 byte value or be NULL to use the default
+    testIncorrectIvSize(5);
+  }
+
+  @Test
+  public void testBadInputs_ivSize10() throws Exception {
+    // RFC-3394 iv must point to an 8 byte value or be NULL to use the default
+    testIncorrectIvSize(10);
+  }
+
+  private void testIncorrectIvSize(int ivSize) throws Exception {
+    final IvParameterSpec iv = TestUtil.genIv(1, ivSize);
     final Cipher c = getCipher(TestUtil.NATIVE_PROVIDER);
     final SecretKey key = getAesKey(128 / 8);
 
@@ -417,81 +414,84 @@ public final class AesKeyWrapTest {
 
   @Test
   public void testBadInputs_update() throws Exception {
-    final Cipher c = getCipher(TestUtil.NATIVE_PROVIDER);
-    assertThrows(IllegalStateException.class, () -> c.update(new byte[8]));
-    c.init(Cipher.WRAP_MODE, getAesKey(128 / 8));
-    assertThrows(IllegalStateException.class, () -> c.update(new byte[8]));
-    assertThrows(IllegalStateException.class, () -> c.update(new byte[8], 0, 1, new byte[0], 0));
-    assertThrows(IllegalStateException.class, () -> c.update(new byte[8], 0, 1));
-    c.init(Cipher.UNWRAP_MODE, getAesKey(128 / 8));
-    assertThrows(IllegalStateException.class, () -> c.update(new byte[8]));
-    assertThrows(IllegalStateException.class, () -> c.update(new byte[8], 0, 1, new byte[0], 0));
-    assertThrows(IllegalStateException.class, () -> c.update(new byte[8], 0, 1));
+    final Cipher wrap = getCipher(TestUtil.NATIVE_PROVIDER);
+    assertThrows(IllegalStateException.class, () -> wrap.update(new byte[8]));
+    wrap.init(Cipher.WRAP_MODE, getAesKey(128 / 8));
+    assertThrows(IllegalStateException.class, () -> wrap.update(new byte[8]));
+    assertThrows(IllegalStateException.class, () -> wrap.update(new byte[8], 0, 1, new byte[0], 0));
+    assertThrows(IllegalStateException.class, () -> wrap.update(new byte[8], 0, 1));
+
+    final Cipher unwrap = initCipher(Cipher.UNWRAP_MODE, getAesKey(128 / 8));
+    assertThrows(IllegalStateException.class, () -> unwrap.update(new byte[8]));
+    assertThrows(
+        IllegalStateException.class, () -> unwrap.update(new byte[8], 0, 1, new byte[0], 0));
+    assertThrows(IllegalStateException.class, () -> unwrap.update(new byte[8], 0, 1));
   }
 
   @Test
   public void testBadInputs_doFinal() throws Exception {
-    final Cipher c = getCipher(TestUtil.NATIVE_PROVIDER);
-    assertThrows(IllegalStateException.class, () -> c.doFinal(new byte[8]));
-    c.init(Cipher.WRAP_MODE, getAesKey(128 / 8));
-    assertThrows(IllegalStateException.class, () -> c.doFinal(new byte[8]));
-    c.init(Cipher.UNWRAP_MODE, getAesKey(128 / 8));
-    assertThrows(IllegalStateException.class, () -> c.doFinal(new byte[8]));
-    c.init(Cipher.ENCRYPT_MODE, getAesKey(128 / 8));
+    final Cipher c1 = getCipher(TestUtil.NATIVE_PROVIDER);
+    assertThrows(IllegalStateException.class, () -> c1.doFinal(new byte[8]));
+
+    final Cipher c2 = initCipher(Cipher.WRAP_MODE, getAesKey(128 / 8));
+    assertThrows(IllegalStateException.class, () -> c2.doFinal(new byte[8]));
+
+    final Cipher c3 = initCipher(Cipher.UNWRAP_MODE, getAesKey(128 / 8));
+    assertThrows(IllegalStateException.class, () -> c3.doFinal(new byte[8]));
+
+    final Cipher c4 = initCipher(Cipher.ENCRYPT_MODE, getAesKey(128 / 8));
     final int dataSize = 1024;
-    c.update(new byte[dataSize]);
+    c4.update(new byte[dataSize]);
     assertThrows(
-        ShortBufferException.class, () -> c.doFinal(new byte[8], 0, 1, new byte[dataSize + 1], 0));
+        ShortBufferException.class, () -> c4.doFinal(new byte[8], 0, 1, new byte[dataSize + 1], 0));
   }
 
   @Test
   public void testBadInputs_wrapAndUnwrap() throws Exception {
     final Key key = getAesKey(128 / 8); // NOTE: use for both wrapping and being wrapped
-    final Cipher c = getCipher(TestUtil.NATIVE_PROVIDER);
 
     // Bad modes
-    c.init(Cipher.UNWRAP_MODE, key);
-    assertThrows(IllegalStateException.class, () -> c.wrap(key));
-    c.init(Cipher.ENCRYPT_MODE, key);
-    assertThrows(IllegalStateException.class, () -> c.wrap(key));
-    c.init(Cipher.DECRYPT_MODE, key);
-    assertThrows(IllegalStateException.class, () -> c.wrap(key));
-    c.init(Cipher.WRAP_MODE, key);
-    final byte[] wrapped = c.wrap(key);
-    assertThrows(IllegalStateException.class, () -> c.unwrap(wrapped, "AES", Cipher.SECRET_KEY));
-    c.init(Cipher.ENCRYPT_MODE, key);
-    assertThrows(IllegalStateException.class, () -> c.unwrap(wrapped, "AES", Cipher.SECRET_KEY));
-    c.init(Cipher.DECRYPT_MODE, key);
-    assertThrows(IllegalStateException.class, () -> c.unwrap(wrapped, "AES", Cipher.SECRET_KEY));
+    final Cipher c1 = initCipher(Cipher.UNWRAP_MODE, key);
+    assertThrows(IllegalStateException.class, () -> c1.wrap(key));
+    final Cipher c2 = initCipher(Cipher.ENCRYPT_MODE, key);
+    assertThrows(IllegalStateException.class, () -> c2.wrap(key));
+    final Cipher c3 = initCipher(Cipher.DECRYPT_MODE, key);
+    assertThrows(IllegalStateException.class, () -> c3.wrap(key));
+    final Cipher c4 = initCipher(Cipher.WRAP_MODE, key);
+    final byte[] wrapped = c4.wrap(key);
+    assertThrows(IllegalStateException.class, () -> c4.unwrap(wrapped, "AES", Cipher.SECRET_KEY));
+    final Cipher c5 = initCipher(Cipher.ENCRYPT_MODE, key);
+    assertThrows(IllegalStateException.class, () -> c5.unwrap(wrapped, "AES", Cipher.SECRET_KEY));
+    final Cipher c6 = initCipher(Cipher.DECRYPT_MODE, key);
+    assertThrows(IllegalStateException.class, () -> c6.unwrap(wrapped, "AES", Cipher.SECRET_KEY));
 
     // Bad key
-    c.init(Cipher.WRAP_MODE, key);
-    assertThrows(InvalidKeyException.class, () -> c.wrap(NULL_KEY));
+    final Cipher wrap = initCipher(Cipher.WRAP_MODE, key);
+    assertThrows(InvalidKeyException.class, () -> wrap.wrap(NULL_KEY));
   }
 
   @Test
   public void testBadInputs_wrongUnwrapKey() throws Exception {
-    final Cipher c = getCipher(TestUtil.NATIVE_PROVIDER);
     final SecretKey key1 = getAesKey(16);
     final SecretKey key2 = getAesKey(16);
     final SecretKey secret = new SecretKeySpec(TestUtil.getRandomBytes(32), "Generic");
 
-    c.init(Cipher.WRAP_MODE, key1);
-    final byte[] wrappedKey = c.wrap(secret);
+    final Cipher wrap = initCipher(Cipher.WRAP_MODE, key1);
+    final byte[] wrappedKey = wrap.wrap(secret);
 
-    c.init(Cipher.UNWRAP_MODE, key2);
+    final Cipher unwrapKey2 = initCipher(Cipher.UNWRAP_MODE, key2);
     assertThrows(
-        InvalidKeyException.class, () -> c.unwrap(wrappedKey, "Generic", Cipher.SECRET_KEY));
+        InvalidKeyException.class,
+        () -> unwrapKey2.unwrap(wrappedKey, "Generic", Cipher.SECRET_KEY));
 
-    c.init(Cipher.UNWRAP_MODE, key1);
-    final Key unwrappedKey = c.unwrap(wrappedKey, "Generic", Cipher.SECRET_KEY);
+    final Cipher unwrapKey1 = initCipher(Cipher.UNWRAP_MODE, key1);
+    final Key unwrappedKey = unwrapKey1.unwrap(wrappedKey, "Generic", Cipher.SECRET_KEY);
     assertArraysHexEquals(secret.getEncoded(), unwrappedKey.getEncoded());
   }
 
   @Test
   public void threadStorm() throws GeneralSecurityException, InterruptedException {
     final byte[] rngSeed = TestUtil.getRandomBytes(20);
-    System.out.println("RNG Seed: " + Arrays.toString(rngSeed));
     final SecureRandom rng = SecureRandom.getInstance("SHA1PRNG");
     rng.setSeed(rngSeed);
     final int iterations = 500;
@@ -542,6 +542,12 @@ public final class AesKeyWrapTest {
   //       provide ciphers across all expected aliases.
   private static Cipher getCipher(Provider provider) throws GeneralSecurityException {
     return TestUtil.getCipher(provider, KW_CIPHER_ALIASES);
+  }
+
+  private static Cipher initCipher(int mode, Key key) throws GeneralSecurityException {
+    final Cipher c = getCipher(TestUtil.NATIVE_PROVIDER);
+    c.init(mode, key);
+    return c;
   }
 
   private static SecretKey getAesKey(int size) {
