@@ -861,6 +861,10 @@ public class TestUtil {
         .equals(System.getProperty("com.amazon.corretto.crypto.provider.registerEdKeyFactory"));
   }
 
+  static boolean xecRegistered() {
+    return "true".equals(System.getProperty("com.amazon.corretto.crypto.provider.registerXEC"));
+  }
+
   /**
    * Set or unset an environment variable at runtime
    *

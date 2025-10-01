@@ -4,6 +4,7 @@ package com.amazon.corretto.crypto.provider.test;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -32,6 +33,7 @@ public class KeyPairGeneratorTest {
 
   @Test
   public void generateXECKeys() {
+    assumeTrue(TestUtil.xecRegistered());
     final KeyPairGenerator keyPairGenerator = getXECKeyPairGenerator();
     assertEquals("X25519", keyPairGenerator.getAlgorithm());
 
