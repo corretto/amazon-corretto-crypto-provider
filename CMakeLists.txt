@@ -893,6 +893,14 @@ add_custom_target(check-junit-edKeyFactory
 
     DEPENDS accp-jar tests-jar)
 
+add_custom_target(check-junit-xec
+    COMMAND ${TEST_JAVA_EXECUTABLE}
+    -Dcom.amazon.corretto.crypto.provider.registerXEC=true
+        ${TEST_RUNNER_ARGUMENTS}
+        --select-class=com.amazon.corretto.crypto.provider.test.KeyPairGeneratorTest
+
+    DEPENDS accp-jar tests-jar)
+
 set(check_targets
     check-recursive-init
     check-install-via-properties
@@ -903,6 +911,7 @@ set(check_targets
     check-junit-AesEager
     check-junit-DifferentTempDir
     check-junit-edKeyFactory
+    check-junit-xec
     check-junit-FipsStatus)
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
