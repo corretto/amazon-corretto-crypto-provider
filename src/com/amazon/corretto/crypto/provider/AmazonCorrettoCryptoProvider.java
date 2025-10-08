@@ -226,6 +226,14 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
             "SupportedKeyClasses",
             "java.security.interfaces.ECPublicKey|java.security.interfaces.ECPrivateKey"));
 
+    addService(
+        "KeyAgreement",
+        "X25519",
+        "EvpKeyAgreement$XDH",
+        singletonMap(
+            "SupportedKeyClasses",
+            "java.security.interfaces.XECPublicKey|java.security.interfaces.XECPrivateKey"));
+
     if (shouldRegisterEcParams) {
       registerEcParams();
     }
