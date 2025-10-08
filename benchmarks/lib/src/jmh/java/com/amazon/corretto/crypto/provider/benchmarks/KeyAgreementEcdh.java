@@ -17,7 +17,7 @@ import org.openjdk.jmh.annotations.State;
 @State(Scope.Benchmark)
 public class KeyAgreementEcdh {
 
-  @Param({"secp256r1", "secp384r1", "secp521r1"})
+  @Param({"secp256r1", "secp384r1", "secp521r1", "X25519"})
   public String curve;
 
   @Param({AmazonCorrettoCryptoProvider.PROVIDER_NAME, "BC", "SunEC"})
@@ -30,11 +30,20 @@ public class KeyAgreementEcdh {
   @Setup
   public void setup() throws Exception {
     BenchmarkUtils.setupProvider(provider);
-    final KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC", provider);
-    kpg.initialize(new ECGenParameterSpec(curve));
+    KeyPairGenerator kpg;
+    if ("X25519".equals(curve)) {
+      kpg = KeyPairGenerator.getInstance("X25519", provider);
+    } else {
+      kpg = KeyPairGenerator.getInstance("EC", provider);
+      kpg.initialize(new ECGenParameterSpec(curve));
+    }
     alice = kpg.generateKeyPair();
     bob = kpg.generateKeyPair();
-    keyAgreement = KeyAgreement.getInstance("ECDH", provider);
+    if ("X25519".equals(curve)) {
+      keyAgreement = KeyAgreement.getInstance("X25519", provider);
+    } else {
+      keyAgreement = KeyAgreement.getInstance("ECDH", provider);
+    }
   }
 
   @Benchmark
