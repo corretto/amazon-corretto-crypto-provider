@@ -161,8 +161,7 @@ public class EvpKeyAgreementTest {
             buildKeyAtInfinity(pubKey), buildKeyOffCurve(pubKey), buildKeyOnWrongCurve(pubKey)));
   }
 
-  private static TestParams buildX25519Parameters()
-      throws GeneralSecurityException, IOException {
+  private static TestParams buildX25519Parameters() throws GeneralSecurityException, IOException {
     return new TestParams(
         "X25519",
         "ECDH(X25519)",
