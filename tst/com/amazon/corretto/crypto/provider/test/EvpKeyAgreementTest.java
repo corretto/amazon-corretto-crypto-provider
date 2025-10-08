@@ -68,7 +68,9 @@ public class EvpKeyAgreementTest {
     MASTER_PARAMS_LIST.add(buildEcdhParameters(new ECGenParameterSpec("NIST P-384"), "NIST P-384"));
     MASTER_PARAMS_LIST.add(buildEcdhParameters(new ECGenParameterSpec("NIST P-521"), "NIST P-521"));
     MASTER_PARAMS_LIST.add(buildEcdhParameters(EcGenTest.EXPLICIT_CURVE, "Explicit Curve"));
-    MASTER_PARAMS_LIST.add(buildX25519Parameters());
+    if (TestUtil.JAVA_VERSION >= 11) {
+      MASTER_PARAMS_LIST.add(buildX25519Parameters());
+    }
   }
 
   // No need to keep these in memory
