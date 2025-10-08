@@ -70,6 +70,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
   private final boolean shouldRegisterMLDSA;
   private final boolean shouldRegisterAesCfb;
   private final boolean shouldRegisterMLKEM;
+  private final boolean shouldRegisterX25519;
   private final Utils.NativeContextReleaseStrategy nativeContextReleaseStrategy;
 
   private transient SelfTestSuite selfTestSuite = new SelfTestSuite();
@@ -124,10 +125,12 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     addService("KeyPairGenerator", "EdDSA", "EdGen");
     addService("KeyPairGenerator", "Ed25519", "EdGen");
 
-    addService("KeyFactory", "XDH", "EvpKeyFactory$XDH");
-    addService("KeyFactory", "X25519", "EvpKeyFactory$XDH");
-    addService("KeyPairGenerator", "XDH", "XDHGen");
-    addService("KeyPairGenerator", "X25519", "XDHGen");
+    if (shouldRegisterX25519) {
+      addService("KeyFactory", "XDH", "EvpKeyFactory$XDH");
+      addService("KeyFactory", "X25519", "EvpKeyFactory$XDH");
+      addService("KeyPairGenerator", "XDH", "XDHGen");
+      addService("KeyPairGenerator", "X25519", "XDHGen");
+    }
 
     final String hkdfSpi = "HkdfSecretKeyFactorySpi";
     addService("SecretKeyFactory", HKDF_WITH_SHA1, hkdfSpi, false);
@@ -226,13 +229,15 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
             "SupportedKeyClasses",
             "java.security.interfaces.ECPublicKey|java.security.interfaces.ECPrivateKey"));
 
-    addService(
-        "KeyAgreement",
-        "X25519",
-        "EvpKeyAgreement$XDH",
-        singletonMap(
-            "SupportedKeyClasses",
-            "java.security.interfaces.XECPublicKey|java.security.interfaces.XECPrivateKey"));
+    if (shouldRegisterX25519) {
+      addService(
+          "KeyAgreement",
+          "X25519",
+          "EvpKeyAgreement$XDH",
+          singletonMap(
+              "SupportedKeyClasses",
+              "java.security.interfaces.XECPublicKey|java.security.interfaces.XECPrivateKey"));
+    }
 
     if (shouldRegisterEcParams) {
       registerEcParams();
@@ -587,6 +592,9 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     this.shouldRegisterAesCfb = (!isFips() || isExperimentalFips());
 
     this.shouldRegisterMLKEM = (Utils.isMlKemSupported() && (!isFips() || isExperimentalFips()));
+
+    this.shouldRegisterX25519 = Utils.getJavaVersion() >= 11;
+
     this.nativeContextReleaseStrategy = Utils.getNativeContextReleaseStrategyProperty();
 
     Utils.optionsFromProperty(ExtraCheck.class, extraChecks, "extrachecks");
