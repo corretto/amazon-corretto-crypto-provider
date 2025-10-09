@@ -93,6 +93,9 @@ KeyGenerator:
 KeyAgreement:
 * ECDH
 
+KEM algorithms:
+* ML-KEM (JDK 17+ LTS, also see [ML-KEM Considerations](#ml-kem-considerations))
+
 SecretKeyFactory:
 * HkdfWithHmacSHA1
 * HkdfWithHmacSHA256
@@ -124,6 +127,14 @@ Mac algorithms with precomputed key and associated secret key factories (expert 
 * HmacSHA256WithPrecomputedKey
 * HmacSHA1WithPrecomputedKey
 * HmacMD5WithPrecomputedKey
+
+### ML-KEM Considerations
+
+JDK's [KEM interface](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/javax/crypto/KEM.html) was backported to JDK17, but not to earlier JDK versions. ACCP JARs support all LTS JDK versions since JDK8, so **ACCP's default build configuration and maven artifacts** omit ML-KEM as it relies on the KEM interface. To enable ML-KEM in locally built JARs, you'll need to build with a JDK ≥17 and specify `TARGET_JDK_VERSION` ≥17 like so:
+
+```
+./gradlew -DTARGET_JDK_VERSION=17 build
+``` 
 
 # Notes on ACCP-FIPS
 ACCP-FIPS is a variation of ACCP which uses AWS-LC-FIPS 2.x as its cryptographic module. This version of AWS-LC-FIPS has FIPS certificate [4816](https://csrc.nist.gov/projects/cryptographic-module-validation-program/certificate/4816).
