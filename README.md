@@ -40,6 +40,7 @@ Mac algorithms:
 Cipher algorithms:
 * AES/GCM/NoPadding
 * AES_\<n\>/GCM/NoPadding, where n can be 128, or 256
+* AES/KW/NoPadding
 * AES/KWP/NoPadding
 * AES/XTS/NoPadding
 * AES/CBC/NoPadding
