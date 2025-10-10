@@ -32,6 +32,7 @@ public class KeyPairGeneratorTest {
 
   @Test
   public void generateXECKeys() {
+    TestUtil.assumeMinimumJavaVersion(11);
     final KeyPairGenerator keyPairGenerator = getXECKeyPairGenerator();
     assertEquals("X25519", keyPairGenerator.getAlgorithm());
 
