@@ -431,26 +431,32 @@ public final class AesKeyWrapPaddingTest {
     assertTrue(c.doFinal().length <= finalOutputSize);
   }
 
-  @Test
-  public void testEngineGetParametersAndIv() throws Exception {
+  private static final int[] CIPHER_MODES =
+      new int[] {Cipher.ENCRYPT_MODE, Cipher.WRAP_MODE, Cipher.DECRYPT_MODE, Cipher.UNWRAP_MODE};
+
+  private static List<Arguments> getCipherModeParams() {
+    List<Arguments> args = new ArrayList<>();
+    for (int mode : CIPHER_MODES) {
+      args.add(Arguments.of(mode));
+    }
+    return args;
+  }
+
+  @ParameterizedTest
+  @MethodSource("getCipherModeParams")
+  public void testEngineGetParametersAndIv(int mode) throws Exception {
     Cipher c = getCipher(TestUtil.NATIVE_PROVIDER);
     assertTrue(c.getParameters() == null);
     assertTrue(c.getIV() == null);
-    final int[] modes =
-        new int[] {
-          Cipher.ENCRYPT_MODE, Cipher.ENCRYPT_MODE, Cipher.ENCRYPT_MODE, Cipher.ENCRYPT_MODE
-        };
-    for (int mode : modes) {
-      c.init(mode, getAesKey(128 / 8));
-      assertTrue(c.getParameters() == null);
-      assertTrue(c.getIV() == null);
-      c.init(mode, getAesKey(128 / 8), (AlgorithmParameterSpec) null, (SecureRandom) null);
-      assertTrue(c.getParameters() == null);
-      assertTrue(c.getIV() == null);
-      c.init(mode, getAesKey(128 / 8), (AlgorithmParameters) null, (SecureRandom) null);
-      assertTrue(c.getParameters() == null);
-      assertTrue(c.getIV() == null);
-    }
+    c.init(mode, getAesKey(128 / 8));
+    assertTrue(c.getParameters() == null);
+    assertTrue(c.getIV() == null);
+    c.init(mode, getAesKey(128 / 8), (AlgorithmParameterSpec) null, (SecureRandom) null);
+    assertTrue(c.getParameters() == null);
+    assertTrue(c.getIV() == null);
+    c.init(mode, getAesKey(128 / 8), (AlgorithmParameters) null, (SecureRandom) null);
+    assertTrue(c.getParameters() == null);
+    assertTrue(c.getIV() == null);
   }
 
   @ParameterizedTest
@@ -628,7 +634,6 @@ public final class AesKeyWrapPaddingTest {
   @Test
   public void threadStorm() throws GeneralSecurityException, InterruptedException {
     final byte[] rngSeed = TestUtil.getRandomBytes(20);
-    System.out.println("RNG Seed: " + Arrays.toString(rngSeed));
     final SecureRandom rng = SecureRandom.getInstance("SHA1PRNG");
     rng.setSeed(rngSeed);
     final int iterations = 500;
@@ -645,17 +650,19 @@ public final class AesKeyWrapPaddingTest {
     keys[2] = new SecretKeySpec(buff, 0, 32, "AES");
 
     final List<SecretKey> keyList = Arrays.asList(keys);
-    final List<TestThread> threads = new ArrayList<>();
+    final List<AesKeyWrapTestThread> threads = new ArrayList<>();
     for (int x = 0; x < threadCount; x++) {
-      threads.add(new TestThread("AesKwpThread-" + x, rng, iterations, keyList));
+      threads.add(
+          new AesKeyWrapTestThread(
+              KWP_CIPHER_ALIASES, "AesKwpThread-" + x, rng, iterations, keyList));
     }
 
-    for (final TestThread t : threads) {
+    for (final AesKeyWrapTestThread t : threads) {
       t.start();
     }
 
     final List<Throwable> results = new ArrayList<>();
-    for (final TestThread t : threads) {
+    for (final AesKeyWrapTestThread t : threads) {
       t.join();
       if (t.result != null) {
         results.add(t.result);
@@ -671,72 +678,12 @@ public final class AesKeyWrapPaddingTest {
     }
   }
 
-  private static class TestThread extends Thread {
-    private final SecureRandom rnd_;
-    private final List<SecretKey> keys_;
-    private final Cipher enc_;
-    private final Cipher dec_;
-    private final int iterations_;
-    private final byte[] plaintext_;
-    public volatile Throwable result = null;
-
-    public TestThread(String name, SecureRandom rng, int iterations, List<SecretKey> keys)
-        throws GeneralSecurityException {
-      super(name);
-      iterations_ = iterations;
-      keys_ = keys;
-      enc_ = getCipher(TestUtil.NATIVE_PROVIDER);
-      dec_ = getCipher(TestUtil.NATIVE_PROVIDER);
-      plaintext_ = new byte[64];
-      rnd_ = SecureRandom.getInstance("SHA1PRNG");
-      byte[] seed = new byte[20];
-      rng.nextBytes(seed);
-      rnd_.setSeed(seed);
-      rnd_.nextBytes(plaintext_);
-    }
-
-    @Override
-    public void run() {
-      for (int x = 0; x < iterations_; x++) {
-        try {
-          // Choose a key and encrypt the plaintext as if it were a key
-          final SecretKey kek = keys_.get(rnd_.nextInt(keys_.size()));
-          enc_.init(Cipher.ENCRYPT_MODE, kek);
-          dec_.init(Cipher.DECRYPT_MODE, kek);
-          assertArraysHexEquals(plaintext_, dec_.doFinal(enc_.doFinal(plaintext_)));
-
-          // Then, pick a random key from the list and wrap/unwrap it
-          final Key toWrap = keys_.get(rnd_.nextInt(keys_.size()));
-          enc_.init(Cipher.WRAP_MODE, kek);
-          dec_.init(Cipher.UNWRAP_MODE, kek);
-          final Key unwrapped = dec_.unwrap(enc_.wrap(toWrap), "AES", Cipher.SECRET_KEY);
-          assertArraysHexEquals(toWrap.getEncoded(), unwrapped.getEncoded());
-        } catch (final Throwable ex) {
-          result = ex;
-          return;
-        }
-      }
-    }
-  }
-
   // NOTE: this funciton is a convenience to make the test code cleaner
   //       across providers that use different aliases to provide the same
   //       Cipher. it relies on nativeProviderAliasTest to ensure that we
   //       provide ciphers across all expected aliases.
   private static Cipher getCipher(Provider provider) throws GeneralSecurityException {
-    GeneralSecurityException lastEx = null;
-    for (String alias : KWP_CIPHER_ALIASES) {
-      try {
-        if (provider != null) {
-          return Cipher.getInstance(alias, provider);
-        } else {
-          return Cipher.getInstance(alias);
-        }
-      } catch (GeneralSecurityException e) {
-        lastEx = e;
-      }
-    }
-    throw lastEx;
+    return TestUtil.getCipher(provider, KWP_CIPHER_ALIASES);
   }
 
   private static SecretKey getAesKey(int size) {
