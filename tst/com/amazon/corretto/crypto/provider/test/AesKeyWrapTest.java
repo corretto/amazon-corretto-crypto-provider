@@ -527,7 +527,9 @@ public final class AesKeyWrapTest {
       }
     }
     if (!results.isEmpty()) {
-      final AssertionError ex = new AssertionError("Throwable while testing threads");
+      final AssertionError ex =
+          new AssertionError(
+              "Throwable while testing threads, RNG seed: " + Arrays.toString(rngSeed));
       for (Throwable t : results) {
         t.printStackTrace();
         ex.addSuppressed(t);
