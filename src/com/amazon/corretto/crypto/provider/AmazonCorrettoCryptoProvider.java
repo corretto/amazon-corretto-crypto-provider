@@ -87,6 +87,10 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     addService("MessageDigest", "SHA-256", "SHA256Spi");
     addService("MessageDigest", "SHA-1", "SHA1Spi");
     addService("MessageDigest", "MD5", "MD5Spi");
+    addService("MessageDigest", "SHA3-224", "SHA3224Spi");
+    addService("MessageDigest", "SHA3-256", "SHA3256Spi");
+    addService("MessageDigest", "SHA3-384", "SHA3384Spi");
+    addService("MessageDigest", "SHA3-512", "SHA3512Spi");
 
     addService("Cipher", "AES/GCM/NoPadding", "AesGcmSpi");
     addService("Cipher", "AES_128/GCM/NoPadding", "AesGcmSpi");

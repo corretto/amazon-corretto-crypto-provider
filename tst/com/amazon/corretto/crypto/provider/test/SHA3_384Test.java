@@ -2,15 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.amazon.corretto.crypto.provider.test;
 
-public class SHA256Test extends BaseSHATest {
+public class SHA3_384Test extends BaseSHATest {
 
-  private static final String ALGORITHM = "SHA-256";
+  private static final String ALGORITHM = "SHA3-384";
   private static final String NULL_DIGEST =
-      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+      "0c63a75b845e4f7d01107d852e4c2485c51a50aaaa94fc61995e71bbee983a2ac3713831264adb47fb6bd1e058d5f004";
   private static final String TEST_VECTOR =
-      "cf80cd8aed482d5d1527d7dc72fceff84e6326592848447d2dc0b0e87dfc9a90";
-  private static final String CAVP_SHORT_FILE = "SHA256ShortMsg.rsp.gz";
-  private static final String CAVP_LONG_FILE = "SHA256LongMsg.rsp.gz";
+      "e15a44d4e12ac138db4b8d77e954d78d94de4391ec2d1d8b2b8ace1a2f4b3d2fb9efd0546d6fcafacbe5b1640639b005";
+  private static final String CAVP_SHORT_FILE = "SHA3_384ShortMsg.rsp.gz";
+  private static final String CAVP_LONG_FILE = "SHA3_384LongMsg.rsp.gz";
 
   @Override
   protected String getAlgorithm() {
