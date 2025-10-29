@@ -87,4 +87,13 @@ class BenchmarkUtils {
       Security.removeProvider(provider.getName());
     }
   }
+
+  static int getJavaVersion() {
+    final String strVersion = System.getProperty("java.specification.version");
+    final String[] parts = strVersion.split("\\.");
+    if (parts[0].equals("1")) {
+      return Integer.parseInt(parts[1]);
+    }
+    return Integer.parseInt(parts[0]);
+  }
 }

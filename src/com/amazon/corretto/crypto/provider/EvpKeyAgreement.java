@@ -171,4 +171,10 @@ class EvpKeyAgreement extends KeyAgreementSpi {
       super(provider, "ECDH", EvpKeyType.EC);
     }
   }
+
+  static class XDH extends EvpKeyAgreement {
+    XDH(AmazonCorrettoCryptoProvider provider) {
+      super(provider, "XDH", EvpKeyType.XDH);
+    }
+  }
 }
