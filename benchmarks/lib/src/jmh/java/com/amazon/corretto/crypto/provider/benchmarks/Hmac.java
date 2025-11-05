@@ -14,7 +14,7 @@ import org.openjdk.jmh.annotations.State;
 
 @State(Scope.Benchmark)
 public class Hmac {
-  @Param({"SHA256", "SHA384", "SHA512"})
+  @Param({"SHA224", "SHA256", "SHA384", "SHA512"})
   public String hash;
 
   @Param({AmazonCorrettoCryptoProvider.PROVIDER_NAME, "BC", "SunJCE"})
