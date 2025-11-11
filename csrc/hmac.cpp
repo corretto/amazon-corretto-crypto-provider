@@ -86,6 +86,8 @@ jint get_precomputed_key_size(raii_env& env, jstring digestName)
         return HMAC_MD5_PRECOMPUTED_KEY_SIZE;
     } else if (!strcmp("sha1", name)) {
         return HMAC_SHA1_PRECOMPUTED_KEY_SIZE;
+    } else if (!strcmp("sha224", name)) {
+        return HMAC_SHA224_PRECOMPUTED_KEY_SIZE;
     } else if (!strcmp("sha256", name)) {
         return HMAC_SHA256_PRECOMPUTED_KEY_SIZE;
     } else if (!strcmp("sha384", name)) {
