@@ -72,6 +72,7 @@ class HmacWithPrecomputedKeyKeyFactorySpi extends SecretKeyFactorySpi {
 
   private static final String MD5_DIGEST_NAME = "md5";
   private static final String SHA1_DIGEST_NAME = "sha1";
+  private static final String SHA224_DIGEST_NAME = "sha224";
   private static final String SHA256_DIGEST_NAME = "sha256";
   private static final String SHA384_DIGEST_NAME = "sha384";
   private static final String SHA512_DIGEST_NAME = "sha512";
@@ -86,6 +87,10 @@ class HmacWithPrecomputedKeyKeyFactorySpi extends SecretKeyFactorySpi {
         getSpiFactoryForAlgName(EvpHmac.HMAC_SHA1_WITH_PRECOMPUTED_KEY),
         new HmacWithPrecomputedKeyKeyFactorySpi(
             EvpHmac.HMAC_SHA1_WITH_PRECOMPUTED_KEY, SHA1_DIGEST_NAME));
+    result.put(
+        getSpiFactoryForAlgName(EvpHmac.HMAC_SHA224_WITH_PRECOMPUTED_KEY),
+        new HmacWithPrecomputedKeyKeyFactorySpi(
+            EvpHmac.HMAC_SHA224_WITH_PRECOMPUTED_KEY, SHA224_DIGEST_NAME));
     result.put(
         getSpiFactoryForAlgName(EvpHmac.HMAC_SHA256_WITH_PRECOMPUTED_KEY),
         new HmacWithPrecomputedKeyKeyFactorySpi(

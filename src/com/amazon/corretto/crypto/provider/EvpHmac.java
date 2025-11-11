@@ -30,6 +30,8 @@ class EvpHmac extends MacSpi implements Cloneable {
       HMAC_PREFIX + "SHA384" + WITH_PRECOMPUTED_KEY;
   static final String HMAC_SHA256_WITH_PRECOMPUTED_KEY =
       HMAC_PREFIX + "SHA256" + WITH_PRECOMPUTED_KEY;
+  static final String HMAC_SHA224_WITH_PRECOMPUTED_KEY =
+      HMAC_PREFIX + "SHA224" + WITH_PRECOMPUTED_KEY;
   static final String HMAC_SHA1_WITH_PRECOMPUTED_KEY = HMAC_PREFIX + "SHA1" + WITH_PRECOMPUTED_KEY;
   static final String HMAC_MD5_WITH_PRECOMPUTED_KEY = HMAC_PREFIX + "MD5" + WITH_PRECOMPUTED_KEY;
 
@@ -408,12 +410,14 @@ class EvpHmac extends MacSpi implements Cloneable {
     hashLocation.put("HmacMD5", 0);
     hashCategory.put("HmacSHA1", "sha1");
     hashLocation.put("HmacSHA1", 0);
+    hashCategory.put("HmacSHA224", "sha2");
+    hashLocation.put("HmacSHA224", 0);
     hashCategory.put("HmacSHA256", "sha2");
-    hashLocation.put("HmacSHA256", 0);
+    hashLocation.put("HmacSHA256", 1);
     hashCategory.put("HmacSHA384", "sha2");
-    hashLocation.put("HmacSHA384", 1);
+    hashLocation.put("HmacSHA384", 2);
     hashCategory.put("HmacSHA512", "sha2");
-    hashLocation.put("HmacSHA512", 2);
+    hashLocation.put("HmacSHA512", 3);
 
     try (final Scanner in =
         new Scanner(Loader.getTestData("hmac.txt"), StandardCharsets.US_ASCII.name())) {
@@ -488,6 +492,34 @@ class EvpHmac extends MacSpi implements Cloneable {
 
   static class SHA1WithPrecomputedKey extends SHA1Base {
     public SHA1WithPrecomputedKey() {
+      super(true);
+    }
+  }
+
+  private static class SHA224Base extends EvpHmac {
+    protected static final String digestName = "sha224";
+    protected static final String baseAlgorithm = "HmacSHA224";
+
+    private SHA224Base(boolean usePrecomputedKey) {
+      super(digestName, baseAlgorithm, usePrecomputedKey);
+    }
+  }
+
+  static class SHA224 extends SHA224Base {
+    static final SelfTestSuite.SelfTest SELF_TEST =
+        new SelfTestSuite.SelfTest(baseAlgorithm, SHA224::runSelfTest);
+
+    public SHA224() {
+      super(false);
+    }
+
+    public static SelfTestResult runSelfTest() {
+      return EvpHmac.runSelfTest(baseAlgorithm, SHA224.class);
+    }
+  }
+
+  static class SHA224WithPrecomputedKey extends SHA224Base {
+    public SHA224WithPrecomputedKey() {
       super(true);
     }
   }

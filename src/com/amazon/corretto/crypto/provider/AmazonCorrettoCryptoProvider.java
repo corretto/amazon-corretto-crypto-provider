@@ -203,7 +203,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     addService("Cipher", "RSA/ECB/OAEPWithSHA1AndMGF1Padding", "RsaCipher$OAEPSha1");
 
     final String hmacWithPrecomputedKeyKeyFactorySpi = "HmacWithPrecomputedKeyKeyFactorySpi";
-    for (String hash : new String[] {"MD5", "SHA1", "SHA256", "SHA384", "SHA512"}) {
+    for (String hash : new String[] {"MD5", "SHA1", "SHA224", "SHA256", "SHA384", "SHA512"}) {
       // Registration of regular Hmac
       addService("Mac", "Hmac" + hash, "EvpHmac$" + hash);
       // Registration of Hmac with precomputed keys
@@ -618,6 +618,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     selfTestSuite.addSelfTest(EvpHmac.SHA512.SELF_TEST);
     selfTestSuite.addSelfTest(EvpHmac.SHA384.SELF_TEST);
     selfTestSuite.addSelfTest(EvpHmac.SHA256.SELF_TEST);
+    selfTestSuite.addSelfTest(EvpHmac.SHA224.SELF_TEST);
     selfTestSuite.addSelfTest(EvpHmac.SHA1.SELF_TEST);
     selfTestSuite.addSelfTest(EvpHmac.MD5.SELF_TEST);
 
@@ -657,6 +658,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
    *   <li>HMacSHA512
    *   <li>HMacSHA384
    *   <li>HMacSHA256
+   *   <li>HMacSHA224
    *   <li>HMacSHA1
    *   <li>HMacMD5
    * </ul>
