@@ -22,8 +22,6 @@
 
 #define MAX_KEY_SIZE 32
 
-#define KEY_LEN_AES128 16
-#define KEY_LEN_AES192 24
 #define KEY_LEN_AES256 32
 
 using namespace AmazonCorrettoCryptoProvider;

@@ -641,13 +641,13 @@ public class XAes256GcmTest {
 
   @Test
   public void test_initImplicit() throws Throwable {
-    // amznC.init(Cipher.ENCRYPT_MODE, key);
-    // byte[] ciphertext = amznC.doFinal(PLAINTEXT);
+    amznC.init(Cipher.ENCRYPT_MODE, key);
+    byte[] ciphertext = amznC.doFinal(PLAINTEXT);
 
-    // jceC.init(Cipher.DECRYPT_MODE, key, amznC.getParameters());
-    // byte[] decrypted = jceC.doFinal(ciphertext);
+    jceC.init(Cipher.DECRYPT_MODE, key, amznC.getParameters());
+    byte[] decrypted = jceC.doFinal(ciphertext);
 
-    // assertArrayEquals(PLAINTEXT, decrypted);
+    assertArrayEquals(PLAINTEXT, decrypted);
   }
 
   @Test
@@ -663,15 +663,15 @@ public class XAes256GcmTest {
 
   @Test
   public void test_initParameters() throws Throwable {
-    // jceC.init(Cipher.ENCRYPT_MODE, key);
-    // byte[] ciphertext = jceC.doFinal(PLAINTEXT);
+    jceC.init(Cipher.ENCRYPT_MODE, key);
+    byte[] ciphertext = jceC.doFinal(PLAINTEXT);
 
-    // amznC.init(Cipher.DECRYPT_MODE, key, jceC.getParameters());
-    // byte[] decrypted = amznC.doFinal(ciphertext);
+    amznC.init(Cipher.DECRYPT_MODE, key, jceC.getParameters());
+    byte[] decrypted = amznC.doFinal(ciphertext);
 
-    // assertArrayEquals(PLAINTEXT, decrypted);
+    assertArrayEquals(PLAINTEXT, decrypted);
   }
-  
+
   @SuppressWarnings("ConstantConditions")
   @Test
   public void test_initNullKey() throws Throwable {

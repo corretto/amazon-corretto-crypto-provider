@@ -300,7 +300,7 @@ final class XAes256GcmSpi extends CipherSpi {
       throw new InvalidKeyException("IV required for decrypt");
     }
 
-    final byte[] iv = new byte[12];
+    final byte[] iv = new byte[24];
     secureRandom.nextBytes(iv);
 
     try {
