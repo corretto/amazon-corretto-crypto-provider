@@ -651,6 +651,28 @@ public class XAes256GcmTest {
   }
 
   @Test
+  public void test_20ByteIV() throws Throwable {
+    byte[] nonce = randomIV(20);
+    amznC.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, nonce));
+    amznC.update(new byte[0]);
+    byte[] ciphertext = amznC.doFinal();
+    jceC.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(128, nonce));
+    byte[] decrypted = jceC.doFinal(ciphertext);
+    assertArrayEquals(new byte[0], decrypted);
+  }
+
+  @Test
+  public void test_23ByteIV() throws Throwable {
+    byte[] nonce = randomIV(23);
+    amznC.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, nonce));
+    amznC.update(new byte[0]);
+    byte[] ciphertext = amznC.doFinal();
+    jceC.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(128, nonce));
+    byte[] decrypted = jceC.doFinal(ciphertext);
+    assertArrayEquals(new byte[0], decrypted);
+  }
+
+  @Test
   public void test_initImplicit_returnsNewIV() throws Throwable {
     amznC.init(Cipher.ENCRYPT_MODE, key);
     GCMParameterSpec parms1 = amznC.getParameters().getParameterSpec(GCMParameterSpec.class);
@@ -1401,6 +1423,10 @@ public class XAes256GcmTest {
 
   private byte[] randomIV() {
     return TestUtil.getRandomBytes(24);
+  }
+
+  private byte[] randomIV(int n) {
+    return TestUtil.getRandomBytes(n);
   }
 
   @Test

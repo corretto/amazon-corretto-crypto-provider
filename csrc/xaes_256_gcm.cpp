@@ -18,11 +18,9 @@
 #define EX_SHORTBUF "javax/crypto/ShortBufferException"
 
 // Number of bytes to process each time we lock the input/output byte arrays
-#define CHUNK_SIZE (256 * 1024)
-
-#define MAX_KEY_SIZE 32
-
-#define KEY_LEN_AES256 32
+#define CHUNK_SIZE           (256 * 1024)
+#define MAX_KEY_SIZE         32
+#define KEY_LEN_XAES_256_GCM 32
 
 using namespace AmazonCorrettoCryptoProvider;
 
@@ -32,7 +30,7 @@ static void initContext(raii_env& env, raii_cipher_ctx& ctx, jint opMode, java_b
 
     // We use a SecureBuffer on the stack rather than a borrow to minimize the number
     // of times we need to cross the JNI boundary (we only need to cross once this way)
-    SecureBuffer<uint8_t, KEY_LEN_AES256> keybuf;
+    SecureBuffer<uint8_t, KEY_LEN_XAES_256_GCM> keybuf;
     key.get_bytes(env, keybuf.buf, 0, key.len());
 
     if (unlikely(!EVP_CipherInit_ex(ctx, cipher, NULL, NULL, NULL, opMode))) {
