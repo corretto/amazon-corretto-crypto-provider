@@ -62,7 +62,7 @@ public class XAes256GcmTest {
   private static final byte[] PLAINTEXT =
       "Hello world. Good night moon.".getBytes(StandardCharsets.UTF_8);
   private static final String ALGO_NAME = "XAES_256/GCM/NoPadding";
-  private static final String PROVIDER_SUN = "SunJCE";
+  //   private static final String PROVIDER_SUN = "SunJCE";
   private byte[] nonce;
   private SecretKeySpec key;
   private Cipher jceC;
