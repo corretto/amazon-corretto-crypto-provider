@@ -91,6 +91,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     addService("Cipher", "AES/GCM/NoPadding", "AesGcmSpi");
     addService("Cipher", "AES_128/GCM/NoPadding", "AesGcmSpi");
     addService("Cipher", "AES_256/GCM/NoPadding", "AesGcmSpi");
+    addService("Cipher", "XAES_256/GCM/NoPadding", "XAes256GcmSpi");
 
     addService("Cipher", "AES/KW/NoPadding", "AesKeyWrapSpi", /*attributes*/ null, "AesWrap");
     addService(
