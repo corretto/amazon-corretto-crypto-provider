@@ -96,6 +96,9 @@ public class HmacTest {
       case "HmacSHA1":
         precomputedKeyLength = 20;
         break;
+      case "HmacSHA224":
+        precomputedKeyLength = 28;
+        break;
       case "HmacSHA256":
         precomputedKeyLength = 32;
         break;
@@ -150,6 +153,11 @@ public class HmacTest {
         byte[] message = Hex.decodeHex(in.next().toCharArray());
         switch (type) {
           case "sha2":
+            testMac(
+                Mac.getInstance("HmacSHA224", NATIVE_PROVIDER),
+                key,
+                message,
+                Hex.decodeHex(in.next().toCharArray()));
             testMac(
                 Mac.getInstance("HmacSHA256", NATIVE_PROVIDER),
                 key,

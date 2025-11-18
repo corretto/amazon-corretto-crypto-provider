@@ -33,6 +33,7 @@ MessageDigest algorithms:
 Mac algorithms:
 * HmacSHA512
 * HmacSHA384
+* HmacSHA224
 * HmacSHA256
 * HmacSHA1
 * HmacMD5
@@ -124,6 +125,7 @@ AlgorithmParameters:
 Mac algorithms with precomputed key and associated secret key factories (expert use only, refer to [HMAC with Precomputed Key](https://github.com/corretto/amazon-corretto-crypto-provider#HMAC-with-Precomputed-Key) for more information):
 * HmacSHA512WithPrecomputedKey
 * HmacSHA384WithPrecomputedKey
+* HmacSHA224WithPrecomputedKey
 * HmacSHA256WithPrecomputedKey
 * HmacSHA1WithPrecomputedKey
 * HmacMD5WithPrecomputedKey
