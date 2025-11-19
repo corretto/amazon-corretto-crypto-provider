@@ -32,6 +32,7 @@ final class XAes256GcmSpi extends CipherSpi {
     Loader.load();
   }
 
+  private static final int DEFAULT_KEY_SIZE = 32;
   private static final int DEFAULT_TAG_LENGTH = 16 * 8;
   private static final int DEFAULT_IV_LENGTH_BYTES = 24;
 
@@ -373,8 +374,8 @@ final class XAes256GcmSpi extends CipherSpi {
   private static byte[] checkIv(final GCMParameterSpec spec)
       throws InvalidAlgorithmParameterException {
     final byte[] iv = spec.getIV();
-    if (iv == null || iv.length == 0) {
-      throw new InvalidAlgorithmParameterException("IV must be at least one byte long");
+    if (iv == null || iv.length < 20 || iv.length > 24) {
+      throw new InvalidAlgorithmParameterException("IV must be 20 to 24 bytes long");
     }
     return iv;
   }
@@ -386,6 +387,9 @@ final class XAes256GcmSpi extends CipherSpi {
     }
     if (key == lastKey) {
       return lastKeyBytes;
+    }
+    if (key.getEncoded().length != DEFAULT_KEY_SIZE) {
+      throw new InvalidKeyException("Key must be 32 bytes long");
     }
     return checkAesKey(key);
   }

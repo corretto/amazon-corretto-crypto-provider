@@ -5,14 +5,18 @@ package com.amazon.corretto.crypto.provider.test;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.nio.ByteBuffer;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
 import java.util.Arrays;
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
+import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
@@ -124,6 +128,20 @@ public class XAes256GcmKatTest {
     cipher.init(Cipher.DECRYPT_MODE, key, ivSpec);
     cipher.doFinal(buffer, 0, buffer.length, buffer);
     assertArrayEquals(plaintext, Arrays.copyOf(buffer, buffer.length - tag_size));
+
+    // Multi-shot in same buffer
+    final byte[] iv = new byte[IV_SIZE];
+    SECURE_RANDOM.nextBytes(iv);
+    ivSpec = new IvParameterSpec(iv);
+    cipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
+    buffer = Arrays.copyOf(plaintext, plaintext.length + tag_size);
+    cipher.update(buffer, 0, plaintext.length/4, buffer, 0);
+    cipher.update(buffer, plaintext.length/4, plaintext.length/4, buffer, plaintext.length/4);
+    cipher.doFinal(buffer, plaintext.length/2, plaintext.length/2, buffer, plaintext.length/2);
+    assertFalse(Arrays.equals(plaintext, buffer));
+    cipher.init(Cipher.DECRYPT_MODE, key, ivSpec);
+    cipher.doFinal(buffer, 0, buffer.length, buffer, 0);
+    assertArrayEquals(plaintext, Arrays.copyOf(buffer, plaintext.length));
   }
 
   @Test
@@ -222,7 +240,7 @@ public class XAes256GcmKatTest {
 
     assertEquals(sunEncryptCipher.getAlgorithm(), accpEncryptCipher.getAlgorithm());
   }
-  
+
   // Source of the following test vectors:
   // https://github.com/C2SP/C2SP/blob/main/XAES-256-GCM.md
   @Test
@@ -302,6 +320,33 @@ public class XAes256GcmKatTest {
     decryptCipher.updateAAD(aad);
     final byte[] decrypted = decryptCipher.doFinal(expectedCiphertext);
     assertArrayEquals(plaintext, decrypted, "Decryption should match known answer vector");
+  }
+
+  @Test
+  public void testInvalidParameters() throws Throwable {
+    final SecretKey key = generateKey(KEY_SIZE_256);
+    final byte[] iv = new byte[IV_SIZE];
+    SECURE_RANDOM.nextBytes(iv);
+    final IvParameterSpec ivSpec = new IvParameterSpec(iv);
+    final Cipher cipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
+
+    // Test invalid IV size
+    final byte[] shortIv = new byte[BLOCK_SIZE - 1];
+    SECURE_RANDOM.nextBytes(shortIv);
+    final IvParameterSpec shortIvSpec = new IvParameterSpec(shortIv);
+    assertThrows(
+        InvalidAlgorithmParameterException.class,
+        () -> cipher.init(Cipher.ENCRYPT_MODE, key, shortIvSpec),
+        "Should throw exception for invalid IV size");
+    
+    // Test invalid key size
+    final byte[] invalidKey = new byte[24]; // 192 bits, not supported
+    SECURE_RANDOM.nextBytes(invalidKey);
+    final SecretKeySpec invalidKeySpec = new SecretKeySpec(invalidKey, "AES");
+    assertThrows(
+        InvalidKeyException.class,
+        () -> cipher.init(Cipher.ENCRYPT_MODE, invalidKeySpec, ivSpec),
+        "Should throw exception for invalid key size");
   }
 
   private SecretKey generateKey(int keySize)
