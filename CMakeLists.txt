@@ -309,6 +309,7 @@ include_directories(${OPENSSL_INCLUDE_DIR} ${JNI_INCLUDE_DIRS} ${JNI_HEADER_DIR}
 
 set(C_SRC
     csrc/aes_gcm.cpp
+    csrc/xaes_256_gcm.cpp
     csrc/aes_xts.cpp
     csrc/aes_cbc.cpp
     csrc/aes_cfb.cpp
