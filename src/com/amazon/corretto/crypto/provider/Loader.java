@@ -13,6 +13,7 @@ import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.nio.file.attribute.UserPrincipal;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Properties;
@@ -429,6 +430,33 @@ final class Loader {
     throw new AssertionError("Unable to read enough entropy");
   }
 
+  private static void verifyDirectoryOwnershipAndPermissions(Path directory) throws IOException {
+    UserPrincipal directoryOwner = Files.getOwner(directory);
+    String currentUsername = System.getProperty("user.name");
+    UserPrincipal currentUser =
+        FileSystems.getDefault()
+            .getUserPrincipalLookupService()
+            .lookupPrincipalByName(currentUsername);
+
+    if (!directoryOwner.equals(currentUser)) {
+      throw new IOException(
+          "Directory ownership mismatch. Expected: "
+              + currentUser.getName()
+              + ", Found: "
+              + directoryOwner.getName());
+    }
+
+    Set<PosixFilePermission> actualPerms = Files.getPosixFilePermissions(directory);
+    Set<PosixFilePermission> expectedPerms = SELF_OWNER_FILE_PERMISSIONS.value();
+    if (!actualPerms.equals(expectedPerms)) {
+      throw new IOException(
+          "Directory permissions incorrect. Expected: "
+              + PosixFilePermissions.toString(expectedPerms)
+              + ", Found: "
+              + PosixFilePermissions.toString(actualPerms));
+    }
+  }
+
   /**
    * Unfortunately, we cannot actually use Files.createTempFile, because that internally depends on
    * SecureRandom, which results in a circular dependency.
@@ -464,6 +492,7 @@ final class Loader {
 
         final Path result =
             Files.createDirectories(privateDirFullPath, SELF_OWNER_FILE_PERMISSIONS);
+        verifyDirectoryOwnershipAndPermissions(result);
         if (DebugFlag.VERBOSELOGS.isEnabled()) {
           LOG.log(Level.FINE, "Created temporary library directory");
         }
