@@ -25,7 +25,7 @@ public class MLKEMEncapDecap {
     @Param({ "ML-KEM-512", "ML-KEM-768", "ML-KEM-1024" })
     public String algorithm;
 
-    @Param({ AmazonCorrettoCryptoProvider.PROVIDER_NAME, "BC" })
+    @Param({AmazonCorrettoCryptoProvider.PROVIDER_NAME, "BC"})
     public String provider;
 
     private KEM kem;
@@ -36,6 +36,10 @@ public class MLKEMEncapDecap {
     @Setup
     public void setup() throws Exception {
         BenchmarkUtils.setupProvider(provider);
+
+        if ("BC".equals(provider) && BenchmarkUtils.getJavaVersion() < 21) {
+          throw new RuntimeException("BouncyCastle doesn't register ML-KEM until JDK 21");
+        }
 
         KeyPairGenerator kpg = KeyPairGenerator.getInstance(algorithm, provider);
         keyPair = kpg.generateKeyPair();
