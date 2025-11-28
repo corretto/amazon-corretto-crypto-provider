@@ -3,9 +3,12 @@
 #include "keyutils.h"
 #include "auto_free.h"
 #include "bn.h"
+#include <openssl/bytestring.h>
 #include <openssl/ec.h>
 #include <openssl/err.h>
 #include <openssl/evp.h>
+#include <openssl/obj.h>
+#include <openssl/pkcs8.h>
 #include <openssl/rsa.h>
 
 namespace AmazonCorrettoCryptoProvider {
@@ -229,5 +232,47 @@ size_t encodeExpandedMLDSAPrivateKey(const EVP_PKEY* key, uint8_t** out)
     return out_len;
 }
 #endif // !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
+
+size_t encodeRfc5915EcPrivateKey(const EVP_PKEY* key, uint8_t** out)
+{
+    CHECK_OPENSSL(key);
+    CHECK_OPENSSL(EVP_PKEY_id(key) == EVP_PKEY_EC);
+    CHECK_OPENSSL(out);
+    int nid = EVP_PKEY_id(key);
+    if (nid == NID_undef) {
+        throw_java_ex(EX_ILLEGAL_ARGUMENT, "Unknown EC key type");
+    }
+    const ASN1_OBJECT* oid_obj = OBJ_nid2obj(nid);
+    if (oid_obj == nullptr) {
+        throw_java_ex(EX_ILLEGAL_ARGUMENT, "No EC key OID for NID");
+    }
+    const uint8_t* oid_data = OBJ_get0_data(oid_obj);
+    if (oid_data == nullptr) {
+        throw_java_ex(EX_ILLEGAL_ARGUMENT, "No DER representation for OBJ");
+    }
+    int oid_data_len = OBJ_length(oid_obj);
+    const EC_KEY* ec_key = EVP_PKEY_get0_EC_KEY(key);
+    CBB cbb, pkcs8, algorithm, oid, priv;
+    CBB_init(&cbb, 0);
+    // spotless:off
+    if (!CBB_add_asn1(&cbb, &pkcs8, CBS_ASN1_SEQUENCE) ||
+        !CBB_add_asn1_uint64(&pkcs8, 0 /* version */) ||
+        !CBB_add_asn1(&pkcs8, &algorithm, CBS_ASN1_SEQUENCE) ||
+        !CBB_add_asn1(&algorithm, &oid, CBS_ASN1_OBJECT) ||
+        !CBB_add_bytes(&oid, oid_data, oid_data_len) ||
+        !EC_KEY_marshal_curve_name(&algorithm, EC_KEY_get0_group(ec_key)) ||
+        !CBB_add_asn1(&pkcs8, &priv, CBS_ASN1_OCTETSTRING) ||
+        !EC_KEY_marshal_private_key(&priv, ec_key, 0 /* enc_flags */) ||
+        !CBB_flush(&cbb)) {
+        throw_java_ex(EX_RUNTIME_CRYPTO, "Error serializing expanded EC key");
+    }
+    // spotless:on
+    size_t out_len;
+    if (!CBB_finish(&cbb, out, &out_len)) {
+        OPENSSL_free(*out);
+        throw_java_ex(EX_RUNTIME_CRYPTO, "Error finalizing expanded EC key");
+    }
+    return out_len;
+}
 
 }

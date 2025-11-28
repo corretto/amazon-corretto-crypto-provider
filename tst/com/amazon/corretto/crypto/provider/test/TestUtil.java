@@ -3,6 +3,7 @@
 package com.amazon.corretto.crypto.provider.test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
@@ -183,6 +184,12 @@ public class TestUtil {
     final String expectedHex = Hex.encodeHexString(expected);
     final String actualHex = Hex.encodeHexString(actual);
     assertEquals(expectedHex, actualHex);
+  }
+
+  public static void assertArraysHexNotEquals(byte[] expected, byte[] actual) {
+    final String expectedHex = Hex.encodeHexString(expected);
+    final String actualHex = Hex.encodeHexString(actual);
+    assertNotEquals(expectedHex, actualHex);
   }
 
   public static void assertThrows(Class<? extends Throwable> expected, ThrowingRunnable callable) {

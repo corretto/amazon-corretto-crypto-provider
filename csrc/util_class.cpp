@@ -184,4 +184,45 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_utils_MlDsaUtils_co
     }
 }
 #endif // !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
+
+/*
+ * Class:     com_amazon_corretto_crypto_utils_EcUtils
+ * Method:    encodeRfc5915EcPrivateKeyInternal
+ * Signature: ([B)[B
+ */
+JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_utils_EcUtils_encodeRfc5915EcPrivateKeyInternal(
+    JNIEnv* pEnv, jclass, jbyteArray privKeyEncoded)
+{
+    jbyteArray result = NULL;
+    try {
+        raii_env env(pEnv);
+        jsize key_der_len = env->GetArrayLength(privKeyEncoded);
+        uint8_t* key_der = (uint8_t*)env->GetByteArrayElements(privKeyEncoded, nullptr);
+        CHECK_OPENSSL(key_der);
+
+        // Parse the private key
+        BIO* key_bio = BIO_new_mem_buf(key_der, key_der_len);
+        CHECK_OPENSSL(key_bio);
+        PKCS8_PRIV_KEY_INFO_auto pkcs8 = PKCS8_PRIV_KEY_INFO_auto::from(d2i_PKCS8_PRIV_KEY_INFO_bio(key_bio, nullptr));
+        CHECK_OPENSSL(pkcs8.isInitialized());
+        EVP_PKEY_auto pkey = EVP_PKEY_auto::from(EVP_PKCS82PKEY(pkcs8));
+        CHECK_OPENSSL(pkey.isInitialized());
+
+        OPENSSL_buffer_auto new_der;
+        int new_der_len = encodeRfc5915EcPrivateKey(pkey, &new_der);
+        CHECK_OPENSSL(new_der_len > 0);
+        if (!(result = env->NewByteArray(new_der_len))) {
+            throw_java_ex(EX_OOM, "Unable to allocate DER array");
+        }
+        env->SetByteArrayRegion(result, 0, new_der_len, (const jbyte*)new_der);
+
+        env->ReleaseByteArrayElements(privKeyEncoded, (jbyte*)key_der, 0);
+        BIO_free(key_bio);
+
+    } catch (java_ex& ex) {
+        ex.throw_to_java(pEnv);
+        return 0;
+    }
+    return result;
+}
 }
