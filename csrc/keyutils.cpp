@@ -262,6 +262,8 @@ size_t encodeRfc5915EcPrivateKey(const EVP_PKEY* key, uint8_t** out)
         !CBB_add_bytes(&oid, oid_data, oid_data_len) ||
         !EC_KEY_marshal_curve_name(&algorithm, EC_KEY_get0_group(ec_key)) ||
         !CBB_add_asn1(&pkcs8, &priv, CBS_ASN1_OCTETSTRING) ||
+        // Set |enc_flags| to 0 below to force encoding of redundant curve OID
+        // in the inner private key encoding.
         !EC_KEY_marshal_private_key(&priv, ec_key, 0 /* enc_flags */) ||
         !CBB_flush(&cbb)) {
         throw_java_ex(EX_RUNTIME_CRYPTO, "Error serializing expanded EC key");
