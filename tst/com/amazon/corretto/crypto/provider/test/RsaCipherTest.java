@@ -324,17 +324,15 @@ public class RsaCipherTest {
         InvalidAlgorithmParameterException.class,
         () -> c.init(Cipher.ENCRYPT_MODE, PAIR_2048.getPublic(), badMgf));
 
-    // Non-empty PSource
-    psource = new PSource.PSpecified(new byte[1]);
-    final OAEPParameterSpec badSource =
+    // Non-empty PSource should succeed
+    psource = new PSource.PSpecified(new byte[] {0x00, 0x01, 0x02, 0x03});
+    final OAEPParameterSpec customSource =
         new OAEPParameterSpec(
             OAEPParameterSpec.DEFAULT.getDigestAlgorithm(),
             OAEPParameterSpec.DEFAULT.getMGFAlgorithm(),
             OAEPParameterSpec.DEFAULT.getMGFParameters(),
             psource);
-    assertThrows(
-        InvalidAlgorithmParameterException.class,
-        () -> c.init(Cipher.ENCRYPT_MODE, PAIR_2048.getPublic(), badSource));
+        c.init(Cipher.ENCRYPT_MODE, PAIR_2048.getPublic(), customSource);
 
     // Bad message digest parameters
     final OAEPParameterSpec badMd =
