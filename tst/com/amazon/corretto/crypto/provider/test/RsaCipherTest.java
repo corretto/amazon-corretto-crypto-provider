@@ -332,7 +332,7 @@ public class RsaCipherTest {
             OAEPParameterSpec.DEFAULT.getMGFAlgorithm(),
             OAEPParameterSpec.DEFAULT.getMGFParameters(),
             psource);
-        c.init(Cipher.ENCRYPT_MODE, PAIR_2048.getPublic(), customSource);
+    c.init(Cipher.ENCRYPT_MODE, PAIR_2048.getPublic(), customSource);
 
     // Bad message digest parameters
     final OAEPParameterSpec badMd =
@@ -993,6 +993,44 @@ public class RsaCipherTest {
     for (final byte b : result) {
       assertEquals(b, 0);
     }
+  }
+
+  @Test
+  public void testOaepCustomP() throws Exception {
+    final OAEPParameterSpec customPSource =
+        new OAEPParameterSpec(
+            OAEPParameterSpec.DEFAULT.getDigestAlgorithm(),
+            OAEPParameterSpec.DEFAULT.getMGFAlgorithm(),
+            OAEPParameterSpec.DEFAULT.getMGFParameters(),
+            new PSource.PSpecified(new byte[] {0x00, 0x01, 0x02, 0x03}));
+    final OAEPParameterSpec defaultParamsSpec =
+        new OAEPParameterSpec(
+            OAEPParameterSpec.DEFAULT.getDigestAlgorithm(),
+            OAEPParameterSpec.DEFAULT.getMGFAlgorithm(),
+            OAEPParameterSpec.DEFAULT.getMGFParameters(),
+            PSource.PSpecified.DEFAULT);
+    final byte[] plaintext =
+        getPlaintext((2048 / 8) - getPaddingSize(OAEP_PADDING, customPSource) - 4);
+    final Cipher encrypt = getNativeCipher(OAEP_PADDING);
+    final Cipher decrypt = getNativeCipher(OAEP_PADDING);
+
+    // Encrypt/decrypt with same PSource should succeed
+    encrypt.init(Cipher.ENCRYPT_MODE, PAIR_2048.getPublic(), customPSource);
+    decrypt.init(Cipher.DECRYPT_MODE, PAIR_2048.getPrivate(), customPSource);
+    byte[] ciphertext = encrypt.doFinal(plaintext);
+    byte[] decrypted = decrypt.doFinal(ciphertext);
+    assertArrayEquals(plaintext, decrypted);
+
+    // Encrypt/decrypt with differing PSource should fail
+    encrypt.init(Cipher.ENCRYPT_MODE, PAIR_2048.getPublic(), customPSource);
+    decrypt.init(Cipher.DECRYPT_MODE, PAIR_2048.getPrivate(), defaultParamsSpec);
+    final byte[] c1 = encrypt.doFinal(plaintext);
+    assertThrows(BadPaddingException.class, () -> decrypt.doFinal(c1));
+
+    encrypt.init(Cipher.ENCRYPT_MODE, PAIR_2048.getPublic(), defaultParamsSpec);
+    decrypt.init(Cipher.DECRYPT_MODE, PAIR_2048.getPrivate(), customPSource);
+    final byte[] c2 = encrypt.doFinal(plaintext);
+    assertThrows(BadPaddingException.class, () -> decrypt.doFinal(c2));
   }
 
   private void testNative2Jce(final String padding, final int keySize, final OAEPParameterSpec oaep)

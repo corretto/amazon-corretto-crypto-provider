@@ -28,7 +28,8 @@ void setPaddingParams(
             if (labelLen > 0) {
                 jbyte* labelBytes = pEnv->GetByteArrayElements(oaepLabel, nullptr);
                 if (labelBytes) {
-                    // AWS-LC takes ownership of the label data, so we need to allocate a copy
+                    // AWS-LC takes ownership of the label data, so we need to allocate a copy rather
+                    // than give it JVM-manage'd memory from GetByteArrayElements
                     unsigned char* labelCopy = static_cast<unsigned char*>(OPENSSL_malloc(labelLen));
                     if (labelCopy) {
                         memcpy(labelCopy, labelBytes, labelLen);

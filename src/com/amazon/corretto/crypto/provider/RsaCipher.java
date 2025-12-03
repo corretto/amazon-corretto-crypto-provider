@@ -180,9 +180,10 @@ class RsaCipher extends CipherSpi {
         mgfMdPtr =
             Utils.getMdPtr(
                 ((MGF1ParameterSpec) oaepParams_.getMGFParameters()).getDigestAlgorithm());
-        oaepLabel = oaepParams_.getPSource() == null
-            ? null
-            : ((PSource.PSpecified) oaepParams_.getPSource()).getValue();
+        oaepLabel =
+            oaepParams_.getPSource() == null
+                ? null
+                : ((PSource.PSpecified) oaepParams_.getPSource()).getValue();
       } else {
         oaepMdPtr = 0;
         mgfMdPtr = 0;
