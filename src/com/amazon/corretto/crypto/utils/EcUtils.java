@@ -24,7 +24,7 @@ public final class EcUtils {
    */
   public static byte[] encodeRfc5915EcPrivateKey(PrivateKey privateKey) {
     if (privateKey == null || !privateKey.getAlgorithm().equals("EC")) {
-      throw new IllegalArgumentException();
+      throw new IllegalArgumentException("Key must be EC");
     }
     return encodeRfc5915EcPrivateKeyInternal(privateKey.getEncoded());
   }

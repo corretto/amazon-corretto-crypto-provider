@@ -193,7 +193,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_utils_MlDsaUtils_co
 JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_utils_EcUtils_encodeRfc5915EcPrivateKeyInternal(
     JNIEnv* pEnv, jclass, jbyteArray privKeyEncoded)
 {
-    jbyteArray result = NULL;
+    jbyteArray result = nullptr;
     try {
         raii_env env(pEnv);
         jsize key_der_len = env->GetArrayLength(privKeyEncoded);
@@ -221,7 +221,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_utils_EcUtils_encod
 
     } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);
-        return 0;
+        return nullptr;
     }
     return result;
 }
