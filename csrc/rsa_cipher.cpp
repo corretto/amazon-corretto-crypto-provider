@@ -23,7 +23,8 @@ void setPaddingParams(
         if (oaepMdPtr) {
             CHECK_OPENSSL(EVP_PKEY_CTX_set_rsa_oaep_md(keyCtx, reinterpret_cast<const EVP_MD*>(oaepMdPtr)));
         }
-        if (oaepLabel && pEnv) {
+        if (oaepLabel) {
+            assert(pEnv != nullptr);
             jsize labelLen = pEnv->GetArrayLength(oaepLabel);
             if (labelLen > 0) {
                 jbyte* labelBytes = pEnv->GetByteArrayElements(oaepLabel, nullptr);
