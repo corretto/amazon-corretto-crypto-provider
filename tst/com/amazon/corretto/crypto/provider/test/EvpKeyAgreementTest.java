@@ -169,7 +169,7 @@ public class EvpKeyAgreementTest {
         "ECDH(X25519)",
         KeyPairGenerator.getInstance("X25519", NATIVE_PROVIDER),
         NATIVE_PROVIDER,
-        TestUtil.JAVA_VERSION > 11 ? BC_PROV : NATIVE_PROVIDER,
+        TestUtil.JAVA_VERSION < 11 ? BC_PROV : NATIVE_PROVIDER,
         Arrays.asList());
   }
 
