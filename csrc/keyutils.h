@@ -152,6 +152,15 @@ RSA* new_private_RSA_key_with_no_e(BIGNUM const* n, BIGNUM const* d);
 size_t encodeExpandedMLDSAPrivateKey(const EVP_PKEY* key, uint8_t** out);
 #endif
 
+// Formats an EC private key with redundant curve identifier confromant to RFC
+// 5915, similar to BouncyCastle's encoding format. Allocates appropriately
+// sized buffer to |*out|, writes the key to |*out|, and returns the size of
+// |*out| on success and throws an unchecked exception on failure. The caller
+// takes ownership of |*out|.
+//
+// https://datatracker.ietf.org/doc/html/rfc5915#section-3
+size_t encodeRfc5915EcPrivateKey(const EVP_PKEY* key, uint8_t** out);
+
 }
 
 #endif
