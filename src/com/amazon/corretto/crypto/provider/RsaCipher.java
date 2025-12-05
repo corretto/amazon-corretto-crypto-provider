@@ -60,6 +60,7 @@ class RsaCipher extends CipherSpi {
       int padding,
       long oaepMdPtr,
       long mgfMdPtr,
+      byte[] oaepLabel,
       byte[] input,
       int inOff,
       int inLength,
@@ -173,14 +174,20 @@ class RsaCipher extends CipherSpi {
 
       final long oaepMdPtr;
       final long mgfMdPtr;
+      final byte[] oaepLabel;
       if (padding_ == Padding.OAEP) {
         oaepMdPtr = Utils.getMdPtr(oaepParams_.getDigestAlgorithm());
         mgfMdPtr =
             Utils.getMdPtr(
                 ((MGF1ParameterSpec) oaepParams_.getMGFParameters()).getDigestAlgorithm());
+        oaepLabel =
+            oaepParams_.getPSource() == null
+                ? null
+                : ((PSource.PSpecified) oaepParams_.getPSource()).getValue();
       } else {
         oaepMdPtr = 0;
         mgfMdPtr = 0;
+        oaepLabel = null;
       }
 
       final byte[] finalInput = input;
@@ -195,6 +202,7 @@ class RsaCipher extends CipherSpi {
                       padding_.nativeVal,
                       oaepMdPtr,
                       mgfMdPtr,
+                      oaepLabel,
                       finalInput,
                       finalInputOffset,
                       finalInputLen,
@@ -273,10 +281,6 @@ class RsaCipher extends CipherSpi {
           throw new InvalidAlgorithmParameterException();
         }
         if (!(psrc instanceof PSource.PSpecified)) {
-          throw new InvalidAlgorithmParameterException();
-        }
-        // TODO: support non-empty labels, there's no technical reason not to
-        if (((PSource.PSpecified) psrc).getValue().length != 0) {
           throw new InvalidAlgorithmParameterException();
         }
         final MGF1ParameterSpec mgfParams = (MGF1ParameterSpec) oaep.getMGFParameters();
