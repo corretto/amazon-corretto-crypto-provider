@@ -68,6 +68,9 @@ public class EvpKeyAgreementTest {
     MASTER_PARAMS_LIST.add(buildEcdhParameters(new ECGenParameterSpec("NIST P-384"), "NIST P-384"));
     MASTER_PARAMS_LIST.add(buildEcdhParameters(new ECGenParameterSpec("NIST P-521"), "NIST P-521"));
     MASTER_PARAMS_LIST.add(buildEcdhParameters(EcGenTest.EXPLICIT_CURVE, "Explicit Curve"));
+    if (TestUtil.JAVA_VERSION >= 11) {
+      MASTER_PARAMS_LIST.add(buildX25519Parameters());
+    }
   }
 
   // No need to keep these in memory
@@ -158,6 +161,16 @@ public class EvpKeyAgreementTest {
         BC_PROV,
         Arrays.asList(
             buildKeyAtInfinity(pubKey), buildKeyOffCurve(pubKey), buildKeyOnWrongCurve(pubKey)));
+  }
+
+  private static TestParams buildX25519Parameters() throws GeneralSecurityException, IOException {
+    return new TestParams(
+        "X25519",
+        "ECDH(X25519)",
+        KeyPairGenerator.getInstance("X25519", NATIVE_PROVIDER),
+        NATIVE_PROVIDER,
+        NATIVE_PROVIDER,
+        Arrays.asList());
   }
 
   static ECPublicKey buildKeyOffCurve(final ECPublicKey goodKey) throws GeneralSecurityException {
