@@ -10,16 +10,35 @@
 #include <openssl/evp.h>
 #include <openssl/rsa.h>
 #include <stdio.h>
+#include <string.h>
 
 using namespace AmazonCorrettoCryptoProvider;
 
-void setPaddingParams(EVP_PKEY_CTX* keyCtx, int padding, long oaepMdPtr, long mgfMdPtr)
+void setPaddingParams(
+    EVP_PKEY_CTX* keyCtx, int padding, long oaepMdPtr, long mgfMdPtr, jbyteArray oaepLabel, JNIEnv* pEnv)
 {
     CHECK_OPENSSL(EVP_PKEY_CTX_set_rsa_padding(keyCtx, padding));
     switch (padding) {
     case RSA_PKCS1_OAEP_PADDING:
         if (oaepMdPtr) {
             CHECK_OPENSSL(EVP_PKEY_CTX_set_rsa_oaep_md(keyCtx, reinterpret_cast<const EVP_MD*>(oaepMdPtr)));
+        }
+        if (oaepLabel) {
+            assert(pEnv != nullptr);
+            jsize labelLen = pEnv->GetArrayLength(oaepLabel);
+            if (labelLen > 0) {
+                jbyte* labelBytes = pEnv->GetByteArrayElements(oaepLabel, nullptr);
+                if (labelBytes) {
+                    // AWS-LC takes ownership of the label data, so we need to allocate a copy rather
+                    // than give it JVM-manage'd memory from GetByteArrayElements
+                    unsigned char* labelCopy = static_cast<unsigned char*>(OPENSSL_malloc(labelLen));
+                    if (labelCopy) {
+                        memcpy(labelCopy, labelBytes, labelLen);
+                        CHECK_OPENSSL(EVP_PKEY_CTX_set0_rsa_oaep_label(keyCtx, labelCopy, labelLen));
+                    }
+                    pEnv->ReleaseByteArrayElements(oaepLabel, labelBytes, JNI_ABORT);
+                }
+            }
         }
         // intentionally fall-through to set MGF1 digest if specified
     case RSA_PKCS1_PSS_PADDING:
@@ -42,6 +61,7 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_RsaCipher_cipher
     jint padding,
     jlong oaepMdPtr,
     jlong mgfMdPtr,
+    jbyteArray oaepLabel,
     jbyteArray input,
     jint inOff,
     jint inLength,
@@ -82,23 +102,23 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_RsaCipher_cipher
             case 2: // Decrypt
             case 4: // Unwrap
                 CHECK_OPENSSL(EVP_PKEY_decrypt_init(keyCtx));
-                setPaddingParams(keyCtx, padding, oaepMdPtr, mgfMdPtr);
+                setPaddingParams(keyCtx, padding, oaepMdPtr, mgfMdPtr, oaepLabel, pEnv);
                 ret = EVP_PKEY_decrypt(keyCtx, out.data(), &len, in.data(), inLength);
                 break;
             case 1: // Encrypt
             case 3: // Wrap
                 CHECK_OPENSSL(EVP_PKEY_encrypt_init(keyCtx));
-                setPaddingParams(keyCtx, padding, oaepMdPtr, mgfMdPtr);
+                setPaddingParams(keyCtx, padding, oaepMdPtr, mgfMdPtr, oaepLabel, pEnv);
                 ret = EVP_PKEY_encrypt(keyCtx, out.data(), &len, in.data(), inLength);
                 break;
             case -1: // Encrypt with a private key, a.k.a. signing
                 CHECK_OPENSSL(EVP_PKEY_sign_init(keyCtx));
-                setPaddingParams(keyCtx, padding, oaepMdPtr, mgfMdPtr);
+                setPaddingParams(keyCtx, padding, oaepMdPtr, mgfMdPtr, oaepLabel, pEnv);
                 ret = EVP_PKEY_sign(keyCtx, out.data(), &len, in.data(), inLength);
                 break;
             case -2: // Decrypt with a public key, a.k.a verification
                 CHECK_OPENSSL(EVP_PKEY_verify_recover_init(keyCtx));
-                setPaddingParams(keyCtx, padding, oaepMdPtr, mgfMdPtr);
+                setPaddingParams(keyCtx, padding, oaepMdPtr, mgfMdPtr, oaepLabel, pEnv);
                 ret = EVP_PKEY_verify_recover(keyCtx, out.data(), &len, in.data(), inLength);
                 break;
             default:
