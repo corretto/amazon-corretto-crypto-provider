@@ -8,6 +8,7 @@ testing_fips=false
 testing_experimental_fips=false
 testing_fips_self_test_skip_abort=false
 testing_fips_test_break=false
+testing_latest_awslc=false
 target_jdk_version=""
 
 # Depending on lcov version, either inconsistent or source needs to be passed
@@ -38,6 +39,11 @@ while [[ $# -gt 0 ]]; do
         target_jdk_version="$2"
         shift 2
         ;;
+    --latest-awslc)
+        # Use the latest (main branch) AWS-LC commit instead of the currently checked in submodule.
+        testing_latest_awslc=true
+        shift
+        ;;
     *)
         echo "$1 is not supported."
         exit 1
@@ -47,6 +53,16 @@ done
 
 # Parse and check which JDK version we're testing upon.
 version=$($TEST_JAVA_HOME/bin/java -version 2>&1 | head -1 | cut -d'"' -f2 | sed '/^1\./s///' | cut -d'.' -f1)
+
+awslc_src_override=""
+if [[ "${testing_latest_awslc}" == "true" ]]; then
+    echo "Testing against AWS-LC main branch tip"
+    awslc_src="${PWD}/build/awslc-src"
+    rm -rf "${awslc_src}"
+    mkdir -p "${awslc_src}"
+    git clone https://github.com/aws/aws-lc.git "${awslc_src}"
+    awslc_src_override="-DAWSLC_SRC_DIR=${awslc_src} -DAWSLC_GITVERSION=main"
+fi
 
 # The JDK version should be least 10 for a regular ACCP build. We can
 # still test on older versions with the TEST_JAVA_HOME property.
@@ -60,6 +76,7 @@ if (( "$version" <= "10" )); then
         -DFIPS=$testing_fips \
         -DLCOV_IGNORE=$lcov_ignore \
         -DTARGET_JDK_VERSION=$target_jdk_version \
+        $awslc_src_override \
         coverage test
     exit $?
 fi
@@ -77,4 +94,5 @@ export PATH=$JAVA_HOME/bin:$PATH
     -DFIPS=$testing_fips \
     -DLCOV_IGNORE=$lcov_ignore \
     -DTARGET_JDK_VERSION=$target_jdk_version \
+    $awslc_src_override \
     release
