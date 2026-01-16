@@ -184,9 +184,17 @@ ACCP has the following requirements:
 * JDK8 or newer (This includes both OracleJDK and [Amazon Corretto](https://aws.amazon.com/corretto/))
 * Linux (x86-64 or arm64) or MacOs running on x86_64 (also known as x64 or AMD64)
 
-ACCP comes bundled with AWS-LC's `libcrypto.so`, so it is not necessary to install AWS-LC on the host or container where you run your application.
+## JDK 25+ Native Access
+Starting with JDK 25, the JVM [warns](https://openjdk.org/jeps/472) when native libraries are loaded without explicit native access enabled.
+To suppress these warnings when using ACCP, add the following JVM argument as described [here](https://docs.oracle.com/en/java/javase/25/core/restricted-methods.html):
 
-If ACCP is used/installed on a system it does not support, it will disable itself and the JVM will behave as if ACCP weren't installed at all.
+```
+--enable-native-access=ALL-UNNAMED
+```
+
+Or, if you're producing an executable JAR, you can update the JAR manifest as described [here](https://docs.oracle.com/en/java/javase/25/docs/specs/jar/jar.html#jar-manifest).
+
+This flag/manifest update will become required in a future JDK release when native access is denied by default.
 
 # Using the provider
 ## Installation
