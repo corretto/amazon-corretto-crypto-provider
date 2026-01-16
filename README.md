@@ -162,10 +162,10 @@ ACCP did not track a FIPS branch/release version of AWS-LC until ACCP v2.3.0. Be
 | 2.4.0               | 1.30.1         | 2.0.13              |
 | 2.4.1               | 1.30.1         | 2.0.13              |
 | 2.5.0               | 1.47.0         | 3.0.0               |
-| 2.6.0               | 1.48.2         | 3.0.0               |
+| 2.6.0               | 1.66.2         | 3.1.0               |
 
 Notable differences between ACCP and ACCP-FIPS:
-* ACCP uses [the latest release of AWS-LC](https://github.com/aws/aws-lc/releases), whereas, ACCP-FIPS uses [the fips-2022-11-02 branch of AWS-LC](https://github.com/aws/aws-lc/tree/fips-2022-11-02).
+* ACCP uses [the latest release of AWS-LC](https://github.com/aws/aws-lc/releases), whereas, ACCP-FIPS uses [a timestamped FIPS branch of AWS-LC](https://github.com/aws/aws-lc/branches).
 * ACCP-FIPS builds AWS-LC in FIPS mode by passing `-DFIPS=1` when configuring AWS-LC's build.
 * For details about the FIPS module of AWS-LC in FIPS mode, including the entropy sources used, see the [AWS-LC FIPS.md documentation](https://github.com/aws/aws-lc/blob/main/crypto/fipsmodule/FIPS.md).
 * In FIPS-mode, RSA keys are limited to 2048, 3072, or 4096 bits in size with public exponent F4.
