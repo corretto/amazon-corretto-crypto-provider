@@ -84,6 +84,14 @@ class EvpSignatureRaw extends EvpSignatureBase {
     return buffer.size() == 0;
   }
 
+  protected int getBufferSize() {
+    return buffer.size();
+  }
+
+  protected byte[] getBufferData() {
+    return buffer.getDataBuffer();
+  }
+
   private static native byte[] signRaw(
       long privateKey,
       int paddingType,
@@ -131,4 +139,121 @@ class EvpSignatureRaw extends EvpSignatureBase {
       super(provider, EvpKeyType.MLDSA, 0, true);
     }
   }
+
+  static final class RSAEMSA_PSS extends EvpSignatureRaw {
+    RSAEMSA_PSS(final AmazonCorrettoCryptoProvider provider) {
+      super(provider, EvpKeyType.RSA, RSA_PKCS1_PSS_PADDING, false);
+    }
+
+    @Override
+    protected void engineUpdate(final byte b) throws SignatureException {
+      final int expectedDigestLen = Utils.getMdLen(digest_);
+      if (getBufferSize() >= expectedDigestLen) {
+        throw new SignatureException(
+            "Input exceeds digest length. Expected "
+                + expectedDigestLen
+                + " bytes, already have "
+                + getBufferSize());
+      }
+      super.engineUpdate(b);
+    }
+
+    @Override
+    protected void engineUpdate(final byte[] b, final int off, final int len)
+        throws SignatureException {
+      final int expectedDigestLen = Utils.getMdLen(digest_);
+      if (getBufferSize() + len > expectedDigestLen) {
+        throw new SignatureException(
+            "Input exceeds digest length. Expected "
+                + expectedDigestLen
+                + " bytes, would have "
+                + (getBufferSize() + len));
+      }
+      super.engineUpdate(b, off, len);
+    }
+
+    @Override
+    protected void engineUpdate(final ByteBuffer input) {
+      final int expectedDigestLen = Utils.getMdLen(digest_);
+      final int len = input.remaining();
+      if (getBufferSize() + len > expectedDigestLen) {
+        throw new RuntimeException(
+            new SignatureException(
+                "Input exceeds digest length. Expected "
+                    + expectedDigestLen
+                    + " bytes, would have "
+                    + (getBufferSize() + len)));
+      }
+      super.engineUpdate(input);
+    }
+
+    @Override
+    protected byte[] engineSign() throws SignatureException {
+      try {
+        ensureInitialized(true);
+        final int expectedDigestLen = Utils.getMdLen(digest_);
+        if (getBufferSize() != expectedDigestLen) {
+          throw new SignatureException(
+              "Input must equal digest length. Expected "
+                  + expectedDigestLen
+                  + " bytes, got "
+                  + getBufferSize());
+        }
+        return key_.use(
+            ptr ->
+                signEmsaPss(
+                    ptr, digest_, pssMgfMd_, pssSaltLen_, getBufferData(), 0, getBufferSize()));
+      } finally {
+        engineReset();
+      }
+    }
+
+    @Override
+    protected boolean engineVerify(final byte[] sigBytes, final int offset, final int length)
+        throws SignatureException {
+      try {
+        ensureInitialized(false);
+        final int expectedDigestLen = Utils.getMdLen(digest_);
+        if (getBufferSize() != expectedDigestLen) {
+          throw new SignatureException(
+              "Input must equal digest length. Expected "
+                  + expectedDigestLen
+                  + " bytes, got "
+                  + getBufferSize());
+        }
+        sniffTest(sigBytes, offset, length);
+        return key_.use(
+            ptr ->
+                verifyEmsaPss(
+                    ptr,
+                    digest_,
+                    pssMgfMd_,
+                    pssSaltLen_,
+                    getBufferData(),
+                    0,
+                    getBufferSize(),
+                    sigBytes,
+                    offset,
+                    length));
+      } finally {
+        engineReset();
+      }
+    }
+  }
+
+  private static native byte[] signEmsaPss(
+      long privateKey, long hashMd, long mgfMd, int saltLen, byte[] digest, int offset, int length);
+
+  private static native boolean verifyEmsaPss(
+      long publicKey,
+      long hashMd,
+      long mgfMd,
+      int saltLen,
+      byte[] digest,
+      int offset,
+      int length,
+      byte[] signature,
+      int sigOffset,
+      int sigLength)
+      throws SignatureException;
 }
