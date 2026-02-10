@@ -656,7 +656,9 @@ public final class EvpSignatureSpecificTest {
     final Set<Provider.Service> services = NATIVE_PROVIDER.getServices();
     for (Provider.Service service : services) {
       final String algorithm = service.getAlgorithm();
-      if (!service.getType().equals("Signature") || "RSASSA-PSS".equals(algorithm)) {
+      if (!service.getType().equals("Signature")
+          || "RSASSA-PSS".equals(algorithm)
+          || "RSAEMSA-PSS".equals(algorithm)) {
         continue;
       }
       if (algorithm.startsWith("Ed25519")
