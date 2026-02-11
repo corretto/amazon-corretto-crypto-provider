@@ -133,7 +133,14 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
         int result = RSA_verify_pss_mgf1(
             rsa, digestCopy.data(), hLen, md, mgf_md, saltLen, signatureCopy.data(), signatureCopy.size());
 
-        return result == 1 ? JNI_TRUE : JNI_FALSE;
+        if (result != 1) {
+            // Verification failure leaves errors on the OpenSSL error queue.
+            // Drain them to prevent abort in extra-checks test builds.
+            drainOpensslErrors();
+            return JNI_FALSE;
+        }
+
+        return JNI_TRUE;
 
     } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);
