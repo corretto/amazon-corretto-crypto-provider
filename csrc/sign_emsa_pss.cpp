@@ -12,7 +12,7 @@
 
 using namespace AmazonCorrettoCryptoProvider;
 
-JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatureRaw_signEmsaPss(JNIEnv* pEnv,
+JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_RsaEmsaPss_signEmsaPss(JNIEnv* pEnv,
     jclass,
     jlong pKey,
     jlong hashMd,
@@ -75,7 +75,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatu
     }
 }
 
-JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatureRaw_verifyEmsaPss(JNIEnv* pEnv,
+JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_RsaEmsaPss_verifyEmsaPss(JNIEnv* pEnv,
     jclass,
     jlong pKey,
     jlong hashMd,
