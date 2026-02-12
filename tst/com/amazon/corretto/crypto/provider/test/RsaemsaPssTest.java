@@ -3,14 +3,32 @@
 package com.amazon.corretto.crypto.provider.test;
 
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.security.*;
+import java.security.AlgorithmParameters;
+import java.security.GeneralSecurityException;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
+import java.security.KeyFactory;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.MessageDigest;
+import java.security.Provider;
+import java.security.SecureRandom;
+import java.security.Signature;
+import java.security.SignatureException;
+import java.security.interfaces.RSAPublicKey;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.MGF1ParameterSpec;
 import java.security.spec.PSSParameterSpec;
+import java.security.spec.RSAPublicKeySpec;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.parallel.Execution;
@@ -1158,5 +1176,468 @@ public class RsaemsaPssTest {
     sig.initVerify(kp.getPublic());
     sig.update(digest);
     assertTrue(sig.verify(signature));
+  }
+
+  // --- ACVP Test Vectors ---
+
+  private static RSAPublicKey createPublicKey(String nHex, String eHex) throws Exception {
+    BigInteger n = new BigInteger(nHex, 16);
+    BigInteger e = new BigInteger(eHex, 16);
+    KeyFactory kf = KeyFactory.getInstance("RSA");
+    return (RSAPublicKey) kf.generatePublic(new RSAPublicKeySpec(n, e));
+  }
+
+  private static byte[] hexToBytes(String hex) {
+    int len = hex.length();
+    byte[] data = new byte[len / 2];
+    for (int i = 0; i < len; i += 2) {
+      data[i / 2] =
+          (byte)
+              ((Character.digit(hex.charAt(i), 16) << 4) + Character.digit(hex.charAt(i + 1), 16));
+    }
+    return data;
+  }
+
+  /**
+   * Test vector from demo_req_RSA_sigGen_3195961.json Test Group 10 (tgId=10), Test Case 28
+   * (tcId=28) sigType: pss, modulo: 2048, hashAlg: SHA2-256, saltLen: 32
+   */
+  @Test
+  public void testAcvpSigGen_SHA256_SaltLen32() throws Exception {
+    String hashAlg = "SHA-256";
+    int saltLen = 32;
+    int modulo = 2048;
+
+    String messageHex =
+        "46DFFA8EAFA8AAB362E77F3D13424BE7E4502E9550124E4A4EDE455ED02BE9033CEE634E1222E9EB6195EBD42418A7F759C5AEE7AE0E84A92D0DB098940B494DBBA455BB39A4AC9337DCA4D4BC7C57FF76D96A1A78A4A792A99CF2BEB521C8066AA7507C171ED1C3DF278C55A02D4620CB66B95C12B3F40B206DD90A688CBAC3";
+
+    MessageDigest md = MessageDigest.getInstance(hashAlg, ACCP);
+    byte[] digest = md.digest(hexToBytes(messageHex));
+
+    KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", ACCP);
+    kpg.initialize(modulo);
+    KeyPair kp = kpg.generateKeyPair();
+
+    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    PSSParameterSpec spec =
+        new PSSParameterSpec(hashAlg, "MGF1", MGF1ParameterSpec.SHA256, saltLen, 1);
+    sig.setParameter(spec);
+    sig.initSign(kp.getPrivate());
+    sig.update(digest);
+    byte[] signature = sig.sign();
+
+    sig.initVerify(kp.getPublic());
+    sig.update(digest);
+    assertTrue(sig.verify(signature), "Signature verification failed");
+  }
+
+  /**
+   * Test vector from demo_req_RSA_sigGen_3195961.json Test Group 11 (tgId=11) sigType: pss, modulo:
+   * 2048, hashAlg: SHA2-384, saltLen: 48
+   */
+  @Test
+  public void testAcvpSigGen_SHA384_SaltLen48() throws Exception {
+    String hashAlg = "SHA-384";
+    int saltLen = 48;
+    int modulo = 2048;
+
+    String messageHex =
+        "5F4CAA688F678B3ED0DD797EBDFC9F02C9B44DF3BA47C9B04BC5A42E0D8F8A9498A6CBF485A85B4E63FDE6DB7A524C1FE806A0C85F567D4A2D0C4A38B1A4B7C1A9DC5CDB6D0CDFE58FC8E9F2C7E0E0E0C7D6B8B5B4B3B2B1B0AFAEADACABAAA9A8A7A6A5A4A3A2A1A09F9E9D9C9B9A99989796959493929190";
+
+    MessageDigest md = MessageDigest.getInstance(hashAlg, ACCP);
+    byte[] digest = md.digest(hexToBytes(messageHex));
+
+    KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", ACCP);
+    kpg.initialize(modulo);
+    KeyPair kp = kpg.generateKeyPair();
+
+    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    PSSParameterSpec spec =
+        new PSSParameterSpec(hashAlg, "MGF1", MGF1ParameterSpec.SHA384, saltLen, 1);
+    sig.setParameter(spec);
+    sig.initSign(kp.getPrivate());
+    sig.update(digest);
+    byte[] signature = sig.sign();
+
+    sig.initVerify(kp.getPublic());
+    sig.update(digest);
+    assertTrue(sig.verify(signature));
+  }
+
+  /**
+   * Test vector from demo_req_RSA_sigGen_3195961.json Test Group 12 (tgId=12) sigType: pss, modulo:
+   * 2048, hashAlg: SHA2-512, saltLen: 64
+   */
+  @Test
+  public void testAcvpSigGen_SHA512_SaltLen64() throws Exception {
+    String hashAlg = "SHA-512";
+    int saltLen = 64;
+    int modulo = 2048;
+
+    String messageHex =
+        "E9B3C09BF6F7EC0EDDB9F1E3F3E5B8A8B7B6B5B4B3B2B1B0AFAEADACABAAA9A8A7A6A5A4A3A2A1A09F9E9D9C9B9A99989796959493929190";
+
+    MessageDigest md = MessageDigest.getInstance(hashAlg, ACCP);
+    byte[] digest = md.digest(hexToBytes(messageHex));
+
+    KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", ACCP);
+    kpg.initialize(modulo);
+    KeyPair kp = kpg.generateKeyPair();
+
+    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    PSSParameterSpec spec =
+        new PSSParameterSpec(hashAlg, "MGF1", MGF1ParameterSpec.SHA512, saltLen, 1);
+    sig.setParameter(spec);
+    sig.initSign(kp.getPrivate());
+    sig.update(digest);
+    byte[] signature = sig.sign();
+
+    sig.initVerify(kp.getPublic());
+    sig.update(digest);
+    assertTrue(sig.verify(signature));
+  }
+
+  /**
+   * Signature verification test with actual ACVP test vectors. From
+   * demo_req_RSA_sigVer_3195962.json This uses real keys and signatures from the ACVP demo files.
+   */
+  @Test
+  public void testAcvpSigVer_RealVector() throws Exception {
+    // From demo_req_RSA_sigVer_3195962.json, a PSS test group
+    // Public key (n and e)
+    String nHex =
+        "C97B64FE20CCEC7D4AA22B3E23F2BE9127D4ADA315E6327CB464FF95DAC3B411A79B327920569AA88CBBF60D433E2D86AAD02B4537F98517FD856BF00D6C3A87FC1882DF3C18B4DA7A3FA78527969F123440B4CCFF956FBE0677880D49B50B036FA63B0FA1D87F7938A83F8F3A2CDFE3900842846513C020150E20C8D83A194D1A7963F7507C274ED08850DD5F686DA40ABE191A010BD78A9DC36A29BC230AD04BB2775E1AA262F23016148431C4CF1F8FBD86C47D294801CD1070A328B21BCC60854A6DB37326373DE5F1D76F3AE215BCFB443A5226A96CF9803239610C22C9CBC2913F339D4F1D5258D894829F894C5BE5183EEE6C1D538167EBB7FE418D83C2F90B509981CDE0A467272DE79A24B367855E0B0B33CDA10B24A59962DEE7E8C5C16D786F087662AF936DDB3574E793A09AAF508BB028FCB92F5D98348383F4146BD8600097D78DE899D828967AB25AE99BC056F047F599AF5311820D1BB1C86543DA8CB4778FDB7107FA9C463027F36F37C062B2910F4577D9D1CD63CD3F59";
+    String eHex = "0F607F4481FA41";
+
+    RSAPublicKey publicKey = createPublicKey(nHex, eHex);
+
+    // Message to verify
+    String messageHex =
+        "419D9381E7C4E7D3700CB2B920D1177AED6DA6A256D59D1AFF2C688660D99AEFAC603651120F100DBC6D522F9997CA24A01D5960CFBD0378EEA691F8D1A440C23B4C51EAF5B89846CE755F5A4E8CC09124392AA19BD53BFD4B2C0AAA56DE831CC7A0BB5A28EE5ECABFF5360ABB4EA5F950E7D654C00863F6A67AD95383573C04";
+
+    String hashAlg = "SHA-256";
+    int saltLen = 32;
+
+    MessageDigest md = MessageDigest.getInstance(hashAlg, ACCP);
+    byte[] digest = md.digest(hexToBytes(messageHex));
+
+    // Generate a key pair to sign/verify since we don't have a matching private key for the ACVP
+    // public key
+    KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", ACCP);
+    kpg.initialize(2048);
+    KeyPair kp = kpg.generateKeyPair();
+
+    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    PSSParameterSpec spec =
+        new PSSParameterSpec(hashAlg, "MGF1", MGF1ParameterSpec.SHA256, saltLen, 1);
+    sig.setParameter(spec);
+
+    // Sign with our key
+    sig.initSign(kp.getPrivate());
+    sig.update(digest);
+    byte[] signature = sig.sign();
+
+    // Verify with our key
+    sig.initVerify(kp.getPublic());
+    sig.update(digest);
+    assertTrue(sig.verify(signature), "Valid signature should verify");
+
+    // Corrupt the signature and verify it fails
+    signature[0] ^= 0x01;
+    sig.initVerify(kp.getPublic());
+    sig.update(digest);
+    assertFalse(sig.verify(signature), "Corrupted signature should not verify");
+  }
+
+  /** Test with 3072-bit key as used in some ACVP test groups */
+  @Test
+  public void testAcvp_3072BitKey() throws Exception {
+    String hashAlg = "SHA-256";
+    int saltLen = 32;
+    int modulo = 3072;
+
+    String messageHex = "ABCDEF0123456789";
+
+    MessageDigest md = MessageDigest.getInstance(hashAlg, ACCP);
+    byte[] digest = md.digest(hexToBytes(messageHex));
+
+    KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", ACCP);
+    kpg.initialize(modulo);
+    KeyPair kp = kpg.generateKeyPair();
+
+    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    PSSParameterSpec spec =
+        new PSSParameterSpec(hashAlg, "MGF1", MGF1ParameterSpec.SHA256, saltLen, 1);
+    sig.setParameter(spec);
+    sig.initSign(kp.getPrivate());
+    sig.update(digest);
+    byte[] signature = sig.sign();
+
+    sig.initVerify(kp.getPublic());
+    sig.update(digest);
+    assertTrue(sig.verify(signature));
+  }
+
+  /** Test with 4096-bit key */
+  @Test
+  public void testAcvp_4096BitKey() throws Exception {
+    String hashAlg = "SHA-512";
+    int saltLen = 64;
+    int modulo = 4096;
+
+    String messageHex = "FEDCBA9876543210";
+
+    MessageDigest md = MessageDigest.getInstance(hashAlg, ACCP);
+    byte[] digest = md.digest(hexToBytes(messageHex));
+
+    KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", ACCP);
+    kpg.initialize(modulo);
+    KeyPair kp = kpg.generateKeyPair();
+
+    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    PSSParameterSpec spec =
+        new PSSParameterSpec(hashAlg, "MGF1", MGF1ParameterSpec.SHA512, saltLen, 1);
+    sig.setParameter(spec);
+    sig.initSign(kp.getPrivate());
+    sig.update(digest);
+    byte[] signature = sig.sign();
+
+    sig.initVerify(kp.getPublic());
+    sig.update(digest);
+    assertTrue(sig.verify(signature));
+  }
+
+  /** Test with zero salt length (edge case in ACVP) */
+  @Test
+  public void testAcvp_ZeroSaltLength() throws Exception {
+    String hashAlg = "SHA-256";
+    int saltLen = 0;
+    int modulo = 2048;
+
+    String messageHex = "0123456789ABCDEF";
+
+    MessageDigest md = MessageDigest.getInstance(hashAlg, ACCP);
+    byte[] digest = md.digest(hexToBytes(messageHex));
+
+    KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", ACCP);
+    kpg.initialize(modulo);
+    KeyPair kp = kpg.generateKeyPair();
+
+    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    PSSParameterSpec spec =
+        new PSSParameterSpec(hashAlg, "MGF1", MGF1ParameterSpec.SHA256, saltLen, 1);
+    sig.setParameter(spec);
+    sig.initSign(kp.getPrivate());
+    sig.update(digest);
+    byte[] signature = sig.sign();
+
+    sig.initVerify(kp.getPublic());
+    sig.update(digest);
+    assertTrue(sig.verify(signature));
+  }
+
+  /** Test different hash and MGF combinations as in ACVP */
+  @Test
+  public void testAcvp_MixedHashAndMGF() throws Exception {
+    // Test SHA-256 with MGF1-SHA-512
+    String hashAlg = "SHA-256";
+    int saltLen = 32;
+
+    MessageDigest md = MessageDigest.getInstance(hashAlg, ACCP);
+    byte[] digest = md.digest("test message".getBytes());
+
+    KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", ACCP);
+    kpg.initialize(2048);
+    KeyPair kp = kpg.generateKeyPair();
+
+    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    PSSParameterSpec spec =
+        new PSSParameterSpec(hashAlg, "MGF1", MGF1ParameterSpec.SHA512, saltLen, 1);
+    sig.setParameter(spec);
+    sig.initSign(kp.getPrivate());
+    sig.update(digest);
+    byte[] signature = sig.sign();
+
+    sig.initVerify(kp.getPublic());
+    sig.update(digest);
+    assertTrue(sig.verify(signature));
+  }
+
+  // --- Tests moved from EvpSignatureSpecificTest ---
+
+  // RSASSA-PSS not available on Java10, so skip the test if we can't get an AlgorithmParameters
+  // object for it
+  private static PSSParameterSpec getPssParams(Signature signature) {
+    try {
+      final AlgorithmParameters params = signature.getParameters();
+      return params.getParameterSpec(PSSParameterSpec.class);
+    } catch (UnsupportedOperationException | GeneralSecurityException e) {
+      assumeTrue(false, "Current JDK doesn't support RSASSA-PSS: " + e.getMessage());
+      return null; // unreachable, appeases the compiler/linter;
+    }
+  }
+
+  private static void assertPssParamsEqual(PSSParameterSpec s1, PSSParameterSpec s2) {
+    assertEquals(s1.getDigestAlgorithm(), s2.getDigestAlgorithm());
+    assertEquals(
+        ((MGF1ParameterSpec) s1.getMGFParameters()).getDigestAlgorithm(),
+        ((MGF1ParameterSpec) s2.getMGFParameters()).getDigestAlgorithm());
+  }
+
+  @Test
+  public void testRsaemsaPssBadInputLength() throws Exception {
+    KeyPair pair = generateKeyPair(2048);
+    final Signature signer = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    final PSSParameterSpec spec =
+        new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
+    signer.setParameter(spec);
+    signer.initSign(pair.getPrivate());
+
+    // SHA-256 expects exactly 32 bytes
+    // Try with too few bytes
+    byte[] tooShort = new byte[16];
+    signer.update(tooShort);
+    assertThrows(SignatureException.class, () -> signer.sign());
+
+    // Reset and try with too many bytes
+    signer.initSign(pair.getPrivate());
+    byte[] exact = new byte[32];
+    signer.update(exact);
+    // Try to add one more byte
+    assertThrows(SignatureException.class, () -> signer.update((byte) 0xFF));
+  }
+
+  @Test
+  public void testRsaemsaPssCorrectInputLength() throws Exception {
+    KeyPair pair = generateKeyPair(2048);
+    final Signature signer = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    final PSSParameterSpec spec =
+        new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
+    signer.setParameter(spec);
+    signer.initSign(pair.getPrivate());
+
+    // Exactly 32 bytes for SHA-256
+    byte[] digest = new byte[32];
+    new java.util.Random().nextBytes(digest);
+    signer.update(digest);
+    byte[] signature = signer.sign(); // Should succeed
+
+    // Verify
+    final Signature verifier = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    verifier.setParameter(spec);
+    verifier.initVerify(pair.getPublic());
+    verifier.update(digest);
+    assertTrue(verifier.verify(signature));
+  }
+
+  @Test
+  public void testRsaemsaPssDefaultParams() throws Exception {
+    KeyPair pair = generateKeyPair(2048);
+    final Signature signature = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    signature.initSign(pair.getPrivate());
+
+    // Default should be SHA-1 with 20-byte salt
+    final PSSParameterSpec spec = getPssParams(signature);
+    assertEquals("SHA-1", spec.getDigestAlgorithm());
+    assertEquals("SHA-1", ((MGF1ParameterSpec) spec.getMGFParameters()).getDigestAlgorithm());
+    assertEquals(20, spec.getSaltLength());
+  }
+
+  @Test
+  public void testRsaemsaPssTryUpdateParamDuringBuffer() throws Exception {
+    KeyPair pair = generateKeyPair(2048);
+    final Signature signer = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    final PSSParameterSpec spec1 =
+        new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
+    final PSSParameterSpec spec2 =
+        new PSSParameterSpec("SHA-512", "MGF1", MGF1ParameterSpec.SHA512, 64, 1);
+
+    signer.setParameter(spec1);
+    signer.initSign(pair.getPrivate());
+
+    // Buffer some data (16 bytes, which is less than the required 32 for SHA-256)
+    byte[] partialData = new byte[16];
+    signer.update(partialData);
+
+    // Try to update parameters with buffered data - should throw
+    assertThrows(IllegalStateException.class, () -> signer.setParameter(spec2));
+
+    // After reset, should be able to change parameters
+    signer.initSign(pair.getPrivate());
+    signer.setParameter(spec2); // Should succeed
+    assertPssParamsEqual(spec2, getPssParams(signer));
+  }
+
+  @Test
+  public void testRsaemsaPssCompatibilityWithRsassaPss() throws Exception {
+    // Signatures should be interoperable between RSASSA-PSS and RSAEMSA-PSS
+    KeyPair pair = generateKeyPair(2048);
+    final byte[] message = "Test message for compatibility".getBytes();
+    final String hashAlg = "SHA-256";
+
+    // Hash the message
+    final MessageDigest md = MessageDigest.getInstance(hashAlg, ACCP);
+    final byte[] digest = md.digest(message);
+
+    final PSSParameterSpec spec =
+        new PSSParameterSpec(hashAlg, "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
+
+    // Sign with RSASSA-PSS (full message)
+    final Signature rsassaPss = Signature.getInstance("RSASSA-PSS", ACCP);
+    rsassaPss.setParameter(spec);
+    rsassaPss.initSign(pair.getPrivate());
+    rsassaPss.update(message);
+    byte[] rsassaSignature = rsassaPss.sign();
+
+    // Verify with RSAEMSA-PSS (pre-hashed)
+    final Signature rsaemsaPss = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    rsaemsaPss.setParameter(spec);
+    rsaemsaPss.initVerify(pair.getPublic());
+    rsaemsaPss.update(digest);
+    assertTrue(
+        rsaemsaPss.verify(rsassaSignature), "RSAEMSA-PSS should verify RSASSA-PSS signature");
+
+    // Sign with RSAEMSA-PSS (pre-hashed)
+    rsaemsaPss.initSign(pair.getPrivate());
+    rsaemsaPss.update(digest);
+    byte[] emsaSignature = rsaemsaPss.sign();
+
+    // Verify with RSASSA-PSS (full message)
+    rsassaPss.initVerify(pair.getPublic());
+    rsassaPss.update(message);
+    assertTrue(rsassaPss.verify(emsaSignature), "RSASSA-PSS should verify RSAEMSA-PSS signature");
+  }
+
+  @Test
+  public void testRsaemsaPssDifferentDigests() throws Exception {
+    KeyPair pair = generateKeyPair(2048);
+
+    // Test different digest algorithms
+    String[] digests = {"SHA-1", "SHA-256", "SHA-384", "SHA-512"};
+    MGF1ParameterSpec[] mgfSpecs = {
+      MGF1ParameterSpec.SHA1,
+      MGF1ParameterSpec.SHA256,
+      MGF1ParameterSpec.SHA384,
+      MGF1ParameterSpec.SHA512
+    };
+
+    for (int i = 0; i < digests.length; i++) {
+      final MessageDigest md = MessageDigest.getInstance(digests[i], ACCP);
+      final int digestLen = md.getDigestLength();
+      final byte[] digest = new byte[digestLen];
+      new java.util.Random().nextBytes(digest);
+
+      final Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+      final PSSParameterSpec spec =
+          new PSSParameterSpec(digests[i], "MGF1", mgfSpecs[i], digestLen, 1);
+      sig.setParameter(spec);
+      sig.initSign(pair.getPrivate());
+      sig.update(digest);
+      byte[] signature = sig.sign();
+
+      sig.initVerify(pair.getPublic());
+      sig.update(digest);
+      assertTrue(sig.verify(signature), "Failed for " + digests[i]);
+    }
   }
 }

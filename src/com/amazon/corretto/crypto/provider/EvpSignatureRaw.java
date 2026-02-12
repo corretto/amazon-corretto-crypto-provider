@@ -84,14 +84,6 @@ class EvpSignatureRaw extends EvpSignatureBase {
     return buffer.size() == 0;
   }
 
-  protected int getBufferSize() {
-    return buffer.size();
-  }
-
-  protected byte[] getBufferData() {
-    return buffer.getDataBuffer();
-  }
-
   private static native byte[] signRaw(
       long privateKey,
       int paddingType,

@@ -78,22 +78,6 @@ Because the output of calls to `SecureRandom` is computationally indistinguishab
 ## RSASSA-PSS Signature parameters may not be updated in-flight
 To prevent callers from corrupting their signatures, we forbid them from updating a Signature's PSSParameterSpec while they are still updating a Signature object. Once the Signature has been updated, it must be reset, `sign()`'d, or `verify`'d before the PSS parameters may be updated. If a caller attempts to call `Signature.setParameter(...)` while a Signature instance has buffered data, we will throw an `IllegalStateException`.
 
-## RSAEMSA-PSS accepts pre-hashed messages
-ACCP provides the `RSAEMSA-PSS` signature algorithm which accepts pre-computed hash digests instead of raw messages. This is useful when:
-- Message hashing is performed externally or in hardware
-- Different components handle hashing vs. signing
-- Direct control over the hash input is required
-
-**Key differences from RSASSA-PSS:**
-- Input must be exactly the digest length (e.g., 32 bytes for SHA-256)
-- Attempting to provide more or fewer bytes than the digest length will throw a `SignatureException`
-- The algorithm applies only the EMSA-PSS encoding step (RFC 8017 §9.1) without hashing
-- Signatures are interoperable with RSASSA-PSS (same underlying PSS scheme)
-
-**Parameter restrictions:**
-- Like RSASSA-PSS, PSS parameters may not be updated while data is buffered
-- If a caller attempts to call `Signature.setParameter(...)` while a Signature instance has buffered data, we will throw an `IllegalStateException`
-
 # Extensions
 Applications are unlikely to directly encounter any of these changes but may choose to take advantage of them.
 

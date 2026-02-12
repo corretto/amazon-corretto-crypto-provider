@@ -286,10 +286,6 @@ public class EvpSignatureTest {
               }
             }
           }
-
-          // Note: RSAEMSA-PSS is not included in this cross-provider test suite because it's
-          // ACCP-specific and not available in other JCE providers. RSAEMSA-PSS is thoroughly
-          // tested in RsaemsaPssTest, RsaemsaPssAcvpTest, and EvpSignatureSpecificTest.
         }
       }
     }
