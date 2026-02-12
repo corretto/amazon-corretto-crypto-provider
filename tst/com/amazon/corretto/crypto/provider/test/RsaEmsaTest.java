@@ -41,7 +41,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 @Execution(ExecutionMode.CONCURRENT)
 @ExtendWith(TestResultLogger.class)
 @ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
-public class RsaemsaPssTest {
+public class RsaEmsaTest {
   private static final Provider ACCP = AmazonCorrettoCryptoProvider.INSTANCE;
 
   private KeyPair generateKeyPair(int keySize) throws Exception {
@@ -636,7 +636,7 @@ public class RsaemsaPssTest {
   }
 
   @Test
-  public void testEcKeyWithRsaemsaPss() throws Exception {
+  public void testEcKeyWithRsaEmsaPss() throws Exception {
     KeyPairGenerator ecKpg = KeyPairGenerator.getInstance("EC", ACCP);
     ecKpg.initialize(new ECGenParameterSpec("secp256r1"));
     KeyPair ecKp = ecKpg.generateKeyPair();
@@ -1485,7 +1485,7 @@ public class RsaemsaPssTest {
   }
 
   @Test
-  public void testRsaemsaPssBadInputLength() throws Exception {
+  public void testRsaEmsaPssBadInputLength() throws Exception {
     KeyPair pair = generateKeyPair(2048);
     final Signature signer = Signature.getInstance("RSAEMSA-PSS", ACCP);
     final PSSParameterSpec spec =
@@ -1508,7 +1508,7 @@ public class RsaemsaPssTest {
   }
 
   @Test
-  public void testRsaemsaPssCorrectInputLength() throws Exception {
+  public void testRsaEmsaPssCorrectInputLength() throws Exception {
     KeyPair pair = generateKeyPair(2048);
     final Signature signer = Signature.getInstance("RSAEMSA-PSS", ACCP);
     final PSSParameterSpec spec =
@@ -1531,7 +1531,7 @@ public class RsaemsaPssTest {
   }
 
   @Test
-  public void testRsaemsaPssDefaultParams() throws Exception {
+  public void testRsaEmsaPssDefaultParams() throws Exception {
     KeyPair pair = generateKeyPair(2048);
     final Signature signature = Signature.getInstance("RSAEMSA-PSS", ACCP);
     signature.initSign(pair.getPrivate());
@@ -1544,7 +1544,7 @@ public class RsaemsaPssTest {
   }
 
   @Test
-  public void testRsaemsaPssTryUpdateParamDuringBuffer() throws Exception {
+  public void testRsaEmsaPssTryUpdateParamDuringBuffer() throws Exception {
     KeyPair pair = generateKeyPair(2048);
     final Signature signer = Signature.getInstance("RSAEMSA-PSS", ACCP);
     final PSSParameterSpec spec1 =
@@ -1569,7 +1569,7 @@ public class RsaemsaPssTest {
   }
 
   @Test
-  public void testRsaemsaPssCompatibilityWithRsassaPss() throws Exception {
+  public void testRsaEmsaPssCompatibilityWithRsassaPss() throws Exception {
     // Signatures should be interoperable between RSASSA-PSS and RSAEMSA-PSS
     KeyPair pair = generateKeyPair(2048);
     final byte[] message = "Test message for compatibility".getBytes();
@@ -1609,7 +1609,7 @@ public class RsaemsaPssTest {
   }
 
   @Test
-  public void testRsaemsaPssDifferentDigests() throws Exception {
+  public void testRsaEmsaPssDifferentDigests() throws Exception {
     KeyPair pair = generateKeyPair(2048);
 
     // Test different digest algorithms

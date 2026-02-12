@@ -5,12 +5,12 @@ package com.amazon.corretto.crypto.provider;
 import java.nio.ByteBuffer;
 import java.security.SignatureException;
 
-final class RsaEmsaPss extends EvpSignatureBase {
+class RsaEmsa extends EvpSignatureBase {
   private AccessibleByteArrayOutputStream buffer =
       new AccessibleByteArrayOutputStream(64, 1024 * 1024);
 
-  RsaEmsaPss(final AmazonCorrettoCryptoProvider provider) {
-    super(provider, EvpKeyType.RSA, RSA_PKCS1_PSS_PADDING, 0, false);
+  protected RsaEmsa(final AmazonCorrettoCryptoProvider provider, final int paddingType) {
+    super(provider, EvpKeyType.RSA, paddingType, 0, false);
   }
 
   @Override
@@ -138,4 +138,10 @@ final class RsaEmsaPss extends EvpSignatureBase {
       int sigOffset,
       int sigLength)
       throws SignatureException;
+
+  static final class Pss extends RsaEmsa {
+    Pss(final AmazonCorrettoCryptoProvider provider) {
+      super(provider, RSA_PKCS1_PSS_PADDING);
+    }
+  }
 }
