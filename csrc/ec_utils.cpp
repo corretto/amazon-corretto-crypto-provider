@@ -121,18 +121,18 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_curveNam
 
         switch (fieldNid) {
             case NID_X9_62_prime_field:
-                if (EC_GROUP_get_curve_GFp(group, pBN, aBN, bBN, NULL) != 1) {
+                if (EC_GROUP_get_curve(group, pBN, aBN, bBN, NULL) != 1) {
                     throw_openssl("Unable to get group information");
                 }
-                if (EC_POINT_get_affine_coordinates_GFp(group, generator, gxBN, gyBN, NULL) != 1) {
+                if (EC_POINT_get_affine_coordinates(group, generator, gxBN, gyBN, NULL) != 1) {
                     throw_openssl("Unable to get generator coordinates");
                 }
                 break;
             case NID_X9_62_characteristic_two_field:
-                if (EC_GROUP_get_curve_GF2m(group, pBN, aBN, bBN, NULL) != 1) {
+                if (EC_GROUP_get_curve(group, pBN, aBN, bBN, NULL) != 1) {
                     throw_openssl("Unable to get group information");
                 }
-                if (EC_POINT_get_affine_coordinates_GF2m(group, generator, gxBN, gyBN, NULL) != 1) {
+                if (EC_POINT_get_affine_coordinates(group, generator, gxBN, gyBN, NULL) != 1) {
                     throw_openssl("Unable to get generator coordinates");
                 }
                 m = EC_GROUP_get_degree(group);
