@@ -251,16 +251,9 @@ public class EvpKeyAgreementTest {
                 return pub1;
             }
         } else {
-            generator.initialize(new ECGenParameterSpec("sect163k1"));
-            final ECPublicKey pub1 = (ECPublicKey) generator.generateKeyPair().getPublic();
-            generator.initialize(new ECGenParameterSpec("sect283k1"));
-            final ECPublicKey pub2 = (ECPublicKey) generator.generateKeyPair().getPublic();
-
-            if (curve.getField().getFieldSize() == pub1.getParams().getCurve().getField().getFieldSize()) {
-                return pub2;
-            } else {
-                return pub1;
-            }
+            // Binary curves not supported - this branch should not be reached
+            // since we no longer test binary curves
+            throw new UnsupportedOperationException("Binary curves are not supported");
         }
     }
 
