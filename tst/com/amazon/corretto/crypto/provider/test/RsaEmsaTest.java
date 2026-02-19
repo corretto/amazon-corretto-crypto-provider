@@ -1640,4 +1640,57 @@ public class RsaEmsaTest {
       assertTrue(sig.verify(signature), "Failed for " + digests[i]);
     }
   }
+
+  @Test
+  public void testBouncyCastleInterop() throws Exception {
+    final Provider BC = TestUtil.BC_PROVIDER;
+    final KeyPair kp = generateKeyPair(2048);
+    final byte[] message = "BouncyCastle interop test".getBytes();
+
+    final String[] digests = {"SHA-1", "SHA-256", "SHA-384", "SHA-512"};
+    final MGF1ParameterSpec[] mgfSpecs = {
+      MGF1ParameterSpec.SHA1,
+      MGF1ParameterSpec.SHA256,
+      MGF1ParameterSpec.SHA384,
+      MGF1ParameterSpec.SHA512
+    };
+    final int[] saltLengths = {20, 32, 48, 64};
+
+    for (int i = 0; i < digests.length; i++) {
+      final String hashAlg = digests[i];
+      final MGF1ParameterSpec mgfSpec = mgfSpecs[i];
+      final int saltLen = saltLengths[i];
+
+      final MessageDigest md = MessageDigest.getInstance(hashAlg, ACCP);
+      final byte[] hash = md.digest(message);
+
+      final PSSParameterSpec pssSpec = new PSSParameterSpec(hashAlg, "MGF1", mgfSpec, saltLen, 1);
+
+      // Sign with ACCP RSAEMSA-PSS, verify with BC NONEwithRSASSA-PSS
+      final Signature accpSigner = Signature.getInstance("RSAEMSA-PSS", ACCP);
+      accpSigner.setParameter(pssSpec);
+      accpSigner.initSign(kp.getPrivate());
+      accpSigner.update(hash);
+      final byte[] accpSig = accpSigner.sign();
+
+      final Signature bcVerifier = Signature.getInstance("NONEwithRSASSA-PSS", BC);
+      bcVerifier.initVerify(kp.getPublic());
+      bcVerifier.setParameter(pssSpec);
+      bcVerifier.update(hash);
+      assertTrue(bcVerifier.verify(accpSig), "BC failed to verify ACCP sig for " + hashAlg);
+
+      // Sign with BC NONEwithRSASSA-PSS, verify with ACCP RSAEMSA-PSS
+      final Signature bcSigner = Signature.getInstance("NONEwithRSASSA-PSS", BC);
+      bcSigner.initSign(kp.getPrivate());
+      bcSigner.setParameter(pssSpec);
+      bcSigner.update(hash);
+      final byte[] bcSig = bcSigner.sign();
+
+      final Signature accpVerifier = Signature.getInstance("RSAEMSA-PSS", ACCP);
+      accpVerifier.setParameter(pssSpec);
+      accpVerifier.initVerify(kp.getPublic());
+      accpVerifier.update(hash);
+      assertTrue(accpVerifier.verify(bcSig), "ACCP failed to verify BC sig for " + hashAlg);
+    }
+  }
 }
