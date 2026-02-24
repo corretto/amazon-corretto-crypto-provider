@@ -6,14 +6,20 @@ import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.versionCompare;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.security.GeneralSecurityException;
 import java.security.InvalidKeyException;
+import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
@@ -24,16 +30,21 @@ import java.security.PublicKey;
 import java.security.Signature;
 import java.security.SignatureException;
 import java.security.interfaces.ECKey;
+import java.security.interfaces.RSAPublicKey;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.MGF1ParameterSpec;
 import java.security.spec.PSSParameterSpec;
 import java.security.spec.RSAKeyGenParameterSpec;
+import java.security.spec.RSAPublicKeySpec;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.function.BiFunction;
 import java.util.stream.Stream;
+import java.util.zip.GZIPInputStream;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
@@ -41,6 +52,7 @@ import org.junit.jupiter.api.parallel.ResourceAccessMode;
 import org.junit.jupiter.api.parallel.ResourceLock;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 @Execution(ExecutionMode.CONCURRENT)
 @ExtendWith(TestResultLogger.class)
@@ -691,5 +703,579 @@ public class EvpSignatureTest {
       result = result.slice();
     }
     return result;
+  }
+
+  // --- RSAEMSA-PSS Tests ---
+
+  private KeyPair generateRsaEmsaKeyPair(int keySize) throws Exception {
+    KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", NATIVE_PROVIDER);
+    kpg.initialize(keySize);
+    return kpg.generateKeyPair();
+  }
+
+  @Test
+  public void rsaEmsaPssBasicSignVerify() throws Exception {
+    KeyPair kp = generateRsaEmsaKeyPair(2048);
+    String message = "Hello, World!";
+
+    MessageDigest md = MessageDigest.getInstance("SHA-256", NATIVE_PROVIDER);
+    byte[] digest = md.digest(message.getBytes());
+
+    Signature sig = Signature.getInstance("RSAEMSA-PSS", NATIVE_PROVIDER);
+    PSSParameterSpec spec =
+        new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
+    sig.setParameter(spec);
+    sig.initSign(kp.getPrivate());
+    sig.update(digest);
+    byte[] signature = sig.sign();
+
+    assertNotNull(signature);
+    assertTrue(signature.length > 0);
+
+    sig.initVerify(kp.getPublic());
+    sig.setParameter(spec);
+    sig.update(digest);
+    assertTrue(sig.verify(signature));
+  }
+
+  @Test
+  public void rsaEmsaPssDefaultParameters() throws Exception {
+    KeyPair kp = generateRsaEmsaKeyPair(2048);
+    String message = "Test message";
+
+    MessageDigest md = MessageDigest.getInstance("SHA-1", NATIVE_PROVIDER);
+    byte[] digest = md.digest(message.getBytes());
+
+    Signature sig = Signature.getInstance("RSAEMSA-PSS", NATIVE_PROVIDER);
+    sig.initSign(kp.getPrivate());
+    sig.update(digest);
+    byte[] signature = sig.sign();
+
+    sig.initVerify(kp.getPublic());
+    sig.update(digest);
+    assertTrue(sig.verify(signature));
+  }
+
+  @Test
+  public void rsaEmsaPssInputExactlyDigestLength() throws Exception {
+    KeyPair kp = generateRsaEmsaKeyPair(2048);
+
+    MessageDigest md = MessageDigest.getInstance("SHA-256", NATIVE_PROVIDER);
+    byte[] digest = md.digest("test".getBytes());
+    assertEquals(32, digest.length);
+
+    Signature sig = Signature.getInstance("RSAEMSA-PSS", NATIVE_PROVIDER);
+    PSSParameterSpec spec =
+        new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
+    sig.setParameter(spec);
+    sig.initSign(kp.getPrivate());
+    sig.update(digest);
+    byte[] signature = sig.sign();
+
+    assertNotNull(signature);
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {2048, 3072, 4096})
+  public void rsaEmsaPssVariousKeySizes(int keySize) throws Exception {
+    KeyPair kp = generateRsaEmsaKeyPair(keySize);
+    MessageDigest md = MessageDigest.getInstance("SHA-256", NATIVE_PROVIDER);
+    byte[] digest = md.digest("test".getBytes());
+
+    Signature sig = Signature.getInstance("RSAEMSA-PSS", NATIVE_PROVIDER);
+    PSSParameterSpec spec =
+        new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
+    sig.setParameter(spec);
+    sig.initSign(kp.getPrivate());
+    sig.update(digest);
+    byte[] signature = sig.sign();
+
+    sig.initVerify(kp.getPublic());
+    sig.update(digest);
+    assertTrue(sig.verify(signature));
+  }
+
+  @Test
+  public void rsaEmsaPssDifferentDigests() throws Exception {
+    String[] digests = {"SHA-1", "SHA-256", "SHA-384", "SHA-512"};
+    MGF1ParameterSpec[] mgfSpecs = {
+      MGF1ParameterSpec.SHA1,
+      MGF1ParameterSpec.SHA256,
+      MGF1ParameterSpec.SHA384,
+      MGF1ParameterSpec.SHA512
+    };
+    int[] saltLengths = {20, 32, 48, 64};
+
+    KeyPair kp = generateRsaEmsaKeyPair(2048);
+
+    for (int i = 0; i < digests.length; i++) {
+      MessageDigest md = MessageDigest.getInstance(digests[i], NATIVE_PROVIDER);
+      byte[] digest = md.digest("test message".getBytes());
+
+      Signature sig = Signature.getInstance("RSAEMSA-PSS", NATIVE_PROVIDER);
+      PSSParameterSpec spec =
+          new PSSParameterSpec(digests[i], "MGF1", mgfSpecs[i], saltLengths[i], 1);
+      sig.setParameter(spec);
+      sig.initSign(kp.getPrivate());
+      sig.update(digest);
+      byte[] signature = sig.sign();
+
+      sig.initVerify(kp.getPublic());
+      sig.setParameter(spec);
+      sig.update(digest);
+      assertTrue(sig.verify(signature), "Failed for " + digests[i]);
+    }
+  }
+
+  @Test
+  public void rsaEmsaPssByteByByteUpdate() throws Exception {
+    KeyPair kp = generateRsaEmsaKeyPair(2048);
+    MessageDigest md = MessageDigest.getInstance("SHA-256", NATIVE_PROVIDER);
+    byte[] digest = md.digest("test".getBytes());
+
+    Signature sig = Signature.getInstance("RSAEMSA-PSS", NATIVE_PROVIDER);
+    PSSParameterSpec spec =
+        new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
+    sig.setParameter(spec);
+    sig.initSign(kp.getPrivate());
+
+    for (byte b : digest) {
+      sig.update(b);
+    }
+    byte[] signature = sig.sign();
+
+    sig.initVerify(kp.getPublic());
+    sig.setParameter(spec);
+    for (byte b : digest) {
+      sig.update(b);
+    }
+    assertTrue(sig.verify(signature));
+  }
+
+  @Test
+  public void rsaEmsaPssByteBufferUpdate() throws Exception {
+    KeyPair kp = generateRsaEmsaKeyPair(2048);
+    MessageDigest md = MessageDigest.getInstance("SHA-256", NATIVE_PROVIDER);
+    byte[] digest = md.digest("test".getBytes());
+
+    Signature sig = Signature.getInstance("RSAEMSA-PSS", NATIVE_PROVIDER);
+    PSSParameterSpec spec =
+        new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
+    sig.setParameter(spec);
+    sig.initSign(kp.getPrivate());
+    sig.update(ByteBuffer.wrap(digest));
+    byte[] signature = sig.sign();
+
+    sig.initVerify(kp.getPublic());
+    sig.setParameter(spec);
+    sig.update(ByteBuffer.wrap(digest));
+    assertTrue(sig.verify(signature));
+  }
+
+  @Test
+  public void rsaEmsaPssDirectByteBuffer() throws Exception {
+    KeyPair kp = generateRsaEmsaKeyPair(2048);
+    MessageDigest md = MessageDigest.getInstance("SHA-256", NATIVE_PROVIDER);
+    byte[] digest = md.digest("test".getBytes());
+
+    ByteBuffer directBuf = ByteBuffer.allocateDirect(digest.length);
+    directBuf.put(digest);
+    directBuf.flip();
+
+    Signature sig = Signature.getInstance("RSAEMSA-PSS", NATIVE_PROVIDER);
+    PSSParameterSpec spec =
+        new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
+    sig.setParameter(spec);
+    sig.initSign(kp.getPrivate());
+    sig.update(directBuf);
+    byte[] signature = sig.sign();
+
+    directBuf.rewind();
+    sig.initVerify(kp.getPublic());
+    sig.setParameter(spec);
+    sig.update(directBuf);
+    assertTrue(sig.verify(signature));
+  }
+
+  @Test
+  public void rsaEmsaPssReadOnlyByteBuffer() throws Exception {
+    KeyPair kp = generateRsaEmsaKeyPair(2048);
+    MessageDigest md = MessageDigest.getInstance("SHA-256", NATIVE_PROVIDER);
+    byte[] digest = md.digest("test".getBytes());
+
+    ByteBuffer readOnlyBuf = ByteBuffer.wrap(digest).asReadOnlyBuffer();
+
+    Signature sig = Signature.getInstance("RSAEMSA-PSS", NATIVE_PROVIDER);
+    PSSParameterSpec spec =
+        new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
+    sig.setParameter(spec);
+    sig.initSign(kp.getPrivate());
+    sig.update(readOnlyBuf);
+    byte[] signature = sig.sign();
+
+    readOnlyBuf.rewind();
+    sig.initVerify(kp.getPublic());
+    sig.setParameter(spec);
+    sig.update(readOnlyBuf);
+    assertTrue(sig.verify(signature));
+  }
+
+  @Test
+  public void rsaEmsaPssCompatibilityWithRSASSA_PSS() throws Exception {
+    KeyPair kp = generateRsaEmsaKeyPair(2048);
+    String message = "Test message for compatibility";
+
+    Signature rsassaPss = Signature.getInstance("RSASSA-PSS", NATIVE_PROVIDER);
+    PSSParameterSpec spec =
+        new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
+    rsassaPss.setParameter(spec);
+    rsassaPss.initSign(kp.getPrivate());
+    rsassaPss.update(message.getBytes());
+    byte[] rsassaSignature = rsassaPss.sign();
+
+    MessageDigest md = MessageDigest.getInstance("SHA-256", NATIVE_PROVIDER);
+    byte[] digest = md.digest(message.getBytes());
+
+    Signature rsaemsaPss = Signature.getInstance("RSAEMSA-PSS", NATIVE_PROVIDER);
+    rsaemsaPss.setParameter(spec);
+    rsaemsaPss.initVerify(kp.getPublic());
+    rsaemsaPss.update(digest);
+    assertTrue(rsaemsaPss.verify(rsassaSignature));
+
+    rsaemsaPss.initSign(kp.getPrivate());
+    rsaemsaPss.update(digest);
+    byte[] emsaSignature = rsaemsaPss.sign();
+
+    rsassaPss.initVerify(kp.getPublic());
+    rsassaPss.update(message.getBytes());
+    assertTrue(rsassaPss.verify(emsaSignature));
+  }
+
+  @Test
+  public void rsaEmsaPssDifferentSaltLengths() throws Exception {
+    KeyPair kp = generateRsaEmsaKeyPair(2048);
+    MessageDigest md = MessageDigest.getInstance("SHA-256", NATIVE_PROVIDER);
+    byte[] digest = md.digest("test".getBytes());
+
+    int[] saltLengths = {0, 16, 32, 48, 64};
+
+    for (int saltLen : saltLengths) {
+      Signature sig = Signature.getInstance("RSAEMSA-PSS", NATIVE_PROVIDER);
+      PSSParameterSpec spec =
+          new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, saltLen, 1);
+      sig.setParameter(spec);
+      sig.initSign(kp.getPrivate());
+      sig.update(digest);
+      byte[] signature = sig.sign();
+
+      sig.initVerify(kp.getPublic());
+      sig.setParameter(spec);
+      sig.update(digest);
+      assertTrue(sig.verify(signature), "Failed for salt length " + saltLen);
+    }
+  }
+
+  @Test
+  public void rsaEmsaPssMultipleSignatures() throws Exception {
+    KeyPair kp = generateRsaEmsaKeyPair(2048);
+    MessageDigest md = MessageDigest.getInstance("SHA-256", NATIVE_PROVIDER);
+
+    Signature sig = Signature.getInstance("RSAEMSA-PSS", NATIVE_PROVIDER);
+    PSSParameterSpec spec =
+        new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
+    sig.setParameter(spec);
+    sig.initSign(kp.getPrivate());
+
+    for (int i = 0; i < 10; i++) {
+      byte[] digest = md.digest(("message" + i).getBytes());
+      sig.update(digest);
+      byte[] signature = sig.sign();
+
+      sig.initVerify(kp.getPublic());
+      sig.update(digest);
+      assertTrue(sig.verify(signature));
+
+      sig.initSign(kp.getPrivate());
+    }
+  }
+
+  @Test
+  public void rsaEmsaPssVerifyOffsetLength() throws Exception {
+    KeyPair kp = generateRsaEmsaKeyPair(2048);
+    MessageDigest md = MessageDigest.getInstance("SHA-256", NATIVE_PROVIDER);
+    byte[] digest = md.digest("test".getBytes());
+
+    Signature sig = Signature.getInstance("RSAEMSA-PSS", NATIVE_PROVIDER);
+    PSSParameterSpec spec =
+        new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
+    sig.setParameter(spec);
+    sig.initSign(kp.getPrivate());
+    sig.update(digest);
+    byte[] signature = sig.sign();
+
+    byte[] paddedSig = new byte[signature.length + 20];
+    System.arraycopy(signature, 0, paddedSig, 10, signature.length);
+
+    sig.initVerify(kp.getPublic());
+    sig.update(digest);
+    assertTrue(sig.verify(paddedSig, 10, signature.length));
+  }
+
+  @Test
+  public void rsaEmsaPssPartialArrayUpdate() throws Exception {
+    KeyPair kp = generateRsaEmsaKeyPair(2048);
+    MessageDigest md = MessageDigest.getInstance("SHA-256", NATIVE_PROVIDER);
+    byte[] digest = md.digest("test".getBytes());
+
+    byte[] larger = new byte[digest.length + 20];
+    System.arraycopy(digest, 0, larger, 10, digest.length);
+
+    Signature sig = Signature.getInstance("RSAEMSA-PSS", NATIVE_PROVIDER);
+    PSSParameterSpec spec =
+        new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
+    sig.setParameter(spec);
+    sig.initSign(kp.getPrivate());
+    sig.update(larger, 10, digest.length);
+    byte[] signature = sig.sign();
+
+    sig.initVerify(kp.getPublic());
+    sig.update(digest);
+    assertTrue(sig.verify(signature));
+  }
+
+  @Test
+  public void rsaEmsaPssBufferResetsAfterSign() throws Exception {
+    KeyPair kp = generateRsaEmsaKeyPair(2048);
+    MessageDigest md = MessageDigest.getInstance("SHA-256", NATIVE_PROVIDER);
+
+    Signature sig = Signature.getInstance("RSAEMSA-PSS", NATIVE_PROVIDER);
+    PSSParameterSpec spec =
+        new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
+    sig.setParameter(spec);
+    sig.initSign(kp.getPrivate());
+
+    byte[] digest1 = md.digest("message1".getBytes());
+    sig.update(digest1);
+    byte[] sig1 = sig.sign();
+
+    byte[] digest2 = md.digest("message2".getBytes());
+    sig.update(digest2);
+    byte[] sig2 = sig.sign();
+
+    sig.initVerify(kp.getPublic());
+    sig.update(digest1);
+    assertTrue(sig.verify(sig1));
+
+    sig.initVerify(kp.getPublic());
+    sig.update(digest2);
+    assertTrue(sig.verify(sig2));
+  }
+
+  @Test
+  public void rsaEmsaPssBufferResetsAfterFailedSign() throws Exception {
+    KeyPair kp = generateRsaEmsaKeyPair(2048);
+    MessageDigest md = MessageDigest.getInstance("SHA-256", NATIVE_PROVIDER);
+
+    Signature sig = Signature.getInstance("RSAEMSA-PSS", NATIVE_PROVIDER);
+    PSSParameterSpec spec =
+        new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
+    sig.setParameter(spec);
+    sig.initSign(kp.getPrivate());
+
+    sig.update(new byte[16]);
+    assertThrows(SignatureException.class, sig::sign);
+
+    byte[] digest = md.digest("test".getBytes());
+    sig.update(digest);
+    byte[] signature = sig.sign();
+
+    sig.initVerify(kp.getPublic());
+    sig.update(digest);
+    assertTrue(sig.verify(signature));
+  }
+
+  @Test
+  public void rsaEmsaPssBufferResetsAfterVerify() throws Exception {
+    KeyPair kp = generateRsaEmsaKeyPair(2048);
+    MessageDigest md = MessageDigest.getInstance("SHA-256", NATIVE_PROVIDER);
+    byte[] digest = md.digest("test".getBytes());
+
+    Signature sig = Signature.getInstance("RSAEMSA-PSS", NATIVE_PROVIDER);
+    PSSParameterSpec spec =
+        new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
+    sig.setParameter(spec);
+
+    sig.initSign(kp.getPrivate());
+    sig.update(digest);
+    byte[] signature = sig.sign();
+
+    sig.initVerify(kp.getPublic());
+    sig.update(digest);
+    assertTrue(sig.verify(signature));
+
+    sig.update(digest);
+    assertTrue(sig.verify(signature));
+  }
+
+  @Test
+  public void rsaEmsaPssBufferResetsAfterFailedVerify() throws Exception {
+    KeyPair kp = generateRsaEmsaKeyPair(2048);
+    MessageDigest md = MessageDigest.getInstance("SHA-256", NATIVE_PROVIDER);
+    byte[] digest = md.digest("test".getBytes());
+
+    Signature sig = Signature.getInstance("RSAEMSA-PSS", NATIVE_PROVIDER);
+    PSSParameterSpec spec =
+        new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
+    sig.setParameter(spec);
+
+    sig.initSign(kp.getPrivate());
+    sig.update(digest);
+    byte[] signature = sig.sign();
+
+    byte[] corrupted = signature.clone();
+    corrupted[0] ^= 0xFF;
+    sig.initVerify(kp.getPublic());
+    sig.update(digest);
+    assertFalse(sig.verify(corrupted));
+
+    sig.update(digest);
+    assertTrue(sig.verify(signature));
+  }
+
+  @Test
+  public void rsaEmsaPssMultipleConsecutiveFailedVerifications() throws Exception {
+    KeyPair kp = generateRsaEmsaKeyPair(2048);
+    MessageDigest md = MessageDigest.getInstance("SHA-256", NATIVE_PROVIDER);
+    byte[] digest = md.digest("test".getBytes());
+
+    Signature sig = Signature.getInstance("RSAEMSA-PSS", NATIVE_PROVIDER);
+    PSSParameterSpec spec =
+        new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
+    sig.setParameter(spec);
+
+    sig.initSign(kp.getPrivate());
+    sig.update(digest);
+    byte[] signature = sig.sign();
+
+    sig.initVerify(kp.getPublic());
+
+    for (int i = 0; i < 5; i++) {
+      byte[] corrupted = signature.clone();
+      corrupted[i % signature.length] ^= 0xFF;
+      sig.update(digest);
+      assertFalse(sig.verify(corrupted), "Failed verification iteration " + i);
+    }
+
+    sig.update(digest);
+    assertTrue(sig.verify(signature));
+  }
+
+  private static MGF1ParameterSpec getRsaEmsaMgf1Spec(String hashAlg) {
+    switch (hashAlg) {
+      case "SHA-256":
+        return MGF1ParameterSpec.SHA256;
+      case "SHA-384":
+        return MGF1ParameterSpec.SHA384;
+      case "SHA-512":
+        return MGF1ParameterSpec.SHA512;
+      default:
+        throw new IllegalArgumentException("Unsupported hash: " + hashAlg);
+    }
+  }
+
+  @Test
+  public void rsaEmsaPssAcvpSigVer() throws Exception {
+    final File rsp = new File(System.getProperty("test.data.dir"), "rsaEmsaPssSigVer.rsp.gz");
+    int testCount = 0;
+    try (final InputStream is = new GZIPInputStream(new FileInputStream(rsp))) {
+      final Iterator<RspTestEntry> iterator = RspTestEntry.iterateOverResource(is);
+      while (iterator.hasNext()) {
+        final RspTestEntry entry = iterator.next();
+
+        final String hashAlg = entry.getHeader("hashAlg");
+        final int saltLen = Integer.parseInt(entry.getHeader("saltLen"));
+        final BigInteger n = new BigInteger(entry.getHeader("n"), 16);
+        final BigInteger e = new BigInteger(entry.getHeader("e"), 16);
+        final RSAPublicKey publicKey =
+            (RSAPublicKey) KeyFactory.getInstance("RSA").generatePublic(new RSAPublicKeySpec(n, e));
+
+        final byte[] message = entry.getInstanceFromHex("Msg");
+        final byte[] sig = entry.getInstanceFromHex("S");
+        final boolean expectedPass = "P".equals(entry.getInstance("Result"));
+
+        final MessageDigest md = MessageDigest.getInstance(hashAlg, NATIVE_PROVIDER);
+        final byte[] digest = md.digest(message);
+
+        final MGF1ParameterSpec mgfSpec = getRsaEmsaMgf1Spec(hashAlg);
+        final PSSParameterSpec pssSpec = new PSSParameterSpec(hashAlg, "MGF1", mgfSpec, saltLen, 1);
+
+        final Signature verifier = Signature.getInstance("RSAEMSA-PSS", NATIVE_PROVIDER);
+        verifier.setParameter(pssSpec);
+        verifier.initVerify(publicKey);
+        verifier.update(digest);
+        final boolean result = verifier.verify(sig);
+
+        assertEquals(
+            expectedPass,
+            result,
+            "tc "
+                + entry.getInstance("Msg").substring(0, 16)
+                + "... expected "
+                + (expectedPass ? "P" : "F"));
+        testCount++;
+      }
+    }
+    assertTrue(testCount > 0, "No test vectors were loaded");
+  }
+
+  @Test
+  public void rsaEmsaPssBouncyCastleInterop() throws Exception {
+    final Provider BC = TestUtil.BC_PROVIDER;
+    final KeyPair kp = generateRsaEmsaKeyPair(2048);
+    final byte[] message = "BouncyCastle interop test".getBytes();
+
+    final String[] digests = {"SHA-1", "SHA-256", "SHA-384", "SHA-512"};
+    final MGF1ParameterSpec[] mgfSpecs = {
+      MGF1ParameterSpec.SHA1,
+      MGF1ParameterSpec.SHA256,
+      MGF1ParameterSpec.SHA384,
+      MGF1ParameterSpec.SHA512
+    };
+    final int[] saltLengths = {20, 32, 48, 64};
+
+    for (int i = 0; i < digests.length; i++) {
+      final String hashAlg = digests[i];
+      final MGF1ParameterSpec mgfSpec = mgfSpecs[i];
+      final int saltLen = saltLengths[i];
+
+      final MessageDigest md = MessageDigest.getInstance(hashAlg, NATIVE_PROVIDER);
+      final byte[] hash = md.digest(message);
+
+      final PSSParameterSpec pssSpec = new PSSParameterSpec(hashAlg, "MGF1", mgfSpec, saltLen, 1);
+
+      final Signature accpSigner = Signature.getInstance("RSAEMSA-PSS", NATIVE_PROVIDER);
+      accpSigner.setParameter(pssSpec);
+      accpSigner.initSign(kp.getPrivate());
+      accpSigner.update(hash);
+      final byte[] accpSig = accpSigner.sign();
+
+      final Signature bcVerifier = Signature.getInstance("NONEwithRSASSA-PSS", BC);
+      bcVerifier.initVerify(kp.getPublic());
+      bcVerifier.setParameter(pssSpec);
+      bcVerifier.update(hash);
+      assertTrue(bcVerifier.verify(accpSig), "BC failed to verify ACCP sig for " + hashAlg);
+
+      final Signature bcSigner = Signature.getInstance("NONEwithRSASSA-PSS", BC);
+      bcSigner.initSign(kp.getPrivate());
+      bcSigner.setParameter(pssSpec);
+      bcSigner.update(hash);
+      final byte[] bcSig = bcSigner.sign();
+
+      final Signature accpVerifier = Signature.getInstance("RSAEMSA-PSS", NATIVE_PROVIDER);
+      accpVerifier.setParameter(pssSpec);
+      accpVerifier.initVerify(kp.getPublic());
+      accpVerifier.update(hash);
+      assertTrue(accpVerifier.verify(bcSig), "ACCP failed to verify BC sig for " + hashAlg);
+    }
   }
 }
