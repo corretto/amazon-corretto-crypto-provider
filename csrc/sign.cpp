@@ -622,8 +622,7 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
     }
 }
 
-JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatureRaw_00024RSAEMSA_1PSS_signEmsaPss(
-    JNIEnv* pEnv,
+JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_RsaEmsa_signEmsaPss(JNIEnv* pEnv,
     jclass,
     jlong pKey,
     jlong hashMd,
@@ -686,8 +685,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatu
     }
 }
 
-JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatureRaw_00024RSAEMSA_1PSS_verifyEmsaPss(
-    JNIEnv* pEnv,
+JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_RsaEmsa_verifyEmsaPss(JNIEnv* pEnv,
     jclass,
     jlong pKey,
     jlong hashMd,
