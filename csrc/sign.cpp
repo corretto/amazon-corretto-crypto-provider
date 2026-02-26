@@ -622,7 +622,7 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
     }
 }
 
-JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_RsaEmsa_signEmsaPss(JNIEnv* pEnv,
+JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_NoneWithRsa_signPss(JNIEnv* pEnv,
     jclass,
     jlong pKey,
     jlong hashMd,
@@ -685,7 +685,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_RsaEmsa_si
     }
 }
 
-JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_RsaEmsa_verifyEmsaPss(JNIEnv* pEnv,
+JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_NoneWithRsa_verifyPss(JNIEnv* pEnv,
     jclass,
     jlong pKey,
     jlong hashMd,
@@ -758,7 +758,7 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_RsaEmsa_veri
     }
 }
 
-JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_RsaEmsa_signEmsa(
+JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_NoneWithRsa_signPkcs15(
     JNIEnv* pEnv, jclass, jlong pKey, jlong hashMd, jbyteArray digestArr, jint offset, jint length)
 {
     try {
@@ -809,7 +809,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_RsaEmsa_si
     }
 }
 
-JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_RsaEmsa_verifyEmsa(JNIEnv* pEnv,
+JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_NoneWithRsa_verifyPkcs15(JNIEnv* pEnv,
     jclass,
     jlong pKey,
     jlong hashMd,

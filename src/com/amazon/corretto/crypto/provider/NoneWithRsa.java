@@ -9,15 +9,15 @@ import java.security.SignatureException;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.PSSParameterSpec;
 
-class RsaEmsa extends EvpSignatureBase {
+class NoneWithRsa extends EvpSignatureBase {
   private AccessibleByteArrayOutputStream buffer =
       new AccessibleByteArrayOutputStream(64, 1024 * 1024);
 
-  protected RsaEmsa(final AmazonCorrettoCryptoProvider provider, final int paddingType) {
+  protected NoneWithRsa(final AmazonCorrettoCryptoProvider provider, final int paddingType) {
     super(provider, EvpKeyType.RSA, paddingType, 0, false);
   }
 
-  protected RsaEmsa(
+  protected NoneWithRsa(
       final AmazonCorrettoCryptoProvider provider, final int paddingType, final long digest) {
     super(provider, EvpKeyType.RSA, paddingType, digest, false);
   }
@@ -82,11 +82,11 @@ class RsaEmsa extends EvpSignatureBase {
                 + buffer.size());
       }
       if (paddingType_ == RSA_PKCS1_PADDING) {
-        return key_.use(ptr -> signEmsa(ptr, digest_, buffer.getDataBuffer(), 0, buffer.size()));
+        return key_.use(ptr -> signPkcs15(ptr, digest_, buffer.getDataBuffer(), 0, buffer.size()));
       } else {
         return key_.use(
             ptr ->
-                signEmsaPss(
+                signPss(
                     ptr,
                     digest_,
                     pssMgfMd_,
@@ -122,7 +122,7 @@ class RsaEmsa extends EvpSignatureBase {
       if (paddingType_ == RSA_PKCS1_PADDING) {
         return key_.use(
             ptr ->
-                verifyEmsa(
+                verifyPkcs15(
                     ptr,
                     digest_,
                     buffer.getDataBuffer(),
@@ -134,7 +134,7 @@ class RsaEmsa extends EvpSignatureBase {
       } else {
         return key_.use(
             ptr ->
-                verifyEmsaPss(
+                verifyPss(
                     ptr,
                     digest_,
                     pssMgfMd_,
@@ -191,10 +191,10 @@ class RsaEmsa extends EvpSignatureBase {
     return super.engineGetParameters();
   }
 
-  private static native byte[] signEmsaPss(
+  private static native byte[] signPss(
       long privateKey, long hashMd, long mgfMd, int saltLen, byte[] digest, int offset, int length);
 
-  private static native boolean verifyEmsaPss(
+  private static native boolean verifyPss(
       long publicKey,
       long hashMd,
       long mgfMd,
@@ -207,10 +207,10 @@ class RsaEmsa extends EvpSignatureBase {
       int sigLength)
       throws SignatureException;
 
-  private static native byte[] signEmsa(
+  private static native byte[] signPkcs15(
       long privateKey, long hashMd, byte[] digest, int offset, int length);
 
-  private static native boolean verifyEmsa(
+  private static native boolean verifyPkcs15(
       long publicKey,
       long hashMd,
       byte[] digest,
@@ -221,13 +221,13 @@ class RsaEmsa extends EvpSignatureBase {
       int sigLength)
       throws SignatureException;
 
-  static final class Pss extends RsaEmsa {
+  static final class Pss extends NoneWithRsa {
     Pss(final AmazonCorrettoCryptoProvider provider) {
       super(provider, RSA_PKCS1_PSS_PADDING);
     }
   }
 
-  static final class Pkcs15 extends RsaEmsa {
+  static final class Pkcs15 extends NoneWithRsa {
     Pkcs15(final AmazonCorrettoCryptoProvider provider) {
       super(provider, RSA_PKCS1_PADDING, Utils.getMdPtr("SHA-256"));
     }
