@@ -5,9 +5,31 @@ package com.amazon.corretto.crypto.provider;
 import java.nio.ByteBuffer;
 import java.security.SignatureException;
 
+/**
+ * Pre-hashed RSA signature implementation.
+ *
+ * <p>This class implements RSA signature algorithms that accept a pre-computed message digest
+ * instead of the raw message. The caller is responsible for hashing the message with the
+ * appropriate digest algorithm before calling {@code update()}.
+ *
+ * <p>Registered algorithms:
+ *
+ * <ul>
+ *   <li>{@code NONEwithRSASSA-PSS} — Applies RSASSA-PSS padding (RFC 8017 §8.1) to the pre-hashed
+ *       digest via {@code RSA_sign_pss_mgf1}/{@code RSA_verify_pss_mgf1}. PSS parameters (hash,
+ *       MGF, salt length) are configured via {@link java.security.spec.PSSParameterSpec}.
+ *       Interoperable with {@code RSASSA-PSS} when the same parameters and digest are used.
+ *       Equivalent to BouncyCastle's {@code NONEwithRSASSA-PSS}.
+ * </ul>
+ *
+ * <p>This is a <b>one-shot</b> algorithm: the complete digest must be provided in a single {@code
+ * update()} call. Incremental or byte-by-byte updates are not supported. The digest length must
+ * exactly match the output length of the configured hash algorithm.
+ *
+ * @see java.security.spec.PSSParameterSpec
+ */
 class NoneWithRsa extends EvpSignatureBase {
-  private AccessibleByteArrayOutputStream buffer =
-      new AccessibleByteArrayOutputStream(64, 1024 * 1024);
+  private AccessibleByteArrayOutputStream buffer = new AccessibleByteArrayOutputStream(64, 64);
 
   protected NoneWithRsa(final AmazonCorrettoCryptoProvider provider, final int paddingType) {
     super(provider, EvpKeyType.RSA, paddingType, 0, false);
@@ -18,44 +40,70 @@ class NoneWithRsa extends EvpSignatureBase {
     buffer.reset();
   }
 
+  /**
+   * Not supported. This is a one-shot algorithm; the complete digest must be provided in a single
+   * call to {@code update(byte[])} or {@code update(ByteBuffer)}.
+   *
+   * @throws SignatureException always
+   */
   @Override
   protected void engineUpdate(final byte b) throws SignatureException {
-    final int expectedDigestLen = Utils.getMdLen(digest_);
-    if (buffer.size() >= expectedDigestLen) {
-      throw new SignatureException(
-          "Input exceeds digest length. Expected "
-              + expectedDigestLen
-              + " bytes, already have "
-              + buffer.size());
-    }
-    buffer.write(b & 0xFF);
+    throw new SignatureException(
+        "Byte-by-byte update not supported. Provide the complete digest in a single update()"
+            + " call.");
   }
 
+  /**
+   * Provides the pre-computed message digest for signing or verification.
+   *
+   * <p>This method must be called exactly once with the complete digest. The digest length must
+   * match the output length of the configured hash algorithm (validated at sign/verify time).
+   *
+   * @throws SignatureException if called more than once before sign/verify, or if the provided data
+   *     does not match the expected digest length
+   */
   @Override
   protected void engineUpdate(final byte[] b, final int off, final int len)
       throws SignatureException {
-    final int expectedDigestLen = Utils.getMdLen(digest_);
-    if (buffer.size() + len > expectedDigestLen) {
+    if (!isBufferEmpty()) {
       throw new SignatureException(
-          "Input exceeds digest length. Expected "
-              + expectedDigestLen
-              + " bytes, would have "
-              + (buffer.size() + len));
+          "This is a one-shot algorithm. The complete digest must be provided in a single"
+              + " update() call.");
+    }
+    final int expectedDigestLen = Utils.getMdLen(digest_);
+    if (len != expectedDigestLen) {
+      throw new SignatureException(
+          "Input must equal digest length. Expected " + expectedDigestLen + " bytes, got " + len);
     }
     buffer.write(b, off, len);
   }
 
+  /**
+   * Provides the pre-computed message digest for signing or verification.
+   *
+   * <p>This method must be called exactly once with the complete digest. The digest length must
+   * match the output length of the configured hash algorithm (validated at sign/verify time).
+   *
+   * @throws RuntimeException wrapping a {@link SignatureException} if called more than once before
+   *     sign/verify, or if the provided data does not match the expected digest length
+   */
   @Override
   protected void engineUpdate(final ByteBuffer input) {
-    final int expectedDigestLen = Utils.getMdLen(digest_);
-    final int len = input.remaining();
-    if (buffer.size() + len > expectedDigestLen) {
+    if (!isBufferEmpty()) {
       throw new RuntimeException(
           new SignatureException(
-              "Input exceeds digest length. Expected "
+              "This is a one-shot algorithm. The complete digest must be provided in a single"
+                  + " update() call."));
+    }
+    final int expectedDigestLen = Utils.getMdLen(digest_);
+    final int len = input.remaining();
+    if (len != expectedDigestLen) {
+      throw new RuntimeException(
+          new SignatureException(
+              "Input must equal digest length. Expected "
                   + expectedDigestLen
-                  + " bytes, would have "
-                  + (buffer.size() + len)));
+                  + " bytes, got "
+                  + len));
     }
     buffer.write(input);
   }
