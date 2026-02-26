@@ -131,7 +131,7 @@ public class NoneWithRsaTest {
     sig.setParameter(spec);
     sig.initSign(kp.getPrivate());
 
-    // Update with less than digest length (32 bytes for SHA-256) — rejected at update time
+    // Update with less than digest length (32 bytes for SHA-256) -- rejected at update time
     assertThrows(SignatureException.class, () -> sig.update(new byte[16]));
   }
 
@@ -592,7 +592,7 @@ public class NoneWithRsaTest {
     sig.update(digest);
     byte[] signature = sig.sign();
 
-    // Try to verify with too-short digest — rejected at update time
+    // Try to verify with too-short digest -- rejected at update time
     sig.initVerify(kp.getPublic());
     assertThrows(SignatureException.class, () -> sig.update(new byte[16]));
   }
@@ -1309,7 +1309,7 @@ public class NoneWithRsaTest {
     signer.initSign(pair.getPrivate());
 
     // SHA-256 expects exactly 32 bytes
-    // Try with too few bytes — rejected at update time
+    // Try with too few bytes -- rejected at update time
     byte[] tooShort = new byte[16];
     assertThrows(SignatureException.class, () -> signer.update(tooShort));
 
