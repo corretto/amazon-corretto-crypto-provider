@@ -757,3 +757,119 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_RsaEmsa_veri
         return JNI_FALSE;
     }
 }
+
+JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_RsaEmsa_signEmsa(
+    JNIEnv* pEnv, jclass, jlong pKey, jlong hashMd, jbyteArray digestArr, jint offset, jint length)
+{
+    try {
+        raii_env env(pEnv);
+
+        EVP_PKEY* key = reinterpret_cast<EVP_PKEY*>(pKey);
+        const EVP_MD* md = reinterpret_cast<const EVP_MD*>(hashMd);
+
+        if (EVP_PKEY_base_id(key) != EVP_PKEY_RSA) {
+            throw_java_ex(EX_SIGNATURE_EXCEPTION, "Key must be RSA");
+        }
+
+        RSA* rsa = EVP_PKEY_get0_RSA(key);
+        if (rsa == nullptr) {
+            throw_java_ex(EX_SIGNATURE_EXCEPTION, "Failed to get RSA key");
+        }
+
+        size_t hLen = EVP_MD_size(md);
+
+        if ((size_t)length != hLen) {
+            throw_java_ex(EX_SIGNATURE_EXCEPTION, "Digest length mismatch");
+        }
+
+        // Copy digest bytes outside JNI critical region
+        std::vector<uint8_t, SecureAlloc<uint8_t> > digestCopy(hLen);
+        {
+            java_buffer digestBuf = java_buffer::from_array(env, digestArr, offset, length);
+            jni_borrow digest(env, digestBuf, "digest");
+            memcpy(digestCopy.data(), digest.data(), hLen);
+        }
+
+        // Allocate output buffer for signature
+        size_t maxOut = RSA_size(rsa);
+        std::vector<uint8_t, SecureAlloc<uint8_t> > signature(maxOut);
+        unsigned int sigLen = 0;
+
+        // RSA_sign wraps the digest in DigestInfo before PKCS#1 v1.5 padding
+        if (RSA_sign(EVP_MD_type(md), digestCopy.data(), hLen, signature.data(), &sigLen, rsa) != 1) {
+            throw_openssl("RSA_sign failed");
+        }
+
+        signature.resize(sigLen);
+        return vecToArray(env, signature);
+
+    } catch (java_ex& ex) {
+        ex.throw_to_java(pEnv);
+        return nullptr;
+    }
+}
+
+JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_RsaEmsa_verifyEmsa(JNIEnv* pEnv,
+    jclass,
+    jlong pKey,
+    jlong hashMd,
+    jbyteArray digestArr,
+    jint offset,
+    jint length,
+    jbyteArray signatureArr,
+    jint sigOffset,
+    jint sigLength)
+{
+    try {
+        raii_env env(pEnv);
+
+        EVP_PKEY* key = reinterpret_cast<EVP_PKEY*>(pKey);
+        const EVP_MD* md = reinterpret_cast<const EVP_MD*>(hashMd);
+
+        if (EVP_PKEY_base_id(key) != EVP_PKEY_RSA) {
+            throw_java_ex(EX_SIGNATURE_EXCEPTION, "Key must be RSA");
+        }
+
+        RSA* rsa = EVP_PKEY_get0_RSA(key);
+        if (rsa == nullptr) {
+            throw_java_ex(EX_SIGNATURE_EXCEPTION, "Failed to get RSA key");
+        }
+
+        size_t hLen = EVP_MD_size(md);
+
+        if ((size_t)length != hLen) {
+            throw_java_ex(EX_SIGNATURE_EXCEPTION, "Digest length mismatch");
+        }
+
+        // Copy digest bytes
+        std::vector<uint8_t, SecureAlloc<uint8_t> > digestCopy(hLen);
+        {
+            java_buffer digestBuf = java_buffer::from_array(env, digestArr, offset, length);
+            jni_borrow digest(env, digestBuf, "digest");
+            memcpy(digestCopy.data(), digest.data(), hLen);
+        }
+
+        // Copy signature bytes
+        std::vector<uint8_t, SecureAlloc<uint8_t> > signatureCopy(sigLength);
+        {
+            java_buffer signatureBuf = java_buffer::from_array(env, signatureArr, sigOffset, sigLength);
+            jni_borrow signature(env, signatureBuf, "signature");
+            memcpy(signatureCopy.data(), signature.data(), sigLength);
+        }
+
+        // RSA_verify checks DigestInfo + PKCS#1 v1.5 padding
+        int result
+            = RSA_verify(EVP_MD_type(md), digestCopy.data(), hLen, signatureCopy.data(), signatureCopy.size(), rsa);
+
+        if (result != 1) {
+            drainOpensslErrors();
+            return JNI_FALSE;
+        }
+
+        return JNI_TRUE;
+
+    } catch (java_ex& ex) {
+        ex.throw_to_java(pEnv);
+        return JNI_FALSE;
+    }
+}

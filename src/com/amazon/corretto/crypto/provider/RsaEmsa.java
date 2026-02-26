@@ -3,7 +3,11 @@
 package com.amazon.corretto.crypto.provider;
 
 import java.nio.ByteBuffer;
+import java.security.AlgorithmParameters;
+import java.security.InvalidAlgorithmParameterException;
 import java.security.SignatureException;
+import java.security.spec.AlgorithmParameterSpec;
+import java.security.spec.PSSParameterSpec;
 
 class RsaEmsa extends EvpSignatureBase {
   private AccessibleByteArrayOutputStream buffer =
@@ -11,6 +15,11 @@ class RsaEmsa extends EvpSignatureBase {
 
   protected RsaEmsa(final AmazonCorrettoCryptoProvider provider, final int paddingType) {
     super(provider, EvpKeyType.RSA, paddingType, 0, false);
+  }
+
+  protected RsaEmsa(
+      final AmazonCorrettoCryptoProvider provider, final int paddingType, final long digest) {
+    super(provider, EvpKeyType.RSA, paddingType, digest, false);
   }
 
   @Override
@@ -72,10 +81,20 @@ class RsaEmsa extends EvpSignatureBase {
                 + " bytes, got "
                 + buffer.size());
       }
-      return key_.use(
-          ptr ->
-              signEmsaPss(
-                  ptr, digest_, pssMgfMd_, pssSaltLen_, buffer.getDataBuffer(), 0, buffer.size()));
+      if (paddingType_ == RSA_PKCS1_PADDING) {
+        return key_.use(ptr -> signEmsa(ptr, digest_, buffer.getDataBuffer(), 0, buffer.size()));
+      } else {
+        return key_.use(
+            ptr ->
+                signEmsaPss(
+                    ptr,
+                    digest_,
+                    pssMgfMd_,
+                    pssSaltLen_,
+                    buffer.getDataBuffer(),
+                    0,
+                    buffer.size()));
+      }
     } finally {
       engineReset();
     }
@@ -100,19 +119,33 @@ class RsaEmsa extends EvpSignatureBase {
                 + buffer.size());
       }
       sniffTest(sigBytes, offset, length);
-      return key_.use(
-          ptr ->
-              verifyEmsaPss(
-                  ptr,
-                  digest_,
-                  pssMgfMd_,
-                  pssSaltLen_,
-                  buffer.getDataBuffer(),
-                  0,
-                  buffer.size(),
-                  sigBytes,
-                  offset,
-                  length));
+      if (paddingType_ == RSA_PKCS1_PADDING) {
+        return key_.use(
+            ptr ->
+                verifyEmsa(
+                    ptr,
+                    digest_,
+                    buffer.getDataBuffer(),
+                    0,
+                    buffer.size(),
+                    sigBytes,
+                    offset,
+                    length));
+      } else {
+        return key_.use(
+            ptr ->
+                verifyEmsaPss(
+                    ptr,
+                    digest_,
+                    pssMgfMd_,
+                    pssSaltLen_,
+                    buffer.getDataBuffer(),
+                    0,
+                    buffer.size(),
+                    sigBytes,
+                    offset,
+                    length));
+      }
     } finally {
       engineReset();
     }
@@ -121,6 +154,41 @@ class RsaEmsa extends EvpSignatureBase {
   @Override
   protected boolean isBufferEmpty() {
     return buffer.size() == 0;
+  }
+
+  @Override
+  protected synchronized void engineSetParameter(final AlgorithmParameterSpec params)
+      throws InvalidAlgorithmParameterException {
+    if (paddingType_ == RSA_PKCS1_PADDING) {
+      if (params instanceof PSSParameterSpec) {
+        // For PKCS#1 v1.5, accept PSSParameterSpec but only extract the digest algorithm.
+        // MGF, salt length, and trailer are ignored since they are PSS-specific.
+        final PSSParameterSpec pssParams = (PSSParameterSpec) params;
+        if (!isBufferEmpty()) {
+          throw new IllegalStateException(
+              "Cannot update parameters with buffered data, reset Signature.");
+        }
+        try {
+          digest_ = Utils.getMdPtr(pssParams.getDigestAlgorithm());
+        } catch (Exception e) {
+          throw new InvalidAlgorithmParameterException(
+              "Unsupported digest: " + pssParams.getDigestAlgorithm());
+        }
+      } else {
+        throw new InvalidAlgorithmParameterException(
+            "Only PSSParameterSpec is accepted (to select digest algorithm)");
+      }
+    } else {
+      super.engineSetParameter(params);
+    }
+  }
+
+  @Override
+  protected synchronized AlgorithmParameters engineGetParameters() {
+    if (paddingType_ == RSA_PKCS1_PADDING) {
+      return null;
+    }
+    return super.engineGetParameters();
   }
 
   private static native byte[] signEmsaPss(
@@ -139,9 +207,29 @@ class RsaEmsa extends EvpSignatureBase {
       int sigLength)
       throws SignatureException;
 
+  private static native byte[] signEmsa(
+      long privateKey, long hashMd, byte[] digest, int offset, int length);
+
+  private static native boolean verifyEmsa(
+      long publicKey,
+      long hashMd,
+      byte[] digest,
+      int offset,
+      int length,
+      byte[] signature,
+      int sigOffset,
+      int sigLength)
+      throws SignatureException;
+
   static final class Pss extends RsaEmsa {
     Pss(final AmazonCorrettoCryptoProvider provider) {
       super(provider, RSA_PKCS1_PSS_PADDING);
+    }
+  }
+
+  static final class Pkcs15 extends RsaEmsa {
+    Pkcs15(final AmazonCorrettoCryptoProvider provider) {
+      super(provider, RSA_PKCS1_PADDING, Utils.getMdPtr("SHA-256"));
     }
   }
 }
