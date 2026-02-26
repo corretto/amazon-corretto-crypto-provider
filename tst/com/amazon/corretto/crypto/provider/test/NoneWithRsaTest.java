@@ -132,11 +132,8 @@ public class NoneWithRsaTest {
     sig.setParameter(spec);
     sig.initSign(kp.getPrivate());
 
-    // Update with less than digest length (32 bytes for SHA-256)
-    sig.update(new byte[16]);
-
-    // Should throw when trying to sign
-    assertThrows(SignatureException.class, sig::sign);
+    // Update with less than digest length (32 bytes for SHA-256) should throw immediately
+    assertThrows(SignatureException.class, () -> sig.update(new byte[16]));
   }
 
   @Test
@@ -256,10 +253,8 @@ public class NoneWithRsaTest {
   }
 
   @Test
-  public void testByteByByteUpdate() throws Exception {
+  public void testByteByByteUpdateThrows() throws Exception {
     KeyPair kp = generateKeyPair(2048);
-    MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
-    byte[] digest = md.digest("test".getBytes());
 
     Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     PSSParameterSpec spec =
@@ -267,18 +262,8 @@ public class NoneWithRsaTest {
     sig.setParameter(spec);
     sig.initSign(kp.getPrivate());
 
-    // Update byte by byte
-    for (byte b : digest) {
-      sig.update(b);
-    }
-    byte[] signature = sig.sign();
-
-    sig.initVerify(kp.getPublic());
-    sig.setParameter(spec);
-    for (byte b : digest) {
-      sig.update(b);
-    }
-    assertTrue(sig.verify(signature));
+    // Byte-by-byte update is not supported for one-shot signature
+    assertThrows(SignatureException.class, () -> sig.update((byte) 0x42));
   }
 
   @Test
@@ -361,8 +346,8 @@ public class NoneWithRsaTest {
     sig.setParameter(spec1);
     sig.initSign(kp.getPrivate());
 
-    // Update with some data
-    sig.update(digest, 0, 16);
+    // Update with complete digest
+    sig.update(digest);
 
     // Try to change parameters with buffered data
     PSSParameterSpec spec2 =
@@ -555,10 +540,8 @@ public class NoneWithRsaTest {
     sig.setParameter(spec);
     sig.initSign(kp.getPrivate());
 
-    // First update is fine
-    sig.update(new byte[20]);
-    // Second update would push past 32 bytes
-    assertThrows(SignatureException.class, () -> sig.update(new byte[13]));
+    // First update with wrong length should throw (one-shot: must be exactly 32 bytes)
+    assertThrows(SignatureException.class, () -> sig.update(new byte[20]));
   }
 
   @Test
@@ -586,8 +569,8 @@ public class NoneWithRsaTest {
     sig.setParameter(spec);
     sig.initSign(kp.getPrivate());
 
-    sig.update(ByteBuffer.wrap(new byte[20]));
-    assertThrows(RuntimeException.class, () -> sig.update(ByteBuffer.wrap(new byte[13])));
+    // First update with wrong length should throw (one-shot: must be exactly 32 bytes)
+    assertThrows(RuntimeException.class, () -> sig.update(ByteBuffer.wrap(new byte[20])));
   }
 
   @Test
@@ -606,10 +589,9 @@ public class NoneWithRsaTest {
     sig.update(digest);
     byte[] signature = sig.sign();
 
-    // Try to verify with too-short digest
+    // Try to verify with too-short digest - should throw at update time
     sig.initVerify(kp.getPublic());
-    sig.update(new byte[16]);
-    assertThrows(SignatureException.class, () -> sig.verify(signature));
+    assertThrows(SignatureException.class, () -> sig.update(new byte[16]));
   }
 
   @Test
@@ -892,11 +874,13 @@ public class NoneWithRsaTest {
     sig.setParameter(spec);
     sig.initSign(kp.getPrivate());
 
-    // Feed too-short data and try to sign (should fail)
-    sig.update(new byte[16]);
+    // Feed wrong-length data (should fail at update time)
+    assertThrows(SignatureException.class, () -> sig.update(new byte[16]));
+
+    // Sign with no data should also fail (buffer empty)
     assertThrows(SignatureException.class, sig::sign);
 
-    // After failure, buffer should be reset. Can sign with correct data.
+    // After failure, should be able to sign with correct data.
     byte[] digest = md.digest("test".getBytes());
     sig.update(digest);
     byte[] signature = sig.sign();
@@ -1188,10 +1172,9 @@ public class NoneWithRsaTest {
     sig.initSign(kp.getPrivate());
     assertThrows(SignatureException.class, () -> sig.update(new byte[21]));
 
-    // 19 bytes should fail at sign time
+    // 19 bytes should fail at update time (one-shot: must be exactly 20)
     sig.initSign(kp.getPrivate());
-    sig.update(new byte[19]);
-    assertThrows(SignatureException.class, sig::sign);
+    assertThrows(SignatureException.class, () -> sig.update(new byte[19]));
 
     // Exactly 20 bytes should work
     sig.initSign(kp.getPrivate());
@@ -1220,10 +1203,9 @@ public class NoneWithRsaTest {
     sig.initSign(kp.getPrivate());
     assertThrows(SignatureException.class, () -> sig.update(new byte[65]));
 
-    // 63 bytes should fail at sign time
+    // 63 bytes should fail at update time (one-shot: must be exactly 64)
     sig.initSign(kp.getPrivate());
-    sig.update(new byte[63]);
-    assertThrows(SignatureException.class, sig::sign);
+    assertThrows(SignatureException.class, () -> sig.update(new byte[63]));
 
     // Exactly 64 bytes should work
     sig.initSign(kp.getPrivate());
@@ -1327,16 +1309,17 @@ public class NoneWithRsaTest {
     signer.initSign(pair.getPrivate());
 
     // SHA-256 expects exactly 32 bytes
-    // Try with too few bytes
-    byte[] tooShort = new byte[16];
-    signer.update(tooShort);
-    assertThrows(SignatureException.class, () -> signer.sign());
+    // Try with too few bytes - should fail at update time
+    assertThrows(SignatureException.class, () -> signer.update(new byte[16]));
 
     // Reset and try with too many bytes
     signer.initSign(pair.getPrivate());
-    byte[] exact = new byte[32];
-    signer.update(exact);
-    // Try to add one more byte
+    assertThrows(SignatureException.class, () -> signer.update(new byte[33]));
+
+    // Reset and try exact length then one more byte
+    signer.initSign(pair.getPrivate());
+    signer.update(new byte[32]);
+    // Try to add one more byte (one-shot: buffer already has data)
     assertThrows(SignatureException.class, () -> signer.update((byte) 0xFF));
   }
 
@@ -1388,9 +1371,8 @@ public class NoneWithRsaTest {
     signer.setParameter(spec1);
     signer.initSign(pair.getPrivate());
 
-    // Buffer some data (16 bytes, which is less than the required 32 for SHA-256)
-    byte[] partialData = new byte[16];
-    signer.update(partialData);
+    // Buffer exact digest (32 bytes for SHA-256)
+    signer.update(new byte[32]);
 
     // Try to update parameters with buffered data - should throw
     assertThrows(IllegalStateException.class, () -> signer.setParameter(spec2));
@@ -1624,13 +1606,12 @@ public class NoneWithRsaTest {
     sig.initSign(kp.getPrivate());
 
     // Default is SHA-256 (32 bytes). Wrong lengths should fail.
-    // Too long
+    // Too long - fails at update time
     assertThrows(SignatureException.class, () -> sig.update(new byte[33]));
 
-    // Too short - fails at sign time
+    // Too short - fails at update time
     sig.initSign(kp.getPrivate());
-    sig.update(new byte[16]);
-    assertThrows(SignatureException.class, sig::sign);
+    assertThrows(SignatureException.class, () -> sig.update(new byte[16]));
 
     // Empty - fails at sign time
     sig.initSign(kp.getPrivate());

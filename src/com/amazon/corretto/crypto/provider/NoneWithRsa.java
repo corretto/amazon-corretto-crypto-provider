@@ -9,9 +9,24 @@ import java.security.SignatureException;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.PSSParameterSpec;
 
+/**
+ * Pre-hashed RSA signature implementation that accepts raw digest bytes and applies RSA padding
+ * directly.
+ *
+ * <p>This is a one-shot signature scheme: the caller must supply the complete pre-hashed digest in
+ * a single {@link #engineUpdate} call. The digest length must exactly match the expected length for
+ * the configured hash algorithm. Byte-by-byte updates are not supported.
+ *
+ * <p>Registered algorithms:
+ *
+ * <ul>
+ *   <li>{@code NONEwithRSASSA-PSS} - PSS padding (configurable via {@link PSSParameterSpec})
+ *   <li>{@code NONEwithRSA} - PKCS#1 v1.5 padding (digest algorithm selectable via {@link
+ *       PSSParameterSpec})
+ * </ul>
+ */
 class NoneWithRsa extends EvpSignatureBase {
-  private AccessibleByteArrayOutputStream buffer =
-      new AccessibleByteArrayOutputStream(64, 1024 * 1024);
+  private AccessibleByteArrayOutputStream buffer = new AccessibleByteArrayOutputStream(64, 64);
 
   protected NoneWithRsa(final AmazonCorrettoCryptoProvider provider, final int paddingType) {
     super(provider, EvpKeyType.RSA, paddingType, 0, false);
@@ -27,44 +42,45 @@ class NoneWithRsa extends EvpSignatureBase {
     buffer.reset();
   }
 
+  /**
+   * Not supported. This is a one-shot signature scheme; use {@link #engineUpdate(byte[], int, int)}
+   * to supply the complete digest in a single call.
+   */
   @Override
   protected void engineUpdate(final byte b) throws SignatureException {
-    final int expectedDigestLen = Utils.getMdLen(digest_);
-    if (buffer.size() >= expectedDigestLen) {
-      throw new SignatureException(
-          "Input exceeds digest length. Expected "
-              + expectedDigestLen
-              + " bytes, already have "
-              + buffer.size());
-    }
-    buffer.write(b & 0xFF);
+    throw new SignatureException(
+        "One-shot signature: supply the complete digest via update(byte[], int, int)");
   }
 
   @Override
   protected void engineUpdate(final byte[] b, final int off, final int len)
       throws SignatureException {
+    if (!isBufferEmpty()) {
+      throw new SignatureException("Digest already provided; one-shot signature allows one update");
+    }
     final int expectedDigestLen = Utils.getMdLen(digest_);
-    if (buffer.size() + len > expectedDigestLen) {
+    if (len != expectedDigestLen) {
       throw new SignatureException(
-          "Input exceeds digest length. Expected "
-              + expectedDigestLen
-              + " bytes, would have "
-              + (buffer.size() + len));
+          "Input must equal digest length. Expected " + expectedDigestLen + " bytes, got " + len);
     }
     buffer.write(b, off, len);
   }
 
   @Override
   protected void engineUpdate(final ByteBuffer input) {
+    if (!isBufferEmpty()) {
+      throw new RuntimeException(
+          new SignatureException("Digest already provided; one-shot signature allows one update"));
+    }
     final int expectedDigestLen = Utils.getMdLen(digest_);
     final int len = input.remaining();
-    if (buffer.size() + len > expectedDigestLen) {
+    if (len != expectedDigestLen) {
       throw new RuntimeException(
           new SignatureException(
-              "Input exceeds digest length. Expected "
+              "Input must equal digest length. Expected "
                   + expectedDigestLen
-                  + " bytes, would have "
-                  + (buffer.size() + len)));
+                  + " bytes, got "
+                  + len));
     }
     buffer.write(input);
   }
@@ -81,20 +97,17 @@ class NoneWithRsa extends EvpSignatureBase {
                 + " bytes, got "
                 + buffer.size());
       }
-      if (paddingType_ == RSA_PKCS1_PADDING) {
-        return key_.use(ptr -> signPkcs15(ptr, digest_, buffer.getDataBuffer(), 0, buffer.size()));
-      } else {
-        return key_.use(
-            ptr ->
-                signPss(
-                    ptr,
-                    digest_,
-                    pssMgfMd_,
-                    pssSaltLen_,
-                    buffer.getDataBuffer(),
-                    0,
-                    buffer.size()));
-      }
+      return key_.use(
+          ptr ->
+              sign(
+                  ptr,
+                  digest_,
+                  paddingType_,
+                  pssMgfMd_,
+                  pssSaltLen_,
+                  buffer.getDataBuffer(),
+                  0,
+                  buffer.size()));
     } finally {
       engineReset();
     }
@@ -119,33 +132,20 @@ class NoneWithRsa extends EvpSignatureBase {
                 + buffer.size());
       }
       sniffTest(sigBytes, offset, length);
-      if (paddingType_ == RSA_PKCS1_PADDING) {
-        return key_.use(
-            ptr ->
-                verifyPkcs15(
-                    ptr,
-                    digest_,
-                    buffer.getDataBuffer(),
-                    0,
-                    buffer.size(),
-                    sigBytes,
-                    offset,
-                    length));
-      } else {
-        return key_.use(
-            ptr ->
-                verifyPss(
-                    ptr,
-                    digest_,
-                    pssMgfMd_,
-                    pssSaltLen_,
-                    buffer.getDataBuffer(),
-                    0,
-                    buffer.size(),
-                    sigBytes,
-                    offset,
-                    length));
-      }
+      return key_.use(
+          ptr ->
+              verify(
+                  ptr,
+                  digest_,
+                  paddingType_,
+                  pssMgfMd_,
+                  pssSaltLen_,
+                  buffer.getDataBuffer(),
+                  0,
+                  buffer.size(),
+                  sigBytes,
+                  offset,
+                  length));
     } finally {
       engineReset();
     }
@@ -191,28 +191,22 @@ class NoneWithRsa extends EvpSignatureBase {
     return super.engineGetParameters();
   }
 
-  private static native byte[] signPss(
-      long privateKey, long hashMd, long mgfMd, int saltLen, byte[] digest, int offset, int length);
-
-  private static native boolean verifyPss(
-      long publicKey,
+  private static native byte[] sign(
+      long privateKey,
       long hashMd,
+      int paddingType,
       long mgfMd,
       int saltLen,
       byte[] digest,
       int offset,
-      int length,
-      byte[] signature,
-      int sigOffset,
-      int sigLength)
-      throws SignatureException;
+      int length);
 
-  private static native byte[] signPkcs15(
-      long privateKey, long hashMd, byte[] digest, int offset, int length);
-
-  private static native boolean verifyPkcs15(
+  private static native boolean verify(
       long publicKey,
       long hashMd,
+      int paddingType,
+      long mgfMd,
+      int saltLen,
       byte[] digest,
       int offset,
       int length,
