@@ -3,107 +3,19 @@
 package com.amazon.corretto.crypto.provider;
 
 import java.nio.ByteBuffer;
-import java.security.AlgorithmParameters;
-import java.security.GeneralSecurityException;
-import java.security.InvalidAlgorithmParameterException;
-import java.security.InvalidKeyException;
-import java.security.InvalidParameterException;
-import java.security.NoSuchAlgorithmException;
-import java.security.PrivateKey;
-import java.security.PublicKey;
 import java.security.SignatureException;
-import java.security.SignatureSpi;
-import java.security.interfaces.RSAKey;
-import java.security.spec.AlgorithmParameterSpec;
-import java.security.spec.MGF1ParameterSpec;
-import java.security.spec.PSSParameterSpec;
 
-class RsaEmsa extends SignatureSpi {
-  private final AmazonCorrettoCryptoProvider provider_;
-  private EvpKey key_ = null;
-  private java.security.Key untranslatedKey_ = null;
-  private boolean signMode;
-  private PSSParameterSpec pssParams_ = null;
-  private long digest_ = 0;
-  private long pssMgfMd_ = 0;
-  private int pssSaltLen_ = 0;
-  private final AccessibleByteArrayOutputStream buffer =
+class RsaEmsa extends EvpSignatureBase {
+  private AccessibleByteArrayOutputStream buffer =
       new AccessibleByteArrayOutputStream(64, 1024 * 1024);
 
-  protected RsaEmsa(final AmazonCorrettoCryptoProvider provider) {
-    provider_ = provider;
-    internalSetParams(PSSParameterSpec.DEFAULT);
+  protected RsaEmsa(final AmazonCorrettoCryptoProvider provider, final int paddingType) {
+    super(provider, EvpKeyType.RSA, paddingType, 0, false);
   }
 
-  // Required by the provider's EvpService for all Signature classes.
-  void setAlgorithmName(final String algorithmName) {}
-
-  private void internalSetParams(final PSSParameterSpec params) {
-    if (params == null) {
-      pssParams_ = null;
-      digest_ = 0;
-      pssMgfMd_ = 0;
-      pssSaltLen_ = 0;
-    } else {
-      pssParams_ = params;
-      digest_ = Utils.getMdPtr(params.getDigestAlgorithm());
-      pssMgfMd_ =
-          Utils.getMdPtr(((MGF1ParameterSpec) params.getMGFParameters()).getDigestAlgorithm());
-      pssSaltLen_ = params.getSaltLength();
-    }
-  }
-
-  private void resetBuffer() {
+  @Override
+  protected void engineReset() {
     buffer.reset();
-  }
-
-  @Override
-  protected synchronized void engineInitSign(final PrivateKey privateKey)
-      throws InvalidKeyException {
-    if (privateKey == null) {
-      throw new InvalidKeyException("Key must not be null");
-    }
-    if (privateKey.getAlgorithm() == null) {
-      throw new InvalidKeyException("Key algorithm must not be null");
-    }
-    if (untranslatedKey_ != privateKey) {
-      if (!"RSA".equalsIgnoreCase(privateKey.getAlgorithm())
-          && !privateKey.getAlgorithm().startsWith("RSA")) {
-        throw new InvalidKeyException(
-            String.format("Invalid algorithm: %s, expected RSA", privateKey.getAlgorithm()));
-      }
-      untranslatedKey_ = privateKey;
-      if (key_ != null) {
-        key_.releaseEphemeral();
-      }
-      key_ = provider_.translateKey(untranslatedKey_, EvpKeyType.RSA);
-    }
-    signMode = true;
-    resetBuffer();
-  }
-
-  @Override
-  protected synchronized void engineInitVerify(final PublicKey publicKey)
-      throws InvalidKeyException {
-    if (publicKey == null) {
-      throw new InvalidKeyException("Key must not be null");
-    }
-    if (publicKey.getAlgorithm() == null) {
-      throw new InvalidKeyException("Key algorithm must not be null");
-    }
-    if (untranslatedKey_ != publicKey) {
-      if (!"RSA".equalsIgnoreCase(publicKey.getAlgorithm())
-          && !publicKey.getAlgorithm().startsWith("RSA")) {
-        throw new InvalidKeyException();
-      }
-      untranslatedKey_ = publicKey;
-      if (key_ != null) {
-        key_.releaseEphemeral();
-      }
-      key_ = provider_.translateKey(untranslatedKey_, EvpKeyType.RSA);
-    }
-    signMode = false;
-    resetBuffer();
   }
 
   @Override
@@ -165,7 +77,7 @@ class RsaEmsa extends SignatureSpi {
               signEmsaPss(
                   ptr, digest_, pssMgfMd_, pssSaltLen_, buffer.getDataBuffer(), 0, buffer.size()));
     } finally {
-      resetBuffer();
+      engineReset();
     }
   }
 
@@ -202,90 +114,13 @@ class RsaEmsa extends SignatureSpi {
                   offset,
                   length));
     } finally {
-      resetBuffer();
+      engineReset();
     }
   }
 
   @Override
-  @Deprecated
-  protected Object engineGetParameter(final String param) throws InvalidParameterException {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  @Deprecated
-  protected void engineSetParameter(final String param, final Object value)
-      throws InvalidParameterException {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  protected synchronized void engineSetParameter(final AlgorithmParameterSpec params)
-      throws InvalidAlgorithmParameterException {
-    if (!(params instanceof PSSParameterSpec)) {
-      throw new InvalidAlgorithmParameterException(
-          "Specified parameters supported by this algorithm");
-    }
-    final PSSParameterSpec pssParams = (PSSParameterSpec) params;
-    if (buffer.size() > 0) {
-      throw new IllegalStateException(
-          "Cannot update PSS parameters with buffered data, reset Signature.");
-    }
-    if (!"MGF1".equals(pssParams.getMGFAlgorithm())) {
-      throw new InvalidAlgorithmParameterException("Invalid PSS MGF algorithm");
-    }
-    if (pssParams.getTrailerField() != PSSParameterSpec.DEFAULT.getTrailerField()) {
-      throw new IllegalArgumentException("Invalid PSS trailer field");
-    }
-    if (pssParams.getMGFParameters() == null) {
-      throw new InvalidAlgorithmParameterException("PSS parameters must specify MGF1 parameters");
-    }
-    try {
-      Utils.getMdPtr(pssParams.getDigestAlgorithm());
-      Utils.getMdPtr(((MGF1ParameterSpec) pssParams.getMGFParameters()).getDigestAlgorithm());
-    } catch (Exception e) {
-      throw new InvalidAlgorithmParameterException();
-    }
-    final int saltLen = pssParams.getSaltLength();
-    final int mdLen = Utils.getMdLen(Utils.getMdPtr(pssParams.getDigestAlgorithm()));
-    final int emLen = key_ != null ? (((RSAKey) key_).getModulus().bitLength() + 7) / 8 : 2048 / 8;
-    if (saltLen < 0 || saltLen > emLen - mdLen - 2) {
-      throw new IllegalArgumentException("PSS salt length invalid");
-    }
-    internalSetParams(pssParams);
-  }
-
-  @Override
-  protected synchronized AlgorithmParameters engineGetParameters() {
-    if (pssParams_ != null) {
-      try {
-        final AlgorithmParameters params = AlgorithmParameters.getInstance("RSASSA-PSS");
-        params.init(pssParams_);
-        return params;
-      } catch (final NoSuchAlgorithmException ex) {
-        throw new UnsupportedOperationException("RSASSA-PSS unsupported.", ex);
-      } catch (final GeneralSecurityException ex) {
-        throw new AssertionError(ex);
-      }
-    }
-    return null;
-  }
-
-  private void ensureInitialized(final boolean forSigning) throws SignatureException {
-    if (key_ == null) {
-      throw new SignatureException("Not initialized");
-    }
-    if (forSigning != signMode) {
-      throw new SignatureException("Incorrect mode for operation");
-    }
-  }
-
-  private void sniffTest(final byte[] signature, final int offset, final int length)
-      throws SignatureException {
-    final int expectedLength = (((RSAKey) key_).getModulus().bitLength() + 7) / 8;
-    if (length != expectedLength) {
-      throw new SignatureException("RSA Signature of invalid length. Expected " + expectedLength);
-    }
+  protected boolean isBufferEmpty() {
+    return buffer.size() == 0;
   }
 
   private static native byte[] signEmsaPss(
@@ -306,7 +141,7 @@ class RsaEmsa extends SignatureSpi {
 
   static final class Pss extends RsaEmsa {
     Pss(final AmazonCorrettoCryptoProvider provider) {
-      super(provider);
+      super(provider, RSA_PKCS1_PSS_PADDING);
     }
   }
 }
