@@ -46,7 +46,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 @Execution(ExecutionMode.CONCURRENT)
 @ExtendWith(TestResultLogger.class)
 @ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
-public class RsaEmsaTest {
+public class NoneWithRsaTest {
   private static final Provider ACCP = AmazonCorrettoCryptoProvider.INSTANCE;
 
   private KeyPair generateKeyPair(int keySize) throws Exception {
@@ -64,8 +64,8 @@ public class RsaEmsaTest {
     MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
     byte[] digest = md.digest(message.getBytes());
 
-    // Sign with RSAEMSA-PSS
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    // Sign with NONEwithRSASSA-PSS
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
     sig.setParameter(spec);
@@ -92,7 +92,7 @@ public class RsaEmsaTest {
     MessageDigest md = MessageDigest.getInstance("SHA-1", ACCP);
     byte[] digest = md.digest(message.getBytes());
 
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     sig.initSign(kp.getPrivate());
     sig.update(digest);
     byte[] signature = sig.sign();
@@ -109,7 +109,7 @@ public class RsaEmsaTest {
     MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
     byte[] digest = md.digest("test".getBytes());
 
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
     sig.setParameter(spec);
@@ -124,7 +124,7 @@ public class RsaEmsaTest {
   public void testInputLessThanDigestLength() throws Exception {
     KeyPair kp = generateKeyPair(2048);
 
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
     sig.setParameter(spec);
@@ -145,7 +145,7 @@ public class RsaEmsaTest {
     byte[] digest = md.digest("test".getBytes());
     assertEquals(32, digest.length);
 
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
     sig.setParameter(spec);
@@ -163,7 +163,7 @@ public class RsaEmsaTest {
     MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
     byte[] digest = md.digest("test".getBytes());
 
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
     sig.setParameter(spec);
@@ -193,7 +193,7 @@ public class RsaEmsaTest {
       MessageDigest md = MessageDigest.getInstance(digests[i], ACCP);
       byte[] digest = md.digest("test message".getBytes());
 
-      Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+      Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
       PSSParameterSpec spec =
           new PSSParameterSpec(digests[i], "MGF1", mgfSpecs[i], saltLengths[i], 1);
       sig.setParameter(spec);
@@ -214,7 +214,7 @@ public class RsaEmsaTest {
     MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
     byte[] digest = md.digest("test".getBytes());
 
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
     sig.setParameter(spec);
@@ -238,7 +238,7 @@ public class RsaEmsaTest {
     byte[] digest1 = md.digest("message1".getBytes());
     byte[] digest2 = md.digest("message2".getBytes());
 
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
     sig.setParameter(spec);
@@ -259,7 +259,7 @@ public class RsaEmsaTest {
     MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
     byte[] digest = md.digest("test".getBytes());
 
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
     sig.setParameter(spec);
@@ -285,7 +285,7 @@ public class RsaEmsaTest {
     MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
     byte[] digest = md.digest("test".getBytes());
 
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
     sig.setParameter(spec);
@@ -309,7 +309,7 @@ public class RsaEmsaTest {
     directBuf.put(digest);
     directBuf.flip();
 
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
     sig.setParameter(spec);
@@ -332,7 +332,7 @@ public class RsaEmsaTest {
 
     ByteBuffer readOnlyBuf = ByteBuffer.wrap(digest).asReadOnlyBuffer();
 
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
     sig.setParameter(spec);
@@ -353,7 +353,7 @@ public class RsaEmsaTest {
     MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
     byte[] digest = md.digest("test".getBytes());
 
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     PSSParameterSpec spec1 =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
     sig.setParameter(spec1);
@@ -370,7 +370,7 @@ public class RsaEmsaTest {
 
   @Test
   public void testCompatibilityWithRSASSA_PSS() throws Exception {
-    // Signatures created by RSASSA-PSS should be verifiable by RSAEMSA-PSS and vice versa
+    // Signatures created by RSASSA-PSS should be verifiable by NONEwithRSASSA-PSS and vice versa
     KeyPair kp = generateKeyPair(2048);
     String message = "Test message for compatibility";
 
@@ -383,31 +383,31 @@ public class RsaEmsaTest {
     rsassaPss.update(message.getBytes());
     byte[] rsassaSignature = rsassaPss.sign();
 
-    // Verify with RSAEMSA-PSS (need to hash first)
+    // Verify with NONEwithRSASSA-PSS (need to hash first)
     MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
     byte[] digest = md.digest(message.getBytes());
 
-    Signature rsaemsaPss = Signature.getInstance("RSAEMSA-PSS", ACCP);
-    rsaemsaPss.setParameter(spec);
-    rsaemsaPss.initVerify(kp.getPublic());
-    rsaemsaPss.update(digest);
-    assertTrue(rsaemsaPss.verify(rsassaSignature));
+    Signature noneWithRsaPss = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
+    noneWithRsaPss.setParameter(spec);
+    noneWithRsaPss.initVerify(kp.getPublic());
+    noneWithRsaPss.update(digest);
+    assertTrue(noneWithRsaPss.verify(rsassaSignature));
 
-    // Sign with RSAEMSA-PSS
-    rsaemsaPss.initSign(kp.getPrivate());
-    rsaemsaPss.update(digest);
-    byte[] emsaSignature = rsaemsaPss.sign();
+    // Sign with NONEwithRSASSA-PSS
+    noneWithRsaPss.initSign(kp.getPrivate());
+    noneWithRsaPss.update(digest);
+    byte[] noneWithRsaSignature = noneWithRsaPss.sign();
 
     // Verify with RSASSA-PSS
     rsassaPss.initVerify(kp.getPublic());
     rsassaPss.update(message.getBytes());
-    assertTrue(rsassaPss.verify(emsaSignature));
+    assertTrue(rsassaPss.verify(noneWithRsaSignature));
   }
 
   @Test
-  public void testSignWithRsassaPssVerifyWithRsaemsaPss() throws Exception {
+  public void testSignWithRsassaPssVerifyWithNoneWithRsassaPss() throws Exception {
     KeyPair kp = generateKeyPair(2048);
-    byte[] message = "Sign with RSASSA-PSS, verify with RSAEMSA-PSS".getBytes();
+    byte[] message = "Sign with RSASSA-PSS, verify with NONEwithRSASSA-PSS".getBytes();
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
 
@@ -418,11 +418,11 @@ public class RsaEmsaTest {
     signer.update(message);
     byte[] signature = signer.sign();
 
-    // Verify with RSAEMSA-PSS (takes pre-hashed message)
+    // Verify with NONEwithRSASSA-PSS (takes pre-hashed message)
     MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
     byte[] digest = md.digest(message);
 
-    Signature verifier = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature verifier = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     verifier.setParameter(spec);
     verifier.initVerify(kp.getPublic());
     verifier.update(digest);
@@ -430,17 +430,17 @@ public class RsaEmsaTest {
   }
 
   @Test
-  public void testSignWithRsaemsaPssVerifyWithRsassaPss() throws Exception {
+  public void testSignWithNoneWithRsassaPssVerifyWithRsassaPss() throws Exception {
     KeyPair kp = generateKeyPair(2048);
-    byte[] message = "Sign with RSAEMSA-PSS, verify with RSASSA-PSS".getBytes();
+    byte[] message = "Sign with NONEwithRSASSA-PSS, verify with RSASSA-PSS".getBytes();
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
 
-    // Sign with RSAEMSA-PSS (takes pre-hashed message)
+    // Sign with NONEwithRSASSA-PSS (takes pre-hashed message)
     MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
     byte[] digest = md.digest(message);
 
-    Signature signer = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature signer = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     signer.setParameter(spec);
     signer.initSign(kp.getPrivate());
     signer.update(digest);
@@ -463,7 +463,7 @@ public class RsaEmsaTest {
     int[] saltLengths = {0, 16, 32, 48, 64};
 
     for (int saltLen : saltLengths) {
-      Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+      Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
       PSSParameterSpec spec =
           new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, saltLen, 1);
       sig.setParameter(spec);
@@ -483,7 +483,7 @@ public class RsaEmsaTest {
     KeyPair kp = generateKeyPair(2048);
     MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
 
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
     sig.setParameter(spec);
@@ -510,7 +510,7 @@ public class RsaEmsaTest {
     MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
     byte[] digest = md.digest("test".getBytes());
 
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
     sig.setParameter(spec);
@@ -533,7 +533,7 @@ public class RsaEmsaTest {
   public void testArrayUpdateExceedsDigestLength() throws Exception {
     KeyPair kp = generateKeyPair(2048);
 
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
     sig.setParameter(spec);
@@ -547,7 +547,7 @@ public class RsaEmsaTest {
   public void testArrayUpdateExceedsDigestLengthInTwoParts() throws Exception {
     KeyPair kp = generateKeyPair(2048);
 
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
     sig.setParameter(spec);
@@ -563,7 +563,7 @@ public class RsaEmsaTest {
   public void testByteBufferUpdateExceedsDigestLength() throws Exception {
     KeyPair kp = generateKeyPair(2048);
 
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
     sig.setParameter(spec);
@@ -578,7 +578,7 @@ public class RsaEmsaTest {
   public void testByteBufferUpdateExceedsDigestLengthInTwoParts() throws Exception {
     KeyPair kp = generateKeyPair(2048);
 
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
     sig.setParameter(spec);
@@ -594,7 +594,7 @@ public class RsaEmsaTest {
     MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
     byte[] digest = md.digest("test".getBytes());
 
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
     sig.setParameter(spec);
@@ -614,7 +614,7 @@ public class RsaEmsaTest {
   public void testSignWithNoUpdate() throws Exception {
     KeyPair kp = generateKeyPair(2048);
 
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
     sig.setParameter(spec);
@@ -630,7 +630,7 @@ public class RsaEmsaTest {
     MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
     byte[] digest = md.digest("test".getBytes());
 
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
     sig.setParameter(spec);
@@ -647,7 +647,7 @@ public class RsaEmsaTest {
 
   @Test
   public void testSignWithoutInit() throws Exception {
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
     sig.setParameter(spec);
@@ -658,7 +658,7 @@ public class RsaEmsaTest {
 
   @Test
   public void testVerifyWithoutInit() throws Exception {
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
     sig.setParameter(spec);
@@ -674,7 +674,7 @@ public class RsaEmsaTest {
     MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
     byte[] digest = md.digest("test".getBytes());
 
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
     sig.setParameter(spec);
@@ -691,17 +691,17 @@ public class RsaEmsaTest {
   }
 
   @Test
-  public void testEcKeyWithRsaEmsaPss() throws Exception {
+  public void testEcKeyWithNoneWithRsaPss() throws Exception {
     KeyPairGenerator ecKpg = KeyPairGenerator.getInstance("EC", ACCP);
     ecKpg.initialize(new ECGenParameterSpec("secp256r1"));
     KeyPair ecKp = ecKpg.generateKeyPair();
 
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
     sig.setParameter(spec);
 
-    // EC key should not work with RSAEMSA-PSS
+    // EC key should not work with NONEwithRSASSA-PSS
     assertThrows(InvalidKeyException.class, () -> sig.initSign(ecKp.getPrivate()));
     assertThrows(InvalidKeyException.class, () -> sig.initVerify(ecKp.getPublic()));
   }
@@ -712,7 +712,7 @@ public class RsaEmsaTest {
     MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
     byte[] digest = md.digest("test".getBytes());
 
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
     sig.setParameter(spec);
@@ -730,7 +730,7 @@ public class RsaEmsaTest {
     MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
     byte[] digest = md.digest("test".getBytes());
 
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
     sig.setParameter(spec);
@@ -755,7 +755,7 @@ public class RsaEmsaTest {
     MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
     byte[] digest = md.digest("test".getBytes());
 
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
     sig.setParameter(spec);
@@ -780,7 +780,7 @@ public class RsaEmsaTest {
     MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
     byte[] digest = md.digest("test".getBytes());
 
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
     sig.setParameter(spec);
@@ -809,7 +809,7 @@ public class RsaEmsaTest {
     // Sign with SHA-256/salt=32
     PSSParameterSpec specSign =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     sig.setParameter(specSign);
     sig.initSign(kp.getPrivate());
     sig.update(digest256);
@@ -833,7 +833,7 @@ public class RsaEmsaTest {
     // Sign with MGF1-SHA-256
     PSSParameterSpec specSign =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     sig.setParameter(specSign);
     sig.initSign(kp.getPrivate());
     sig.update(digest);
@@ -853,7 +853,7 @@ public class RsaEmsaTest {
     KeyPair kp = generateKeyPair(2048);
     MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
 
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
     sig.setParameter(spec);
@@ -884,7 +884,7 @@ public class RsaEmsaTest {
     KeyPair kp = generateKeyPair(2048);
     MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
 
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
     sig.setParameter(spec);
@@ -910,7 +910,7 @@ public class RsaEmsaTest {
     MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
     byte[] digest = md.digest("test".getBytes());
 
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
     sig.setParameter(spec);
@@ -936,7 +936,7 @@ public class RsaEmsaTest {
     MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
     byte[] digest = md.digest("test".getBytes());
 
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
     sig.setParameter(spec);
@@ -964,7 +964,7 @@ public class RsaEmsaTest {
     MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
     byte[] digest = md.digest("test".getBytes());
 
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
     sig.setParameter(spec);
@@ -995,7 +995,7 @@ public class RsaEmsaTest {
     MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
     byte[] digest = md.digest("test".getBytes());
 
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
     sig.setParameter(spec);
@@ -1012,7 +1012,7 @@ public class RsaEmsaTest {
     MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
     byte[] digest = md.digest("test".getBytes());
 
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
     sig.setParameter(spec);
@@ -1025,7 +1025,7 @@ public class RsaEmsaTest {
 
   @Test
   public void testBadPssParametersDigest() throws Exception {
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
 
     // Bad digest algorithms
     String[] badDigests = {"MD-5", "garbage", "", "SHA-3"};
@@ -1040,7 +1040,7 @@ public class RsaEmsaTest {
 
   @Test
   public void testBadPssParametersMgf() throws Exception {
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
 
     // Bad MGF algorithms
     assertThrows(
@@ -1057,7 +1057,7 @@ public class RsaEmsaTest {
 
   @Test
   public void testBadPssParametersMgfDigest() throws Exception {
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
 
     // Bad MGF1 digest algorithms
     assertThrows(
@@ -1069,7 +1069,7 @@ public class RsaEmsaTest {
 
   @Test
   public void testBadPssParametersSaltLength() throws Exception {
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
 
     // Negative salt length
     assertThrows(
@@ -1088,7 +1088,7 @@ public class RsaEmsaTest {
 
   @Test
   public void testBadPssParametersTrailer() throws Exception {
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
 
     // Only trailer value 1 is valid
     assertThrows(
@@ -1105,7 +1105,7 @@ public class RsaEmsaTest {
 
   @Test
   public void testNullPssParameters() throws Exception {
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     assertThrows(InvalidAlgorithmParameterException.class, () -> sig.setParameter(null));
   }
 
@@ -1119,7 +1119,7 @@ public class RsaEmsaTest {
     byte[] larger = new byte[digest.length + 20];
     System.arraycopy(digest, 0, larger, 10, digest.length);
 
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
     sig.setParameter(spec);
@@ -1140,7 +1140,7 @@ public class RsaEmsaTest {
     // Salt = 191 exceeds the limit, rejected at setParameter time
     KeyPair kp = generateKeyPair(2048);
 
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     sig.initSign(kp.getPrivate());
 
     // With key already set, salt validation uses actual key size
@@ -1157,7 +1157,7 @@ public class RsaEmsaTest {
     MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
     byte[] digest = md.digest("test".getBytes());
 
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
     sig.setParameter(spec);
@@ -1178,7 +1178,7 @@ public class RsaEmsaTest {
     byte[] digest = md.digest("test".getBytes());
     assertEquals(20, digest.length);
 
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     PSSParameterSpec spec = new PSSParameterSpec("SHA-1", "MGF1", MGF1ParameterSpec.SHA1, 20, 1);
     sig.setParameter(spec);
 
@@ -1209,7 +1209,7 @@ public class RsaEmsaTest {
     byte[] digest = md.digest("test".getBytes());
     assertEquals(64, digest.length);
 
-    Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-512", "MGF1", MGF1ParameterSpec.SHA512, 64, 1);
     sig.setParameter(spec);
@@ -1233,7 +1233,7 @@ public class RsaEmsaTest {
     assertTrue(sig.verify(signature));
   }
 
-  // --- ACVP Signature Verification Test Vectors (from rsaEmsaPssSigVer.rsp.gz) ---
+  // --- ACVP Signature Verification Test Vectors (from noneWithRsaPssSigVer.rsp.gz) ---
 
   private static MGF1ParameterSpec getMgf1Spec(String hashAlg) {
     switch (hashAlg) {
@@ -1250,7 +1250,7 @@ public class RsaEmsaTest {
 
   @Test
   public void testAcvpSigVer() throws Exception {
-    final File rsp = new File(System.getProperty("test.data.dir"), "rsaEmsaPssSigVer.rsp.gz");
+    final File rsp = new File(System.getProperty("test.data.dir"), "noneWithRsaPssSigVer.rsp.gz");
     int testCount = 0;
     try (final InputStream is = new GZIPInputStream(new FileInputStream(rsp))) {
       final Iterator<RspTestEntry> iterator = RspTestEntry.iterateOverResource(is);
@@ -1268,14 +1268,14 @@ public class RsaEmsaTest {
         final byte[] sig = entry.getInstanceFromHex("S");
         final boolean expectedPass = "P".equals(entry.getInstance("Result"));
 
-        // Hash the message to get the digest for RSAEMSA-PSS
+        // Hash the message to get the digest for NONEwithRSASSA-PSS
         final MessageDigest md = MessageDigest.getInstance(hashAlg, ACCP);
         final byte[] digest = md.digest(message);
 
         final MGF1ParameterSpec mgfSpec = getMgf1Spec(hashAlg);
         final PSSParameterSpec pssSpec = new PSSParameterSpec(hashAlg, "MGF1", mgfSpec, saltLen, 1);
 
-        final Signature verifier = Signature.getInstance("RSAEMSA-PSS", ACCP);
+        final Signature verifier = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
         verifier.setParameter(pssSpec);
         verifier.initVerify(publicKey);
         verifier.update(digest);
@@ -1316,9 +1316,9 @@ public class RsaEmsaTest {
   }
 
   @Test
-  public void testRsaEmsaPssBadInputLength() throws Exception {
+  public void testNoneWithRsaPssBadInputLength() throws Exception {
     KeyPair pair = generateKeyPair(2048);
-    final Signature signer = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    final Signature signer = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     final PSSParameterSpec spec =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
     signer.setParameter(spec);
@@ -1339,9 +1339,9 @@ public class RsaEmsaTest {
   }
 
   @Test
-  public void testRsaEmsaPssCorrectInputLength() throws Exception {
+  public void testNoneWithRsaPssCorrectInputLength() throws Exception {
     KeyPair pair = generateKeyPair(2048);
-    final Signature signer = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    final Signature signer = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     final PSSParameterSpec spec =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
     signer.setParameter(spec);
@@ -1354,7 +1354,7 @@ public class RsaEmsaTest {
     byte[] signature = signer.sign(); // Should succeed
 
     // Verify
-    final Signature verifier = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    final Signature verifier = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     verifier.setParameter(spec);
     verifier.initVerify(pair.getPublic());
     verifier.update(digest);
@@ -1362,9 +1362,9 @@ public class RsaEmsaTest {
   }
 
   @Test
-  public void testRsaEmsaPssDefaultParams() throws Exception {
+  public void testNoneWithRsaPssDefaultParams() throws Exception {
     KeyPair pair = generateKeyPair(2048);
-    final Signature signature = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    final Signature signature = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     signature.initSign(pair.getPrivate());
 
     // Default should be SHA-1 with 20-byte salt
@@ -1375,9 +1375,9 @@ public class RsaEmsaTest {
   }
 
   @Test
-  public void testRsaEmsaPssTryUpdateParamDuringBuffer() throws Exception {
+  public void testNoneWithRsaPssTryUpdateParamDuringBuffer() throws Exception {
     KeyPair pair = generateKeyPair(2048);
-    final Signature signer = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    final Signature signer = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     final PSSParameterSpec spec1 =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
     final PSSParameterSpec spec2 =
@@ -1400,8 +1400,8 @@ public class RsaEmsaTest {
   }
 
   @Test
-  public void testRsaEmsaPssCompatibilityWithRsassaPss() throws Exception {
-    // Signatures should be interoperable between RSASSA-PSS and RSAEMSA-PSS
+  public void testNoneWithRsaPssCompatibilityWithRsassaPss() throws Exception {
+    // Signatures should be interoperable between RSASSA-PSS and NONEwithRSASSA-PSS
     KeyPair pair = generateKeyPair(2048);
     final byte[] message = "Test message for compatibility".getBytes();
     final String hashAlg = "SHA-256";
@@ -1420,27 +1420,30 @@ public class RsaEmsaTest {
     rsassaPss.update(message);
     byte[] rsassaSignature = rsassaPss.sign();
 
-    // Verify with RSAEMSA-PSS (pre-hashed)
-    final Signature rsaemsaPss = Signature.getInstance("RSAEMSA-PSS", ACCP);
-    rsaemsaPss.setParameter(spec);
-    rsaemsaPss.initVerify(pair.getPublic());
-    rsaemsaPss.update(digest);
+    // Verify with NONEwithRSASSA-PSS (pre-hashed)
+    final Signature noneWithRsaPss = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
+    noneWithRsaPss.setParameter(spec);
+    noneWithRsaPss.initVerify(pair.getPublic());
+    noneWithRsaPss.update(digest);
     assertTrue(
-        rsaemsaPss.verify(rsassaSignature), "RSAEMSA-PSS should verify RSASSA-PSS signature");
+        noneWithRsaPss.verify(rsassaSignature),
+        "NONEwithRSASSA-PSS should verify RSASSA-PSS signature");
 
-    // Sign with RSAEMSA-PSS (pre-hashed)
-    rsaemsaPss.initSign(pair.getPrivate());
-    rsaemsaPss.update(digest);
-    byte[] emsaSignature = rsaemsaPss.sign();
+    // Sign with NONEwithRSASSA-PSS (pre-hashed)
+    noneWithRsaPss.initSign(pair.getPrivate());
+    noneWithRsaPss.update(digest);
+    byte[] noneWithRsaSignature = noneWithRsaPss.sign();
 
     // Verify with RSASSA-PSS (full message)
     rsassaPss.initVerify(pair.getPublic());
     rsassaPss.update(message);
-    assertTrue(rsassaPss.verify(emsaSignature), "RSASSA-PSS should verify RSAEMSA-PSS signature");
+    assertTrue(
+        rsassaPss.verify(noneWithRsaSignature),
+        "RSASSA-PSS should verify NONEwithRSASSA-PSS signature");
   }
 
   @Test
-  public void testRsaEmsaPssDifferentDigests() throws Exception {
+  public void testNoneWithRsaPssDifferentDigests() throws Exception {
     KeyPair pair = generateKeyPair(2048);
 
     // Test different digest algorithms
@@ -1458,7 +1461,7 @@ public class RsaEmsaTest {
       final byte[] digest = new byte[digestLen];
       new java.util.Random().nextBytes(digest);
 
-      final Signature sig = Signature.getInstance("RSAEMSA-PSS", ACCP);
+      final Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
       final PSSParameterSpec spec =
           new PSSParameterSpec(digests[i], "MGF1", mgfSpecs[i], digestLen, 1);
       sig.setParameter(spec);
@@ -1497,8 +1500,8 @@ public class RsaEmsaTest {
 
       final PSSParameterSpec pssSpec = new PSSParameterSpec(hashAlg, "MGF1", mgfSpec, saltLen, 1);
 
-      // Sign with ACCP RSAEMSA-PSS, verify with BC NONEwithRSASSA-PSS
-      final Signature accpSigner = Signature.getInstance("RSAEMSA-PSS", ACCP);
+      // Sign with ACCP NONEwithRSASSA-PSS, verify with BC NONEwithRSASSA-PSS
+      final Signature accpSigner = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
       accpSigner.setParameter(pssSpec);
       accpSigner.initSign(kp.getPrivate());
       accpSigner.update(hash);
@@ -1510,14 +1513,14 @@ public class RsaEmsaTest {
       bcVerifier.update(hash);
       assertTrue(bcVerifier.verify(accpSig), "BC failed to verify ACCP sig for " + hashAlg);
 
-      // Sign with BC NONEwithRSASSA-PSS, verify with ACCP RSAEMSA-PSS
+      // Sign with BC NONEwithRSASSA-PSS, verify with ACCP NONEwithRSASSA-PSS
       final Signature bcSigner = Signature.getInstance("NONEwithRSASSA-PSS", BC);
       bcSigner.initSign(kp.getPrivate());
       bcSigner.setParameter(pssSpec);
       bcSigner.update(hash);
       final byte[] bcSig = bcSigner.sign();
 
-      final Signature accpVerifier = Signature.getInstance("RSAEMSA-PSS", ACCP);
+      final Signature accpVerifier = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
       accpVerifier.setParameter(pssSpec);
       accpVerifier.initVerify(kp.getPublic());
       accpVerifier.update(hash);

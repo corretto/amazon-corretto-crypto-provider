@@ -77,7 +77,7 @@ Signature algorithms:
 * SHA512withECDSA
 * SHA512withECDSAinP1363Format
 * RSASSA-PSS
-* RSAEMSA-PSS
+* NONEwithRSASSA-PSS
 * ED25519 (JDK 15+)
 * ED25519ph (JDK 15+)
 * ML-DSA

@@ -278,7 +278,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     }
 
     addService("Signature", "RSASSA-PSS", "EvpSignature$RSASSA_PSS");
-    addService("Signature", "RSAEMSA-PSS", "RsaEmsa$Pss");
+    addService("Signature", "NONEwithRSASSA-PSS", "NoneWithRsa$Pss");
     addService("Signature", "NONEwithECDSA", "EvpSignatureRaw$NONEwithECDSA");
     addService("Signature", "EdDSA", "EvpSignatureRaw$Ed25519");
     addService("Signature", "Ed25519", "EvpSignatureRaw$Ed25519");

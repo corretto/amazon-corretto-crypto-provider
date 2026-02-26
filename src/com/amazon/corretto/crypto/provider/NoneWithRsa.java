@@ -5,11 +5,11 @@ package com.amazon.corretto.crypto.provider;
 import java.nio.ByteBuffer;
 import java.security.SignatureException;
 
-class RsaEmsa extends EvpSignatureBase {
+class NoneWithRsa extends EvpSignatureBase {
   private AccessibleByteArrayOutputStream buffer =
       new AccessibleByteArrayOutputStream(64, 1024 * 1024);
 
-  protected RsaEmsa(final AmazonCorrettoCryptoProvider provider, final int paddingType) {
+  protected NoneWithRsa(final AmazonCorrettoCryptoProvider provider, final int paddingType) {
     super(provider, EvpKeyType.RSA, paddingType, 0, false);
   }
 
@@ -74,7 +74,7 @@ class RsaEmsa extends EvpSignatureBase {
       }
       return key_.use(
           ptr ->
-              signEmsaPss(
+              signPss(
                   ptr, digest_, pssMgfMd_, pssSaltLen_, buffer.getDataBuffer(), 0, buffer.size()));
     } finally {
       engineReset();
@@ -102,7 +102,7 @@ class RsaEmsa extends EvpSignatureBase {
       sniffTest(sigBytes, offset, length);
       return key_.use(
           ptr ->
-              verifyEmsaPss(
+              verifyPss(
                   ptr,
                   digest_,
                   pssMgfMd_,
@@ -123,10 +123,10 @@ class RsaEmsa extends EvpSignatureBase {
     return buffer.size() == 0;
   }
 
-  private static native byte[] signEmsaPss(
+  private static native byte[] signPss(
       long privateKey, long hashMd, long mgfMd, int saltLen, byte[] digest, int offset, int length);
 
-  private static native boolean verifyEmsaPss(
+  private static native boolean verifyPss(
       long publicKey,
       long hashMd,
       long mgfMd,
@@ -139,7 +139,7 @@ class RsaEmsa extends EvpSignatureBase {
       int sigLength)
       throws SignatureException;
 
-  static final class Pss extends RsaEmsa {
+  static final class Pss extends NoneWithRsa {
     Pss(final AmazonCorrettoCryptoProvider provider) {
       super(provider, RSA_PKCS1_PSS_PADDING);
     }
