@@ -405,6 +405,56 @@ public class RsaEmsaTest {
   }
 
   @Test
+  public void testSignWithRsassaPssVerifyWithRsaemsaPss() throws Exception {
+    KeyPair kp = generateKeyPair(2048);
+    byte[] message = "Sign with RSASSA-PSS, verify with RSAEMSA-PSS".getBytes();
+    PSSParameterSpec spec =
+        new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
+
+    // Sign with RSASSA-PSS (takes raw message, hashes internally)
+    Signature signer = Signature.getInstance("RSASSA-PSS", ACCP);
+    signer.setParameter(spec);
+    signer.initSign(kp.getPrivate());
+    signer.update(message);
+    byte[] signature = signer.sign();
+
+    // Verify with RSAEMSA-PSS (takes pre-hashed message)
+    MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
+    byte[] digest = md.digest(message);
+
+    Signature verifier = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    verifier.setParameter(spec);
+    verifier.initVerify(kp.getPublic());
+    verifier.update(digest);
+    assertTrue(verifier.verify(signature));
+  }
+
+  @Test
+  public void testSignWithRsaemsaPssVerifyWithRsassaPss() throws Exception {
+    KeyPair kp = generateKeyPair(2048);
+    byte[] message = "Sign with RSAEMSA-PSS, verify with RSASSA-PSS".getBytes();
+    PSSParameterSpec spec =
+        new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
+
+    // Sign with RSAEMSA-PSS (takes pre-hashed message)
+    MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
+    byte[] digest = md.digest(message);
+
+    Signature signer = Signature.getInstance("RSAEMSA-PSS", ACCP);
+    signer.setParameter(spec);
+    signer.initSign(kp.getPrivate());
+    signer.update(digest);
+    byte[] signature = signer.sign();
+
+    // Verify with RSASSA-PSS (takes raw message, hashes internally)
+    Signature verifier = Signature.getInstance("RSASSA-PSS", ACCP);
+    verifier.setParameter(spec);
+    verifier.initVerify(kp.getPublic());
+    verifier.update(message);
+    assertTrue(verifier.verify(signature));
+  }
+
+  @Test
   public void testDifferentSaltLengths() throws Exception {
     KeyPair kp = generateKeyPair(2048);
     MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
