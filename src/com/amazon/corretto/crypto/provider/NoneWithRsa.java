@@ -15,9 +15,9 @@ import java.security.SignatureException;
  * <p>Registered algorithms:
  *
  * <ul>
- *   <li>{@code NONEwithRSASSA-PSS} — Applies RSASSA-PSS padding (RFC 8017 §8.1) to the pre-hashed
- *       digest via {@code RSA_sign_pss_mgf1}/{@code RSA_verify_pss_mgf1}. PSS parameters (hash,
- *       MGF, salt length) are configured via {@link java.security.spec.PSSParameterSpec}.
+ *   <li>{@code NONEwithRSASSA-PSS} — Applies RSASSA-PSS padding (RFC 8017 Sec. 8.1) to the
+ *       pre-hashed digest via {@code RSA_sign_pss_mgf1}/{@code RSA_verify_pss_mgf1}. PSS parameters
+ *       (hash, MGF, salt length) are configured via {@link java.security.spec.PSSParameterSpec}.
  *       Interoperable with {@code RSASSA-PSS} when the same parameters and digest are used.
  *       Equivalent to BouncyCastle's {@code NONEwithRSASSA-PSS}.
  * </ul>
