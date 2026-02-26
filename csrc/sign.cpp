@@ -748,7 +748,7 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_NoneWithRsa_
             memcpy(signatureCopy.data(), signature.data(), sigLength);
         }
 
-        int result;
+        int result = 0;
         switch (paddingType) {
         case RSA_PKCS1_PSS_PADDING: {
             const EVP_MD* mgf_md = reinterpret_cast<const EVP_MD*>(mgfMd);
