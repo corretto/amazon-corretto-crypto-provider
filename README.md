@@ -77,6 +77,7 @@ Signature algorithms:
 * SHA512withECDSA
 * SHA512withECDSAinP1363Format
 * RSASSA-PSS
+* NONEwithRSASSA-PSS
 * ED25519 (JDK 15+)
 * ED25519ph (JDK 15+)
 * ML-DSA
@@ -475,6 +476,12 @@ The runtime target that ACCP will be targeting on specifies the minimum JDK vers
 <br>Build-time JDK is the version of Java installed on your build machine that actually compiles the source code. You can use a newer build-time JDK to target an older runtime JDK, but you cannot use an older build-time JDK to target a newer runtime JDK.
 
 # Additional information
+
+## NONEwithRSASSA-PSS
+
+`NONEwithRSASSA-PSS` is a non-standard `Signature` algorithm not defined in the [Java Security Standard Algorithm Names](https://docs.oracle.com/javase/8/docs/technotes/guides/security/StandardNames.html). It is a pre-hashed variant of `RSASSA-PSS`: the caller must hash the message externally and provide the raw digest (exactly matching the configured hash algorithm's output length) to `Signature.update()`. ACCP then applies RSASSA-PSS padding ([RFC 8017 Sec. 8.1](https://datatracker.ietf.org/doc/html/rfc8017#section-8.1)) and signs/verifies the digest directly.
+
+This is a one-shot algorithm: the complete digest must be provided in a single `update()` call. Byte-by-byte and incremental updates are not supported. PSS parameters (hash, MGF, salt length) are configured via `PSSParameterSpec`. Signatures produced by `NONEwithRSASSA-PSS` are interoperable with `RSASSA-PSS` when the same parameters and message digest are used. This algorithm is equivalent to BouncyCastle's `NONEwithRSASSA-PSS`.
 
 ## HMAC with Precomputed Key
 
