@@ -52,6 +52,15 @@ class NoneWithRsa extends EvpSignatureBase {
         "One-shot signature: supply the complete digest via update(byte[], int, int)");
   }
 
+  /**
+   * Provides the pre-computed message digest for signing or verification.
+   *
+   * <p>This method must be called exactly once with the complete digest. The digest length must
+   * match the output length of the configured hash algorithm.
+   *
+   * @throws SignatureException if called more than once before sign/verify, or if the provided data
+   *     does not match the expected digest length
+   */
   @Override
   protected void engineUpdate(final byte[] b, final int off, final int len)
       throws SignatureException {
@@ -66,6 +75,15 @@ class NoneWithRsa extends EvpSignatureBase {
     buffer.write(b, off, len);
   }
 
+  /**
+   * Provides the pre-computed message digest for signing or verification.
+   *
+   * <p>This method must be called exactly once with the complete digest. The digest length must
+   * match the output length of the configured hash algorithm.
+   *
+   * @throws RuntimeException wrapping a {@link SignatureException} if called more than once before
+   *     sign/verify, or if the provided data does not match the expected digest length
+   */
   @Override
   protected void engineUpdate(final ByteBuffer input) {
     if (!isBufferEmpty()) {

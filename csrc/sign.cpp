@@ -765,6 +765,8 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_NoneWithRsa_
         }
 
         if (result != 1) {
+            // Verification failure leaves errors on the OpenSSL error queue.
+            // Drain them to prevent abort in extra-checks test builds.
             drainOpensslErrors();
             return JNI_FALSE;
         }
