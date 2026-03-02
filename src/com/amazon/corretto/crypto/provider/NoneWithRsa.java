@@ -174,6 +174,22 @@ class NoneWithRsa extends EvpSignatureBase {
     return buffer.size() == 0;
   }
 
+  /**
+   * Sets algorithm parameters.
+   *
+   * <p>For {@code NONEwithRSASSA-PSS}, delegates to {@link EvpSignatureBase} which fully validates
+   * and applies all PSS parameters (digest, MGF, salt length, trailer).
+   *
+   * <p>For {@code NONEwithRSA}, accepts {@link PSSParameterSpec} but only extracts the digest
+   * algorithm name to determine the expected digest length and DigestInfo OID. The MGF, salt
+   * length, and trailer fields are ignored since they are PSS-specific and have no meaning for
+   * PKCS#1 v1.5 signatures. This allows callers to use a uniform parameter interface across both
+   * padding modes.
+   *
+   * @throws InvalidAlgorithmParameterException if the parameter type is not supported or the digest
+   *     algorithm is unrecognized
+   * @throws IllegalStateException if called while the buffer contains data
+   */
   @Override
   protected synchronized void engineSetParameter(final AlgorithmParameterSpec params)
       throws InvalidAlgorithmParameterException {
