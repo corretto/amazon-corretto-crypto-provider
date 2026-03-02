@@ -1512,7 +1512,8 @@ public class NoneWithRsaTest {
     }
   }
 
-  // --- NONEwithRSA (PKCS#1 v1.5 pre-hashed) tests ---
+  // --- NONEwithRSA (RSASSA-PKCS1-v1_5 pre-hashed, RFC 8017 Sec. 8.2) tests ---
+  // See DIFFERENCES.md for behavioral differences from Sun/BC's NONEwithRSA.
 
   @Test
   public void testNoneWithRsaBasicSignVerify() throws Exception {

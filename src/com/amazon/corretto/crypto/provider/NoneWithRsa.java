@@ -10,20 +10,34 @@ import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.PSSParameterSpec;
 
 /**
- * Pre-hashed RSA signature implementation that accepts raw digest bytes and applies RSA padding
- * directly.
+ * Pre-hashed RSA signature implementation (RFC 8017).
  *
- * <p>This is a one-shot signature scheme: the caller must supply the complete pre-hashed digest in
- * a single {@link #engineUpdate} call. The digest length must exactly match the expected length for
- * the configured hash algorithm. Byte-by-byte updates are not supported.
+ * <p>This class implements RSA signature schemes that accept a pre-computed message digest instead
+ * of the raw message. The caller is responsible for hashing the message with the appropriate digest
+ * algorithm before calling {@code update()}.
+ *
+ * <p>This is a <b>one-shot</b> algorithm: the complete digest must be provided in a single {@code
+ * update()} call. Incremental or byte-by-byte updates are not supported. The digest length must
+ * exactly match the output length of the configured hash algorithm.
  *
  * <p>Registered algorithms:
  *
  * <ul>
- *   <li>{@code NONEwithRSASSA-PSS} - PSS padding (configurable via {@link PSSParameterSpec})
- *   <li>{@code NONEwithRSA} - PKCS#1 v1.5 padding (digest algorithm selectable via {@link
- *       PSSParameterSpec})
+ *   <li>{@code NONEwithRSASSA-PSS} -- Applies RSASSA-PSS padding (RFC 8017 Sec. 8.1) to the
+ *       pre-hashed digest via {@code RSA_sign_pss_mgf1}/{@code RSA_verify_pss_mgf1}. PSS parameters
+ *       (hash, MGF, salt length) are configured via {@link PSSParameterSpec}. Interoperable with
+ *       {@code RSASSA-PSS} when the same parameters and digest are used. Equivalent to
+ *       BouncyCastle's {@code NONEwithRSASSA-PSS}.
+ *   <li>{@code NONEwithRSA} -- Applies RSASSA-PKCS1-v1_5 padding (RFC 8017 Sec. 8.2) to the
+ *       pre-hashed digest via {@code RSA_sign}/{@code RSA_verify}. The digest algorithm (which
+ *       determines the DigestInfo OID and expected input length) defaults to SHA-256 and can be
+ *       changed via {@link PSSParameterSpec} (only the digest algorithm field is used; MGF, salt
+ *       length, and trailer are ignored). Interoperable with {@code SHA*withRSA} algorithms when
+ *       the same digest is used.
  * </ul>
+ *
+ * @see <a href="https://datatracker.ietf.org/doc/html/rfc8017">RFC 8017: PKCS #1</a>
+ * @see PSSParameterSpec
  */
 class NoneWithRsa extends EvpSignatureBase {
   private final AccessibleByteArrayOutputStream buffer =
@@ -171,11 +185,11 @@ class NoneWithRsa extends EvpSignatureBase {
    * <p>For {@code NONEwithRSASSA-PSS}, delegates to {@link EvpSignatureBase} which fully validates
    * and applies all PSS parameters (digest, MGF, salt length, trailer).
    *
-   * <p>For {@code NONEwithRSA}, accepts {@link PSSParameterSpec} but only extracts the digest
-   * algorithm name to determine the expected digest length and DigestInfo OID. The MGF, salt
-   * length, and trailer fields are ignored since they are PSS-specific and have no meaning for
-   * PKCS#1 v1.5 signatures. This allows callers to use a uniform parameter interface across both
-   * padding modes.
+   * <p>For {@code NONEwithRSA} (RSASSA-PKCS1-v1_5), accepts {@link PSSParameterSpec} but only
+   * extracts the digest algorithm name to determine the expected digest length and DigestInfo OID.
+   * The MGF, salt length, and trailer fields are ignored since they are PSS-specific and have no
+   * meaning for RSASSA-PKCS1-v1_5 signatures. This allows callers to use a uniform parameter
+   * interface across both padding modes.
    *
    * @throws InvalidAlgorithmParameterException if the parameter type is not supported or the digest
    *     algorithm is unrecognized
