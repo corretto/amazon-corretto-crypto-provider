@@ -658,7 +658,8 @@ public final class EvpSignatureSpecificTest {
       final String algorithm = service.getAlgorithm();
       if (!service.getType().equals("Signature")
           || "RSASSA-PSS".equals(algorithm)
-          || "NONEwithRSASSA-PSS".equals(algorithm)) {
+          || "NONEwithRSASSA-PSS".equals(algorithm)
+          || "NONEwithRSA".equals(algorithm)) {
         continue;
       }
       if (algorithm.startsWith("Ed25519")
