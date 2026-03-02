@@ -650,7 +650,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_NoneWithRs
 
         size_t hLen = EVP_MD_size(md);
 
-        if ((size_t)length != hLen) {
+        if (static_cast<size_t>(length) != hLen) {
             throw_java_ex(EX_SIGNATURE_EXCEPTION, "Digest length mismatch");
         }
 
@@ -727,7 +727,7 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_NoneWithRsa_
 
         size_t hLen = EVP_MD_size(md);
 
-        if ((size_t)length != hLen) {
+        if (static_cast<size_t>(length) != hLen) {
             throw_java_ex(EX_SIGNATURE_EXCEPTION, "Digest length mismatch");
         }
 

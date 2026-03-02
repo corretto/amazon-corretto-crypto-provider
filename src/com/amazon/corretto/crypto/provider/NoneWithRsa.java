@@ -26,7 +26,8 @@ import java.security.spec.PSSParameterSpec;
  * </ul>
  */
 class NoneWithRsa extends EvpSignatureBase {
-  private AccessibleByteArrayOutputStream buffer = new AccessibleByteArrayOutputStream(64, 64);
+  private final AccessibleByteArrayOutputStream buffer =
+      new AccessibleByteArrayOutputStream(64, 64);
 
   protected NoneWithRsa(final AmazonCorrettoCryptoProvider provider, final int paddingType) {
     super(provider, EvpKeyType.RSA, paddingType, 0, false);
@@ -107,13 +108,8 @@ class NoneWithRsa extends EvpSignatureBase {
   protected byte[] engineSign() throws SignatureException {
     try {
       ensureInitialized(true);
-      final int expectedDigestLen = Utils.getMdLen(digest_);
-      if (buffer.size() != expectedDigestLen) {
-        throw new SignatureException(
-            "Input must equal digest length. Expected "
-                + expectedDigestLen
-                + " bytes, got "
-                + buffer.size());
+      if (isBufferEmpty()) {
+        throw new SignatureException("No digest provided. Call update() before sign().");
       }
       return key_.use(
           ptr ->
