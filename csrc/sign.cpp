@@ -654,39 +654,38 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_NoneWithRs
             throw_java_ex(EX_SIGNATURE_EXCEPTION, "Digest length mismatch");
         }
 
-        // Copy digest bytes outside JNI critical region
-        std::vector<uint8_t, SecureAlloc<uint8_t> > digestCopy(hLen);
-        {
-            java_buffer digestBuf = java_buffer::from_array(env, digestArr, offset, length);
-            jni_borrow digest(env, digestBuf, "digest");
-            memcpy(digestCopy.data(), digest.data(), hLen);
-        }
+        java_buffer digestBuf = java_buffer::from_array(env, digestArr, offset, length);
 
         // Allocate output buffer for signature
         size_t maxOut = RSA_size(rsa);
         std::vector<uint8_t, SecureAlloc<uint8_t> > signature(maxOut);
 
-        switch (paddingType) {
-        case RSA_PKCS1_PSS_PADDING: {
-            const EVP_MD* mgf_md = reinterpret_cast<const EVP_MD*>(mgfMd);
-            size_t sigLen = 0;
-            if (RSA_sign_pss_mgf1(rsa, &sigLen, signature.data(), maxOut, digestCopy.data(), hLen, md, mgf_md, saltLen)
-                != 1) {
-                throw_openssl("RSA_sign_pss_mgf1 failed");
+        // Borrow digest for the crypto call, release before creating Java array
+        {
+            jni_borrow digest(env, digestBuf, "digest");
+
+            switch (paddingType) {
+            case RSA_PKCS1_PSS_PADDING: {
+                const EVP_MD* mgf_md = reinterpret_cast<const EVP_MD*>(mgfMd);
+                size_t sigLen = 0;
+                if (RSA_sign_pss_mgf1(rsa, &sigLen, signature.data(), maxOut, digest.data(), hLen, md, mgf_md, saltLen)
+                    != 1) {
+                    throw_openssl("RSA_sign_pss_mgf1 failed");
+                }
+                signature.resize(sigLen);
+                break;
             }
-            signature.resize(sigLen);
-            break;
-        }
-        case RSA_PKCS1_PADDING: {
-            unsigned int sigLen = 0;
-            if (RSA_sign(EVP_MD_type(md), digestCopy.data(), hLen, signature.data(), &sigLen, rsa) != 1) {
-                throw_openssl("RSA_sign failed");
+            case RSA_PKCS1_PADDING: {
+                unsigned int sigLen = 0;
+                if (RSA_sign(EVP_MD_type(md), digest.data(), hLen, signature.data(), &sigLen, rsa) != 1) {
+                    throw_openssl("RSA_sign failed");
+                }
+                signature.resize(sigLen);
+                break;
             }
-            signature.resize(sigLen);
-            break;
-        }
-        default:
-            throw_java_ex(EX_RUNTIME_CRYPTO, "Unexpected padding type");
+            default:
+                throw_java_ex(EX_RUNTIME_CRYPTO, "Unexpected padding type");
+            }
         }
 
         return vecToArray(env, signature);
@@ -732,33 +731,21 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_NoneWithRsa_
             throw_java_ex(EX_SIGNATURE_EXCEPTION, "Digest length mismatch");
         }
 
-        // Copy digest bytes outside JNI critical region
-        std::vector<uint8_t, SecureAlloc<uint8_t> > digestCopy(hLen);
-        {
-            java_buffer digestBuf = java_buffer::from_array(env, digestArr, offset, length);
-            jni_borrow digest(env, digestBuf, "digest");
-            memcpy(digestCopy.data(), digest.data(), hLen);
-        }
+        java_buffer digestBuf = java_buffer::from_array(env, digestArr, offset, length);
+        java_buffer signatureBuf = java_buffer::from_array(env, signatureArr, sigOffset, sigLength);
 
-        // Copy signature bytes
-        std::vector<uint8_t, SecureAlloc<uint8_t> > signatureCopy(sigLength);
-        {
-            java_buffer signatureBuf = java_buffer::from_array(env, signatureArr, sigOffset, sigLength);
-            jni_borrow signature(env, signatureBuf, "signature");
-            memcpy(signatureCopy.data(), signature.data(), sigLength);
-        }
+        jni_borrow digest(env, digestBuf, "digest");
+        jni_borrow sig(env, signatureBuf, "signature");
 
         int result = 0;
         switch (paddingType) {
         case RSA_PKCS1_PSS_PADDING: {
             const EVP_MD* mgf_md = reinterpret_cast<const EVP_MD*>(mgfMd);
-            result = RSA_verify_pss_mgf1(
-                rsa, digestCopy.data(), hLen, md, mgf_md, saltLen, signatureCopy.data(), signatureCopy.size());
+            result = RSA_verify_pss_mgf1(rsa, digest.data(), hLen, md, mgf_md, saltLen, sig.data(), sig.len());
             break;
         }
         case RSA_PKCS1_PADDING:
-            result
-                = RSA_verify(EVP_MD_type(md), digestCopy.data(), hLen, signatureCopy.data(), signatureCopy.size(), rsa);
+            result = RSA_verify(EVP_MD_type(md), digest.data(), hLen, sig.data(), sig.len(), rsa);
             break;
         default:
             throw_java_ex(EX_RUNTIME_CRYPTO, "Unexpected padding type");
