@@ -137,13 +137,8 @@ class NoneWithRsa extends EvpSignatureBase {
       throws SignatureException {
     try {
       ensureInitialized(false);
-      final int expectedDigestLen = Utils.getMdLen(digest_);
-      if (buffer.size() != expectedDigestLen) {
-        throw new SignatureException(
-            "Input must equal digest length. Expected "
-                + expectedDigestLen
-                + " bytes, got "
-                + buffer.size());
+      if (isBufferEmpty()) {
+        throw new SignatureException("No digest provided. Call update() before verify().");
       }
       sniffTest(sigBytes, offset, length);
       return key_.use(
