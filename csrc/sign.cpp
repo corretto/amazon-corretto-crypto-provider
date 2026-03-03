@@ -130,7 +130,7 @@ bool initializeContext(raii_env& env,
         }
     }
 
-    if (EVP_PKEY_base_id(ctx->getKey()) == EVP_PKEY_RSA) {
+    if (isRsaKeyType(EVP_PKEY_base_id(ctx->getKey()))) {
         if (!configurePadding(env, pctx, paddingType, mgfMdPtr, pssSaltLen)) {
             throw_openssl("Unable to configure padding");
         }
@@ -383,7 +383,7 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
 
             // JCA/JCA requires us to try to throw an exception on corrupted signatures, but only if it isn't an RSA
             // signature
-            if (errorCode != 0 && keyType != EVP_PKEY_RSA) {
+            if (errorCode != 0 && !isRsaKeyType(keyType)) {
                 throw_java_ex(
                     EX_SIGNATURE_EXCEPTION, formatOpensslError(errorCode, "Unknown error verifying signature"));
             }
@@ -609,7 +609,7 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
 
             // JCA/JCA requires us to try to throw an exception on corrupted signatures, but only if it isn't an RSA
             // signature
-            if (errorCode != 0 && EVP_PKEY_base_id(ctx.getKey()) != EVP_PKEY_RSA) {
+            if (errorCode != 0 && !isRsaKeyType(EVP_PKEY_base_id(ctx.getKey()))) {
                 throw_java_ex(
                     EX_SIGNATURE_EXCEPTION, formatOpensslError(errorCode, "Unknown error verifying signature"));
             }
@@ -639,7 +639,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_NoneWithRs
         EVP_PKEY* key = reinterpret_cast<EVP_PKEY*>(pKey);
         const EVP_MD* md = reinterpret_cast<const EVP_MD*>(hashMd);
 
-        if (EVP_PKEY_base_id(key) != EVP_PKEY_RSA) {
+        if (!isRsaKeyType(EVP_PKEY_base_id(key))) {
             throw_java_ex(EX_SIGNATURE_EXCEPTION, "Key must be RSA");
         }
 
@@ -716,7 +716,7 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_NoneWithRsa_
         EVP_PKEY* key = reinterpret_cast<EVP_PKEY*>(pKey);
         const EVP_MD* md = reinterpret_cast<const EVP_MD*>(hashMd);
 
-        if (EVP_PKEY_base_id(key) != EVP_PKEY_RSA) {
+        if (!isRsaKeyType(EVP_PKEY_base_id(key))) {
             throw_java_ex(EX_SIGNATURE_EXCEPTION, "Key must be RSA");
         }
 
