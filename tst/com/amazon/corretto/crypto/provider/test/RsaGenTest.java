@@ -19,12 +19,16 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidParameterException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.Provider;
 import java.security.SecureRandom;
+import java.security.Security;
 import java.security.interfaces.RSAPrivateCrtKey;
 import java.security.interfaces.RSAPublicKey;
 import java.security.spec.RSAKeyGenParameterSpec;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import javax.crypto.Cipher;
 import org.bouncycastle.util.encoders.Hex;
 import org.junit.jupiter.api.Test;
@@ -353,5 +357,52 @@ public class RsaGenTest {
         }
       }
     }
+  }
+
+  private static final int KEY_SIZE = 2048;
+
+  private RSAPublicKey createPublicKey(Provider provider) throws GeneralSecurityException {
+    final KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA", provider);
+    generator.initialize(KEY_SIZE);
+    final KeyPair keyPair = generator.generateKeyPair();
+    return (RSAPublicKey) keyPair.getPublic();
+  }
+
+  private void checkToStringOutput(RSAPublicKey publicKey, String providerPrefix) {
+    final Pattern genericPattern =
+        Pattern.compile(
+            providerPrefix
+                + " "
+                + "RSA public key, (\\d+) bits\\s*\\n"
+                + "\\s*params: null\\s*\\n"
+                + "\\s*modulus: (\\d+)\\s*\\n"
+                + "\\s*public exponent: (\\d+)\\s*",
+            Pattern.DOTALL);
+    final Matcher matcher = genericPattern.matcher(publicKey.toString());
+    assertTrue(
+        matcher.find(),
+        providerPrefix
+            + " toString output should match expected pattern. Actual output:\n"
+            + publicKey.toString());
+    assertEquals(
+        String.valueOf(KEY_SIZE),
+        matcher.group(1),
+        providerPrefix + " pattern should capture correct bit length");
+    assertEquals(
+        publicKey.getModulus().toString(),
+        matcher.group(2),
+        providerPrefix + " pattern should capture correct modulus value");
+    assertEquals(
+        publicKey.getPublicExponent().toString(),
+        matcher.group(3),
+        providerPrefix + " pattern should capture correct public exponent value");
+  }
+
+  @Test
+  public void testRsaPublicKeyToString() throws GeneralSecurityException {
+    checkToStringOutput(createPublicKey(Security.getProvider("SunRsaSign")), "Sun");
+    checkToStringOutput(
+        createPublicKey(AmazonCorrettoCryptoProvider.INSTANCE),
+        AmazonCorrettoCryptoProvider.PROVIDER_NAME);
   }
 }
