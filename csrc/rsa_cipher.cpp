@@ -32,10 +32,11 @@ void setPaddingParams(
                     // AWS-LC takes ownership of the label data, so we need to allocate a copy rather
                     // than give it JVM-manage'd memory from GetByteArrayElements
                     unsigned char* labelCopy = static_cast<unsigned char*>(OPENSSL_malloc(labelLen));
-                    if (labelCopy) {
-                        memcpy(labelCopy, labelBytes, labelLen);
-                        CHECK_OPENSSL(EVP_PKEY_CTX_set0_rsa_oaep_label(keyCtx, labelCopy, labelLen));
+                    if (labelCopy == nullptr) {
+                        throw java_ex(EX_ERROR, "OPENSSL_malloc failed setting OAEP label.");
                     }
+                    memcpy(labelCopy, labelBytes, labelLen);
+                    CHECK_OPENSSL(EVP_PKEY_CTX_set0_rsa_oaep_label(keyCtx, labelCopy, labelLen));
                     pEnv->ReleaseByteArrayElements(oaepLabel, labelBytes, JNI_ABORT);
                 }
             }
@@ -126,12 +127,13 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_RsaCipher_cipher
             }
 
             if (ret <= 0) {
-                long err = drainOpensslErrors();
+                const long packed_err = drainOpensslErrors();
+                const long err = ERR_GET_REASON(packed_err);
                 if ((err & RSA_R_DATA_TOO_LARGE_FOR_MODULUS) || (err & RSA_R_PADDING_CHECK_FAILED)
                     || (err & RSA_R_OAEP_DECODING_ERROR)) {
                     throw_java_ex(EX_BADPADDING, formatOpensslError(err, "Bad Padding"));
                 } else {
-                    throw_openssl(formatOpensslError(err, "Unexpected exception").c_str());
+                    throw_openssl(formatOpensslError(packed_err, "Unexpected exception").c_str());
                 }
             }
         }
