@@ -86,7 +86,7 @@ bool initializeContext(raii_env& env,
             if (signMode) {
                 size_t raw_len;
                 CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(ctx->getKey(), nullptr, &raw_len));
-                std::vector<uint8_t> raw_bytes(raw_len);
+                std::vector<uint8_t, SecureAlloc<uint8_t> > raw_bytes(raw_len);
                 CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(ctx->getKey(), raw_bytes.data(), &raw_len));
                 CHECK_OPENSSL(
                     ctx->setKey(EVP_PKEY_new_raw_private_key(EVP_PKEY_ED25519PH, nullptr, raw_bytes.data(), raw_len)));
@@ -375,9 +375,9 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
 
             // Mismatched signatures are not an error case, so return false
             // instead of throwing per JCA convention.
-            if (ECDSA_R_MISMATCHED_SIGNATURE == (errorCode & ECDSA_R_MISMATCHED_SIGNATURE)
-                || RSA_R_MISMATCHED_SIGNATURE == (errorCode & RSA_R_MISMATCHED_SIGNATURE)
-                || EVP_R_INVALID_SIGNATURE == (errorCode & EVP_R_INVALID_SIGNATURE)) {
+            int reason = ERR_GET_REASON(errorCode);
+            if (reason == ECDSA_R_MISMATCHED_SIGNATURE || reason == RSA_R_MISMATCHED_SIGNATURE
+                || reason == EVP_R_INVALID_SIGNATURE) {
                 return false;
             }
 
@@ -421,8 +421,8 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatu
         if (!EVP_DigestSignFinal(ctx->getDigestCtx(), &tmpSig[0], &sigLength)) {
             // If signature fails due to sizing concerns, give an informative exception
             const uint32_t lastErr = ERR_peek_last_error();
-            if ((lastErr & RSA_R_DATA_TOO_LARGE_FOR_KEY_SIZE) == RSA_R_DATA_TOO_LARGE_FOR_KEY_SIZE
-                || (lastErr & RSA_R_DIGEST_TOO_BIG_FOR_RSA_KEY) == RSA_R_DIGEST_TOO_BIG_FOR_RSA_KEY) {
+            int lastReason = ERR_GET_REASON(lastErr);
+            if (lastReason == RSA_R_DATA_TOO_LARGE_FOR_KEY_SIZE || lastReason == RSA_R_DIGEST_TOO_BIG_FOR_RSA_KEY) {
                 drainOpensslErrors();
                 throw_java_ex(EX_SIGNATURE_EXCEPTION, formatOpensslError(lastErr, "UNUSED"));
             } else {
@@ -601,9 +601,9 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
 
             // Mismatched signatures are not an error case, so return false
             // instead of throwing per JCA convention.
-            if (ECDSA_R_MISMATCHED_SIGNATURE == (errorCode & ECDSA_R_MISMATCHED_SIGNATURE)
-                || RSA_R_MISMATCHED_SIGNATURE == (errorCode & RSA_R_MISMATCHED_SIGNATURE)
-                || EVP_R_INVALID_SIGNATURE == (errorCode & EVP_R_INVALID_SIGNATURE)) {
+            int reason = ERR_GET_REASON(errorCode);
+            if (reason == ECDSA_R_MISMATCHED_SIGNATURE || reason == RSA_R_MISMATCHED_SIGNATURE
+                || reason == EVP_R_INVALID_SIGNATURE) {
                 return false;
             }
 
