@@ -129,8 +129,8 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_RsaCipher_cipher
             if (ret <= 0) {
                 const long packed_err = drainOpensslErrors();
                 const long err = ERR_GET_REASON(packed_err);
-                if ((err & RSA_R_DATA_TOO_LARGE_FOR_MODULUS) || (err & RSA_R_PADDING_CHECK_FAILED)
-                    || (err & RSA_R_OAEP_DECODING_ERROR)) {
+                if (err == RSA_R_DATA_TOO_LARGE_FOR_MODULUS || err == RSA_R_PADDING_CHECK_FAILED
+                    || err == RSA_R_OAEP_DECODING_ERROR) {
                     throw_java_ex(EX_BADPADDING, formatOpensslError(err, "Bad Padding"));
                 } else {
                     throw_openssl(formatOpensslError(packed_err, "Unexpected exception").c_str());
