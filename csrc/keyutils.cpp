@@ -266,11 +266,13 @@ size_t encodeRfc5915EcPrivateKey(const EVP_PKEY* key, uint8_t** out)
         // in the inner private key encoding.
         !EC_KEY_marshal_private_key(&priv, ec_key, 0 /* enc_flags */) ||
         !CBB_flush(&cbb)) {
+        CBB_cleanup(&cbb);
         throw_java_ex(EX_RUNTIME_CRYPTO, "Error serializing expanded EC key");
     }
     // spotless:on
     size_t out_len;
     if (!CBB_finish(&cbb, out, &out_len)) {
+        CBB_cleanup(&cbb);
         OPENSSL_free(*out);
         throw_java_ex(EX_RUNTIME_CRYPTO, "Error finalizing expanded EC key");
     }
