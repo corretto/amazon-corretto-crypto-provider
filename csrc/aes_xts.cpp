@@ -22,16 +22,22 @@ public:
 
         if (for_encryption) {
             if (EVP_EncryptInit_ex(ctx_, EVP_aes_256_xts(), nullptr, key, tweak) != 1) {
+                EVP_CIPHER_CTX_free(ctx_);
+                ctx_ = nullptr;
                 throw_openssl(EX_RUNTIME_CRYPTO, "EVP_EncryptInit_ex failed.");
             }
         } else {
             if (EVP_DecryptInit_ex(ctx_, EVP_aes_256_xts(), nullptr, key, tweak) != 1) {
+                EVP_CIPHER_CTX_free(ctx_);
+                ctx_ = nullptr;
                 throw_openssl(EX_RUNTIME_CRYPTO, "EVP_DecryptInit_ex failed.");
             }
         }
 
         // this method always returns 1
         if (EVP_CIPHER_CTX_set_padding(ctx_, 0) != 1) {
+            EVP_CIPHER_CTX_free(ctx_);
+            ctx_ = nullptr;
             throw_openssl(EX_RUNTIME_CRYPTO, "EVP_CIPHER_CTX_set_padding");
         }
     }
