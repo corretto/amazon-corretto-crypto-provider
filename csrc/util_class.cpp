@@ -128,6 +128,60 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_utils_MlDsaUtils_ex
 }
 
 /*
+ * Class:     com_amazon_corretto_crypto_utils_MlKemUtils
+ * Method:    expandPrivateKeyInternal
+ * Signature: ([B)[B
+ *
+ * AWS-LC's kem_priv_decode automatically expands seed-format keys
+ * via KEM_KEY_set_raw_keypair_from_seed, and kem_priv_encode always writes the expanded
+ * format. So we just parse and re-encode.
+ */
+JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_utils_MlKemUtils_expandPrivateKeyInternal(
+    JNIEnv* pEnv, jclass, jbyteArray keyBytes)
+{
+    jbyteArray result = NULL;
+    try {
+        raii_env env(pEnv);
+        jsize key_der_len = env->GetArrayLength(keyBytes);
+
+        // ML-KEM seed-format PKCS8 is 86 bytes for all parameter sets (64-byte seed + ASN.1 overhead).
+        // If the key is already expanded, return it as-is.
+        if (key_der_len > 86) {
+            return keyBytes;
+        }
+        CHECK_OPENSSL(key_der_len == 86); // seed-only keys are always 86 bytes when PKCS8-encoded
+        uint8_t* key_der = (uint8_t*)env->GetByteArrayElements(keyBytes, nullptr);
+        CHECK_OPENSSL(key_der);
+
+        // Parse the seed key — AWS-LC expands it during parsing
+        BIO* key_bio = BIO_new_mem_buf(key_der, key_der_len);
+        CHECK_OPENSSL(key_bio);
+        PKCS8_PRIV_KEY_INFO_auto pkcs8 = PKCS8_PRIV_KEY_INFO_auto::from(d2i_PKCS8_PRIV_KEY_INFO_bio(key_bio, nullptr));
+        BIO_free(key_bio);
+        env->ReleaseByteArrayElements(keyBytes, (jbyte*)key_der, JNI_ABORT);
+        CHECK_OPENSSL(pkcs8.isInitialized());
+        EVP_PKEY_auto key = EVP_PKEY_auto::from(EVP_PKCS82PKEY(pkcs8));
+        CHECK_OPENSSL(key.isInitialized());
+
+        // Re-encode — AWS-LC always writes the expanded format
+        OPENSSL_buffer_auto new_der;
+        PKCS8_PRIV_KEY_INFO_auto new_pkcs8 = PKCS8_PRIV_KEY_INFO_auto::from(EVP_PKEY2PKCS8(key));
+        CHECK_OPENSSL(new_pkcs8.isInitialized());
+        int new_der_len = i2d_PKCS8_PRIV_KEY_INFO(new_pkcs8, &new_der);
+        CHECK_OPENSSL(new_der_len > 0);
+
+        if (!(result = env->NewByteArray(new_der_len))) {
+            throw_java_ex(EX_OOM, "Unable to allocate DER array");
+        }
+        env->SetByteArrayRegion(result, 0, new_der_len, (const jbyte*)new_der);
+    } catch (java_ex& ex) {
+        ex.throw_to_java(pEnv);
+        return 0;
+    }
+    return result;
+}
+
+/*
  * Class:     com_amazon_corretto_crypto_utils_MlDsaUtils
  * Method:    computeMuInternal
  * Signature: ([B[B)[B
