@@ -593,7 +593,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
     this.shouldRegisterAesCfb = (!isFips() || isExperimentalFips());
 
-    this.shouldRegisterMLKEM = (Utils.isMlKemSupported() && (!isFips() || isExperimentalFips()));
+    this.shouldRegisterMLKEM = Utils.isMlKemSupported();
 
     this.shouldRegisterX25519 = Utils.getJavaVersion() >= 11;
 
