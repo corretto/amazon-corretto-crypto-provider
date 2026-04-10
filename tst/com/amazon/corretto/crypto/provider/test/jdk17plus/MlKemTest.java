@@ -34,7 +34,6 @@ import org.junit.jupiter.api.parallel.ResourceAccessMode;
 import org.junit.jupiter.api.parallel.ResourceLock;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.junit.jupiter.params.provider.ValueSource;
 
 @Execution(ExecutionMode.CONCURRENT)
 @ExtendWith(TestResultLogger.class)
@@ -43,6 +42,11 @@ public class MlKemTest {
   private static final AmazonCorrettoCryptoProvider NATIVE_PROVIDER =
       AmazonCorrettoCryptoProvider.INSTANCE;
   private static final int SHARED_SECRET_SIZE = 32;
+  private static final String[] ML_KEM_PARAM_SETS = {"ML-KEM-512", "ML-KEM-768", "ML-KEM-1024"};
+
+  private static String[] mlKemParamSets() {
+    return ML_KEM_PARAM_SETS;
+  }
 
   private static int getCiphertextSizeForParamSet(String paramSet) throws Throwable {
     Class<?> mlKemParamClass = Class.forName("com.amazon.corretto.crypto.provider.MlKemParameter");
@@ -79,7 +83,7 @@ public class MlKemTest {
 
   private static List<TestParams> getParams() throws Exception {
     List<TestParams> params = new ArrayList<TestParams>();
-    for (String paramSet : new String[] {"ML-KEM-512", "ML-KEM-768", "ML-KEM-1024"}) {
+    for (String paramSet : ML_KEM_PARAM_SETS) {
       KeyPair keyPair = KeyPairGenerator.getInstance(paramSet, NATIVE_PROVIDER).generateKeyPair();
       PublicKey nativePub = keyPair.getPublic();
       PrivateKey nativePriv = keyPair.getPrivate();
@@ -125,7 +129,7 @@ public class MlKemTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"ML-KEM-512", "ML-KEM-768", "ML-KEM-1024"})
+  @MethodSource("mlKemParamSets")
   public void testKeyGeneration(String paramSet) throws Exception {
     KeyPairGenerator keyGen = KeyPairGenerator.getInstance(paramSet, NATIVE_PROVIDER);
     KeyPair keyPair = keyGen.generateKeyPair();
@@ -171,7 +175,7 @@ public class MlKemTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"ML-KEM-512", "ML-KEM-768", "ML-KEM-1024"})
+  @MethodSource("mlKemParamSets")
   public void testCiphertextSizes(String paramSet) throws Throwable {
     int expectedSize = getCiphertextSizeForParamSet(paramSet);
 
@@ -189,7 +193,7 @@ public class MlKemTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"ML-KEM-512", "ML-KEM-768", "ML-KEM-1024"})
+  @MethodSource("mlKemParamSets")
   public void testEncapsulatorProperties(String paramSet) throws Throwable {
     int expectedCiphertextSize = getCiphertextSizeForParamSet(paramSet);
 
@@ -207,7 +211,7 @@ public class MlKemTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"ML-KEM-512", "ML-KEM-768", "ML-KEM-1024"})
+  @MethodSource("mlKemParamSets")
   public void testGenericAlgorithmHandling(String paramSet) throws Exception {
     KeyPair pair = KeyPairGenerator.getInstance(paramSet, NATIVE_PROVIDER).generateKeyPair();
     KEM kem = KEM.getInstance(paramSet, NATIVE_PROVIDER);
@@ -263,7 +267,24 @@ public class MlKemTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"ML-KEM-512", "ML-KEM-768", "ML-KEM-1024"})
+  @MethodSource("mlKemParamSets")
+  public void testPrivateKeyEncodingIsSeedFormat(String paramSet) throws Exception {
+    // Seed format is 64 bytes (d || z) for all ML-KEM parameter sets.
+    // PKCS#8 DER wrapping adds 22 bytes of ASN.1 overhead, totaling 86 bytes.
+    // Expanded format would be 1632/2400/3168 bytes plus overhead.
+    final int expectedSeedEncodingLength = 86;
+
+    KeyPair kp = KeyPairGenerator.getInstance(paramSet, NATIVE_PROVIDER).generateKeyPair();
+    byte[] encoded = kp.getPrivate().getEncoded();
+
+    assertEquals(
+        expectedSeedEncodingLength,
+        encoded.length,
+        paramSet + " private key should be seed-encoded (64-byte seed + PKCS#8 overhead)");
+  }
+
+  @ParameterizedTest
+  @MethodSource("mlKemParamSets")
   public void testBouncyCastleInteroperability(String paramSet) throws Exception {
 
     KeyPair accpKeyPair = KeyPairGenerator.getInstance(paramSet, NATIVE_PROVIDER).generateKeyPair();
