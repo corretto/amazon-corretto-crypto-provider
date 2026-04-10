@@ -9,6 +9,7 @@ import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.NamedParameterSpec;
+import java.util.Arrays;
 import java.util.Objects;
 import javax.crypto.DecapsulateException;
 import javax.crypto.KEM;
@@ -163,8 +164,12 @@ abstract class MlKemSpi implements KEMSpi {
 
       byte[] ciphertext = new byte[engineEncapsulationSize()];
       byte[] sharedSecret = new byte[engineSecretSize()];
-      publicKey.useVoid(ptr -> nativeEncapsulate(ptr, ciphertext, sharedSecret));
-      return new KEM.Encapsulated(new SecretKeySpec(sharedSecret, algorithm), ciphertext, null);
+      try {
+        publicKey.useVoid(ptr -> nativeEncapsulate(ptr, ciphertext, sharedSecret));
+        return new KEM.Encapsulated(new SecretKeySpec(sharedSecret, algorithm), ciphertext, null);
+      } finally {
+        Arrays.fill(sharedSecret, (byte) 0);
+      }
     }
 
     @Override
@@ -201,8 +206,12 @@ abstract class MlKemSpi implements KEMSpi {
       }
 
       byte[] sharedSecret = new byte[engineSecretSize()];
-      privateKey.useVoid(ptr -> nativeDecapsulate(ptr, encapsulation, sharedSecret));
-      return new SecretKeySpec(sharedSecret, algorithm);
+      try {
+        privateKey.useVoid(ptr -> nativeDecapsulate(ptr, encapsulation, sharedSecret));
+        return new SecretKeySpec(sharedSecret, algorithm);
+      } finally {
+        Arrays.fill(sharedSecret, (byte) 0);
+      }
     }
 
     @Override

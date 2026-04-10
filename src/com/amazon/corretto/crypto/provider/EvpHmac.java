@@ -10,6 +10,7 @@ import java.security.InvalidKeyException;
 import java.security.Key;
 import java.security.Provider;
 import java.security.spec.AlgorithmParameterSpec;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -346,6 +347,9 @@ class EvpHmac extends MacSpi implements Cloneable {
       if (usePrecomputedKey && encoded.length != precomputedKeyLength) {
         throw new InvalidKeyException(
             "Key must be of length \"" + precomputedKeyLength + "\" when using precomputed keys");
+      }
+      if (this.encoded_key != null) {
+        Arrays.fill(this.encoded_key, (byte) 0);
       }
       this.encoded_key = encoded;
       this.key = key;
