@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
+import com.amazon.corretto.crypto.utils.MlKemUtils;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
@@ -338,5 +339,35 @@ public class MlKemTest {
         encapsulated.key().getEncoded(),
         bcSecret.getEncoded(),
         "ACCP and BouncyCastle should produce identical shared secrets for " + paramSet);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"ML-KEM-512", "ML-KEM-768", "ML-KEM-1024"})
+  public void testDecapsulationEquivalenceSeedAndExpanded(String paramSet) throws Exception {
+    KeyPairGenerator keyGen = KeyPairGenerator.getInstance(paramSet, NATIVE_PROVIDER);
+    KeyPair keyPair = keyGen.generateKeyPair();
+
+    // Encapsulate against the public key
+    KEM kem = KEM.getInstance(paramSet, NATIVE_PROVIDER);
+    NamedParameterSpec paramSpec = new NamedParameterSpec(paramSet);
+    KEM.Encapsulated encapsulated =
+        kem.newEncapsulator(keyPair.getPublic(), paramSpec, null).encapsulate();
+    byte[] ciphertext = encapsulated.encapsulation();
+
+    // Decapsulate with the original (seed-format) private key
+    SecretKey secretFromSeed =
+        kem.newDecapsulator(keyPair.getPrivate(), paramSpec).decapsulate(ciphertext);
+
+    // Expand the private key and decapsulate with the expanded form
+    byte[] expandedDer = MlKemUtils.expandPrivateKey(keyPair.getPrivate());
+    KeyFactory kf = KeyFactory.getInstance("ML-KEM", NATIVE_PROVIDER);
+    PrivateKey expandedKey = kf.generatePrivate(new PKCS8EncodedKeySpec(expandedDer));
+    SecretKey secretFromExpanded =
+        kem.newDecapsulator(expandedKey, paramSpec).decapsulate(ciphertext);
+
+    assertArrayEquals(
+        secretFromSeed.getEncoded(),
+        secretFromExpanded.getEncoded(),
+        "Seed and expanded keys must produce identical shared secrets for " + paramSet);
   }
 }
