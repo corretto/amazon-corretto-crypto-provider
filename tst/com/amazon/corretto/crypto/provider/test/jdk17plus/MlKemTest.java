@@ -363,7 +363,7 @@ public class MlKemTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"ML-KEM-512", "ML-KEM-768", "ML-KEM-1024"})
+  @MethodSource("mlKemParamSets")
   public void testDecapsulationEquivalenceSeedAndExpanded(String paramSet) throws Exception {
     KeyPairGenerator keyGen = KeyPairGenerator.getInstance(paramSet, NATIVE_PROVIDER);
     KeyPair keyPair = keyGen.generateKeyPair();
