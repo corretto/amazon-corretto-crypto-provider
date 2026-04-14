@@ -280,7 +280,7 @@ public class MlKemTest {
     assertEquals(
         expectedSeedEncodingLength,
         encoded.length,
-        paramSet + " private key should be seed-encoded (64-byte seed + PKCS#8 overhead)");
+        paramSet + " private key should be 86 bytes (64-byte seed + PKCS#8 overhead)");
   }
 
   @ParameterizedTest
