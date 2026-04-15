@@ -15,9 +15,8 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 
 /**
- * Benchmarks for AES-GCM-SIV (RFC 8452) one-shot encrypt and decrypt. AES-GCM-SIV is only
- * supported by ACCP (backed by AWS-LC); SunJCE and BouncyCastle are not included as providers
- * since they do not implement this algorithm.
+ * Benchmarks for AES-GCM-SIV (RFC 8452) one-shot encrypt and decrypt. SunJCE does not implement
+ * this algorithm, so only ACCP (backed by AWS-LC) is benchmarked here.
  */
 @State(Scope.Benchmark)
 public class AesGcmSivOneShot {
