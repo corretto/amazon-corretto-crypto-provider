@@ -9,9 +9,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.nio.ByteBuffer;
 import java.security.GeneralSecurityException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
+import java.security.SecureRandom;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Stream;
 import javax.crypto.AEADBadTagException;
 import javax.crypto.Cipher;
@@ -391,5 +396,220 @@ public final class AesGcmSivTest {
     final Cipher cipher = Cipher.getInstance("AES_256/GCM-SIV/NoPadding", NATIVE_PROVIDER);
     cipher.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, new byte[12]));
     assertNotNull(cipher.doFinal(new byte[8]));
+  }
+
+  // -----------------------------------------------------------------------
+  // ByteBuffer: encrypt and decrypt via NIO buffers
+  // -----------------------------------------------------------------------
+
+  @Test
+  public void byteBufferEncryptDecrypt() throws GeneralSecurityException {
+    final SecretKey key = new SecretKeySpec(new byte[16], "AES");
+    final GCMParameterSpec spec = new GCMParameterSpec(128, new byte[12]);
+    final byte[] plaintext = "ByteBuffer test data".getBytes();
+
+    // Encrypt using ByteBuffers
+    final Cipher enc = Cipher.getInstance(ALGO, NATIVE_PROVIDER);
+    enc.init(Cipher.ENCRYPT_MODE, key, spec);
+    final ByteBuffer ptBuf = ByteBuffer.wrap(plaintext);
+    final ByteBuffer ctBuf = ByteBuffer.allocate(enc.getOutputSize(plaintext.length));
+    enc.doFinal(ptBuf, ctBuf);
+    ctBuf.flip();
+    final byte[] ciphertext = new byte[ctBuf.remaining()];
+    ctBuf.get(ciphertext);
+
+    assertEquals(plaintext.length + 16, ciphertext.length);
+
+    // Decrypt using ByteBuffers
+    final Cipher dec = Cipher.getInstance(ALGO, NATIVE_PROVIDER);
+    dec.init(Cipher.DECRYPT_MODE, key, spec);
+    final ByteBuffer ctIn = ByteBuffer.wrap(ciphertext);
+    final ByteBuffer ptOut = ByteBuffer.allocate(dec.getOutputSize(ciphertext.length));
+    dec.doFinal(ctIn, ptOut);
+    ptOut.flip();
+    final byte[] recovered = new byte[ptOut.remaining()];
+    ptOut.get(recovered);
+
+    assertArrayEquals(plaintext, recovered);
+  }
+
+  @Test
+  public void byteBufferDirectEncryptDecrypt() throws GeneralSecurityException {
+    final SecretKey key = new SecretKeySpec(new byte[32], "AES");
+    final GCMParameterSpec spec = new GCMParameterSpec(128, new byte[12]);
+    final byte[] plaintext = new byte[256];
+    ThreadLocalRandom.current().nextBytes(plaintext);
+
+    final Cipher enc = Cipher.getInstance(ALGO, NATIVE_PROVIDER);
+    enc.init(Cipher.ENCRYPT_MODE, key, spec);
+    final ByteBuffer ptBuf = ByteBuffer.allocateDirect(plaintext.length);
+    ptBuf.put(plaintext).flip();
+    final ByteBuffer ctBuf = ByteBuffer.allocateDirect(enc.getOutputSize(plaintext.length));
+    enc.doFinal(ptBuf, ctBuf);
+    ctBuf.flip();
+
+    final Cipher dec = Cipher.getInstance(ALGO, NATIVE_PROVIDER);
+    dec.init(Cipher.DECRYPT_MODE, key, spec);
+    final ByteBuffer ptOut = ByteBuffer.allocateDirect(dec.getOutputSize(ctBuf.remaining()));
+    dec.doFinal(ctBuf, ptOut);
+    ptOut.flip();
+    final byte[] recovered = new byte[ptOut.remaining()];
+    ptOut.get(recovered);
+
+    assertArrayEquals(plaintext, recovered);
+  }
+
+  // -----------------------------------------------------------------------
+  // getOutputSize: must be exact for encrypt (pt + 16) and decrypt (ct - 16)
+  // -----------------------------------------------------------------------
+
+  @Test
+  public void getOutputSizeEncrypt() throws GeneralSecurityException {
+    final SecretKey key = new SecretKeySpec(new byte[16], "AES");
+    final Cipher cipher = Cipher.getInstance(ALGO, NATIVE_PROVIDER);
+    cipher.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, new byte[12]));
+    for (final int ptLen : new int[] {0, 1, 15, 16, 17, 100, 1024}) {
+      assertEquals(ptLen + 16, cipher.getOutputSize(ptLen), "ptLen=" + ptLen);
+    }
+  }
+
+  @Test
+  public void getOutputSizeDecrypt() throws GeneralSecurityException {
+    final SecretKey key = new SecretKeySpec(new byte[16], "AES");
+    final Cipher cipher = Cipher.getInstance(ALGO, NATIVE_PROVIDER);
+    cipher.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(128, new byte[12]));
+    for (final int ctLen : new int[] {16, 17, 32, 100, 1024}) {
+      assertEquals(ctLen - 16, cipher.getOutputSize(ctLen), "ctLen=" + ctLen);
+    }
+  }
+
+  // -----------------------------------------------------------------------
+  // Large input (~1 MiB): verify correctness at scale
+  // -----------------------------------------------------------------------
+
+  @Test
+  public void largePlaintextRoundTrip() throws GeneralSecurityException {
+    final SecretKey key = new SecretKeySpec(new byte[16], "AES");
+    final GCMParameterSpec spec = new GCMParameterSpec(128, new byte[12]);
+    final byte[] plaintext = new byte[1024 * 1024];
+    ThreadLocalRandom.current().nextBytes(plaintext);
+
+    final Cipher enc = Cipher.getInstance(ALGO, NATIVE_PROVIDER);
+    enc.init(Cipher.ENCRYPT_MODE, key, spec);
+    final byte[] ct = enc.doFinal(plaintext);
+    assertEquals(plaintext.length + 16, ct.length);
+
+    final Cipher dec = Cipher.getInstance(ALGO, NATIVE_PROVIDER);
+    dec.init(Cipher.DECRYPT_MODE, key, spec);
+    final byte[] recovered = dec.doFinal(ct);
+    assertArrayEquals(plaintext, recovered);
+  }
+
+  // -----------------------------------------------------------------------
+  // Rekey: reinit with a different key on the same Cipher instance
+  // -----------------------------------------------------------------------
+
+  @Test
+  public void rekeyChangesOutput() throws GeneralSecurityException {
+    final GCMParameterSpec spec = new GCMParameterSpec(128, new byte[12]);
+    final byte[] plaintext = "rekey test".getBytes();
+
+    final Cipher enc = Cipher.getInstance(ALGO, NATIVE_PROVIDER);
+
+    enc.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(new byte[16], "AES"), spec);
+    final byte[] ct1 = enc.doFinal(plaintext);
+
+    // Different key — ciphertext must differ
+    final byte[] rawKey2 = new byte[16];
+    rawKey2[0] = 1;
+    enc.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(rawKey2, "AES"), spec);
+    final byte[] ct2 = enc.doFinal(plaintext);
+
+    assertEquals(ct1.length, ct2.length);
+    // The two ciphertexts must not be equal (overwhelmingly likely with different keys)
+    boolean differ = false;
+    for (int i = 0; i < ct1.length; i++) {
+      if (ct1[i] != ct2[i]) {
+        differ = true;
+        break;
+      }
+    }
+    assertEquals(true, differ, "Different keys must produce different ciphertexts");
+  }
+
+  // -----------------------------------------------------------------------
+  // AAD after update: must throw IllegalStateException
+  // -----------------------------------------------------------------------
+
+  @Test
+  public void aadAfterUpdateThrows() throws GeneralSecurityException {
+    final SecretKey key = new SecretKeySpec(new byte[16], "AES");
+    final Cipher cipher = Cipher.getInstance(ALGO, NATIVE_PROVIDER);
+    cipher.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, new byte[12]));
+    cipher.update(new byte[8]);
+    assertThrows(IllegalStateException.class, () -> cipher.updateAAD(new byte[4]));
+  }
+
+  // -----------------------------------------------------------------------
+  // Threading: many concurrent encrypt+decrypt pairs on distinct Cipher instances
+  // -----------------------------------------------------------------------
+
+  @Test
+  public void concurrentEncryptDecrypt() throws Exception {
+    final int threadCount = 16;
+    final int iterations = 50;
+    final SecretKey key128 = new SecretKeySpec(new byte[16], "AES");
+    final SecretKey key256 = new SecretKeySpec(new byte[32], "AES");
+    final SecretKey[] keys = {key128, key256};
+
+    final List<Thread> threads = new ArrayList<>();
+    final List<Throwable> failures = new ArrayList<>();
+
+    for (int t = 0; t < threadCount; t++) {
+      final int threadIdx = t;
+      final Thread thread =
+          new Thread(
+              () -> {
+                try {
+                  final SecureRandom rng = new SecureRandom();
+                  final Cipher enc = Cipher.getInstance(ALGO, NATIVE_PROVIDER);
+                  final Cipher dec = Cipher.getInstance(ALGO, NATIVE_PROVIDER);
+                  for (int i = 0; i < iterations; i++) {
+                    final SecretKey key = keys[(threadIdx + i) % keys.length];
+                    final byte[] nonce = new byte[12];
+                    rng.nextBytes(nonce);
+                    final GCMParameterSpec spec = new GCMParameterSpec(128, nonce);
+                    final byte[] plaintext = new byte[64 + (i % 64)];
+                    rng.nextBytes(plaintext);
+
+                    enc.init(Cipher.ENCRYPT_MODE, key, spec);
+                    final byte[] ct = enc.doFinal(plaintext);
+
+                    dec.init(Cipher.DECRYPT_MODE, key, spec);
+                    final byte[] recovered = dec.doFinal(ct);
+                    assertArrayEquals(plaintext, recovered);
+                  }
+                } catch (final Throwable ex) {
+                  synchronized (failures) {
+                    failures.add(ex);
+                  }
+                }
+              },
+              "gcm-siv-thread-" + t);
+      threads.add(thread);
+    }
+
+    for (final Thread thread : threads) {
+      thread.start();
+    }
+    for (final Thread thread : threads) {
+      thread.join();
+    }
+
+    if (!failures.isEmpty()) {
+      final AssertionError error = new AssertionError("Thread failures: " + failures.size());
+      failures.forEach(error::addSuppressed);
+      throw error;
+    }
   }
 }
