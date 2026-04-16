@@ -334,6 +334,8 @@ class RsaCipher extends CipherSpi {
               keySizeBytes_ = (key_.getModulus().bitLength() + 7) / 8;
               buffer_ = new AccessibleByteArrayOutputStream();
               parseKey();
+          } else {
+              buffer_ = new AccessibleByteArrayOutputStream();
           }
         }
     }

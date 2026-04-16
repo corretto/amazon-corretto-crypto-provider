@@ -79,9 +79,9 @@ EVP_PKEY* der2EvpPrivateKey(const unsigned char* der, const int derLen, const bo
             if (!RSA_set0_key(nulled_rsa, BN_dup(n), BN_dup(e), BN_dup(d))) {
               throw_openssl(javaExceptionClass, "Unable to set RSA key parameters");
             }
+            RSA_blinding_off(nulled_rsa);
             EVP_PKEY_set1_RSA(result, nulled_rsa);
             RSA_free(nulled_rsa); // Decrement reference counter
-            RSA_blinding_off(nulled_rsa);
           }
       }
   }
