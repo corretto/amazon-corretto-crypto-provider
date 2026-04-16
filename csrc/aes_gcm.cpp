@@ -340,7 +340,9 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesGcmSpi_encryp
 
         rv = outoffset + finalOffset;
     } catch (java_ex &ex) {
-        EVP_CIPHER_CTX_free(ctx.take());
+        if (releaseContext) {
+            EVP_CIPHER_CTX_free(ctx.take());
+        }
 
         ex.throw_to_java(pEnv);
         return -1;

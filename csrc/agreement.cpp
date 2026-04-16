@@ -77,7 +77,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyAgre
         checkAgreementResult(EVP_PKEY_derive_set_peer(pctx, pubCtx.getKey()));
         
         size_t resultLen = 0;
-        std::vector<uint8_t> tmpResult;
+        std::vector<uint8_t, SecureAlloc<uint8_t> > tmpResult;
 
         checkAgreementResult(EVP_PKEY_derive(pctx, NULL, &resultLen));
         tmpResult.resize(resultLen);

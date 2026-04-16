@@ -59,6 +59,7 @@ bool drbg_getentropy(void *buffer, size_t length) {
     bool success = false;
     int mutex_error = 0;
     uint8_t *bufp = reinterpret_cast<uint8_t *>(buffer);
+    size_t original_length = length;
 
     if (unlikely(mutex_error = pthread_mutex_lock(&getentropy_mutex))) {
         errno = mutex_error;
@@ -83,12 +84,12 @@ bool drbg_getentropy(void *buffer, size_t length) {
 
                 urandom_fd = open("/dev/urandom", O_RDONLY);
                 if (urandom_fd >= 0) {
-                    flags = fcntl(F_GETFD, urandom_fd);
+                    flags = fcntl(urandom_fd, F_GETFD);
                     if (flags == -1) {
                         close(urandom_fd);
                         urandom_fd = -1;
                     } else {
-                        if (-1 == fcntl(F_SETFD, urandom_fd, flags | FD_CLOEXEC)) {
+                        if (-1 == fcntl(urandom_fd, F_SETFD, flags | FD_CLOEXEC)) {
                             close(urandom_fd);
                             urandom_fd = -1;
                         }
@@ -115,7 +116,7 @@ bool drbg_getentropy(void *buffer, size_t length) {
     success = true;
 out:
     if (!success) {
-        secureZero(buffer, length);
+        secureZero(buffer, original_length);
     }
 
     if (unlikely(mutex_error = pthread_mutex_unlock(&getentropy_mutex))) {

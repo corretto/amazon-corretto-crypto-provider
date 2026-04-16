@@ -149,7 +149,7 @@ class java_buffer {
 
             jint true_length = context->GetArrayLength(array);
 
-            if (unlikely(true_length) < 0) {
+            if (unlikely(true_length < 0)) {
                 throw java_ex("java/lang/AssertionError", "Impossible: Negative array length");
             }
 
@@ -186,7 +186,7 @@ class java_buffer {
             buf.m_offset = offset;
             buf.m_length = context->GetArrayLength(array);
 
-            if (unlikely(buf.m_length) < 0) {
+            if (unlikely(buf.m_length < 0)) {
                 throw java_ex("java/lang/AssertionError", "Impossible: Negative array length");
             }
 
@@ -513,7 +513,7 @@ class bounce_buffer {
             m_buffer = buffer;
 
             if (unlikely(sizeof(T) != m_buffer.len())) {
-                throw new java_ex(EX_ILLEGAL_ARGUMENT, "Incorrect length for buffer");
+                throw java_ex(EX_ILLEGAL_ARGUMENT, "Incorrect length for buffer");
             }
 
             if (buffer.array() && !env.is_locked()) {

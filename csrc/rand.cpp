@@ -40,7 +40,7 @@ RAND_METHOD drbg_rand_methods={
 
 void cleanup() {
     pthread_lock_auto lock(&drbg_lock);
-    if (drbg) {
+    if (!drbg) {
         return;
     }
     delete drbg;
