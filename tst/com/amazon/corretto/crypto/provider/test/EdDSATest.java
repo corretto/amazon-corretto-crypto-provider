@@ -51,11 +51,6 @@ public class EdDSATest {
   private KeyPairGenerator bcGen;
   private static final BouncyCastleProvider BOUNCYCASTLE_PROVIDER = new BouncyCastleProvider();
 
-  // TODO: remove this disablement when ACCP consumes an AWS-LC-FIPS release with Ed25519ph
-  public static boolean ed25519phIsEnabled() {
-    return !NATIVE_PROVIDER.isFips() || NATIVE_PROVIDER.isExperimentalFips();
-  }
-
   // This test fixture wraps BouncyCastle's lower-loevel API to provide a JCA Signature impl for
   // interop testing
   private final Signature bcPrehashSig =
@@ -226,7 +221,6 @@ public class EdDSATest {
 
   @Test
   public void selfValidationPh() throws GeneralSecurityException {
-    assumeTrue(ed25519phIsEnabled());
     final Signature nativeSignerSig = Signature.getInstance("Ed25519ph", NATIVE_PROVIDER);
     final Signature nativeVerifierSig = Signature.getInstance("Ed25519ph", NATIVE_PROVIDER);
     testInteropValidation(nativeSignerSig, nativeVerifierSig, true);
@@ -234,7 +228,6 @@ public class EdDSATest {
 
   @Test
   public void jceInteropValidationPh() throws GeneralSecurityException {
-    assumeTrue(ed25519phIsEnabled());
     final Signature nativeSig = Signature.getInstance("Ed25519ph", NATIVE_PROVIDER);
     final Signature jceSig = Signature.getInstance("Ed25519", "SunEC");
     makeJceSignaturePh(jceSig);
@@ -243,14 +236,12 @@ public class EdDSATest {
 
   @Test
   public void bcInteropValidationPh() throws GeneralSecurityException {
-    assumeTrue(ed25519phIsEnabled());
     final Signature nativeSig = Signature.getInstance("Ed25519ph", NATIVE_PROVIDER);
     testInteropValidation(nativeSig, bcPrehashSig, true);
   }
 
   @Test // sanity check to assert that JCE and BC are interoperable
   public void bcJceInteropValidationPh() throws GeneralSecurityException {
-    assumeTrue(ed25519phIsEnabled());
     final Signature jceSig = Signature.getInstance("Ed25519", "SunEC");
     makeJceSignaturePh(jceSig);
     testInteropValidation(jceSig, bcPrehashSig, true);
@@ -298,8 +289,7 @@ public class EdDSATest {
   }
 
   @Test // https://www.rfc-editor.org/rfc/rfc8032.html#section-7.3
-  public void rfc8032KAT() throws Exception {
-    assumeTrue(ed25519phIsEnabled());
+  public void rfc8032Ed25519phKAT() throws Exception {
     byte[] pkcs8 =
         TestUtil.decodeHex(
             "302e020100300506032b657004220420833fe62409237b9d62ec77587520911e9a759cec1d19755b7da901b96dca3d42");
@@ -324,6 +314,36 @@ public class EdDSATest {
     verifier.initVerify(publicKey);
     verifier.update(message);
     assertTrue(verifier.verify(signature), String.format("ACCP->ACCP: Ed25519ph"));
+    assertArrayEquals(expected, signature);
+  }
+
+  @Test // https://www.rfc-editor.org/rfc/rfc8032.html#section-7.1
+  public void rfc8032KATEd25519() throws Exception {
+    byte[] pkcs8 =
+        TestUtil.decodeHex(
+            "302e020100300506032b657004220420833fe62409237b9d62ec77587520911e9a759cec1d19755b7da901b96dca3d42");
+    byte[] x509 =
+        TestUtil.decodeHex(
+            "302a300506032b6570032100ec172b93ad5e563bf4932c70e1245034c35467ef2efd4d64ebf819683467e2bf");
+    byte[] message = TestUtil.decodeHex(
+            "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f");
+    byte[] expected =
+        TestUtil.decodeHex(
+            "dc2a4459e7369633a52b1bf277839a00201009a3efbf3ecb69bea2186c26b58909351fc9ac90b3ecfdfbc7c66431e0303dca179c138ac17ad9bef1177331a704");
+
+    final KeyFactory kf = KeyFactory.getInstance("Ed25519");
+    final PrivateKey privateKey = kf.generatePrivate(new PKCS8EncodedKeySpec(pkcs8));
+    final PublicKey publicKey = kf.generatePublic(new X509EncodedKeySpec(x509));
+
+    Signature signer = Signature.getInstance("Ed25519", NATIVE_PROVIDER);
+    Signature verifier = Signature.getInstance("Ed25519", NATIVE_PROVIDER);
+
+    signer.initSign(privateKey);
+    signer.update(message);
+    byte[] signature = signer.sign();
+    verifier.initVerify(publicKey);
+    verifier.update(message);
+    assertTrue(verifier.verify(signature), String.format("ACCP->ACCP: Ed25519"));
     assertArrayEquals(expected, signature);
   }
 
@@ -396,7 +416,6 @@ public class EdDSATest {
 
   @Test
   public void ed25519phValidation() throws GeneralSecurityException {
-    assumeTrue(ed25519phIsEnabled());
     testEdDSAValidation("Ed25519ph");
   }
 
@@ -436,10 +455,6 @@ public class EdDSATest {
     jceSig.initVerify(kp.getPublic());
     jceSig.update(message2, 0, message2.length);
     assertFalse(jceSig.verify(signature));
-
-    if (!ed25519phIsEnabled()) {
-      return;
-    }
 
     nativeSig = Signature.getInstance("Ed25519ph", NATIVE_PROVIDER);
     nativeSig.initSign(kp.getPrivate());
@@ -523,7 +538,6 @@ public class EdDSATest {
   }
 
   private static void makeJceSignaturePh(Signature sig) {
-    assertTrue(ed25519phIsEnabled());
     AlgorithmParameterSpec paramSpec = null;
     try {
       Class<?> eddsaParamSpecClass = Class.forName("java.security.spec.EdDSAParameterSpec");

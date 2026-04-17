@@ -77,7 +77,6 @@ bool initializeContext(raii_env& env,
             throw_openssl("Unable to create MD_CTX");
         }
 
-#if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
         if (preHash && EVP_PKEY_id(pKey) == EVP_PKEY_ED25519) {
             // ED25519 and ED25519PH (pre-hash) have different NIDs, but share an OID, so we treat them as a common
             // EvpKeyType in the java layer. So, if an EVP_PKEY_ED25519 pkey is initialized as |preHash|, we need to
@@ -101,7 +100,6 @@ bool initializeContext(raii_env& env,
                 CHECK_OPENSSL(ctx->setKeyCtx(EVP_PKEY_CTX_new(ctx->getKey(), nullptr)));
             }
         }
-#endif
 
         int result;
         if (signMode) {
