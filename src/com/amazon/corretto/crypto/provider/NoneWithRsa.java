@@ -40,8 +40,7 @@ import java.security.spec.PSSParameterSpec;
  * @see PSSParameterSpec
  */
 class NoneWithRsa extends EvpSignatureBase {
-  private final AccessibleByteArrayOutputStream buffer =
-      new AccessibleByteArrayOutputStream(64, 64);
+  private final AccessibleByteArrayOutputStream buffer = new AccessibleByteArrayOutputStream();
 
   protected NoneWithRsa(final AmazonCorrettoCryptoProvider provider, final int paddingType) {
     super(provider, EvpKeyType.RSA, paddingType, 0, false);
@@ -82,10 +81,12 @@ class NoneWithRsa extends EvpSignatureBase {
     if (!isBufferEmpty()) {
       throw new SignatureException("Digest already provided; one-shot signature allows one update");
     }
-    final int expectedDigestLen = Utils.getMdLen(digest_);
-    if (len != expectedDigestLen) {
-      throw new SignatureException(
-          "Input must equal digest length. Expected " + expectedDigestLen + " bytes, got " + len);
+    if (paddingType_ == RSA_PKCS1_PSS_PADDING) {
+      final int expectedDigestLen = Utils.getMdLen(digest_);
+      if (len != expectedDigestLen) {
+        throw new SignatureException(
+            "Input must equal digest length. Expected " + expectedDigestLen + " bytes, got " + len);
+      }
     }
     buffer.write(b, off, len);
   }
@@ -105,15 +106,17 @@ class NoneWithRsa extends EvpSignatureBase {
       throw new RuntimeException(
           new SignatureException("Digest already provided; one-shot signature allows one update"));
     }
-    final int expectedDigestLen = Utils.getMdLen(digest_);
-    final int len = input.remaining();
-    if (len != expectedDigestLen) {
-      throw new RuntimeException(
-          new SignatureException(
-              "Input must equal digest length. Expected "
-                  + expectedDigestLen
-                  + " bytes, got "
-                  + len));
+    if (paddingType_ == RSA_PKCS1_PSS_PADDING) {
+      final int expectedDigestLen = Utils.getMdLen(digest_);
+      final int len = input.remaining();
+      if (len != expectedDigestLen) {
+        throw new RuntimeException(
+            new SignatureException(
+                "Input must equal digest length. Expected "
+                    + expectedDigestLen
+                    + " bytes, got "
+                    + len));
+      }
     }
     buffer.write(input);
   }
@@ -185,12 +188,6 @@ class NoneWithRsa extends EvpSignatureBase {
    * <p>For {@code NONEwithRSASSA-PSS}, delegates to {@link EvpSignatureBase} which fully validates
    * and applies all PSS parameters (digest, MGF, salt length, trailer).
    *
-   * <p>For {@code NONEwithRSA} (RSASSA-PKCS1-v1_5), accepts {@link PSSParameterSpec} but only
-   * extracts the digest algorithm name to determine the expected digest length and DigestInfo OID.
-   * The MGF, salt length, and trailer fields are ignored since they are PSS-specific and have no
-   * meaning for RSASSA-PKCS1-v1_5 signatures. This allows callers to use a uniform parameter
-   * interface across both padding modes.
-   *
    * @throws InvalidAlgorithmParameterException if the parameter type is not supported or the digest
    *     algorithm is unrecognized
    * @throws IllegalStateException if called while the buffer contains data
@@ -198,28 +195,26 @@ class NoneWithRsa extends EvpSignatureBase {
   @Override
   protected synchronized void engineSetParameter(final AlgorithmParameterSpec params)
       throws InvalidAlgorithmParameterException {
-    if (paddingType_ == RSA_PKCS1_PADDING) {
-      if (params instanceof PSSParameterSpec) {
-        // For PKCS#1 v1.5, accept PSSParameterSpec but only extract the digest algorithm.
-        // MGF, salt length, and trailer are ignored since they are PSS-specific.
-        final PSSParameterSpec pssParams = (PSSParameterSpec) params;
-        if (!isBufferEmpty()) {
-          throw new IllegalStateException(
-              "Cannot update parameters with buffered data, reset Signature.");
-        }
-        try {
-          digest_ = Utils.getMdPtr(pssParams.getDigestAlgorithm());
-        } catch (Exception e) {
-          throw new InvalidAlgorithmParameterException(
-              "Unsupported digest: " + pssParams.getDigestAlgorithm());
-        }
-      } else {
+    if (paddingType_ == RSA_PKCS1_PSS_PADDING) {
+      if (!(params instanceof PSSParameterSpec)) {
         throw new InvalidAlgorithmParameterException(
-            "Only PSSParameterSpec is accepted (to select digest algorithm)");
+            "Only PSSParameterSpec is accepted for NONEwithRSASSA-PSS");
       }
-    } else {
-      super.engineSetParameter(params);
+      if (!isBufferEmpty()) {
+        throw new IllegalStateException(
+            "Cannot update parameters with buffered data, reset Signature.");
+      }
+      final PSSParameterSpec pssParams = (PSSParameterSpec) params;
+      try {
+        digest_ = Utils.getMdPtr(pssParams.getDigestAlgorithm());
+      } catch (Exception e) {
+        throw new InvalidAlgorithmParameterException(
+            "Unsupported digest: " + pssParams.getDigestAlgorithm());
+      }
+      super.engineSetParameter(pssParams);
+      return;
     }
+    throw new UnsupportedOperationException("setParameter is not supported for NONEwithRSA");
   }
 
   @Override
