@@ -69,36 +69,43 @@ bool initializeContext(raii_env& env,
     ctx->setKey(pKey);
 
 #if defined(FIPS_BUILD) && !defined(EXPERIMENTAL_FIPS_BUILD)
-    if (md != nullptr || EVP_PKEY_id(pKey) == EVP_PKEY_ED25519) {
+    bool useDigestPath = md != nullptr || EVP_PKEY_id(pKey) == EVP_PKEY_ED25519;
 #else
-    if (md != nullptr || EVP_PKEY_id(pKey) == EVP_PKEY_ED25519 || (EVP_PKEY_id(pKey) == EVP_PKEY_PQDSA && !preHash)) {
+    bool useDigestPath = md != nullptr || EVP_PKEY_id(pKey) == EVP_PKEY_ED25519
+        || (EVP_PKEY_id(pKey) == EVP_PKEY_PQDSA && !preHash);
 #endif
+
+    if (preHash && EVP_PKEY_id(pKey) == EVP_PKEY_ED25519) {
+        // ED25519 and ED25519PH (pre-hash) have different NIDs, but share an OID, so we treat them as a common
+        // EvpKeyType in the java layer. So, if an EVP_PKEY_ED25519 pkey is initialized as |preHash|, we need to
+        // replace |ctx|'s EVP_PKEY* with an EVP_PKEY_ED25519PH (pre-hash) pkey newly constructed from the current
+        // key's key material.
+        if (signMode) {
+            size_t raw_len;
+            CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(ctx->getKey(), nullptr, &raw_len));
+            std::vector<uint8_t, SecureAlloc<uint8_t> > raw_bytes(raw_len);
+            CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(ctx->getKey(), raw_bytes.data(), &raw_len));
+            CHECK_OPENSSL(
+                ctx->setKey(EVP_PKEY_new_raw_private_key(EVP_PKEY_ED25519PH, nullptr, raw_bytes.data(), raw_len)));
+        } else {
+            size_t raw_len;
+            CHECK_OPENSSL(EVP_PKEY_get_raw_public_key(ctx->getKey(), nullptr, &raw_len));
+            std::vector<uint8_t> raw_bytes(raw_len);
+            CHECK_OPENSSL(EVP_PKEY_get_raw_public_key(ctx->getKey(), raw_bytes.data(), &raw_len));
+            CHECK_OPENSSL(
+                ctx->setKey(EVP_PKEY_new_raw_public_key(EVP_PKEY_ED25519PH, nullptr, raw_bytes.data(), raw_len)));
+        }
+        // When md is nullptr (NONEwithEd25519ph), the caller provides the pre-hashed digest directly,
+        // so we use the raw EVP_PKEY_sign/verify path. When md is set (Ed25519ph), the implementation
+        // handles hashing internally via the digest path.
+        if (md == nullptr) {
+            useDigestPath = false;
+        }
+    }
+
+    if (useDigestPath) {
         if (!ctx->setDigestCtx(EVP_MD_CTX_create())) {
             throw_openssl("Unable to create MD_CTX");
-        }
-
-        if (preHash && EVP_PKEY_id(pKey) == EVP_PKEY_ED25519) {
-            // ED25519 and ED25519PH (pre-hash) have different NIDs, but share an OID, so we treat them as a common
-            // EvpKeyType in the java layer. So, if an EVP_PKEY_ED25519 pkey is initialized as |preHash|, we need to
-            // replace |ctx|'s EVP_PKEY* with an EVP_PKEY_ED25519PH (pre-hash) pkey newly constructed from the current
-            // key's key material.
-            if (signMode) {
-                size_t raw_len;
-                CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(ctx->getKey(), nullptr, &raw_len));
-                std::vector<uint8_t, SecureAlloc<uint8_t> > raw_bytes(raw_len);
-                CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(ctx->getKey(), raw_bytes.data(), &raw_len));
-                CHECK_OPENSSL(
-                    ctx->setKey(EVP_PKEY_new_raw_private_key(EVP_PKEY_ED25519PH, nullptr, raw_bytes.data(), raw_len)));
-                CHECK_OPENSSL(ctx->setKeyCtx(EVP_PKEY_CTX_new(ctx->getKey(), nullptr)));
-            } else {
-                size_t raw_len;
-                CHECK_OPENSSL(EVP_PKEY_get_raw_public_key(ctx->getKey(), nullptr, &raw_len));
-                std::vector<uint8_t> raw_bytes(raw_len);
-                CHECK_OPENSSL(EVP_PKEY_get_raw_public_key(ctx->getKey(), raw_bytes.data(), &raw_len));
-                CHECK_OPENSSL(
-                    ctx->setKey(EVP_PKEY_new_raw_public_key(EVP_PKEY_ED25519PH, nullptr, raw_bytes.data(), raw_len)));
-                CHECK_OPENSSL(ctx->setKeyCtx(EVP_PKEY_CTX_new(ctx->getKey(), nullptr)));
-            }
         }
 
         int result;
