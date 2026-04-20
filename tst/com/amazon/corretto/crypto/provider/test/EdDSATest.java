@@ -51,6 +51,11 @@ public class EdDSATest {
   private KeyPairGenerator bcGen;
   private static final BouncyCastleProvider BOUNCYCASTLE_PROVIDER = new BouncyCastleProvider();
 
+  // TODO: remove this disablement when ACCP consumes an AWS-LC-FIPS release with Ed25519ph
+  public static boolean ed25519phIsEnabled() {
+    return !NATIVE_PROVIDER.isFips() || NATIVE_PROVIDER.isExperimentalFips();
+  }
+
   // This test fixture wraps BouncyCastle's lower-loevel API to provide a JCA Signature impl for
   // interop testing
   private final Signature bcPrehashSig =
@@ -221,6 +226,7 @@ public class EdDSATest {
 
   @Test
   public void selfValidationPh() throws GeneralSecurityException {
+    assumeTrue(ed25519phIsEnabled());
     final Signature nativeSignerSig = Signature.getInstance("Ed25519ph", NATIVE_PROVIDER);
     final Signature nativeVerifierSig = Signature.getInstance("Ed25519ph", NATIVE_PROVIDER);
     testInteropValidation(nativeSignerSig, nativeVerifierSig, true);
@@ -228,6 +234,7 @@ public class EdDSATest {
 
   @Test
   public void jceInteropValidationPh() throws GeneralSecurityException {
+    assumeTrue(ed25519phIsEnabled());
     final Signature nativeSig = Signature.getInstance("Ed25519ph", NATIVE_PROVIDER);
     final Signature jceSig = Signature.getInstance("Ed25519", "SunEC");
     makeJceSignaturePh(jceSig);
@@ -236,12 +243,14 @@ public class EdDSATest {
 
   @Test
   public void bcInteropValidationPh() throws GeneralSecurityException {
+    assumeTrue(ed25519phIsEnabled());
     final Signature nativeSig = Signature.getInstance("Ed25519ph", NATIVE_PROVIDER);
     testInteropValidation(nativeSig, bcPrehashSig, true);
   }
 
   @Test // sanity check to assert that JCE and BC are interoperable
   public void bcJceInteropValidationPh() throws GeneralSecurityException {
+    assumeTrue(ed25519phIsEnabled());
     final Signature jceSig = Signature.getInstance("Ed25519", "SunEC");
     makeJceSignaturePh(jceSig);
     testInteropValidation(jceSig, bcPrehashSig, true);
@@ -289,7 +298,8 @@ public class EdDSATest {
   }
 
   @Test // https://www.rfc-editor.org/rfc/rfc8032.html#section-7.3
-  public void rfc8032Ed25519phKAT() throws Exception {
+  public void rfc8032KAT() throws Exception {
+    assumeTrue(ed25519phIsEnabled());
     byte[] pkcs8 =
         TestUtil.decodeHex(
             "302e020100300506032b657004220420833fe62409237b9d62ec77587520911e9a759cec1d19755b7da901b96dca3d42");
@@ -417,6 +427,7 @@ public class EdDSATest {
 
   @Test
   public void ed25519phValidation() throws GeneralSecurityException {
+    assumeTrue(ed25519phIsEnabled());
     testEdDSAValidation("Ed25519ph");
   }
 
@@ -456,6 +467,10 @@ public class EdDSATest {
     jceSig.initVerify(kp.getPublic());
     jceSig.update(message2, 0, message2.length);
     assertFalse(jceSig.verify(signature));
+
+    if (!ed25519phIsEnabled()) {
+      return;
+    }
 
     nativeSig = Signature.getInstance("Ed25519ph", NATIVE_PROVIDER);
     nativeSig.initSign(kp.getPrivate());
@@ -665,6 +680,7 @@ public class EdDSATest {
   }
 
   private static void makeJceSignaturePh(Signature sig) {
+    assertTrue(ed25519phIsEnabled());
     AlgorithmParameterSpec paramSpec = null;
     try {
       Class<?> eddsaParamSpecClass = Class.forName("java.security.spec.EdDSAParameterSpec");

@@ -75,6 +75,7 @@ bool initializeContext(raii_env& env,
         = md != nullptr || EVP_PKEY_id(pKey) == EVP_PKEY_ED25519 || (EVP_PKEY_id(pKey) == EVP_PKEY_PQDSA && !preHash);
 #endif
 
+#if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
     if (preHash && EVP_PKEY_id(pKey) == EVP_PKEY_ED25519) {
         // ED25519 and ED25519PH (pre-hash) have different NIDs, but share an OID, so we treat them as a common
         // EvpKeyType in the java layer. So, if an EVP_PKEY_ED25519 pkey is initialized as |preHash|, we need to
@@ -87,6 +88,7 @@ bool initializeContext(raii_env& env,
             CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(ctx->getKey(), raw_bytes.data(), &raw_len));
             CHECK_OPENSSL(
                 ctx->setKey(EVP_PKEY_new_raw_private_key(EVP_PKEY_ED25519PH, nullptr, raw_bytes.data(), raw_len)));
+            CHECK_OPENSSL(ctx->setKeyCtx(EVP_PKEY_CTX_new(ctx->getKey(), nullptr)));
         } else {
             size_t raw_len;
             CHECK_OPENSSL(EVP_PKEY_get_raw_public_key(ctx->getKey(), nullptr, &raw_len));
@@ -94,6 +96,7 @@ bool initializeContext(raii_env& env,
             CHECK_OPENSSL(EVP_PKEY_get_raw_public_key(ctx->getKey(), raw_bytes.data(), &raw_len));
             CHECK_OPENSSL(
                 ctx->setKey(EVP_PKEY_new_raw_public_key(EVP_PKEY_ED25519PH, nullptr, raw_bytes.data(), raw_len)));
+            CHECK_OPENSSL(ctx->setKeyCtx(EVP_PKEY_CTX_new(ctx->getKey(), nullptr)));
         }
         // When md is nullptr (NONEwithEd25519ph), the caller provides the pre-hashed digest directly,
         // so we use the raw EVP_PKEY_sign/verify path. When md is set (Ed25519ph), the implementation
@@ -102,6 +105,7 @@ bool initializeContext(raii_env& env,
             useDigestPath = false;
         }
     }
+#endif
 
     if (useDigestPath) {
         if (!ctx->setDigestCtx(EVP_MD_CTX_create())) {
