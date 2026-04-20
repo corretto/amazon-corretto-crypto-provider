@@ -325,7 +325,8 @@ public class EdDSATest {
     byte[] x509 =
         TestUtil.decodeHex(
             "302a300506032b6570032100ec172b93ad5e563bf4932c70e1245034c35467ef2efd4d64ebf819683467e2bf");
-    byte[] message = TestUtil.decodeHex(
+    byte[] message =
+        TestUtil.decodeHex(
             "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f");
     byte[] expected =
         TestUtil.decodeHex(
@@ -581,20 +582,18 @@ public class EdDSATest {
       noneSig.update(digest);
       byte[] noneSignature = noneSig.sign();
 
-      assertArrayEquals(phSignature, noneSignature,
-          "Ed25519ph(m) must equal NONEwithEd25519ph(SHA512(m))");
+      assertArrayEquals(
+          phSignature, noneSignature, "Ed25519ph(m) must equal NONEwithEd25519ph(SHA512(m))");
 
       // Cross-verify: Ed25519ph signature verified by NONEwithEd25519ph
       noneSig.initVerify(kp.getPublic());
       noneSig.update(digest);
-      assertTrue(noneSig.verify(phSignature),
-          "NONEwithEd25519ph must verify Ed25519ph signature");
+      assertTrue(noneSig.verify(phSignature), "NONEwithEd25519ph must verify Ed25519ph signature");
 
       // Cross-verify: NONEwithEd25519ph signature verified by Ed25519ph
       phSig.initVerify(kp.getPublic());
       phSig.update(message);
-      assertTrue(phSig.verify(noneSignature),
-          "Ed25519ph must verify NONEwithEd25519ph signature");
+      assertTrue(phSig.verify(noneSignature), "Ed25519ph must verify NONEwithEd25519ph signature");
     }
   }
 
@@ -620,13 +619,15 @@ public class EdDSATest {
       noneSig.update(digest);
       byte[] noneSignature = noneSig.sign();
 
-      assertFalse(Arrays.equals(ed25519Signature, noneSignature),
+      assertFalse(
+          Arrays.equals(ed25519Signature, noneSignature),
           "Ed25519(m) must NOT equal NONEwithEd25519ph(SHA512(m))");
 
       // Ed25519 signature should NOT verify under NONEwithEd25519ph
       noneSig.initVerify(kp.getPublic());
       noneSig.update(digest);
-      assertFalse(noneSig.verify(ed25519Signature),
+      assertFalse(
+          noneSig.verify(ed25519Signature),
           "NONEwithEd25519ph must NOT verify an Ed25519 signature");
     }
   }

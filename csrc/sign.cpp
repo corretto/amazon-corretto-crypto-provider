@@ -71,8 +71,8 @@ bool initializeContext(raii_env& env,
 #if defined(FIPS_BUILD) && !defined(EXPERIMENTAL_FIPS_BUILD)
     bool useDigestPath = md != nullptr || EVP_PKEY_id(pKey) == EVP_PKEY_ED25519;
 #else
-    bool useDigestPath = md != nullptr || EVP_PKEY_id(pKey) == EVP_PKEY_ED25519
-        || (EVP_PKEY_id(pKey) == EVP_PKEY_PQDSA && !preHash);
+    bool useDigestPath
+        = md != nullptr || EVP_PKEY_id(pKey) == EVP_PKEY_ED25519 || (EVP_PKEY_id(pKey) == EVP_PKEY_PQDSA && !preHash);
 #endif
 
     if (preHash && EVP_PKEY_id(pKey) == EVP_PKEY_ED25519) {
