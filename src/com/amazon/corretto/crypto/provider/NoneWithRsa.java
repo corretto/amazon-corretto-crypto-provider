@@ -29,11 +29,11 @@ import java.security.spec.PSSParameterSpec;
  *       {@code RSASSA-PSS} when the same parameters and digest are used. Equivalent to
  *       BouncyCastle's {@code NONEwithRSASSA-PSS}.
  *   <li>{@code NONEwithRSA} -- Applies RSASSA-PKCS1-v1_5 padding (RFC 8017 Sec. 8.2) to the
- *       pre-hashed digest via {@code RSA_sign}/{@code RSA_verify}. The digest algorithm (which
- *       determines the DigestInfo OID and expected input length) defaults to SHA-256 and can be
- *       changed via {@link PSSParameterSpec} (only the digest algorithm field is used; MGF, salt
- *       length, and trailer are ignored). Interoperable with {@code SHA*withRSA} algorithms when
- *       the same digest is used.
+ *       caller-supplied bytes via {@code RSA_sign_raw}/{@code RSA_verify_raw}. Accepts any input up
+ *       to {@code rsaSize - 11} bytes (the PKCS#1 v1.5 padding overhead). No DigestInfo wrapping is
+ *       performed; the raw bytes are signed directly. {@code setParameter} is not supported (throws
+ *       {@code UnsupportedOperationException}). Interoperable with SunJCE and BouncyCastle {@code
+ *       NONEwithRSA} implementations.
  * </ul>
  *
  * @see <a href="https://datatracker.ietf.org/doc/html/rfc8017">RFC 8017: PKCS #1</a>
@@ -69,11 +69,12 @@ class NoneWithRsa extends EvpSignatureBase {
   /**
    * Provides the pre-computed message digest for signing or verification.
    *
-   * <p>This method must be called exactly once with the complete digest. The digest length must
-   * match the output length of the configured hash algorithm.
+   * <p>This method must be called exactly once. For {@code NONEwithRSASSA-PSS}, the input length
+   * must match the configured hash algorithm's output length. For {@code NONEwithRSA}, any length
+   * up to {@code rsaSize - 11} bytes is accepted.
    *
    * @throws SignatureException if called more than once before sign/verify, or if the provided data
-   *     does not match the expected digest length
+   *     does not match the expected digest length (PSS only)
    */
   @Override
   protected void engineUpdate(final byte[] b, final int off, final int len)
@@ -94,11 +95,12 @@ class NoneWithRsa extends EvpSignatureBase {
   /**
    * Provides the pre-computed message digest for signing or verification.
    *
-   * <p>This method must be called exactly once with the complete digest. The digest length must
-   * match the output length of the configured hash algorithm.
+   * <p>This method must be called exactly once. For {@code NONEwithRSASSA-PSS}, the input length
+   * must match the configured hash algorithm's output length. For {@code NONEwithRSA}, any length
+   * up to {@code rsaSize - 11} bytes is accepted.
    *
    * @throws RuntimeException wrapping a {@link SignatureException} if called more than once before
-   *     sign/verify, or if the provided data does not match the expected digest length
+   *     sign/verify, or if the provided data does not match the expected digest length (PSS only)
    */
   @Override
   protected void engineUpdate(final ByteBuffer input) {

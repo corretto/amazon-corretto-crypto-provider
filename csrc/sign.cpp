@@ -648,14 +648,10 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_NoneWithRs
             throw_java_ex(EX_SIGNATURE_EXCEPTION, "Failed to get RSA key");
         }
 
-        const size_t rsaSize = RSA_size(rsa);
-        if ((size_t)length > (rsaSize - 11)) {  // PKCS1 padding is 11 bytes for raw NONEwithRSA
-            throw_java_ex(EX_SIGNATURE_EXCEPTION, "Message too long for RSA key");
-        }
-
         java_buffer digestBuf = java_buffer::from_array(env, digestArr, offset, length);
 
         // Allocate output buffer for signature
+        const size_t rsaSize = RSA_size(rsa);
         std::vector<uint8_t, SecureAlloc<uint8_t> > signature(rsaSize);
 
         // Borrow digest for the crypto call, release before creating Java array
@@ -676,6 +672,9 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_NoneWithRs
                 break;
             }
             case RSA_PKCS1_PADDING: {
+                if ((size_t)length > (rsaSize - 11)) {  // PKCS1 padding is 11 bytes for raw NONEwithRSA
+                    throw_java_ex(EX_SIGNATURE_EXCEPTION, "Message too long for RSA key");
+                }
                 int rc = RSA_sign_raw(rsa, &sigLen, signature.data(), rsaSize,
                     digest.data(), length, RSA_PKCS1_PADDING);
                 if (rc != 1) {
@@ -743,7 +742,9 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_NoneWithRsa_
             break;
         }
         case RSA_PKCS1_PADDING: {
-            // Decrypt signature and strip PKCS1 padding
+            if ((size_t)length > (RSA_size(rsa) - 11)) {
+                throw_java_ex(EX_SIGNATURE_EXCEPTION, "Message too long for RSA key");
+            }
             size_t outLen = 0;
             std::vector<uint8_t> buf(RSA_size(rsa));
             if (1 != RSA_verify_raw(rsa, &outLen, buf.data(), buf.size(), sig.data(), sig.len(), RSA_PKCS1_PADDING)
