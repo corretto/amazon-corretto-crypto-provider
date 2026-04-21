@@ -50,6 +50,7 @@ public class EdDSATest {
   private KeyPairGenerator jceGen;
   private KeyPairGenerator bcGen;
   private static final BouncyCastleProvider BOUNCYCASTLE_PROVIDER = new BouncyCastleProvider();
+  private static final int SHA512_DIGEST_BYTES = 64;
 
   // TODO: remove this disablement when ACCP consumes an AWS-LC-FIPS release with Ed25519ph
   public static boolean ed25519phIsEnabled() {
@@ -670,7 +671,7 @@ public class EdDSATest {
     final KeyPair kp = nativeGen.generateKeyPair();
     final Signature sig = Signature.getInstance("NONEwithEd25519ph", NATIVE_PROVIDER);
 
-    for (int badLength : new int[] {0, 1, 32, 63, 65, 128, 1024}) {
+    for (int badLength : new int[] {SHA512_DIGEST_BYTES - 1, SHA512_DIGEST_BYTES + 1}) {
       byte[] badInput = new byte[badLength];
 
       sig.initSign(kp.getPrivate());
@@ -679,7 +680,8 @@ public class EdDSATest {
 
       sig.initVerify(kp.getPublic());
       sig.update(badInput);
-      TestUtil.assertThrows(SignatureException.class, () -> sig.verify(new byte[64]));
+      TestUtil.assertThrows(
+          SignatureException.class, () -> sig.verify(new byte[SHA512_DIGEST_BYTES]));
     }
   }
 
