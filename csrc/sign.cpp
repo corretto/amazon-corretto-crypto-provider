@@ -69,10 +69,10 @@ bool initializeContext(raii_env& env,
     ctx->setKey(pKey);
 
 #if defined(FIPS_BUILD) && !defined(EXPERIMENTAL_FIPS_BUILD)
-    bool useDigestPath = md != nullptr || EVP_PKEY_id(pKey) == EVP_PKEY_ED25519;
+    bool useDigestPath = (md != nullptr || EVP_PKEY_id(pKey) == EVP_PKEY_ED25519);
 #else
     bool useDigestPath
-        = md != nullptr || EVP_PKEY_id(pKey) == EVP_PKEY_ED25519 || (EVP_PKEY_id(pKey) == EVP_PKEY_PQDSA && !preHash);
+        = (md != nullptr || EVP_PKEY_id(pKey) == EVP_PKEY_ED25519 || (EVP_PKEY_id(pKey) == EVP_PKEY_PQDSA && !preHash));
 #endif
 
 #if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
