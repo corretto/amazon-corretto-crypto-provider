@@ -297,36 +297,6 @@ public class EdDSATest {
     }
   }
 
-  @Test // https://www.rfc-editor.org/rfc/rfc8032.html#section-7.3
-  public void rfc8032KAT() throws Exception {
-    assumeTrue(ed25519phIsEnabled());
-    byte[] pkcs8 =
-        TestUtil.decodeHex(
-            "302e020100300506032b657004220420833fe62409237b9d62ec77587520911e9a759cec1d19755b7da901b96dca3d42");
-    byte[] x509 =
-        TestUtil.decodeHex(
-            "302a300506032b6570032100ec172b93ad5e563bf4932c70e1245034c35467ef2efd4d64ebf819683467e2bf");
-    byte[] message = TestUtil.decodeHex("616263");
-    byte[] expected =
-        TestUtil.decodeHex(
-            "98a70222f0b8121aa9d30f813d683f809e462b469c7ff87639499bb94e6dae4131f85042463c2a355a2003d062adf5aaa10b8c61e636062aaad11c2a26083406");
-
-    final KeyFactory kf = KeyFactory.getInstance("Ed25519");
-    final PrivateKey privateKey = kf.generatePrivate(new PKCS8EncodedKeySpec(pkcs8));
-    final PublicKey publicKey = kf.generatePublic(new X509EncodedKeySpec(x509));
-
-    Signature signer = Signature.getInstance("Ed25519ph", NATIVE_PROVIDER);
-    Signature verifier = Signature.getInstance("Ed25519ph", NATIVE_PROVIDER);
-
-    signer.initSign(privateKey);
-    signer.update(message);
-    byte[] signature = signer.sign();
-    verifier.initVerify(publicKey);
-    verifier.update(message);
-    assertTrue(verifier.verify(signature), String.format("ACCP->ACCP: Ed25519ph"));
-    assertArrayEquals(expected, signature);
-  }
-
   @Test // https://www.rfc-editor.org/rfc/rfc8032.html#section-7.1
   public void rfc8032KATEd25519() throws Exception {
     byte[] pkcs8 =
@@ -356,6 +326,50 @@ public class EdDSATest {
     verifier.update(message);
     assertTrue(verifier.verify(signature), String.format("ACCP->ACCP: Ed25519"));
     assertArrayEquals(expected, signature);
+  }
+
+  @Test // https://www.rfc-editor.org/rfc/rfc8032.html#section-7.3
+  public void rfc8032KATEd25519ph() throws Exception {
+    assumeTrue(ed25519phIsEnabled());
+    byte[] pkcs8 =
+        TestUtil.decodeHex(
+            "302e020100300506032b657004220420833fe62409237b9d62ec77587520911e9a759cec1d19755b7da901b96dca3d42");
+    byte[] x509 =
+        TestUtil.decodeHex(
+            "302a300506032b6570032100ec172b93ad5e563bf4932c70e1245034c35467ef2efd4d64ebf819683467e2bf");
+    byte[] message = TestUtil.decodeHex("616263");
+    byte[] expected =
+        TestUtil.decodeHex(
+            "98a70222f0b8121aa9d30f813d683f809e462b469c7ff87639499bb94e6dae4131f85042463c2a355a2003d062adf5aaa10b8c61e636062aaad11c2a26083406");
+
+    final KeyFactory kf = KeyFactory.getInstance("Ed25519");
+    final PrivateKey privateKey = kf.generatePrivate(new PKCS8EncodedKeySpec(pkcs8));
+    final PublicKey publicKey = kf.generatePublic(new X509EncodedKeySpec(x509));
+
+    Signature signer = Signature.getInstance("Ed25519ph", NATIVE_PROVIDER);
+    Signature verifier = Signature.getInstance("Ed25519ph", NATIVE_PROVIDER);
+
+    signer.initSign(privateKey);
+    signer.update(message);
+    byte[] signature = signer.sign();
+    verifier.initVerify(publicKey);
+    verifier.update(message);
+    assertTrue(verifier.verify(signature), String.format("ACCP->ACCP: Ed25519ph"));
+    assertArrayEquals(expected, signature);
+
+    // This KAT should also work with NONEwithEd25519ph, but we need to take the SHA512 digest first
+    final byte[] digest = MessageDigest.getInstance("SHA-512").digest(message);
+
+    signer = Signature.getInstance("NONEwithEd25519ph", NATIVE_PROVIDER);
+    verifier = Signature.getInstance("NONEwithEd25519ph", NATIVE_PROVIDER);
+
+    signer.initSign(privateKey);
+    signer.update(digest);
+    signature = signer.sign();
+    verifier.initVerify(publicKey);
+    verifier.update(digest);
+    assertTrue(verifier.verify(signature), "ACCP NONEwithEd25519ph KAT verify");
+    assertArrayEquals(expected, signature, "ACCP NONEwithEd25519ph KAT signature");
   }
 
   @Test
@@ -645,38 +659,6 @@ public class EdDSATest {
           noneSig.verify(ed25519Signature),
           "NONEwithEd25519ph must NOT verify an Ed25519 signature");
     }
-  }
-
-  @Test // https://www.rfc-editor.org/rfc/rfc8032.html#section-7.3
-  public void rfc8032NoneWithEd25519phKAT() throws Exception {
-    byte[] pkcs8 =
-        TestUtil.decodeHex(
-            "302e020100300506032b657004220420833fe62409237b9d62ec77587520911e9a759cec1d19755b7da901b96dca3d42");
-    byte[] x509 =
-        TestUtil.decodeHex(
-            "302a300506032b6570032100ec172b93ad5e563bf4932c70e1245034c35467ef2efd4d64ebf819683467e2bf");
-    byte[] message = TestUtil.decodeHex("616263");
-    byte[] expected =
-        TestUtil.decodeHex(
-            "98a70222f0b8121aa9d30f813d683f809e462b469c7ff87639499bb94e6dae4131f85042463c2a355a2003d062adf5aaa10b8c61e636062aaad11c2a26083406");
-
-    final KeyFactory kf = KeyFactory.getInstance("Ed25519");
-    final PrivateKey privateKey = kf.generatePrivate(new PKCS8EncodedKeySpec(pkcs8));
-    final PublicKey publicKey = kf.generatePublic(new X509EncodedKeySpec(x509));
-
-    final MessageDigest sha512 = MessageDigest.getInstance("SHA-512");
-    byte[] digest = sha512.digest(message);
-
-    Signature signer = Signature.getInstance("NONEwithEd25519ph", NATIVE_PROVIDER);
-    Signature verifier = Signature.getInstance("NONEwithEd25519ph", NATIVE_PROVIDER);
-
-    signer.initSign(privateKey);
-    signer.update(digest);
-    byte[] signature = signer.sign();
-    verifier.initVerify(publicKey);
-    verifier.update(digest);
-    assertTrue(verifier.verify(signature), "ACCP NONEwithEd25519ph KAT verify");
-    assertArrayEquals(expected, signature, "ACCP NONEwithEd25519ph KAT signature");
   }
 
   private static void makeJceSignaturePh(Signature sig) {
