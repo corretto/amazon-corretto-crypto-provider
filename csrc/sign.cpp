@@ -648,39 +648,38 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_NoneWithRs
             throw_java_ex(EX_SIGNATURE_EXCEPTION, "Failed to get RSA key");
         }
 
-        size_t hLen = EVP_MD_size(md);
-
-        if (static_cast<size_t>(length) != hLen) {
-            throw_java_ex(EX_SIGNATURE_EXCEPTION, "Digest length mismatch");
-        }
-
         java_buffer digestBuf = java_buffer::from_array(env, digestArr, offset, length);
 
         // Allocate output buffer for signature
-        size_t maxOut = RSA_size(rsa);
-        std::vector<uint8_t, SecureAlloc<uint8_t> > signature(maxOut);
+        const size_t rsaSize = RSA_size(rsa);
+        std::vector<uint8_t, SecureAlloc<uint8_t> > signature(rsaSize);
 
         // Borrow digest for the crypto call, release before creating Java array
+        size_t sigLen = 0;
         {
             jni_borrow digest(env, digestBuf, "digest");
 
             switch (paddingType) {
             case RSA_PKCS1_PSS_PADDING: {
+                if (static_cast<size_t>(length) != EVP_MD_size(md)) {
+                    throw_java_ex(EX_SIGNATURE_EXCEPTION, "Digest length mismatch");
+                }
                 const EVP_MD* mgf_md = reinterpret_cast<const EVP_MD*>(mgfMd);
-                size_t sigLen = 0;
-                if (RSA_sign_pss_mgf1(rsa, &sigLen, signature.data(), maxOut, digest.data(), hLen, md, mgf_md, saltLen)
+                if (RSA_sign_pss_mgf1(rsa, &sigLen, signature.data(), rsaSize, digest.data(), length, md, mgf_md, saltLen)
                     != 1) {
                     throw_openssl("RSA_sign_pss_mgf1 failed");
                 }
-                signature.resize(sigLen);
                 break;
             }
             case RSA_PKCS1_PADDING: {
-                unsigned int sigLen = 0;
-                if (RSA_sign(EVP_MD_type(md), digest.data(), hLen, signature.data(), &sigLen, rsa) != 1) {
-                    throw_openssl("RSA_sign failed");
+                if ((size_t)length > (rsaSize - 11)) {  // PKCS1 padding is 11 bytes for raw NONEwithRSA
+                    throw_java_ex(EX_SIGNATURE_EXCEPTION, "Message too long for RSA key");
                 }
-                signature.resize(sigLen);
+                int rc = RSA_sign_raw(rsa, &sigLen, signature.data(), rsaSize,
+                    digest.data(), length, RSA_PKCS1_PADDING);
+                if (rc != 1) {
+                    throw_openssl("RSA_sign_raw failed");
+                }
                 break;
             }
             default:
@@ -688,6 +687,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_NoneWithRs
             }
         }
 
+        signature.resize(sigLen);
         return vecToArray(env, signature);
 
     } catch (java_ex& ex) {
@@ -725,12 +725,6 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_NoneWithRsa_
             throw_java_ex(EX_SIGNATURE_EXCEPTION, "Failed to get RSA key");
         }
 
-        size_t hLen = EVP_MD_size(md);
-
-        if (static_cast<size_t>(length) != hLen) {
-            throw_java_ex(EX_SIGNATURE_EXCEPTION, "Digest length mismatch");
-        }
-
         java_buffer digestBuf = java_buffer::from_array(env, digestArr, offset, length);
         java_buffer signatureBuf = java_buffer::from_array(env, signatureArr, sigOffset, sigLength);
 
@@ -740,13 +734,27 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_NoneWithRsa_
         int result = 0;
         switch (paddingType) {
         case RSA_PKCS1_PSS_PADDING: {
+            if (static_cast<size_t>(length) != EVP_MD_size(md)) {
+                throw_java_ex(EX_SIGNATURE_EXCEPTION, "Digest length mismatch");
+            }
             const EVP_MD* mgf_md = reinterpret_cast<const EVP_MD*>(mgfMd);
-            result = RSA_verify_pss_mgf1(rsa, digest.data(), hLen, md, mgf_md, saltLen, sig.data(), sig.len());
+            result = RSA_verify_pss_mgf1(rsa, digest.data(), length, md, mgf_md, saltLen, sig.data(), sig.len());
             break;
         }
-        case RSA_PKCS1_PADDING:
-            result = RSA_verify(EVP_MD_type(md), digest.data(), hLen, sig.data(), sig.len(), rsa);
+        case RSA_PKCS1_PADDING: {
+            if ((size_t)length > (RSA_size(rsa) - 11)) {
+                throw_java_ex(EX_SIGNATURE_EXCEPTION, "Message too long for RSA key");
+            }
+            size_t outLen = 0;
+            std::vector<uint8_t> buf(RSA_size(rsa));
+            if (1 != RSA_verify_raw(rsa, &outLen, buf.data(), buf.size(), sig.data(), sig.len(), RSA_PKCS1_PADDING)
+                || (size_t)length != outLen
+                || 0 != CRYPTO_memcmp(buf.data(), digest.data(), outLen)) {
+                break; // result stays 0
+            }
+            result = 1;
             break;
+        }
         default:
             throw_java_ex(EX_RUNTIME_CRYPTO, "Unexpected padding type");
         }
