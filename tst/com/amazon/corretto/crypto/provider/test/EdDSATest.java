@@ -569,6 +569,7 @@ public class EdDSATest {
 
   @Test
   public void noneWithEd25519phSelfValidation() throws GeneralSecurityException {
+    assumeTrue(ed25519phIsEnabled());
     final KeyPair kp = nativeGen.generateKeyPair();
     final MessageDigest sha512 = MessageDigest.getInstance("SHA-512");
     final Signature sig = Signature.getInstance("NONEwithEd25519ph", NATIVE_PROVIDER);
@@ -591,6 +592,7 @@ public class EdDSATest {
 
   @Test
   public void noneWithEd25519phEqualsEd25519ph() throws GeneralSecurityException {
+    assumeTrue(ed25519phIsEnabled());
     final KeyPair kp = nativeGen.generateKeyPair();
     final MessageDigest sha512 = MessageDigest.getInstance("SHA-512");
     final Signature phSig = Signature.getInstance("Ed25519ph", NATIVE_PROVIDER);
@@ -628,6 +630,7 @@ public class EdDSATest {
 
   @Test
   public void noneWithEd25519phNotEqualsEd25519() throws GeneralSecurityException {
+    assumeTrue(ed25519phIsEnabled());
     final KeyPair kp = nativeGen.generateKeyPair();
     final MessageDigest sha512 = MessageDigest.getInstance("SHA-512");
     final Signature ed25519Sig = Signature.getInstance("Ed25519", NATIVE_PROVIDER);
