@@ -537,6 +537,12 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatu
             signature.resize(sigLength);
         } else {
             jni_borrow message(env, messageBuf, "message");
+            // signRaw called w/ preHash && EVP_PKEY_ED25519 indicates NONEwithEd25519ph, so input message length
+            // MUST be the size of a SHA512 digest.
+            if (preHash && keyType == EVP_PKEY_ED25519 && message.len() != SHA512_DIGEST_LENGTH) {
+                throw_java_ex(
+                    EX_SIGNATURE_EXCEPTION, "NONEwithEd25519ph input must be exactly 64 bytes (SHA-512 digest)");
+            }
 
             if (EVP_PKEY_sign(ctx.getKeyCtx(), NULL, &sigLength, message.data(), message.len()) <= 0) {
                 throw_openssl("Signature failed");
@@ -600,6 +606,13 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
             ret = EVP_DigestVerify(
                 ctx.getDigestCtx(), signature.data(), signature.len(), message.data(), message.len());
         } else {
+            // verifyRaw called w/ preHash && EVP_PKEY_ED25519 indicates NONEwithEd25519ph, so input message length
+            // MUST be the size of a SHA512 digest.
+            if (preHash && keyType == EVP_PKEY_ED25519 && message.len() != SHA512_DIGEST_LENGTH) {
+                throw_java_ex(
+                    EX_SIGNATURE_EXCEPTION, "NONEwithEd25519ph input must be exactly 64 bytes (SHA-512 digest)");
+            }
+
             ret = EVP_PKEY_verify(ctx.getKeyCtx(), signature.data(), signature.len(), message.data(), message.len());
         }
 

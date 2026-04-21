@@ -664,6 +664,25 @@ public class EdDSATest {
     }
   }
 
+  @Test
+  public void noneWithEd25519phRejectsWrongInputLength() throws GeneralSecurityException {
+    assumeTrue(ed25519phIsEnabled());
+    final KeyPair kp = nativeGen.generateKeyPair();
+    final Signature sig = Signature.getInstance("NONEwithEd25519ph", NATIVE_PROVIDER);
+
+    for (int badLength : new int[] {0, 1, 32, 63, 65, 128, 1024}) {
+      byte[] badInput = new byte[badLength];
+
+      sig.initSign(kp.getPrivate());
+      sig.update(badInput);
+      TestUtil.assertThrows(SignatureException.class, () -> sig.sign());
+
+      sig.initVerify(kp.getPublic());
+      sig.update(badInput);
+      TestUtil.assertThrows(SignatureException.class, () -> sig.verify(new byte[64]));
+    }
+  }
+
   private static void makeJceSignaturePh(Signature sig) {
     assertTrue(ed25519phIsEnabled());
     AlgorithmParameterSpec paramSpec = null;
