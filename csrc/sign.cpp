@@ -69,39 +69,48 @@ bool initializeContext(raii_env& env,
     ctx->setKey(pKey);
 
 #if defined(FIPS_BUILD) && !defined(EXPERIMENTAL_FIPS_BUILD)
-    if (md != nullptr || EVP_PKEY_id(pKey) == EVP_PKEY_ED25519) {
+    bool useDigestPath = (md != nullptr || EVP_PKEY_id(pKey) == EVP_PKEY_ED25519);
 #else
-    if (md != nullptr || EVP_PKEY_id(pKey) == EVP_PKEY_ED25519 || (EVP_PKEY_id(pKey) == EVP_PKEY_PQDSA && !preHash)) {
+    bool useDigestPath
+        = (md != nullptr || EVP_PKEY_id(pKey) == EVP_PKEY_ED25519 || (EVP_PKEY_id(pKey) == EVP_PKEY_PQDSA && !preHash));
 #endif
+
+#if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
+    if (preHash && EVP_PKEY_id(pKey) == EVP_PKEY_ED25519) {
+        // ED25519 and ED25519PH (pre-hash) have different NIDs, but share an OID, so we treat them as a common
+        // EvpKeyType in the java layer. So, if an EVP_PKEY_ED25519 pkey is initialized as |preHash|, we need to
+        // replace |ctx|'s EVP_PKEY* with an EVP_PKEY_ED25519PH (pre-hash) pkey newly constructed from the current
+        // key's key material.
+        if (signMode) {
+            size_t raw_len;
+            CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(ctx->getKey(), nullptr, &raw_len));
+            std::vector<uint8_t, SecureAlloc<uint8_t> > raw_bytes(raw_len);
+            CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(ctx->getKey(), raw_bytes.data(), &raw_len));
+            CHECK_OPENSSL(
+                ctx->setKey(EVP_PKEY_new_raw_private_key(EVP_PKEY_ED25519PH, nullptr, raw_bytes.data(), raw_len)));
+            CHECK_OPENSSL(ctx->setKeyCtx(EVP_PKEY_CTX_new(ctx->getKey(), nullptr)));
+        } else {
+            size_t raw_len;
+            CHECK_OPENSSL(EVP_PKEY_get_raw_public_key(ctx->getKey(), nullptr, &raw_len));
+            std::vector<uint8_t> raw_bytes(raw_len);
+            CHECK_OPENSSL(EVP_PKEY_get_raw_public_key(ctx->getKey(), raw_bytes.data(), &raw_len));
+            CHECK_OPENSSL(
+                ctx->setKey(EVP_PKEY_new_raw_public_key(EVP_PKEY_ED25519PH, nullptr, raw_bytes.data(), raw_len)));
+            CHECK_OPENSSL(ctx->setKeyCtx(EVP_PKEY_CTX_new(ctx->getKey(), nullptr)));
+        }
+        // When md is nullptr (NONEwithEd25519ph), the caller provides the pre-hashed digest directly,
+        // so we use the raw EVP_PKEY_sign/verify path. When md is set (Ed25519ph), the implementation
+        // handles hashing internally via the digest path.
+        if (md == nullptr) {
+            useDigestPath = false;
+        }
+    }
+#endif
+
+    if (useDigestPath) {
         if (!ctx->setDigestCtx(EVP_MD_CTX_create())) {
             throw_openssl("Unable to create MD_CTX");
         }
-
-#if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
-        if (preHash && EVP_PKEY_id(pKey) == EVP_PKEY_ED25519) {
-            // ED25519 and ED25519PH (pre-hash) have different NIDs, but share an OID, so we treat them as a common
-            // EvpKeyType in the java layer. So, if an EVP_PKEY_ED25519 pkey is initialized as |preHash|, we need to
-            // replace |ctx|'s EVP_PKEY* with an EVP_PKEY_ED25519PH (pre-hash) pkey newly constructed from the current
-            // key's key material.
-            if (signMode) {
-                size_t raw_len;
-                CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(ctx->getKey(), nullptr, &raw_len));
-                std::vector<uint8_t, SecureAlloc<uint8_t> > raw_bytes(raw_len);
-                CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(ctx->getKey(), raw_bytes.data(), &raw_len));
-                CHECK_OPENSSL(
-                    ctx->setKey(EVP_PKEY_new_raw_private_key(EVP_PKEY_ED25519PH, nullptr, raw_bytes.data(), raw_len)));
-                CHECK_OPENSSL(ctx->setKeyCtx(EVP_PKEY_CTX_new(ctx->getKey(), nullptr)));
-            } else {
-                size_t raw_len;
-                CHECK_OPENSSL(EVP_PKEY_get_raw_public_key(ctx->getKey(), nullptr, &raw_len));
-                std::vector<uint8_t> raw_bytes(raw_len);
-                CHECK_OPENSSL(EVP_PKEY_get_raw_public_key(ctx->getKey(), raw_bytes.data(), &raw_len));
-                CHECK_OPENSSL(
-                    ctx->setKey(EVP_PKEY_new_raw_public_key(EVP_PKEY_ED25519PH, nullptr, raw_bytes.data(), raw_len)));
-                CHECK_OPENSSL(ctx->setKeyCtx(EVP_PKEY_CTX_new(ctx->getKey(), nullptr)));
-            }
-        }
-#endif
 
         int result;
         if (signMode) {
@@ -528,6 +537,12 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatu
             signature.resize(sigLength);
         } else {
             jni_borrow message(env, messageBuf, "message");
+            // signRaw called w/ preHash && EVP_PKEY_ED25519 indicates NONEwithEd25519ph, so input message length
+            // MUST be the size of a SHA512 digest.
+            if (preHash && keyType == EVP_PKEY_ED25519 && message.len() != SHA512_DIGEST_LENGTH) {
+                throw_java_ex(
+                    EX_SIGNATURE_EXCEPTION, "NONEwithEd25519ph input must be exactly 64 bytes (SHA-512 digest)");
+            }
 
             if (EVP_PKEY_sign(ctx.getKeyCtx(), NULL, &sigLength, message.data(), message.len()) <= 0) {
                 throw_openssl("Signature failed");
@@ -591,6 +606,13 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
             ret = EVP_DigestVerify(
                 ctx.getDigestCtx(), signature.data(), signature.len(), message.data(), message.len());
         } else {
+            // verifyRaw called w/ preHash && EVP_PKEY_ED25519 indicates NONEwithEd25519ph, so input message length
+            // MUST be the size of a SHA512 digest.
+            if (preHash && keyType == EVP_PKEY_ED25519 && message.len() != SHA512_DIGEST_LENGTH) {
+                throw_java_ex(
+                    EX_SIGNATURE_EXCEPTION, "NONEwithEd25519ph input must be exactly 64 bytes (SHA-512 digest)");
+            }
+
             ret = EVP_PKEY_verify(ctx.getKeyCtx(), signature.data(), signature.len(), message.data(), message.len());
         }
 
