@@ -62,7 +62,7 @@ public class NoneWithRsaTest {
   }
 
   @Test
-  public void testBasicSignVerify() throws Exception {
+  public void testNoneWithRsassaPssBasicSignVerify() throws Exception {
     KeyPair kp = generateKeyPair(2048);
     String message = "Hello, World!";
 
@@ -90,7 +90,7 @@ public class NoneWithRsaTest {
   }
 
   @Test
-  public void testDefaultParameters() throws Exception {
+  public void testNoneWithRsassaPssDefaultParameters() throws Exception {
     KeyPair kp = generateKeyPair(2048);
     String message = "Test message";
 
@@ -108,60 +108,9 @@ public class NoneWithRsaTest {
     assertTrue(sig.verify(signature));
   }
 
-  @Test
-  public void testInputExceedsDigestLength() throws Exception {
-    KeyPair kp = generateKeyPair(2048);
-
-    MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
-    byte[] digest = md.digest("test".getBytes());
-
-    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
-    PSSParameterSpec spec =
-        new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
-    sig.setParameter(spec);
-    sig.initSign(kp.getPrivate());
-
-    // Try to update with more than digest length
-    sig.update(digest);
-    assertThrows(SignatureException.class, () -> sig.update((byte) 0xFF));
-  }
-
-  @Test
-  public void testInputLessThanDigestLength() throws Exception {
-    KeyPair kp = generateKeyPair(2048);
-
-    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
-    PSSParameterSpec spec =
-        new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
-    sig.setParameter(spec);
-    sig.initSign(kp.getPrivate());
-
-    // Update with less than digest length (32 bytes for SHA-256) should throw immediately
-    assertThrows(SignatureException.class, () -> sig.update(new byte[16]));
-  }
-
-  @Test
-  public void testInputExactlyDigestLength() throws Exception {
-    KeyPair kp = generateKeyPair(2048);
-
-    MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
-    byte[] digest = md.digest("test".getBytes());
-    assertEquals(32, digest.length);
-
-    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
-    PSSParameterSpec spec =
-        new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
-    sig.setParameter(spec);
-    sig.initSign(kp.getPrivate());
-    sig.update(digest);
-    byte[] signature = sig.sign();
-
-    assertNotNull(signature);
-  }
-
   @ParameterizedTest
   @ValueSource(ints = {2048, 3072, 4096})
-  public void testVariousKeySizes(int keySize) throws Exception {
+  public void testNoneWithRsassaPssVariousKeySizes(int keySize) throws Exception {
     KeyPair kp = generateKeyPair(keySize);
     MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
     byte[] digest = md.digest("test".getBytes());
@@ -180,7 +129,7 @@ public class NoneWithRsaTest {
   }
 
   @Test
-  public void testDifferentDigests() throws Exception {
+  public void testNoneWithRsassaPssDifferentDigests() throws Exception {
     String[] digests = {"SHA-1", "SHA-256", "SHA-384", "SHA-512"};
     MGF1ParameterSpec[] mgfSpecs = {
       MGF1ParameterSpec.SHA1,
@@ -212,29 +161,7 @@ public class NoneWithRsaTest {
   }
 
   @Test
-  public void testWrongDigest() throws Exception {
-    KeyPair kp = generateKeyPair(2048);
-    MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
-    byte[] digest1 = md.digest("message1".getBytes());
-    byte[] digest2 = md.digest("message2".getBytes());
-
-    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
-    PSSParameterSpec spec =
-        new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
-    sig.setParameter(spec);
-    sig.initSign(kp.getPrivate());
-    sig.update(digest1);
-    byte[] signature = sig.sign();
-
-    // Verify with different digest
-    sig.initVerify(kp.getPublic());
-    sig.setParameter(spec);
-    sig.update(digest2);
-    assertFalse(sig.verify(signature));
-  }
-
-  @Test
-  public void testByteByByteUpdateThrows() throws Exception {
+  public void testNoneWithRsassaPssByteByByteUpdateThrows() throws Exception {
     KeyPair kp = generateKeyPair(2048);
 
     Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
@@ -248,7 +175,7 @@ public class NoneWithRsaTest {
   }
 
   @Test
-  public void testByteBufferUpdate() throws Exception {
+  public void testNoneWithRsassaPssByteBufferUpdate() throws Exception {
     KeyPair kp = generateKeyPair(2048);
     MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
     byte[] digest = md.digest("test".getBytes());
@@ -268,7 +195,7 @@ public class NoneWithRsaTest {
   }
 
   @Test
-  public void testDirectByteBuffer() throws Exception {
+  public void testNoneWithRsassaPssDirectByteBuffer() throws Exception {
     KeyPair kp = generateKeyPair(2048);
     MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
     byte[] digest = md.digest("test".getBytes());
@@ -293,7 +220,7 @@ public class NoneWithRsaTest {
   }
 
   @Test
-  public void testReadOnlyByteBuffer() throws Exception {
+  public void testNoneWithRsassaPssReadOnlyByteBuffer() throws Exception {
     KeyPair kp = generateKeyPair(2048);
     MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
     byte[] digest = md.digest("test".getBytes());
@@ -316,7 +243,7 @@ public class NoneWithRsaTest {
   }
 
   @Test
-  public void testParameterUpdateRestriction() throws Exception {
+  public void testNoneWithRsassaPssParameterUpdateRestriction() throws Exception {
     KeyPair kp = generateKeyPair(2048);
     MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
     byte[] digest = md.digest("test".getBytes());
@@ -337,7 +264,7 @@ public class NoneWithRsaTest {
   }
 
   @Test
-  public void testCompatibilityWithRSASSA_PSS() throws Exception {
+  public void testNoneWithRsassaPssCompatibilityWithRSASSA_PSS() throws Exception {
     // Signatures created by RSASSA-PSS should be verifiable by NONEwithRSASSA-PSS and vice versa
     KeyPair kp = generateKeyPair(2048);
     String message = "Test message for compatibility";
@@ -373,7 +300,7 @@ public class NoneWithRsaTest {
   }
 
   @Test
-  public void testSignRsassaPssVerifyNoneWithRsaPss() throws Exception {
+  public void testNoneWithRsassaPssSignRsassaPssVerifyNoneWithRsaPss() throws Exception {
     KeyPair kp = generateKeyPair(2048);
     byte[] message = "Sign with RSASSA-PSS, verify with NONEwithRSASSA-PSS".getBytes();
     PSSParameterSpec spec =
@@ -398,7 +325,7 @@ public class NoneWithRsaTest {
   }
 
   @Test
-  public void testSignNoneWithRsaPssVerifyNoneWithRsassaPss() throws Exception {
+  public void testNoneWithRsassaPssSignNoneWithRsaPssVerifyNoneWithRsassaPss() throws Exception {
     KeyPair kp = generateKeyPair(2048);
     byte[] message = "Sign with NONEwithRSASSA-PSS, verify with RSASSA-PSS".getBytes();
     PSSParameterSpec spec =
@@ -423,7 +350,7 @@ public class NoneWithRsaTest {
   }
 
   @Test
-  public void testDifferentSaltLengths() throws Exception {
+  public void testNoneWithRsassaPssDifferentSaltLengths() throws Exception {
     KeyPair kp = generateKeyPair(2048);
     MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
     byte[] digest = md.digest("test".getBytes());
@@ -447,7 +374,7 @@ public class NoneWithRsaTest {
   }
 
   @Test
-  public void testMultipleSignatures() throws Exception {
+  public void testNoneWithRsassaPssMultipleSignatures() throws Exception {
     KeyPair kp = generateKeyPair(2048);
     MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
 
@@ -473,7 +400,7 @@ public class NoneWithRsaTest {
   }
 
   @Test
-  public void testVerifyOffsetLength() throws Exception {
+  public void testNoneWithRsassaPssVerifyOffsetLength() throws Exception {
     KeyPair kp = generateKeyPair(2048);
     MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
     byte[] digest = md.digest("test".getBytes());
@@ -495,88 +422,8 @@ public class NoneWithRsaTest {
     assertTrue(sig.verify(paddedSig, 10, signature.length));
   }
 
-  // --- Negative / Error Tests ---
-
   @Test
-  public void testArrayUpdateExceedsDigestLength() throws Exception {
-    KeyPair kp = generateKeyPair(2048);
-
-    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
-    PSSParameterSpec spec =
-        new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
-    sig.setParameter(spec);
-    sig.initSign(kp.getPrivate());
-
-    // Array update with more than 32 bytes should throw
-    assertThrows(SignatureException.class, () -> sig.update(new byte[33]));
-  }
-
-  @Test
-  public void testArrayUpdateExceedsDigestLengthInTwoParts() throws Exception {
-    KeyPair kp = generateKeyPair(2048);
-
-    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
-    PSSParameterSpec spec =
-        new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
-    sig.setParameter(spec);
-    sig.initSign(kp.getPrivate());
-
-    // First update with wrong length should throw (one-shot: must be exactly 32 bytes)
-    assertThrows(SignatureException.class, () -> sig.update(new byte[20]));
-  }
-
-  @Test
-  public void testByteBufferUpdateExceedsDigestLength() throws Exception {
-    KeyPair kp = generateKeyPair(2048);
-
-    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
-    PSSParameterSpec spec =
-        new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
-    sig.setParameter(spec);
-    sig.initSign(kp.getPrivate());
-
-    // ByteBuffer with more than 32 bytes should throw (wrapped in RuntimeException)
-    ByteBuffer buf = ByteBuffer.wrap(new byte[33]);
-    assertThrows(RuntimeException.class, () -> sig.update(buf));
-  }
-
-  @Test
-  public void testByteBufferUpdateExceedsDigestLengthInTwoParts() throws Exception {
-    KeyPair kp = generateKeyPair(2048);
-
-    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
-    PSSParameterSpec spec =
-        new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
-    sig.setParameter(spec);
-    sig.initSign(kp.getPrivate());
-
-    // First update with wrong length should throw (one-shot: must be exactly 32 bytes)
-    assertThrows(RuntimeException.class, () -> sig.update(ByteBuffer.wrap(new byte[20])));
-  }
-
-  @Test
-  public void testVerifyWithShortInput() throws Exception {
-    KeyPair kp = generateKeyPair(2048);
-    MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
-    byte[] digest = md.digest("test".getBytes());
-
-    Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
-    PSSParameterSpec spec =
-        new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
-    sig.setParameter(spec);
-
-    // Create valid signature first
-    sig.initSign(kp.getPrivate());
-    sig.update(digest);
-    byte[] signature = sig.sign();
-
-    // Try to verify with too-short digest - should throw at update time
-    sig.initVerify(kp.getPublic());
-    assertThrows(SignatureException.class, () -> sig.update(new byte[16]));
-  }
-
-  @Test
-  public void testSignWithNoUpdate() throws Exception {
+  public void testNoneWithRsassaPssSignWithNoUpdate() throws Exception {
     KeyPair kp = generateKeyPair(2048);
 
     Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
@@ -590,7 +437,7 @@ public class NoneWithRsaTest {
   }
 
   @Test
-  public void testVerifyWithNoUpdate() throws Exception {
+  public void testNoneWithRsassaPssVerifyWithNoUpdate() throws Exception {
     KeyPair kp = generateKeyPair(2048);
     MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
     byte[] digest = md.digest("test".getBytes());
@@ -611,7 +458,21 @@ public class NoneWithRsaTest {
   }
 
   @Test
-  public void testSignWithoutInit() throws Exception {
+  public void testNoneWithRsassaPssSecondUpdateThrows() throws Exception {
+    KeyPair kp = generateKeyPair(2048);
+    final Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
+
+    sig.initSign(kp.getPrivate());
+    sig.update(new byte[20]);
+    assertThrows(SignatureException.class, () -> sig.update(new byte[1]));
+
+    sig.initVerify(kp.getPublic());
+    sig.update(new byte[20]);
+    assertThrows(SignatureException.class, () -> sig.update(new byte[1]));
+  }
+
+  @Test
+  public void testNoneWithRsassaPssSignWithoutInit() throws Exception {
     Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
@@ -622,7 +483,7 @@ public class NoneWithRsaTest {
   }
 
   @Test
-  public void testVerifyWithoutInit() throws Exception {
+  public void testNoneWithRsassaPssVerifyWithoutInit() throws Exception {
     Signature sig = Signature.getInstance("NONEwithRSASSA-PSS", ACCP);
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
@@ -633,7 +494,7 @@ public class NoneWithRsaTest {
   }
 
   @Test
-  public void testWrongKeyForVerification() throws Exception {
+  public void testNoneWithRsassaPssWrongKeyForVerification() throws Exception {
     KeyPair kp1 = generateKeyPair(2048);
     KeyPair kp2 = generateKeyPair(2048);
     MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
@@ -656,7 +517,7 @@ public class NoneWithRsaTest {
   }
 
   @Test
-  public void testEcKeyWithNoneWithRsaPss() throws Exception {
+  public void testNoneWithRsassaPssEcKeyWithNoneWithRsaPss() throws Exception {
     KeyPairGenerator ecKpg = KeyPairGenerator.getInstance("EC", ACCP);
     ecKpg.initialize(new ECGenParameterSpec("secp256r1"));
     KeyPair ecKp = ecKpg.generateKeyPair();

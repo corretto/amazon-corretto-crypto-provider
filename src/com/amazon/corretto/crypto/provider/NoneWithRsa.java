@@ -43,12 +43,9 @@ class NoneWithRsa extends EvpSignatureBase {
   private final AccessibleByteArrayOutputStream buffer = new AccessibleByteArrayOutputStream();
 
   protected NoneWithRsa(final AmazonCorrettoCryptoProvider provider, final int paddingType) {
-    super(provider, EvpKeyType.RSA, paddingType, 0, false);
-  }
-
-  protected NoneWithRsa(
-      final AmazonCorrettoCryptoProvider provider, final int paddingType, final long digest) {
-    super(provider, EvpKeyType.RSA, paddingType, digest, false);
+    // For PSS, digest_ is set to JDK default in EvpSignatureBase. For Pkcs15, digest_
+    // is not needed. So, use ptr value of 0 in both cases.
+    super(provider, EvpKeyType.RSA, paddingType, /*digest*/ 0L, /*preHash*/ false);
   }
 
   @Override
@@ -259,7 +256,7 @@ class NoneWithRsa extends EvpSignatureBase {
 
   static final class Pkcs15 extends NoneWithRsa {
     Pkcs15(final AmazonCorrettoCryptoProvider provider) {
-      super(provider, RSA_PKCS1_PADDING, Utils.getMdPtr("SHA-256"));
+      super(provider, RSA_PKCS1_PADDING);
     }
   }
 }
