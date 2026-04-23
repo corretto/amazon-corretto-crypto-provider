@@ -86,7 +86,7 @@ class HkdfSecretKeyFactorySpi extends KdfSpi {
   // returned to the user would be more readable.
   private void checkExpandLength(final long outLen) {
     final long upperLimit = ((long) digestLength) * 255L;
-    if (outLen >= upperLimit) {
+    if (outLen > upperLimit) {
       throw new IllegalArgumentException("Desired output length is too large.");
     }
   }

@@ -61,9 +61,10 @@ private:
 public:
     java_ex(jthrowable exception) COLD : m_java_exception(exception), m_java_classname(nullptr), m_message() { }
 
-    java_ex(const char* java_classname, const char* message) COLD : m_java_exception(nullptr),
-                                                                    m_java_classname(java_classname),
-                                                                    m_message(std::string(message))
+    java_ex(const char* java_classname, const char* message) COLD
+        : m_java_exception(nullptr),
+          m_java_classname(java_classname),
+          m_message(message ? std::string(message) : std::string())
     {
         capture_trace();
     }
