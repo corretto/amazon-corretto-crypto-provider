@@ -325,7 +325,7 @@ final class AesGcmSpi extends CipherSpi {
 
     final byte[] newKey = checkKey(key, lastKey, this.key);
 
-    final boolean sameKey = checkKeyIvPair(opMode, this.key, newKey, this.iv, newIv);
+    final boolean sameKey = checkKeyIvPair(jceOpMode, this.key, newKey, this.iv, newIv);
 
     this.opMode = opMode;
     this.sameKey = sameKey;

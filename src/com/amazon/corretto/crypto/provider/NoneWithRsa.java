@@ -29,19 +29,18 @@ import java.security.spec.PSSParameterSpec;
  *       {@code RSASSA-PSS} when the same parameters and digest are used. Equivalent to
  *       BouncyCastle's {@code NONEwithRSASSA-PSS}.
  *   <li>{@code NONEwithRSA} -- Applies RSASSA-PKCS1-v1_5 padding (RFC 8017 Sec. 8.2) to the
- *       pre-hashed digest via {@code RSA_sign}/{@code RSA_verify}. The digest algorithm (which
- *       determines the DigestInfo OID and expected input length) defaults to SHA-256 and can be
- *       changed via {@link PSSParameterSpec} (only the digest algorithm field is used; MGF, salt
- *       length, and trailer are ignored). Interoperable with {@code SHA*withRSA} algorithms when
- *       the same digest is used.
+ *       caller-supplied bytes via {@code RSA_sign_raw}/{@code RSA_verify_raw}. Accepts any input up
+ *       to {@code rsaSize - 11} bytes (the PKCS#1 v1.5 padding overhead). No DigestInfo wrapping is
+ *       performed; the raw bytes are signed directly. {@code setParameter} is not supported (throws
+ *       {@code UnsupportedOperationException}). Interoperable with SunJCE and BouncyCastle {@code
+ *       NONEwithRSA} implementations.
  * </ul>
  *
  * @see <a href="https://datatracker.ietf.org/doc/html/rfc8017">RFC 8017: PKCS #1</a>
  * @see PSSParameterSpec
  */
 class NoneWithRsa extends EvpSignatureBase {
-  private final AccessibleByteArrayOutputStream buffer =
-      new AccessibleByteArrayOutputStream(64, 64);
+  private final AccessibleByteArrayOutputStream buffer = new AccessibleByteArrayOutputStream();
 
   protected NoneWithRsa(final AmazonCorrettoCryptoProvider provider, final int paddingType) {
     super(provider, EvpKeyType.RSA, paddingType, 0, false);
@@ -70,11 +69,12 @@ class NoneWithRsa extends EvpSignatureBase {
   /**
    * Provides the pre-computed message digest for signing or verification.
    *
-   * <p>This method must be called exactly once with the complete digest. The digest length must
-   * match the output length of the configured hash algorithm.
+   * <p>This method must be called exactly once. For {@code NONEwithRSASSA-PSS}, the input length
+   * must match the configured hash algorithm's output length. For {@code NONEwithRSA}, any length
+   * up to {@code rsaSize - 11} bytes is accepted.
    *
    * @throws SignatureException if called more than once before sign/verify, or if the provided data
-   *     does not match the expected digest length
+   *     does not match the expected digest length (PSS only)
    */
   @Override
   protected void engineUpdate(final byte[] b, final int off, final int len)
@@ -82,10 +82,12 @@ class NoneWithRsa extends EvpSignatureBase {
     if (!isBufferEmpty()) {
       throw new SignatureException("Digest already provided; one-shot signature allows one update");
     }
-    final int expectedDigestLen = Utils.getMdLen(digest_);
-    if (len != expectedDigestLen) {
-      throw new SignatureException(
-          "Input must equal digest length. Expected " + expectedDigestLen + " bytes, got " + len);
+    if (paddingType_ == RSA_PKCS1_PSS_PADDING) {
+      final int expectedDigestLen = Utils.getMdLen(digest_);
+      if (len != expectedDigestLen) {
+        throw new SignatureException(
+            "Input must equal digest length. Expected " + expectedDigestLen + " bytes, got " + len);
+      }
     }
     buffer.write(b, off, len);
   }
@@ -93,11 +95,12 @@ class NoneWithRsa extends EvpSignatureBase {
   /**
    * Provides the pre-computed message digest for signing or verification.
    *
-   * <p>This method must be called exactly once with the complete digest. The digest length must
-   * match the output length of the configured hash algorithm.
+   * <p>This method must be called exactly once. For {@code NONEwithRSASSA-PSS}, the input length
+   * must match the configured hash algorithm's output length. For {@code NONEwithRSA}, any length
+   * up to {@code rsaSize - 11} bytes is accepted.
    *
    * @throws RuntimeException wrapping a {@link SignatureException} if called more than once before
-   *     sign/verify, or if the provided data does not match the expected digest length
+   *     sign/verify, or if the provided data does not match the expected digest length (PSS only)
    */
   @Override
   protected void engineUpdate(final ByteBuffer input) {
@@ -105,15 +108,17 @@ class NoneWithRsa extends EvpSignatureBase {
       throw new RuntimeException(
           new SignatureException("Digest already provided; one-shot signature allows one update"));
     }
-    final int expectedDigestLen = Utils.getMdLen(digest_);
-    final int len = input.remaining();
-    if (len != expectedDigestLen) {
-      throw new RuntimeException(
-          new SignatureException(
-              "Input must equal digest length. Expected "
-                  + expectedDigestLen
-                  + " bytes, got "
-                  + len));
+    if (paddingType_ == RSA_PKCS1_PSS_PADDING) {
+      final int expectedDigestLen = Utils.getMdLen(digest_);
+      final int len = input.remaining();
+      if (len != expectedDigestLen) {
+        throw new RuntimeException(
+            new SignatureException(
+                "Input must equal digest length. Expected "
+                    + expectedDigestLen
+                    + " bytes, got "
+                    + len));
+      }
     }
     buffer.write(input);
   }
@@ -185,12 +190,6 @@ class NoneWithRsa extends EvpSignatureBase {
    * <p>For {@code NONEwithRSASSA-PSS}, delegates to {@link EvpSignatureBase} which fully validates
    * and applies all PSS parameters (digest, MGF, salt length, trailer).
    *
-   * <p>For {@code NONEwithRSA} (RSASSA-PKCS1-v1_5), accepts {@link PSSParameterSpec} but only
-   * extracts the digest algorithm name to determine the expected digest length and DigestInfo OID.
-   * The MGF, salt length, and trailer fields are ignored since they are PSS-specific and have no
-   * meaning for RSASSA-PKCS1-v1_5 signatures. This allows callers to use a uniform parameter
-   * interface across both padding modes.
-   *
    * @throws InvalidAlgorithmParameterException if the parameter type is not supported or the digest
    *     algorithm is unrecognized
    * @throws IllegalStateException if called while the buffer contains data
@@ -198,28 +197,26 @@ class NoneWithRsa extends EvpSignatureBase {
   @Override
   protected synchronized void engineSetParameter(final AlgorithmParameterSpec params)
       throws InvalidAlgorithmParameterException {
-    if (paddingType_ == RSA_PKCS1_PADDING) {
-      if (params instanceof PSSParameterSpec) {
-        // For PKCS#1 v1.5, accept PSSParameterSpec but only extract the digest algorithm.
-        // MGF, salt length, and trailer are ignored since they are PSS-specific.
-        final PSSParameterSpec pssParams = (PSSParameterSpec) params;
-        if (!isBufferEmpty()) {
-          throw new IllegalStateException(
-              "Cannot update parameters with buffered data, reset Signature.");
-        }
-        try {
-          digest_ = Utils.getMdPtr(pssParams.getDigestAlgorithm());
-        } catch (Exception e) {
-          throw new InvalidAlgorithmParameterException(
-              "Unsupported digest: " + pssParams.getDigestAlgorithm());
-        }
-      } else {
+    if (paddingType_ == RSA_PKCS1_PSS_PADDING) {
+      if (!(params instanceof PSSParameterSpec)) {
         throw new InvalidAlgorithmParameterException(
-            "Only PSSParameterSpec is accepted (to select digest algorithm)");
+            "Only PSSParameterSpec is accepted for NONEwithRSASSA-PSS");
       }
-    } else {
-      super.engineSetParameter(params);
+      if (!isBufferEmpty()) {
+        throw new IllegalStateException(
+            "Cannot update parameters with buffered data, reset Signature.");
+      }
+      final PSSParameterSpec pssParams = (PSSParameterSpec) params;
+      try {
+        digest_ = Utils.getMdPtr(pssParams.getDigestAlgorithm());
+      } catch (Exception e) {
+        throw new InvalidAlgorithmParameterException(
+            "Unsupported digest: " + pssParams.getDigestAlgorithm());
+      }
+      super.engineSetParameter(pssParams);
+      return;
     }
+    throw new UnsupportedOperationException("setParameter is not supported for NONEwithRSA");
   }
 
   @Override

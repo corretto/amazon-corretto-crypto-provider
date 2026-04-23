@@ -501,7 +501,7 @@ public:
         m_buffer = buffer;
 
         if (unlikely(sizeof(T) != m_buffer.len())) {
-            throw new java_ex(EX_ILLEGAL_ARGUMENT, "Incorrect length for buffer");
+            throw java_ex(EX_ILLEGAL_ARGUMENT, "Incorrect length for buffer");
         }
 
         if (buffer.array() && !env.is_locked()) {
