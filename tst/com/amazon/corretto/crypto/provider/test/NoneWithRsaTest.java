@@ -20,6 +20,7 @@ import java.security.AlgorithmParameters;
 import java.security.GeneralSecurityException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
+import java.security.InvalidParameterException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -1543,7 +1544,20 @@ public class NoneWithRsaTest {
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-512", "MGF1", MGF1ParameterSpec.SHA512, 64, 1);
     final Signature sunSigner = Signature.getInstance("NONEwithRSA", "SunJCE");
-    assertThrows(UnsupportedOperationException.class, () -> sunSigner.setParameter(spec));
+    boolean ok = false;
+    try {
+      sunSigner.setParameter(spec);
+    } catch (Exception e) {
+      if (e instanceof UnsupportedOperationException) {
+        ok = true;
+      } else if (e instanceof InvalidParameterException) {
+        // Corretto 17.0.19 changed the exception thrown in this case
+        // https://github.com/openjdk/jdk17u/compare/jdk-17.0.18-ga...jdk-17.0.19+10#diff-da194714d6d714a5d1bcdd380e5b72862ab09b844a14061be2bac5898dc619f7R125-R145
+        assertTrue(TestUtil.JAVA_VERSION >= 17);
+        ok = true;
+      }
+    }
+    assertTrue(ok);
     final Signature bcSigner = Signature.getInstance("NONEwithRSA", TestUtil.BC_PROVIDER);
     assertThrows(UnsupportedOperationException.class, () -> bcSigner.setParameter(spec));
     final Signature accpSigner = Signature.getInstance("NONEwithRSA", ACCP);
