@@ -26,7 +26,7 @@ jobs:
         env:
           TEST_JAVA_HOME: ${{ env.JAVA_HOME }}
         run: |
-          ./tests/ci/run_accp_basic_tests.sh --lcov-ignore inconsistent
+          ./tests/ci/run_accp_basic_tests.sh --lcov-ignore inconsistent --target-jdk-version 17
           ./tests/ci/run_accp_test_integration.sh
       - name: Upload Java coverage report to Codecov
         env:
