@@ -50,6 +50,7 @@ public class EdDSATest {
   private KeyPairGenerator jceGen;
   private KeyPairGenerator bcGen;
   private static final BouncyCastleProvider BOUNCYCASTLE_PROVIDER = new BouncyCastleProvider();
+  private static final int SHA512_DIGEST_BYTES = 64;
 
   // TODO: remove this disablement when ACCP consumes an AWS-LC-FIPS release with Ed25519ph
   public static boolean ed25519phIsEnabled() {
@@ -297,8 +298,39 @@ public class EdDSATest {
     }
   }
 
+  @Test // https://www.rfc-editor.org/rfc/rfc8032.html#section-7.1
+  public void rfc8032KATEd25519() throws Exception {
+    byte[] pkcs8 =
+        TestUtil.decodeHex(
+            "302e020100300506032b657004220420833fe62409237b9d62ec77587520911e9a759cec1d19755b7da901b96dca3d42");
+    byte[] x509 =
+        TestUtil.decodeHex(
+            "302a300506032b6570032100ec172b93ad5e563bf4932c70e1245034c35467ef2efd4d64ebf819683467e2bf");
+    byte[] message =
+        TestUtil.decodeHex(
+            "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f");
+    byte[] expected =
+        TestUtil.decodeHex(
+            "dc2a4459e7369633a52b1bf277839a00201009a3efbf3ecb69bea2186c26b58909351fc9ac90b3ecfdfbc7c66431e0303dca179c138ac17ad9bef1177331a704");
+
+    final KeyFactory kf = KeyFactory.getInstance("Ed25519");
+    final PrivateKey privateKey = kf.generatePrivate(new PKCS8EncodedKeySpec(pkcs8));
+    final PublicKey publicKey = kf.generatePublic(new X509EncodedKeySpec(x509));
+
+    Signature signer = Signature.getInstance("Ed25519", NATIVE_PROVIDER);
+    Signature verifier = Signature.getInstance("Ed25519", NATIVE_PROVIDER);
+
+    signer.initSign(privateKey);
+    signer.update(message);
+    byte[] signature = signer.sign();
+    verifier.initVerify(publicKey);
+    verifier.update(message);
+    assertTrue(verifier.verify(signature), String.format("ACCP->ACCP: Ed25519"));
+    assertArrayEquals(expected, signature);
+  }
+
   @Test // https://www.rfc-editor.org/rfc/rfc8032.html#section-7.3
-  public void rfc8032KAT() throws Exception {
+  public void rfc8032KATEd25519ph() throws Exception {
     assumeTrue(ed25519phIsEnabled());
     byte[] pkcs8 =
         TestUtil.decodeHex(
@@ -325,6 +357,20 @@ public class EdDSATest {
     verifier.update(message);
     assertTrue(verifier.verify(signature), String.format("ACCP->ACCP: Ed25519ph"));
     assertArrayEquals(expected, signature);
+
+    // This KAT should also work with NONEwithEd25519ph, but we need to take the SHA512 digest first
+    final byte[] digest = MessageDigest.getInstance("SHA-512").digest(message);
+
+    signer = Signature.getInstance("NONEwithEd25519ph", NATIVE_PROVIDER);
+    verifier = Signature.getInstance("NONEwithEd25519ph", NATIVE_PROVIDER);
+
+    signer.initSign(privateKey);
+    signer.update(digest);
+    signature = signer.sign();
+    verifier.initVerify(publicKey);
+    verifier.update(digest);
+    assertTrue(verifier.verify(signature), "ACCP NONEwithEd25519ph KAT verify");
+    assertArrayEquals(expected, signature, "ACCP NONEwithEd25519ph KAT signature");
   }
 
   @Test
@@ -520,6 +566,123 @@ public class EdDSATest {
     // Test with null signature
     nativeSig.initVerify(keyPair3.getPublic());
     TestUtil.assertThrows(NullPointerException.class, () -> nativeSig.verify(null));
+  }
+
+  @Test
+  public void noneWithEd25519phSelfValidation() throws GeneralSecurityException {
+    assumeTrue(ed25519phIsEnabled());
+    final KeyPair kp = nativeGen.generateKeyPair();
+    final MessageDigest sha512 = MessageDigest.getInstance("SHA-512");
+    final Signature sig = Signature.getInstance("NONEwithEd25519ph", NATIVE_PROVIDER);
+    final Random random = new Random();
+
+    for (int messageLength = 1; messageLength <= 1024; messageLength++) {
+      byte[] message = new byte[messageLength];
+      random.nextBytes(message);
+      byte[] digest = sha512.digest(message);
+
+      sig.initSign(kp.getPrivate());
+      sig.update(digest);
+      byte[] signature = sig.sign();
+
+      sig.initVerify(kp.getPublic());
+      sig.update(digest);
+      assertTrue(sig.verify(signature), "NONEwithEd25519ph self-validation");
+    }
+  }
+
+  @Test
+  public void noneWithEd25519phEqualsEd25519ph() throws GeneralSecurityException {
+    assumeTrue(ed25519phIsEnabled());
+    final KeyPair kp = nativeGen.generateKeyPair();
+    final MessageDigest sha512 = MessageDigest.getInstance("SHA-512");
+    final Signature phSig = Signature.getInstance("Ed25519ph", NATIVE_PROVIDER);
+    final Signature noneSig = Signature.getInstance("NONEwithEd25519ph", NATIVE_PROVIDER);
+    final Random random = new Random();
+
+    for (int messageLength = 1; messageLength <= 1024; messageLength++) {
+      byte[] message = new byte[messageLength];
+      random.nextBytes(message);
+      byte[] digest = sha512.digest(message);
+
+      // Ed25519ph(m) should equal NONEwithEd25519ph(SHA512(m))
+      phSig.initSign(kp.getPrivate());
+      phSig.update(message);
+      byte[] phSignature = phSig.sign();
+
+      noneSig.initSign(kp.getPrivate());
+      noneSig.update(digest);
+      byte[] noneSignature = noneSig.sign();
+
+      assertArrayEquals(
+          phSignature, noneSignature, "Ed25519ph(m) must equal NONEwithEd25519ph(SHA512(m))");
+
+      // Cross-verify: Ed25519ph signature verified by NONEwithEd25519ph
+      noneSig.initVerify(kp.getPublic());
+      noneSig.update(digest);
+      assertTrue(noneSig.verify(phSignature), "NONEwithEd25519ph must verify Ed25519ph signature");
+
+      // Cross-verify: NONEwithEd25519ph signature verified by Ed25519ph
+      phSig.initVerify(kp.getPublic());
+      phSig.update(message);
+      assertTrue(phSig.verify(noneSignature), "Ed25519ph must verify NONEwithEd25519ph signature");
+    }
+  }
+
+  @Test
+  public void noneWithEd25519phNotEqualsEd25519() throws GeneralSecurityException {
+    assumeTrue(ed25519phIsEnabled());
+    final KeyPair kp = nativeGen.generateKeyPair();
+    final MessageDigest sha512 = MessageDigest.getInstance("SHA-512");
+    final Signature ed25519Sig = Signature.getInstance("Ed25519", NATIVE_PROVIDER);
+    final Signature noneSig = Signature.getInstance("NONEwithEd25519ph", NATIVE_PROVIDER);
+    final Random random = new Random();
+
+    for (int messageLength = 1; messageLength <= 256; messageLength++) {
+      byte[] message = new byte[messageLength];
+      random.nextBytes(message);
+      byte[] digest = sha512.digest(message);
+
+      // Ed25519(m) should NOT equal NONEwithEd25519ph(SHA512(m))
+      ed25519Sig.initSign(kp.getPrivate());
+      ed25519Sig.update(message);
+      byte[] ed25519Signature = ed25519Sig.sign();
+
+      noneSig.initSign(kp.getPrivate());
+      noneSig.update(digest);
+      byte[] noneSignature = noneSig.sign();
+
+      assertFalse(
+          Arrays.equals(ed25519Signature, noneSignature),
+          "Ed25519(m) must NOT equal NONEwithEd25519ph(SHA512(m))");
+
+      // Ed25519 signature should NOT verify under NONEwithEd25519ph
+      noneSig.initVerify(kp.getPublic());
+      noneSig.update(digest);
+      assertFalse(
+          noneSig.verify(ed25519Signature),
+          "NONEwithEd25519ph must NOT verify an Ed25519 signature");
+    }
+  }
+
+  @Test
+  public void noneWithEd25519phRejectsWrongInputLength() throws GeneralSecurityException {
+    assumeTrue(ed25519phIsEnabled());
+    final KeyPair kp = nativeGen.generateKeyPair();
+    final Signature sig = Signature.getInstance("NONEwithEd25519ph", NATIVE_PROVIDER);
+
+    for (int badLength : new int[] {SHA512_DIGEST_BYTES - 1, SHA512_DIGEST_BYTES + 1}) {
+      byte[] badInput = new byte[badLength];
+
+      sig.initSign(kp.getPrivate());
+      sig.update(badInput);
+      TestUtil.assertThrows(SignatureException.class, () -> sig.sign());
+
+      sig.initVerify(kp.getPublic());
+      sig.update(badInput);
+      TestUtil.assertThrows(
+          SignatureException.class, () -> sig.verify(new byte[SHA512_DIGEST_BYTES]));
+    }
   }
 
   private static void makeJceSignaturePh(Signature sig) {

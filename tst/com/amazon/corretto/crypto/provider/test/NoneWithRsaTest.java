@@ -26,6 +26,7 @@ import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
 import java.security.Provider;
 import java.security.SecureRandom;
+import java.security.Security;
 import java.security.Signature;
 import java.security.SignatureException;
 import java.security.interfaces.RSAPublicKey;
@@ -35,7 +36,9 @@ import java.security.spec.PSSParameterSpec;
 import java.security.spec.RSAPublicKeySpec;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
+import javax.crypto.Cipher;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.parallel.Execution;
@@ -43,6 +46,7 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.junit.jupiter.api.parallel.ResourceAccessMode;
 import org.junit.jupiter.api.parallel.ResourceLock;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 @Execution(ExecutionMode.CONCURRENT)
@@ -1561,7 +1565,6 @@ public class NoneWithRsaTest {
   @Test
   public void testNoneWithRsaDifferentDigests() throws Exception {
     KeyPair kp = generateKeyPair(2048);
-    // SHA-224 not available in ACCP's MessageDigest, use default JCE
     String[] digestAlgs = {"SHA-1", "SHA-224", "SHA-256", "SHA-384", "SHA-512"};
 
     for (String digestAlg : digestAlgs) {
@@ -1569,9 +1572,6 @@ public class NoneWithRsaTest {
       byte[] digest = md.digest("test different digests".getBytes());
 
       Signature sig = Signature.getInstance("NONEwithRSA", ACCP);
-      PSSParameterSpec spec =
-          new PSSParameterSpec(digestAlg, "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
-      sig.setParameter(spec);
       sig.initSign(kp.getPrivate());
       sig.update(digest);
       byte[] signature = sig.sign();
@@ -1604,17 +1604,28 @@ public class NoneWithRsaTest {
     KeyPair kp = generateKeyPair(2048);
 
     Signature sig = Signature.getInstance("NONEwithRSA", ACCP);
+
+    // Longer than default digest length (32) should succeed and round-trip
     sig.initSign(kp.getPrivate());
+    byte[] input33 = new byte[33];
+    new SecureRandom().nextBytes(input33);
+    sig.update(input33);
+    byte[] signature = sig.sign();
+    sig.initVerify(kp.getPublic());
+    sig.update(input33);
+    assertTrue(sig.verify(signature));
 
-    // Default is SHA-256 (32 bytes). Wrong lengths should fail.
-    // Too long - fails at update time
-    assertThrows(SignatureException.class, () -> sig.update(new byte[33]));
-
-    // Too short - fails at update time
+    // Shorter than default digest length should succeed and round-trip
     sig.initSign(kp.getPrivate());
-    assertThrows(SignatureException.class, () -> sig.update(new byte[16]));
+    byte[] input16 = new byte[16];
+    new SecureRandom().nextBytes(input16);
+    sig.update(input16);
+    signature = sig.sign();
+    sig.initVerify(kp.getPublic());
+    sig.update(input16);
+    assertTrue(sig.verify(signature));
 
-    // Empty - fails at sign time
+    // Empty - fails at sign time (no digest provided)
     sig.initSign(kp.getPrivate());
     assertThrows(SignatureException.class, sig::sign);
   }
@@ -1664,19 +1675,14 @@ public class NoneWithRsaTest {
   }
 
   @Test
-  public void testNoneWithRsaSetParams() throws Exception {
+  public void testNoneWithRsaSignSha512Digest() throws Exception {
     KeyPair kp = generateKeyPair(2048);
-
-    // Change digest to SHA-512 via PSSParameterSpec
-    Signature sig = Signature.getInstance("NONEwithRSA", ACCP);
-    PSSParameterSpec spec =
-        new PSSParameterSpec("SHA-512", "MGF1", MGF1ParameterSpec.SHA512, 64, 1);
-    sig.setParameter(spec);
 
     MessageDigest md = MessageDigest.getInstance("SHA-512", ACCP);
     byte[] digest = md.digest("set params test".getBytes());
     assertEquals(64, digest.length);
 
+    Signature sig = Signature.getInstance("NONEwithRSA", ACCP);
     sig.initSign(kp.getPrivate());
     sig.update(digest);
     byte[] signature = sig.sign();
@@ -1686,67 +1692,55 @@ public class NoneWithRsaTest {
     assertTrue(sig.verify(signature));
   }
 
-  @Test
-  public void testNoneWithRsaInteropWithSunRsaSign() throws Exception {
+  private static Stream<Provider> noneWithRsaInteropProviders() {
+    return Stream.of(Security.getProvider("SunJCE"), TestUtil.BC_PROVIDER);
+  }
+
+  @ParameterizedTest
+  @MethodSource("noneWithRsaInteropProviders")
+  public void testNoneWithRsaInteropWithOtherProviders(Provider other) throws Exception {
     KeyPair kp = generateKeyPair(2048);
-    byte[] message = "SunRsaSign interop test".getBytes();
+    byte[] message = "NONEwithRSA interop test".getBytes();
 
-    // Sign with ACCP NONEwithRSA (pre-hashed SHA-256), verify with SunRsaSign SHA256withRSA
-    MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
-    byte[] digest = md.digest(message);
-
+    // Both providers sign the same message, signatures must be identical
     Signature accpSigner = Signature.getInstance("NONEwithRSA", ACCP);
     accpSigner.initSign(kp.getPrivate());
-    accpSigner.update(digest);
+    accpSigner.update(message);
     byte[] accpSig = accpSigner.sign();
 
-    Signature sunVerifier = Signature.getInstance("SHA256withRSA", "SunRsaSign");
-    sunVerifier.initVerify(kp.getPublic());
-    sunVerifier.update(message);
-    assertTrue(sunVerifier.verify(accpSig), "SunRsaSign should verify ACCP NONEwithRSA signature");
+    Signature otherSigner = Signature.getInstance("NONEwithRSA", other);
+    otherSigner.initSign(kp.getPrivate());
+    otherSigner.update(message);
+    byte[] otherSig = otherSigner.sign();
 
-    // Sign with SunRsaSign SHA256withRSA, verify with ACCP NONEwithRSA (pre-hashed SHA-256)
-    Signature sunSigner = Signature.getInstance("SHA256withRSA", "SunRsaSign");
-    sunSigner.initSign(kp.getPrivate());
-    sunSigner.update(message);
-    byte[] sunSig = sunSigner.sign();
+    assertTrue(
+        Arrays.equals(accpSig, otherSig),
+        other.getName() + " and ACCP should produce identical signatures");
 
+    // Cross-verify: other verifies ACCP signature
+    Signature otherVerifier = Signature.getInstance("NONEwithRSA", other);
+    otherVerifier.initVerify(kp.getPublic());
+    otherVerifier.update(message);
+    assertTrue(otherVerifier.verify(accpSig), other.getName() + " should verify ACCP signature");
+
+    // Cross-verify: ACCP verifies other's signature
     Signature accpVerifier = Signature.getInstance("NONEwithRSA", ACCP);
     accpVerifier.initVerify(kp.getPublic());
-    accpVerifier.update(digest);
-    assertTrue(accpVerifier.verify(sunSig), "ACCP NONEwithRSA should verify SunRsaSign signature");
+    accpVerifier.update(message);
+    assertTrue(
+        accpVerifier.verify(otherSig), "ACCP should verify " + other.getName() + " signature");
   }
 
   @Test
-  public void testNoneWithRsaInteropWithBouncyCastle() throws Exception {
-    final Provider BC = TestUtil.BC_PROVIDER;
-    KeyPair kp = generateKeyPair(2048);
-    byte[] message = "BouncyCastle interop test".getBytes();
-
-    // Sign with ACCP NONEwithRSA (pre-hashed SHA-256), verify with BC SHA256withRSA
-    MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
-    byte[] digest = md.digest(message);
-
-    Signature accpSigner = Signature.getInstance("NONEwithRSA", ACCP);
-    accpSigner.initSign(kp.getPrivate());
-    accpSigner.update(digest);
-    byte[] accpSig = accpSigner.sign();
-
-    Signature bcVerifier = Signature.getInstance("SHA256withRSA", BC);
-    bcVerifier.initVerify(kp.getPublic());
-    bcVerifier.update(message);
-    assertTrue(bcVerifier.verify(accpSig), "BC should verify ACCP NONEwithRSA signature");
-
-    // Sign with BC SHA256withRSA, verify with ACCP NONEwithRSA (pre-hashed SHA-256)
-    Signature bcSigner = Signature.getInstance("SHA256withRSA", BC);
-    bcSigner.initSign(kp.getPrivate());
-    bcSigner.update(message);
-    byte[] bcSig = bcSigner.sign();
-
-    Signature accpVerifier = Signature.getInstance("NONEwithRSA", ACCP);
-    accpVerifier.initVerify(kp.getPublic());
-    accpVerifier.update(digest);
-    assertTrue(accpVerifier.verify(bcSig), "ACCP NONEwithRSA should verify BC signature");
+  public void testNoneWithRsaSetParameterThrowsCompat() throws Exception {
+    PSSParameterSpec spec =
+        new PSSParameterSpec("SHA-512", "MGF1", MGF1ParameterSpec.SHA512, 64, 1);
+    final Signature sunSigner = Signature.getInstance("NONEwithRSA", "SunJCE");
+    assertThrows(UnsupportedOperationException.class, () -> sunSigner.setParameter(spec));
+    final Signature bcSigner = Signature.getInstance("NONEwithRSA", TestUtil.BC_PROVIDER);
+    assertThrows(UnsupportedOperationException.class, () -> bcSigner.setParameter(spec));
+    final Signature accpSigner = Signature.getInstance("NONEwithRSA", ACCP);
+    assertThrows(UnsupportedOperationException.class, () -> accpSigner.setParameter(spec));
   }
 
   @Test
@@ -1757,27 +1751,56 @@ public class NoneWithRsaTest {
     MessageDigest md = MessageDigest.getInstance("SHA-256", ACCP);
     byte[] digest = md.digest(message);
 
-    // Sign with ACCP NONEwithRSA, verify with ACCP SHA256withRSA
-    Signature signer = Signature.getInstance("NONEwithRSA", ACCP);
-    signer.initSign(kp.getPrivate());
-    signer.update(digest);
-    byte[] sig1 = signer.sign();
+    // Sign raw digest with NONEwithRSA (no DigestInfo wrapping)
+    Signature noneSigner = Signature.getInstance("NONEwithRSA", ACCP);
+    noneSigner.initSign(kp.getPrivate());
+    noneSigner.update(digest);
+    byte[] noneSig = noneSigner.sign();
 
-    Signature verifier = Signature.getInstance("SHA256withRSA", ACCP);
-    verifier.initVerify(kp.getPublic());
-    verifier.update(message);
-    assertTrue(verifier.verify(sig1), "SHA256withRSA should verify NONEwithRSA signature");
+    // Sign message with SHA256withRSA (hashes internally, wraps digest in DigestInfo)
+    Signature sha256Signer = Signature.getInstance("SHA256withRSA", ACCP);
+    sha256Signer.initSign(kp.getPrivate());
+    sha256Signer.update(message);
+    byte[] sha256Sig = sha256Signer.sign();
 
-    // Sign with ACCP SHA256withRSA, verify with ACCP NONEwithRSA
-    signer = Signature.getInstance("SHA256withRSA", ACCP);
-    signer.initSign(kp.getPrivate());
-    signer.update(message);
-    byte[] sig2 = signer.sign();
+    // Signatures differ because SHA256withRSA wraps the digest in a DigestInfo struct
+    assertFalse(Arrays.equals(noneSig, sha256Sig));
 
-    verifier = Signature.getInstance("NONEwithRSA", ACCP);
-    verifier.initVerify(kp.getPublic());
-    verifier.update(digest);
-    assertTrue(verifier.verify(sig2), "NONEwithRSA should verify SHA256withRSA signature");
+    // Cross-verification should fail
+    Signature sha256Verifier = Signature.getInstance("SHA256withRSA", ACCP);
+    sha256Verifier.initVerify(kp.getPublic());
+    sha256Verifier.update(message);
+    assertFalse(
+        sha256Verifier.verify(noneSig),
+        "SHA256withRSA should NOT verify NONEwithRSA signature (no DigestInfo)");
+
+    Signature noneVerifier = Signature.getInstance("NONEwithRSA", ACCP);
+    noneVerifier.initVerify(kp.getPublic());
+    noneVerifier.update(digest);
+    assertFalse(
+        noneVerifier.verify(sha256Sig),
+        "NONEwithRSA should NOT verify SHA256withRSA signature (has DigestInfo)");
+
+    // However, the underlying signed content shares the same digest bytes.
+    // Decrypt both signatures with raw RSA to recover plaintext, padding stripped.
+    Cipher rsa = Cipher.getInstance("RSA/ECB/PKCS1Padding", ACCP);
+    rsa.init(Cipher.DECRYPT_MODE, kp.getPublic());
+    byte[] nonePlain = rsa.doFinal(noneSig);
+    assertEquals(digest.length, nonePlain.length); // raw SHA-256 digest, 32 bytes
+    rsa.init(Cipher.DECRYPT_MODE, kp.getPublic());
+    byte[] sha256Plain = rsa.doFinal(sha256Sig);
+    assertEquals(digest.length + 19, sha256Plain.length); // +19 bytes for DigestInfo DER
+
+    // The SHA256withRSA plaintext ends with the same 32-byte digest as the NONEwithRSA plaintext
+    byte[] noneDigest =
+        Arrays.copyOfRange(nonePlain, nonePlain.length - digest.length, nonePlain.length);
+    byte[] sha256Digest =
+        Arrays.copyOfRange(sha256Plain, sha256Plain.length - digest.length, sha256Plain.length);
+    assertTrue(
+        Arrays.equals(noneDigest, sha256Digest),
+        "Last 32 bytes (the digest) should be identical in both plaintexts");
+    assertTrue(
+        Arrays.equals(digest, noneDigest), "Digest bytes should equal the original SHA-256 digest");
   }
 
   @Test
@@ -1794,14 +1817,54 @@ public class NoneWithRsaTest {
   }
 
   @Test
-  public void testNoneWithRsaSetParameterRejectsNonPssSpec() throws Exception {
+  public void testMessageLargerThanModulusThrows() throws Exception {
+    final int keyBits = 4096;
+    KeyPair kp = generateKeyPair(keyBits);
+    // NOTE: PKCS1 padding is 11 bytes for NONEwithRSA's raw signature
+    byte[] goodMsg = new byte[keyBits / 8 - 11];
+    byte[] badMsg = new byte[keyBits / 8 - 10];
+    new SecureRandom().nextBytes(goodMsg);
+    new SecureRandom().nextBytes(badMsg);
+
+    // ACCP: message size of modulus OK
+    Signature accpSig = Signature.getInstance("NONEwithRSA", ACCP);
+    accpSig.initSign(kp.getPrivate());
+    accpSig.update(goodMsg);
+    accpSig.sign();
+
+    // SunJCE: message size of modulus OK
+    Signature sunSig = Signature.getInstance("NONEwithRSA", "SunJCE");
+    sunSig.initSign(kp.getPrivate());
+    sunSig.update(goodMsg);
+    sunSig.sign();
+
+    // ACCP: accepts update() but rejects at sign(); data too large for key size
+    accpSig = Signature.getInstance("NONEwithRSA", ACCP);
+    accpSig.initSign(kp.getPrivate());
+    accpSig.update(badMsg);
+    assertThrows(SignatureException.class, accpSig::sign);
+
+    // SunJCE: accepts update() but rejects at sign(); data too large for key size
+    sunSig = Signature.getInstance("NONEwithRSA", "SunJCE");
+    sunSig.initSign(kp.getPrivate());
+    sunSig.update(badMsg);
+    assertThrows(SignatureException.class, sunSig::sign);
+  }
+
+  @Test
+  public void testNoneWithRsaSetParameterRejectsAllSpecs() throws Exception {
     Signature sig = Signature.getInstance("NONEwithRSA", ACCP);
 
-    // Non-PSSParameterSpec should be rejected
-    assertThrows(InvalidAlgorithmParameterException.class, () -> sig.setParameter(null));
+    // All setParameter calls should be rejected for NONEwithRSA
+    assertThrows(UnsupportedOperationException.class, () -> sig.setParameter(null));
     assertThrows(
-        InvalidAlgorithmParameterException.class,
+        UnsupportedOperationException.class,
         () -> sig.setParameter(new ECGenParameterSpec("secp256r1")));
+    assertThrows(
+        UnsupportedOperationException.class,
+        () ->
+            sig.setParameter(
+                new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1)));
   }
 
   @Test
@@ -1810,12 +1873,12 @@ public class NoneWithRsaTest {
 
     Signature sig = Signature.getInstance("NONEwithRSA", ACCP);
     sig.initSign(kp.getPrivate());
-    sig.update(new byte[32]); // buffer the default SHA-256 digest
+    sig.update(new byte[32]);
 
-    // Changing parameters with buffered data should throw
+    // setParameter is always rejected for NONEwithRSA, regardless of buffer state
     PSSParameterSpec spec =
         new PSSParameterSpec("SHA-512", "MGF1", MGF1ParameterSpec.SHA512, 64, 1);
-    assertThrows(IllegalStateException.class, () -> sig.setParameter(spec));
+    assertThrows(UnsupportedOperationException.class, () -> sig.setParameter(spec));
   }
 
   @Test
