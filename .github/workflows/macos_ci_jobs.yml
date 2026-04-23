@@ -316,31 +316,16 @@ jobs:
     - name: Install gcovr
       run: |
         pip install gcovr
-    # Set up Corretto 25 first and save its path; the current Gradle wrapper
-    # (8.11.1) cannot parse JDK 25 bytecode, so we run Gradle itself on
-    # Corretto 21 and point it at JDK 25 for test execution via TEST_JAVA_HOME.
+    # Set up Corretto 25.
     - name: Set up corretto 25
       uses: actions/setup-java@v3
       with:
         java-version: '25'
         distribution: 'corretto'
-    - name: Save JDK 25 path
-      run: echo "JAVA25_HOME=${{ env.JAVA_HOME }}" >> $GITHUB_ENV
-    - name: Set up corretto 21
-      uses: actions/setup-java@v3
-      with:
-        java-version: '21'
-        distribution: 'corretto'
-    # Build with Corretto 21, run tests on Corretto 25, targeting JDK 25 (includes jdk17plus).
-    - name: Build and run tests for ${{ env.PACKAGE_NAME }} targeting JDK 25
+    # Test on Corretto 25 build targeting JDK 25.
+    - name: Build and run tests for ${{ env.PACKAGE_NAME }} in corretto 25 targeting JDK 25 to include the jdk17plus folder
+      env:
+        TEST_JAVA_HOME: ${{ env.JAVA_HOME }}
       run: |
-        ./gradlew \
-          -DTEST_JAVA_HOME=$JAVA25_HOME \
-          -DTEST_JAVA_MAJOR_VERSION=25 \
-          -DTARGET_JDK_VERSION=25 \
-          -DLCOV_IGNORE=inconsistent \
-          release
-        ./gradlew \
-          -DTEST_JAVA_HOME=$JAVA25_HOME \
-          -DTEST_JAVA_MAJOR_VERSION=25 \
-          test_integration
+        ./tests/ci/run_accp_basic_tests.sh --lcov-ignore inconsistent --target-jdk-version 25
+        ./tests/ci/run_accp_test_integration.sh
