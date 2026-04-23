@@ -147,6 +147,10 @@ JIOBlobs::JIOBlobs(JNIEnv* env,
         } else {
             output_ptr_ = (uint8_t*)env->GetPrimitiveArrayCritical(outputArray, nullptr);
             if (output_ptr_ == nullptr) {
+                // Throwing before ctor finishes, so dtor is never called. Must release input array.
+                if (input_array_ != nullptr) {
+                    env->ReleasePrimitiveArrayCritical(input_array_, input_ptr_, 0);
+                }
                 throw java_ex(EX_ERROR, "GetPrimitiveArrayCritical failed.");
             }
         }

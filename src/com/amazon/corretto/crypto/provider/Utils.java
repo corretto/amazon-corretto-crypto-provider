@@ -529,7 +529,7 @@ final class Utils {
     }
   }
 
-  private static int JAVA_VERSION = 0;
+  private static volatile int JAVA_VERSION = 0;
 
   static int getJavaVersion() {
     if (JAVA_VERSION > 0) {

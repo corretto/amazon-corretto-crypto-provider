@@ -325,6 +325,10 @@ abstract class EvpKey implements Key, Destroyable {
         }
       } catch (final InvalidKeySpecException ex) {
         throw new InvalidObjectException(ex.getMessage());
+      } finally {
+        if (!isPublicKey) {
+          Arrays.fill(encoded, (byte) 0);
+        }
       }
     }
   }
