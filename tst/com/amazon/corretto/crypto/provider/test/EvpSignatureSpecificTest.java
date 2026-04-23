@@ -662,7 +662,7 @@ public final class EvpSignatureSpecificTest {
           || "NONEwithRSA".equals(algorithm)) {
         continue;
       }
-      if (algorithm.startsWith("Ed25519")
+      if (algorithm.contains("Ed25519")
           || algorithm.equals("EdDSA")
           || algorithm.startsWith("ML-DSA")) {
         continue;

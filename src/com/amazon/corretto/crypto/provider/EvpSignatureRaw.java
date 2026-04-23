@@ -120,6 +120,16 @@ class EvpSignatureRaw extends EvpSignatureBase {
     }
   }
 
+  // NONEwithEd25519ph is a non-JCA-standard algorithm that conforms to
+  // Ed25519ph as specified in RFC 8032 except that it omits the inner SHA512
+  // hash of the message M. This inner hash is referred to as PH(M) for
+  // Ed25519ph in the RFC. See sections 5.1 and 5.1.6 of RFC 8032.
+  static final class NONEwithEd25519ph extends EvpSignatureRaw {
+    NONEwithEd25519ph(AmazonCorrettoCryptoProvider provider) {
+      super(provider, EvpKeyType.EdDSA, 0, true);
+    }
+  }
+
   static final class MLDSA extends EvpSignatureRaw {
     MLDSA(final AmazonCorrettoCryptoProvider provider) {
       super(provider, EvpKeyType.MLDSA, 0, false);

@@ -274,7 +274,7 @@ public:
             }
             // The last byte records the length of the padding.
             unsigned int size_of_padding = output[result - 1];
-            if (size_of_padding > AES_CBC_BLOCK_SIZE_IN_BYTES) {
+            if (size_of_padding == 0 || size_of_padding > AES_CBC_BLOCK_SIZE_IN_BYTES) {
                 // This can happen if wrong key is used or if the last block has been tampered.
                 throw java_ex(EX_BADPADDING, "Bad padding");
             }
@@ -400,7 +400,7 @@ extern "C" JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesCb
         JIOBlobs io_blobs(env, inputDirect, inputArray, outputDirect, outputArray);
 
         return aes_cbc_cipher.extended_update(is_iso10126_padding(padding), is_encryption_mode(opMode), lastBlock,
-            io_blobs.get_input() + inputOffset, inputLen, io_blobs.get_output() + outputOffset, 0);
+            io_blobs.get_input() + inputOffset, inputLen, io_blobs.get_output() + outputOffset, unprocessedInput);
 
     } catch (java_ex& ex) {
         ex.throw_to_java(env);

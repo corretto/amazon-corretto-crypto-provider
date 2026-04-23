@@ -4,6 +4,7 @@ package com.amazon.corretto.crypto.provider;
 
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.KeySpec;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -53,9 +54,13 @@ class HmacWithPrecomputedKeyKeyFactorySpi extends SecretKeyFactorySpi {
     if (key == null) {
       throw new InvalidKeySpecException("Key encoding must not be null");
     }
-    getPrecomputedKey(precomputedKey, precomputedKeyLength, key, key.length, evpMd);
-
-    return new SecretKeySpec(precomputedKey, algorithmName);
+    try {
+      getPrecomputedKey(precomputedKey, precomputedKeyLength, key, key.length, evpMd);
+      return new SecretKeySpec(precomputedKey, algorithmName);
+    } finally {
+      Arrays.fill(key, (byte) 0);
+      Arrays.fill(precomputedKey, (byte) 0);
+    }
   }
 
   @Override

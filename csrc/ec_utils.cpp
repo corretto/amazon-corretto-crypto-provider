@@ -197,8 +197,8 @@ JNIEXPORT jstring JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_getCu
         jni_borrow borrow = jni_borrow(env, java_buffer::from_array(env, encoded), "getCurveNameFromEncoded");
         CBS cbs;
         CBS_init(&cbs, borrow.data(), borrow.len());
-        EC_GROUP* group = EC_KEY_parse_curve_name(&cbs);
-        if (group == nullptr) {
+        EC_GROUP_auto group = EC_GROUP_auto::from(EC_KEY_parse_curve_name(&cbs));
+        if (!group.isInitialized()) {
             throw_openssl("Unable to parse curve OID ASN.1");
         }
 
