@@ -685,6 +685,105 @@ public class EdDSATest {
     }
   }
 
+  @Test
+  public void ed25519CorruptSignature() throws GeneralSecurityException {
+    corruptSignatureTests("Ed25519", false);
+  }
+
+  @Test
+  public void ed25519phCorruptSignature() throws GeneralSecurityException {
+    assumeTrue(ed25519phIsEnabled());
+    corruptSignatureTests("Ed25519ph", false);
+  }
+
+  @Test
+  public void noneWithEd25519phCorruptSignature() throws GeneralSecurityException {
+    assumeTrue(ed25519phIsEnabled());
+    corruptSignatureTests("NONEwithEd25519ph", true);
+  }
+
+  private void corruptSignatureTests(String algorithm, boolean preHashInput)
+      throws GeneralSecurityException {
+    final KeyPair kp = nativeGen.generateKeyPair();
+    final MessageDigest sha512 = MessageDigest.getInstance("SHA-512");
+    final Signature sig = Signature.getInstance(algorithm, NATIVE_PROVIDER);
+    final byte[] message = new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+    final byte[] input = preHashInput ? sha512.digest(message) : message;
+
+    sig.initSign(kp.getPrivate());
+    sig.update(input);
+    final byte[] validSig = sig.sign();
+    assertEquals(SHA512_DIGEST_BYTES, validSig.length);
+
+    // Sanity check: valid signature verifies
+    sig.initVerify(kp.getPublic());
+    sig.update(input);
+    assertTrue(sig.verify(validSig), algorithm + ": valid signature must verify");
+
+    // All zeroes
+    assertSigRejected(
+        sig, kp.getPublic(), input, new byte[SHA512_DIGEST_BYTES], algorithm + ": all-zeroes");
+
+    // All 0xFF
+    byte[] allOnes = new byte[SHA512_DIGEST_BYTES];
+    Arrays.fill(allOnes, (byte) 0xFF);
+    assertSigRejected(sig, kp.getPublic(), input, allOnes, algorithm + ": all-0xFF");
+
+    // Truncated (32 bytes)
+    assertSigRejected(
+        sig,
+        kp.getPublic(),
+        input,
+        Arrays.copyOf(validSig, 32),
+        algorithm + ": truncated to 32 bytes");
+
+    // Truncated (1 byte short)
+    assertSigRejected(
+        sig,
+        kp.getPublic(),
+        input,
+        Arrays.copyOf(validSig, 63),
+        algorithm + ": truncated by 1 byte");
+
+    // Oversized (65 bytes)
+    byte[] oversized = Arrays.copyOf(validSig, 65);
+    assertSigRejected(sig, kp.getPublic(), input, oversized, algorithm + ": oversized by 1 byte");
+
+    // Oversized (128 bytes)
+    byte[] way_oversized = Arrays.copyOf(validSig, 128);
+    assertSigRejected(
+        sig, kp.getPublic(), input, way_oversized, algorithm + ": oversized to 128 bytes");
+
+    // Empty
+    assertSigRejected(sig, kp.getPublic(), input, new byte[0], algorithm + ": empty");
+
+    // Flip each bit of the first byte
+    for (int bit = 0; bit < 8; bit++) {
+      byte[] flipped = validSig.clone();
+      flipped[0] ^= (1 << bit);
+      assertSigRejected(
+          sig, kp.getPublic(), input, flipped, algorithm + ": flip bit " + bit + " of byte 0");
+    }
+
+    // Flip single bit in the last byte
+    byte[] flippedLast = validSig.clone();
+    flippedLast[63] ^= 1;
+    assertSigRejected(
+        sig, kp.getPublic(), input, flippedLast, algorithm + ": flip bit 0 of last byte");
+  }
+
+  private static void assertSigRejected(
+      Signature sig, PublicKey pub, byte[] input, byte[] badSig, String label)
+      throws GeneralSecurityException {
+    sig.initVerify(pub);
+    sig.update(input);
+    try {
+      assertFalse(sig.verify(badSig), label);
+    } catch (SignatureException e) {
+      // JCA allows throwing SignatureException for malformed signatures
+    }
+  }
+
   private static void makeJceSignaturePh(Signature sig) {
     assertTrue(ed25519phIsEnabled());
     AlgorithmParameterSpec paramSpec = null;
