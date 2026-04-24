@@ -111,6 +111,7 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_p
                 result.set(der2EvpPrivateKey(borrow, derLen, evpType, shouldCheckPrivate, EX_INVALID_KEY_SPEC));
             } catch (java_ex&) {
                 if (evpType == EVP_PKEY_RSA) {
+                    ERR_clear_error();
                     result.set(
                         der2EvpPrivateKey(borrow, derLen, EVP_PKEY_RSA_PSS, shouldCheckPrivate, EX_INVALID_KEY_SPEC));
                 } else {

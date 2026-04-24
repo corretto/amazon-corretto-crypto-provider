@@ -929,9 +929,11 @@ public final class EvpSignatureSpecificTest {
     final PublicKey accpPub =
         accpKf.generatePublic(
             new java.security.spec.X509EncodedKeySpec(pssKeyPair.getPublic().getEncoded()));
+    assertEquals("RSA", accpPub.getAlgorithm());
     final PrivateKey accpPriv =
         accpKf.generatePrivate(
             new java.security.spec.PKCS8EncodedKeySpec(pssKeyPair.getPrivate().getEncoded()));
+    assertEquals("RSA", accpPriv.getAlgorithm());
 
     // Use translated keys to sign and verify
     final PSSParameterSpec pssSpec =
