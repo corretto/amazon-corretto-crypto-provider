@@ -92,7 +92,10 @@ spotless {
   java {
     target 'src/**/*.java', 'tst/**/*.java'
     licenseHeaderFile 'build-tools/license-headers/LicenseHeader.java'
-    googleJavaFormat().reflowLongStrings()
+    // Pin google-java-format to a version that supports JDK 25's javac internals;
+    // older versions (shipped by default with spotless 7.0.2) hit NoSuchMethodError
+    // on com.sun.tools.javac.util.Log$DeferredDiagnosticHandler.getDiagnostics().
+    googleJavaFormat('1.25.2').reflowLongStrings()
   }
 
   // clang-format is difficult to configure across all of our platforms so we
