@@ -156,6 +156,11 @@ RSA* new_private_RSA_key_with_no_e(BIGNUM const* n, BIGNUM const* d);
 // |*out|, and returns the size of |*out| on success and throws an unchecked exception on failure. The caller takes
 // ownership of |*out|.
 size_t encodeExpandedMLDSAPrivateKey(const EVP_PKEY* key, uint8_t** out);
+
+// Expands ML-KEM |key|, allocates appropriately sized buffer to |*out|, writes the PKCS8-encoded expanded key to
+// |*out|, and returns the size of |*out| on success and throws an unchecked exception on failure. The caller takes
+// ownership of |*out|.
+size_t encodeExpandedMLKEMPrivateKey(const EVP_PKEY* key, uint8_t** out);
 #endif
 
 // Formats an EC private key with redundant curve identifier confromant to RFC
