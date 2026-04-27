@@ -35,9 +35,11 @@ done
 # Parse and check which JDK version we're testing upon.
 version=$($TEST_JAVA_HOME/bin/java -version 2>&1 | head -1 | cut -d'"' -f2 | sed '/^1\./s///' | cut -d'.' -f1)
 
-# The JDK version should be least 10 for a regular ACCP build. We can
-# still test on older versions with the TEST_JAVA_HOME property.
-if (( "$version" <= "10" )); then
+# Gradle 9 requires JDK 17+ to run; for target JDK <17 we keep JAVA_HOME
+# on the build JDK (already set by the caller) and pass TEST_JAVA_HOME so
+# tests run on the target. For target JDK >=17 we can use it as both the
+# build and test JDK.
+if (( "$version" < "17" )); then
     ./gradlew \
         -DTEST_JAVA_HOME=$TEST_JAVA_HOME \
         -DTEST_JAVA_MAJOR_VERSION=$version \
