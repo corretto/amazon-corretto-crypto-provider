@@ -378,7 +378,8 @@ public class EcGenTest {
 
   public static void assertECEquals(
       final String message, final ECGenParameterSpec expected, final ECGenParameterSpec actual) {
-    assertEquals(expected.getName(), actual.getName(), message);
+    assertEquals(
+        TestUtil.getCurveOid(expected.getName()), TestUtil.getCurveOid(actual.getName()), message);
   }
 
   private static class TestThread extends Thread {
