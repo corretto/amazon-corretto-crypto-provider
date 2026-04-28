@@ -32,4 +32,22 @@ class EvpRsaPublicKey extends EvpRsaKey implements RSAPublicKey {
     }
     return result;
   }
+
+  @Override
+  public String toString() {
+    final BigInteger modulus = getModulus();
+
+    final StringBuffer sb = new StringBuffer(AmazonCorrettoCryptoProvider.PROVIDER_NAME);
+    sb.append(" ");
+    sb.append(getAlgorithm());
+    sb.append(" public key, ");
+    sb.append(modulus.bitLength());
+    sb.append(" bits\n  params: ");
+    sb.append(getParams());
+    sb.append("\n  modulus: ");
+    sb.append(modulus);
+    sb.append("\n  public exponent: ");
+    sb.append(getPublicExponent());
+    return sb.toString();
+  }
 }
