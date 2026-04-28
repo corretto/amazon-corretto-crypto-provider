@@ -67,6 +67,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
   private final boolean shouldRegisterEcParams;
   private final boolean shouldRegisterSecureRandom;
   private final boolean shouldRegisterEdKeyFactory;
+  private final boolean shouldRegisterEd25519ph;
   private final boolean shouldRegisterMLDSA;
   private final boolean shouldRegisterAesCfb;
   private final boolean shouldRegisterMLKEM;
@@ -279,10 +280,15 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
     addService("Signature", "RSASSA-PSS", "EvpSignature$RSASSA_PSS");
     addService("Signature", "NONEwithRSASSA-PSS", "NoneWithRsa$Pss");
+    addService("Signature", "NONEwithRSA", "NoneWithRsa$Pkcs15");
     addService("Signature", "NONEwithECDSA", "EvpSignatureRaw$NONEwithECDSA");
     addService("Signature", "EdDSA", "EvpSignatureRaw$Ed25519");
     addService("Signature", "Ed25519", "EvpSignatureRaw$Ed25519");
-    addService("Signature", "Ed25519ph", "EvpSignature$Ed25519ph");
+
+    if (shouldRegisterEd25519ph) {
+      addService("Signature", "Ed25519ph", "EvpSignature$Ed25519ph");
+      addService("Signature", "NONEwithEd25519ph", "EvpSignatureRaw$NONEwithEd25519ph");
+    }
 
     if (shouldRegisterMLDSA) {
       addService("Signature", "ML-DSA", "EvpSignatureRaw$MLDSA");
@@ -588,11 +594,13 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     this.shouldRegisterEdKeyFactory =
         Utils.getBooleanProperty(PROPERTY_REGISTER_ED_KEYFACTORY, false);
 
+    this.shouldRegisterEd25519ph = (!isFips() || isExperimentalFips());
+
     this.shouldRegisterMLDSA = (!isFips() || isExperimentalFips());
 
     this.shouldRegisterAesCfb = (!isFips() || isExperimentalFips());
 
-    this.shouldRegisterMLKEM = (Utils.isMlKemSupported() && (!isFips() || isExperimentalFips()));
+    this.shouldRegisterMLKEM = Utils.isMlKemSupported();
 
     this.shouldRegisterX25519 = Utils.getJavaVersion() >= 11;
 

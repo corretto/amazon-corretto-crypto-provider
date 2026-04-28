@@ -95,6 +95,9 @@ class AesCfbSpi extends CipherSpi {
   @Override
   protected void engineInit(final int opmode, final Key key, final SecureRandom random)
       throws InvalidKeyException {
+    if (opmode != Cipher.ENCRYPT_MODE && opmode != Cipher.WRAP_MODE) {
+      throw new InvalidKeyException("IV required for decrypt");
+    }
     try {
       byte[] iv = new byte[IV_SIZE_IN_BYTES];
       random.nextBytes(iv);

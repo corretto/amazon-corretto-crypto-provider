@@ -66,7 +66,7 @@ final class AesKeyWrapPaddingSpi extends CipherSpi {
     if (encoded == null) {
       throw new InvalidKeyException("Can't encode key to obtain length");
     }
-    int keyLen = key.getEncoded().length;
+    int keyLen = encoded.length;
     Arrays.fill(encoded, (byte) 0);
     return Math.multiplyExact(keyLen, 8);
   }

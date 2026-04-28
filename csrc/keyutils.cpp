@@ -34,7 +34,7 @@ EVP_PKEY* der2EvpPrivateKey(const unsigned char* der,
         throw_openssl(javaExceptionClass, "Unable to convert PKCS8_PRIV_KEY_INFO to EVP_PKEY");
     }
 
-    if (EVP_PKEY_base_id(result) == EVP_PKEY_RSA) {
+    if (isRsaKeyType(EVP_PKEY_base_id(result))) {
         const RSA* rsa = EVP_PKEY_get0_RSA(result);
 
         if (rsa) {
@@ -132,6 +132,7 @@ bool checkKey(const EVP_PKEY* key)
 
     switch (keyType) {
     case EVP_PKEY_RSA:
+    case EVP_PKEY_RSA_PSS:
         rsaKey = EVP_PKEY_get0_RSA(key);
         RSA_get0_factors(rsaKey, &p, &q);
         // RSA_check_key only works when sufficient private values are set
@@ -231,6 +232,53 @@ size_t encodeExpandedMLDSAPrivateKey(const EVP_PKEY* key, uint8_t** out)
     }
     return out_len;
 }
+
+size_t encodeExpandedMLKEMPrivateKey(const EVP_PKEY* key, uint8_t** out)
+{
+    CHECK_OPENSSL(key);
+    CHECK_OPENSSL(EVP_PKEY_id(key) == EVP_PKEY_KEM);
+    CHECK_OPENSSL(out);
+    size_t raw_len = 0;
+    CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(key, nullptr, &raw_len));
+    int nid = NID_undef;
+    // See FIPS 203, Table 3: secret_key_len per parameter set
+    switch (raw_len) {
+    case 1632:
+        nid = NID_MLKEM512;
+        break;
+    case 2400:
+        nid = NID_MLKEM768;
+        break;
+    case 3168:
+        nid = NID_MLKEM1024;
+        break;
+    default:
+        throw_java_ex(EX_ILLEGAL_ARGUMENT, "Invalid ML-KEM secret key size");
+    }
+    OPENSSL_buffer_auto raw_expanded(raw_len);
+    CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(key, raw_expanded, &raw_len));
+    CBB cbb, pkcs8, algorithm, priv, expanded;
+    CBB_init(&cbb, 0);
+    // Encoding below is based on expandedKey CHOICE member of PrivateKey ASN.1 structures in:
+    // https://datatracker.ietf.org/doc/rfc9935/ section 6
+    // spotless:off
+    if (!CBB_add_asn1(&cbb, &pkcs8, CBS_ASN1_SEQUENCE) ||
+        !CBB_add_asn1_uint64(&pkcs8, 0) ||
+        !CBB_add_asn1(&pkcs8, &algorithm, CBS_ASN1_SEQUENCE) ||
+        !OBJ_nid2cbb(&algorithm, nid) ||
+        !CBB_add_asn1(&pkcs8, &priv, CBS_ASN1_OCTETSTRING) ||
+        !CBB_add_asn1(&priv, &expanded, CBS_ASN1_OCTETSTRING) ||
+        !CBB_add_bytes(&expanded, raw_expanded, raw_len)) {
+        throw_java_ex(EX_RUNTIME_CRYPTO, "Error serializing expanded ML-KEM key");
+    }
+    // spotless:on
+    size_t out_len;
+    if (!CBB_finish(&cbb, out, &out_len)) {
+        OPENSSL_free(*out);
+        throw_java_ex(EX_RUNTIME_CRYPTO, "Error finalizing expanded ML-KEM key");
+    }
+    return out_len;
+}
 #endif // !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
 
 size_t encodeRfc5915EcPrivateKey(const EVP_PKEY* key, uint8_t** out)
@@ -266,11 +314,13 @@ size_t encodeRfc5915EcPrivateKey(const EVP_PKEY* key, uint8_t** out)
         // in the inner private key encoding.
         !EC_KEY_marshal_private_key(&priv, ec_key, 0 /* enc_flags */) ||
         !CBB_flush(&cbb)) {
+        CBB_cleanup(&cbb);
         throw_java_ex(EX_RUNTIME_CRYPTO, "Error serializing expanded EC key");
     }
     // spotless:on
     size_t out_len;
     if (!CBB_finish(&cbb, out, &out_len)) {
+        CBB_cleanup(&cbb);
         OPENSSL_free(*out);
         throw_java_ex(EX_RUNTIME_CRYPTO, "Error finalizing expanded EC key");
     }

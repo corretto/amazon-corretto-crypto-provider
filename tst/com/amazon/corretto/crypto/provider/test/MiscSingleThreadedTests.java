@@ -15,6 +15,7 @@ import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.MessageDigest;
 import java.security.Provider;
 import java.security.Security;
 import java.security.Signature;
@@ -43,10 +44,9 @@ public class MiscSingleThreadedTests {
   }
 
   /**
-   * We do not (currently) support the signature NONEwithRSA, but the JCE implements it internally
-   * with Cipher.getInstance("RSA/ECB/PKCS1Padding"), which we do support. In certain cases we can
-   * cause this to fail. It does require that the provider ordering be relatively specific and that
-   * we call .getProvider() on the Signature objects prior to initializing them.
+   * Validates that ACCP's NONEwithRSA works when ACCP is installed as the highest-priority
+   * provider. ACCP's NONEwithRSA expects pre-hashed input and includes DigestInfo (via RSA_sign),
+   * making it interoperable with SHA*withRSA algorithms.
    */
   @Test
   public void testNoneWithRsa() throws Exception {
@@ -59,16 +59,21 @@ public class MiscSingleThreadedTests {
       kg.initialize(2048);
       final KeyPair pair = kg.generateKeyPair();
 
+      // ACCP's NONEwithRSA expects a pre-hashed digest
+      final byte[] data = "TestData".getBytes(StandardCharsets.UTF_8);
+      final MessageDigest md = MessageDigest.getInstance("SHA-256");
+      final byte[] digest = md.digest(data);
+
       final Signature signer = Signature.getInstance("NONEwithRSA");
       signer.getProvider();
       signer.initSign(pair.getPrivate());
-      signer.update("TestData".getBytes(StandardCharsets.UTF_8));
+      signer.update(digest);
       final byte[] signature = signer.sign();
 
       final Signature verifier = Signature.getInstance("NONEwithRSA");
       verifier.getProvider();
       verifier.initVerify(pair.getPublic());
-      verifier.update("TestData".getBytes(StandardCharsets.UTF_8));
+      verifier.update(digest);
       assertTrue(verifier.verify(signature));
     } finally {
       restoreProviders(oldProviders);
