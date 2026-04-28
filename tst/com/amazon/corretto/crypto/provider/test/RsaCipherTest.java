@@ -296,6 +296,22 @@ public class RsaCipherTest {
     assertThrows(IllegalBlockSizeException.class, () -> nativeEncrypt.doFinal(ciphertext));
   }
 
+  @ParameterizedTest
+  @MethodSource("paddingXlengthParams")
+  public void undersizedCiphertext(
+      final String padding,
+      final Integer keySize,
+      final OAEPParameterSpec oaep,
+      final String ignoredName)
+      throws GeneralSecurityException {
+    final Cipher dec = getNativeCipher(padding);
+    dec.init(Cipher.DECRYPT_MODE, getKeyPair(keySize).getPrivate(), oaep);
+
+    byte[] ciphertext = new byte[(keySize / 8) - 1];
+    Arrays.fill(ciphertext, (byte) 1);
+    assertThrows(IllegalBlockSizeException.class, () -> dec.doFinal(ciphertext));
+  }
+
   @Test
   public void oaepParamValidation() throws GeneralSecurityException {
     Cipher c = getNativeCipher(OAEP_PADDING);

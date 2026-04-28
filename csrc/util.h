@@ -38,6 +38,7 @@ inline std::string opensslErrorWithDefault(const char* fallback)
 #define EX_ARRAYOOB            "java/lang/ArrayIndexOutOfBoundsException"
 #define EX_INDEXOOB            "java/lang/IndexOutOfBoundsException"
 #define EX_BADPADDING          "javax/crypto/BadPaddingException"
+#define EX_ILLEGAL_BLOCK_SIZE  "javax/crypto/IllegalBlockSizeException"
 #define EX_SHORTBUFFER         "javax/crypto/ShortBufferException"
 #define EX_RUNTIME_CRYPTO      "com/amazon/corretto/crypto/provider/RuntimeCryptoException"
 #define EX_ILLEGAL_ARGUMENT    "java/lang/IllegalArgumentException"
