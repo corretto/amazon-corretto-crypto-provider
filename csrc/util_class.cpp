@@ -254,6 +254,53 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_utils_MlDsaUtils_co
 #endif // !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
 
 /*
+ * Class:     com_amazon_corretto_crypto_utils_DigestUtils
+ * Method:    digestInfoWrapInternal
+ * Signature: (Ljava/lang/String;[B)[B
+ */
+JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_utils_DigestUtils_digestInfoWrapInternal(
+    JNIEnv* pEnv, jclass, jstring digestName, jbyteArray digestBytes)
+{
+    jbyteArray result = nullptr;
+    try {
+        raii_env env(pEnv);
+        if (!digestName) {
+            throw_java_ex(EX_ILLEGAL_ARGUMENT, "digestName must not be null");
+        }
+        jni_string md_name(env, digestName);
+        const EVP_MD* md = EVP_get_digestbyname(md_name.native_str);
+        if (!md) {
+            throw_java_ex(EX_ILLEGAL_ARGUMENT, "Unsupported digest algorithm");
+        }
+        const int hash_nid = EVP_MD_type(md);
+
+        jsize digest_len = env->GetArrayLength(digestBytes);
+        jbyte* digest = env->GetByteArrayElements(digestBytes, nullptr);
+        CHECK_OPENSSL(digest);
+
+        uint8_t* out_msg = nullptr;
+        size_t out_msg_len = 0;
+        int is_alloced = 0;
+        if (1 != RSA_add_pkcs1_prefix(
+                &out_msg, &out_msg_len, &is_alloced, hash_nid, (const uint8_t*)digest, (size_t)digest_len)) {
+            throw_java_ex(EX_ILLEGAL_ARGUMENT, "RSA_add_pkcs1_prefix failed");
+        }
+        if (!(result = env->NewByteArray((jsize)out_msg_len))) {
+            throw_java_ex(EX_OOM, "Unable to allocate DigestInfo array");
+        }
+        env->SetByteArrayRegion(result, 0, (jsize)out_msg_len, (const jbyte*)out_msg);
+        if (is_alloced && out_msg) {
+            OPENSSL_free(out_msg);
+        }
+        env->ReleaseByteArrayElements(digestBytes, digest, JNI_ABORT);
+    } catch (java_ex& ex) {
+        ex.throw_to_java(pEnv);
+        return nullptr;
+    }
+    return result;
+}
+
+/*
  * Class:     com_amazon_corretto_crypto_utils_EcUtils
  * Method:    encodeRfc5915EcPrivateKeyInternal
  * Signature: ([B)[B
