@@ -873,6 +873,84 @@ public final class EvpSignatureSpecificTest {
     assertThrows(InvalidKeyException.class, () -> signature.initVerify(emptyPublicKey));
   }
 
+  /**
+   * Reproduces GitHub issue #516: ACCP's RSASSA-PSS signature rejects keys generated via
+   * KeyPairGenerator.getInstance("RSASSA-PSS") with InvalidKeySpecException. RSASSA-PSS keys use
+   * OID 1.2.840.113549.1.1.10 (id-RSASSA-PSS) instead of 1.2.840.113549.1.1.1 (rsaEncryption),
+   * causing EVP_PKEY_base_id() to return EVP_PKEY_RSA_PSS rather than EVP_PKEY_RSA.
+   */
+  @Test
+  public void testRsassaPssKeysAccepted() throws Exception {
+    // Generate RSASSA-PSS keys using the JDK's default provider (SunRsaSign).
+    // These keys are encoded with OID id-RSASSA-PSS rather than rsaEncryption.
+    final KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSASSA-PSS");
+    kpg.initialize(2048);
+    final KeyPair pssKeyPair = kpg.generateKeyPair();
+    assertEquals("RSASSA-PSS", pssKeyPair.getPublic().getAlgorithm());
+
+    final PSSParameterSpec pssSpec =
+        new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
+
+    // Sign with ACCP using RSASSA-PSS key
+    final Signature signer = Signature.getInstance("RSASSA-PSS", NATIVE_PROVIDER);
+    signer.setParameter(pssSpec);
+    signer.initSign(pssKeyPair.getPrivate());
+    signer.update(MESSAGE);
+    final byte[] signature = signer.sign();
+
+    // Verify with ACCP using RSASSA-PSS key
+    final Signature verifier = Signature.getInstance("RSASSA-PSS", NATIVE_PROVIDER);
+    verifier.setParameter(pssSpec);
+    verifier.initVerify(pssKeyPair.getPublic());
+    verifier.update(MESSAGE);
+    assertTrue(verifier.verify(signature));
+
+    // Cross-verify: sign with ACCP's RSASSA-PSS key, verify with SunRsaSign
+    final Signature sunVerifier = Signature.getInstance("RSASSA-PSS", "SunRsaSign");
+    sunVerifier.setParameter(pssSpec);
+    sunVerifier.initVerify(pssKeyPair.getPublic());
+    sunVerifier.update(MESSAGE);
+    assertTrue(sunVerifier.verify(signature));
+  }
+
+  /**
+   * Tests that RSASSA-PSS keys work with ACCP's KeyFactory for both public and private key
+   * translation via PKCS8 and X509 encoded key specs.
+   */
+  @Test
+  public void testRsassaPssKeyFactory() throws Exception {
+    // Generate RSASSA-PSS keys using the JDK's default provider
+    final KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSASSA-PSS");
+    kpg.initialize(2048);
+    final KeyPair pssKeyPair = kpg.generateKeyPair();
+
+    // Translate RSASSA-PSS keys through ACCP's RSA KeyFactory
+    final KeyFactory accpKf = KeyFactory.getInstance("RSA", NATIVE_PROVIDER);
+    final PublicKey accpPub =
+        accpKf.generatePublic(
+            new java.security.spec.X509EncodedKeySpec(pssKeyPair.getPublic().getEncoded()));
+    assertEquals("RSA", accpPub.getAlgorithm());
+    final PrivateKey accpPriv =
+        accpKf.generatePrivate(
+            new java.security.spec.PKCS8EncodedKeySpec(pssKeyPair.getPrivate().getEncoded()));
+    assertEquals("RSA", accpPriv.getAlgorithm());
+
+    // Use translated keys to sign and verify
+    final PSSParameterSpec pssSpec =
+        new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
+    final Signature signer = Signature.getInstance("RSASSA-PSS", NATIVE_PROVIDER);
+    signer.setParameter(pssSpec);
+    signer.initSign(accpPriv);
+    signer.update(MESSAGE);
+    final byte[] signature = signer.sign();
+
+    final Signature verifier = Signature.getInstance("RSASSA-PSS", NATIVE_PROVIDER);
+    verifier.setParameter(pssSpec);
+    verifier.initVerify(accpPub);
+    verifier.update(MESSAGE);
+    assertTrue(verifier.verify(signature));
+  }
+
   @SuppressWarnings("serial")
   private static class RawKey implements PublicKey, PrivateKey {
     private final String algorithm_;
