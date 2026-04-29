@@ -354,12 +354,26 @@ public final class AesGcmSivTest {
   }
 
   @Test
-  public void rejectsIvParameterSpec() throws GeneralSecurityException {
+  public void acceptsIvParameterSpec() throws GeneralSecurityException {
+    final SecretKey key = new SecretKeySpec(new byte[16], "AES");
+    final byte[] plaintext = "iv param spec".getBytes();
+
+    final Cipher enc = Cipher.getInstance(ALGO, NATIVE_PROVIDER);
+    enc.init(Cipher.ENCRYPT_MODE, key, new IvParameterSpec(new byte[12]));
+    final byte[] ct = enc.doFinal(plaintext);
+
+    final Cipher dec = Cipher.getInstance(ALGO, NATIVE_PROVIDER);
+    dec.init(Cipher.DECRYPT_MODE, key, new IvParameterSpec(new byte[12]));
+    assertArrayEquals(plaintext, dec.doFinal(ct));
+  }
+
+  @Test
+  public void rejectsIvParameterSpecWrongLength() throws GeneralSecurityException {
     final SecretKey key = new SecretKeySpec(new byte[16], "AES");
     final Cipher cipher = Cipher.getInstance(ALGO, NATIVE_PROVIDER);
     assertThrows(
         InvalidAlgorithmParameterException.class,
-        () -> cipher.init(Cipher.ENCRYPT_MODE, key, new IvParameterSpec(new byte[12])));
+        () -> cipher.init(Cipher.ENCRYPT_MODE, key, new IvParameterSpec(new byte[16])));
   }
 
   // -----------------------------------------------------------------------

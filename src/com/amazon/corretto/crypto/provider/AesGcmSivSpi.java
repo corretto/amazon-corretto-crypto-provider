@@ -25,6 +25,7 @@ import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.ShortBufferException;
 import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.IvParameterSpec;
 
 /**
  * JCE CipherSpi implementation for AES-GCM-SIV (RFC 8452).
@@ -606,8 +607,11 @@ final class AesGcmSivSpi extends CipherSpi {
             "AES-GCM-SIV requires a 128-bit tag; got " + gcmSpec.getTLen() + " bits");
       }
       iv = gcmSpec.getIV();
+    } else if (spec instanceof IvParameterSpec) {
+      iv = ((IvParameterSpec) spec).getIV();
     } else {
-      throw new InvalidAlgorithmParameterException("AES-GCM-SIV requires a GCMParameterSpec");
+      throw new InvalidAlgorithmParameterException(
+          "AES-GCM-SIV requires a GCMParameterSpec or IvParameterSpec");
     }
     if (iv == null || iv.length != NONCE_LENGTH_BYTES) {
       throw new InvalidAlgorithmParameterException(
