@@ -3,7 +3,6 @@
 package com.amazon.corretto.crypto.provider.test;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
