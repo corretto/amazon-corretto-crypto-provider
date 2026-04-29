@@ -25,7 +25,7 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 
 /** Miscellaneous utility methods. */
-final class Utils {
+public final class Utils {
   static final int SHA1_CODE = 1;
   static final int SHA256_CODE = 2;
   static final int SHA384_CODE = 3;
@@ -69,12 +69,17 @@ final class Utils {
     return getDigestLength(getEvpMdFromName(digestName));
   }
 
-  static String jceDigestNameToAwsLcName(final String jceName) {
+  public static String jceDigestNameToAwsLcName(final String jceName) {
     if (jceName == null) {
       return null;
     }
+    final String upper = jceName.toUpperCase();
+    // SHA3 short names in AWS-LC retain their hyphen (e.g. "SHA3-256"), so don't strip it.
+    if (upper.startsWith("SHA3-")) {
+      return upper;
+    }
     // e.g. "SHA-512/256" => "SHA512-256"
-    return jceName.replace("-", "").replace("/", "-").toUpperCase();
+    return upper.replace("-", "").replace("/", "-");
   }
 
   /**

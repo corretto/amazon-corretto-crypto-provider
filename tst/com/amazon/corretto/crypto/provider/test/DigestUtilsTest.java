@@ -113,6 +113,90 @@ public class DigestUtilsTest {
     0x04,
     0x20
   };
+  private static final byte[] SHA3_224_PREFIX = {
+    0x30,
+    0x2d,
+    0x30,
+    0x0d,
+    0x06,
+    0x09,
+    0x60,
+    (byte) 0x86,
+    0x48,
+    0x01,
+    0x65,
+    0x03,
+    0x04,
+    0x02,
+    0x07,
+    0x05,
+    0x00,
+    0x04,
+    0x1c
+  };
+  private static final byte[] SHA3_256_PREFIX = {
+    0x30,
+    0x31,
+    0x30,
+    0x0d,
+    0x06,
+    0x09,
+    0x60,
+    (byte) 0x86,
+    0x48,
+    0x01,
+    0x65,
+    0x03,
+    0x04,
+    0x02,
+    0x08,
+    0x05,
+    0x00,
+    0x04,
+    0x20
+  };
+  private static final byte[] SHA3_384_PREFIX = {
+    0x30,
+    0x41,
+    0x30,
+    0x0d,
+    0x06,
+    0x09,
+    0x60,
+    (byte) 0x86,
+    0x48,
+    0x01,
+    0x65,
+    0x03,
+    0x04,
+    0x02,
+    0x09,
+    0x05,
+    0x00,
+    0x04,
+    0x30
+  };
+  private static final byte[] SHA3_512_PREFIX = {
+    0x30,
+    0x51,
+    0x30,
+    0x0d,
+    0x06,
+    0x09,
+    0x60,
+    (byte) 0x86,
+    0x48,
+    0x01,
+    0x65,
+    0x03,
+    0x04,
+    0x02,
+    0x0a,
+    0x05,
+    0x00,
+    0x04,
+    0x40
+  };
 
   private static byte[] concat(byte[] a, byte[] b) {
     byte[] out = new byte[a.length + b.length];
@@ -155,10 +239,45 @@ public class DigestUtilsTest {
   }
 
   @Test
-  public void testSha512Trunc256() throws Exception {
+  public void testSha512_256() throws Exception {
     byte[] digest = MessageDigest.getInstance("SHA-512/256").digest("hello".getBytes());
     byte[] wrapped = DigestUtils.digestInfoWrap("SHA-512/256", digest);
     assertArrayEquals(concat(SHA512_256_PREFIX, digest), wrapped);
+  }
+
+  // ACCP doesn't support SHA3 yet (see PR 485). Until then, simulate SHA3 hashes with
+  // filled arrays to test below.
+
+  @Test
+  public void testSha3_224() {
+    byte[] digest = new byte[28];
+    Arrays.fill(digest, (byte) 0x11);
+    byte[] wrapped = DigestUtils.digestInfoWrap("SHA3-224", digest);
+    assertArrayEquals(concat(SHA3_224_PREFIX, digest), wrapped);
+  }
+
+  @Test
+  public void testSha3_256() {
+    byte[] digest = new byte[32];
+    Arrays.fill(digest, (byte) 0x22);
+    byte[] wrapped = DigestUtils.digestInfoWrap("SHA3-256", digest);
+    assertArrayEquals(concat(SHA3_256_PREFIX, digest), wrapped);
+  }
+
+  @Test
+  public void testSha3_384() {
+    byte[] digest = new byte[48];
+    Arrays.fill(digest, (byte) 0x33);
+    byte[] wrapped = DigestUtils.digestInfoWrap("SHA3-384", digest);
+    assertArrayEquals(concat(SHA3_384_PREFIX, digest), wrapped);
+  }
+
+  @Test
+  public void testSha3_512() {
+    byte[] digest = new byte[64];
+    Arrays.fill(digest, (byte) 0x44);
+    byte[] wrapped = DigestUtils.digestInfoWrap("SHA3-512", digest);
+    assertArrayEquals(concat(SHA3_512_PREFIX, digest), wrapped);
   }
 
   @Test

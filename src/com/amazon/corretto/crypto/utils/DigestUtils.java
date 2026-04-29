@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.amazon.corretto.crypto.utils;
 
+import com.amazon.corretto.crypto.provider.Utils;
+
 /** Public utility methods for message digest operations. */
 public final class DigestUtils {
   private DigestUtils() {} // private constructor to prevent instantiation
@@ -38,9 +40,6 @@ public final class DigestUtils {
     if (digestBytes == null) {
       throw new IllegalArgumentException("digestBytes must not be null");
     }
-    // Normalize JCE digest names (e.g., "SHA-256" -> "SHA256", "SHA-512/256" -> "SHA512-256")
-    // to the form accepted by AWS-LC's EVP_get_digestbyname.
-    final String awsLcName = digestName.replace("-", "").replace("/", "-").toUpperCase();
-    return digestInfoWrapInternal(awsLcName, digestBytes);
+    return digestInfoWrapInternal(Utils.jceDigestNameToAwsLcName(digestName), digestBytes);
   }
 }
