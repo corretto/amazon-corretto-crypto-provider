@@ -25,7 +25,7 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 
 /** Miscellaneous utility methods. */
-public final class Utils {
+final class Utils {
   static final int SHA1_CODE = 1;
   static final int SHA256_CODE = 2;
   static final int SHA384_CODE = 3;
@@ -69,17 +69,12 @@ public final class Utils {
     return getDigestLength(getEvpMdFromName(digestName));
   }
 
-  public static String jceDigestNameToAwsLcName(final String jceName) {
+  static String jceDigestNameToAwsLcName(final String jceName) {
     if (jceName == null) {
       return null;
     }
-    final String upper = jceName.toUpperCase();
-    // SHA3 short names in AWS-LC retain their hyphen (e.g. "SHA3-256"), so don't strip it.
-    if (upper.startsWith("SHA3-")) {
-      return upper;
-    }
     // e.g. "SHA-512/256" => "SHA512-256"
-    return upper.replace("-", "").replace("/", "-");
+    return jceName.replace("-", "").replace("/", "-").toUpperCase();
   }
 
   /**
@@ -379,7 +374,7 @@ public final class Utils {
     }
   }
 
-  public static void testDigest(MessageDigest md, byte[] message, byte[] expected) {
+  static void testDigest(MessageDigest md, byte[] message, byte[] expected) {
     final int[] lengths = new int[] {1, 3, 4, 7, 8, 16, 32, 48, 64, 128, 256};
     final String alg = md.getAlgorithm();
     assertArrayEquals(alg, expected, md.digest(message));
@@ -652,7 +647,7 @@ public final class Utils {
 
   static native void releaseEvpCipherCtx(long ctxPtr);
 
-  public static byte[] checkAesKey(final Key key) throws InvalidKeyException {
+  static byte[] checkAesKey(final Key key) throws InvalidKeyException {
     if (key == null) {
       throw new InvalidKeyException("Key can't be null");
     }

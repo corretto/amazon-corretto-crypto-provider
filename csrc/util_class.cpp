@@ -298,13 +298,13 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_utils_DigestUtils_d
             }
             env->SetByteArrayRegion(result, 0, (jsize)out_msg_len, (const jbyte*)out_msg);
         } catch (...) {
-            if (is_alloced && out_msg) {
+            if (is_alloced) {
                 OPENSSL_free(out_msg);
             }
             env->ReleaseByteArrayElements(digestBytes, digest, JNI_ABORT);
             throw;
         }
-        if (is_alloced && out_msg) {
+        if (is_alloced) {
             OPENSSL_free(out_msg);
         }
         env->ReleaseByteArrayElements(digestBytes, digest, JNI_ABORT);
