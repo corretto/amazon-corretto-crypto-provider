@@ -41,7 +41,6 @@ public final class DigestUtils {
     return digestInfoWrapInternal(normalizeDigestName(digestName), digestBytes);
   }
 
-
   private static String normalizeDigestName(final String jceName) {
     if (jceName == null) {
       return null;
@@ -54,6 +53,4 @@ public final class DigestUtils {
     // e.g. "SHA-512/256" => "SHA512-256"
     return upper.replace("-", "").replace("/", "-");
   }
-
-
 }
