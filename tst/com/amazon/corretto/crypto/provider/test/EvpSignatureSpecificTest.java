@@ -210,7 +210,7 @@ public final class EvpSignatureSpecificTest {
 
     for (int bitpos = 0; bitpos < signature.length * 8; bitpos++) {
       byte[] badSignature = signature.clone();
-      badSignature[bitpos / 8] ^= (1 << (bitpos % 8));
+      badSignature[bitpos / 8] ^= (byte) (1 << (bitpos % 8));
 
       sig.update(message);
       try {
