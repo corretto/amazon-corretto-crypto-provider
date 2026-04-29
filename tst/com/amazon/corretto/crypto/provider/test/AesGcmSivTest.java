@@ -654,7 +654,8 @@ public final class AesGcmSivTest {
   public void decryptWithoutNonceThrows() throws GeneralSecurityException {
     final SecretKey key = new SecretKeySpec(new byte[16], "AES");
     final Cipher cipher = Cipher.getInstance(ALGO, NATIVE_PROVIDER);
-    assertThrows(InvalidKeyException.class, () -> cipher.init(Cipher.DECRYPT_MODE, key, new SecureRandom()));
+    assertThrows(
+        InvalidKeyException.class, () -> cipher.init(Cipher.DECRYPT_MODE, key, new SecureRandom()));
   }
 
   // -----------------------------------------------------------------------
