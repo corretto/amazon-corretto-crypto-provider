@@ -374,7 +374,7 @@ final class Utils {
     }
   }
 
-  public static void testDigest(MessageDigest md, byte[] message, byte[] expected) {
+  static void testDigest(MessageDigest md, byte[] message, byte[] expected) {
     final int[] lengths = new int[] {1, 3, 4, 7, 8, 16, 32, 48, 64, 128, 256};
     final String alg = md.getAlgorithm();
     assertArrayEquals(alg, expected, md.digest(message));
@@ -649,7 +649,7 @@ final class Utils {
 
   static native void releaseEvpAeadCtx(long ctxPtr);
 
-  public static byte[] checkAesKey(final Key key) throws InvalidKeyException {
+  static byte[] checkAesKey(final Key key) throws InvalidKeyException {
     if (key == null) {
       throw new InvalidKeyException("Key can't be null");
     }

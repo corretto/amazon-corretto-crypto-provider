@@ -81,15 +81,16 @@ Signature algorithms:
 * RSASSA-PSS
 * NONEwithRSASSA-PSS
 * NONEwithRSA
-* ED25519 (JDK 15+)
-* ED25519ph (JDK 15+)
+* ED25519
+* ED25519ph
+* NONEwithED25519ph
 * ML-DSA
 * ML-DSA-ExtMu
 
 KeyPairGenerator:
 * EC
 * RSA
-* ED25519 (JDK 15+)
+* ED25519
 * X25519 (JDK ≥11)
 
 KeyGenerator:

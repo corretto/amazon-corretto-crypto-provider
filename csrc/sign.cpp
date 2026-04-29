@@ -69,39 +69,48 @@ bool initializeContext(raii_env& env,
     ctx->setKey(pKey);
 
 #if defined(FIPS_BUILD) && !defined(EXPERIMENTAL_FIPS_BUILD)
-    if (md != nullptr || EVP_PKEY_id(pKey) == EVP_PKEY_ED25519) {
+    bool useDigestPath = (md != nullptr || EVP_PKEY_id(pKey) == EVP_PKEY_ED25519);
 #else
-    if (md != nullptr || EVP_PKEY_id(pKey) == EVP_PKEY_ED25519 || (EVP_PKEY_id(pKey) == EVP_PKEY_PQDSA && !preHash)) {
+    bool useDigestPath
+        = (md != nullptr || EVP_PKEY_id(pKey) == EVP_PKEY_ED25519 || (EVP_PKEY_id(pKey) == EVP_PKEY_PQDSA && !preHash));
 #endif
+
+#if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
+    if (preHash && EVP_PKEY_id(pKey) == EVP_PKEY_ED25519) {
+        // ED25519 and ED25519PH (pre-hash) have different NIDs, but share an OID, so we treat them as a common
+        // EvpKeyType in the java layer. So, if an EVP_PKEY_ED25519 pkey is initialized as |preHash|, we need to
+        // replace |ctx|'s EVP_PKEY* with an EVP_PKEY_ED25519PH (pre-hash) pkey newly constructed from the current
+        // key's key material.
+        if (signMode) {
+            size_t raw_len;
+            CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(ctx->getKey(), nullptr, &raw_len));
+            std::vector<uint8_t, SecureAlloc<uint8_t> > raw_bytes(raw_len);
+            CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(ctx->getKey(), raw_bytes.data(), &raw_len));
+            CHECK_OPENSSL(
+                ctx->setKey(EVP_PKEY_new_raw_private_key(EVP_PKEY_ED25519PH, nullptr, raw_bytes.data(), raw_len)));
+            CHECK_OPENSSL(ctx->setKeyCtx(EVP_PKEY_CTX_new(ctx->getKey(), nullptr)));
+        } else {
+            size_t raw_len;
+            CHECK_OPENSSL(EVP_PKEY_get_raw_public_key(ctx->getKey(), nullptr, &raw_len));
+            std::vector<uint8_t> raw_bytes(raw_len);
+            CHECK_OPENSSL(EVP_PKEY_get_raw_public_key(ctx->getKey(), raw_bytes.data(), &raw_len));
+            CHECK_OPENSSL(
+                ctx->setKey(EVP_PKEY_new_raw_public_key(EVP_PKEY_ED25519PH, nullptr, raw_bytes.data(), raw_len)));
+            CHECK_OPENSSL(ctx->setKeyCtx(EVP_PKEY_CTX_new(ctx->getKey(), nullptr)));
+        }
+        // When md is nullptr (NONEwithEd25519ph), the caller provides the pre-hashed digest directly,
+        // so we use the raw EVP_PKEY_sign/verify path. When md is set (Ed25519ph), the implementation
+        // handles hashing internally via the digest path.
+        if (md == nullptr) {
+            useDigestPath = false;
+        }
+    }
+#endif
+
+    if (useDigestPath) {
         if (!ctx->setDigestCtx(EVP_MD_CTX_create())) {
             throw_openssl("Unable to create MD_CTX");
         }
-
-#if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
-        if (preHash && EVP_PKEY_id(pKey) == EVP_PKEY_ED25519) {
-            // ED25519 and ED25519PH (pre-hash) have different NIDs, but share an OID, so we treat them as a common
-            // EvpKeyType in the java layer. So, if an EVP_PKEY_ED25519 pkey is initialized as |preHash|, we need to
-            // replace |ctx|'s EVP_PKEY* with an EVP_PKEY_ED25519PH (pre-hash) pkey newly constructed from the current
-            // key's key material.
-            if (signMode) {
-                size_t raw_len;
-                CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(ctx->getKey(), nullptr, &raw_len));
-                std::vector<uint8_t, SecureAlloc<uint8_t> > raw_bytes(raw_len);
-                CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(ctx->getKey(), raw_bytes.data(), &raw_len));
-                CHECK_OPENSSL(
-                    ctx->setKey(EVP_PKEY_new_raw_private_key(EVP_PKEY_ED25519PH, nullptr, raw_bytes.data(), raw_len)));
-                CHECK_OPENSSL(ctx->setKeyCtx(EVP_PKEY_CTX_new(ctx->getKey(), nullptr)));
-            } else {
-                size_t raw_len;
-                CHECK_OPENSSL(EVP_PKEY_get_raw_public_key(ctx->getKey(), nullptr, &raw_len));
-                std::vector<uint8_t> raw_bytes(raw_len);
-                CHECK_OPENSSL(EVP_PKEY_get_raw_public_key(ctx->getKey(), raw_bytes.data(), &raw_len));
-                CHECK_OPENSSL(
-                    ctx->setKey(EVP_PKEY_new_raw_public_key(EVP_PKEY_ED25519PH, nullptr, raw_bytes.data(), raw_len)));
-                CHECK_OPENSSL(ctx->setKeyCtx(EVP_PKEY_CTX_new(ctx->getKey(), nullptr)));
-            }
-        }
-#endif
 
         int result;
         if (signMode) {
@@ -130,7 +139,7 @@ bool initializeContext(raii_env& env,
         }
     }
 
-    if (EVP_PKEY_base_id(ctx->getKey()) == EVP_PKEY_RSA) {
+    if (isRsaKeyType(EVP_PKEY_base_id(ctx->getKey()))) {
         if (!configurePadding(env, pctx, paddingType, mgfMdPtr, pssSaltLen)) {
             throw_openssl("Unable to configure padding");
         }
@@ -383,7 +392,7 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
 
             // JCA/JCA requires us to try to throw an exception on corrupted signatures, but only if it isn't an RSA
             // signature
-            if (errorCode != 0 && keyType != EVP_PKEY_RSA) {
+            if (errorCode != 0 && !isRsaKeyType(keyType)) {
                 throw_java_ex(
                     EX_SIGNATURE_EXCEPTION, formatOpensslError(errorCode, "Unknown error verifying signature"));
             }
@@ -528,6 +537,12 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignatu
             signature.resize(sigLength);
         } else {
             jni_borrow message(env, messageBuf, "message");
+            // signRaw called w/ preHash && EVP_PKEY_ED25519 indicates NONEwithEd25519ph, so input message length
+            // MUST be the size of a SHA512 digest.
+            if (preHash && keyType == EVP_PKEY_ED25519 && message.len() != SHA512_DIGEST_LENGTH) {
+                throw_java_ex(
+                    EX_SIGNATURE_EXCEPTION, "NONEwithEd25519ph input must be exactly 64 bytes (SHA-512 digest)");
+            }
 
             if (EVP_PKEY_sign(ctx.getKeyCtx(), NULL, &sigLength, message.data(), message.len()) <= 0) {
                 throw_openssl("Signature failed");
@@ -591,6 +606,13 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
             ret = EVP_DigestVerify(
                 ctx.getDigestCtx(), signature.data(), signature.len(), message.data(), message.len());
         } else {
+            // verifyRaw called w/ preHash && EVP_PKEY_ED25519 indicates NONEwithEd25519ph, so input message length
+            // MUST be the size of a SHA512 digest.
+            if (preHash && keyType == EVP_PKEY_ED25519 && message.len() != SHA512_DIGEST_LENGTH) {
+                throw_java_ex(
+                    EX_SIGNATURE_EXCEPTION, "NONEwithEd25519ph input must be exactly 64 bytes (SHA-512 digest)");
+            }
+
             ret = EVP_PKEY_verify(ctx.getKeyCtx(), signature.data(), signature.len(), message.data(), message.len());
         }
 
@@ -609,7 +631,7 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
 
             // JCA/JCA requires us to try to throw an exception on corrupted signatures, but only if it isn't an RSA
             // signature
-            if (errorCode != 0 && EVP_PKEY_base_id(ctx.getKey()) != EVP_PKEY_RSA) {
+            if (errorCode != 0 && !isRsaKeyType(EVP_PKEY_base_id(ctx.getKey()))) {
                 throw_java_ex(
                     EX_SIGNATURE_EXCEPTION, formatOpensslError(errorCode, "Unknown error verifying signature"));
             }
@@ -639,7 +661,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_NoneWithRs
         EVP_PKEY* key = reinterpret_cast<EVP_PKEY*>(pKey);
         const EVP_MD* md = reinterpret_cast<const EVP_MD*>(hashMd);
 
-        if (EVP_PKEY_base_id(key) != EVP_PKEY_RSA) {
+        if (!isRsaKeyType(EVP_PKEY_base_id(key))) {
             throw_java_ex(EX_SIGNATURE_EXCEPTION, "Key must be RSA");
         }
 
@@ -648,39 +670,39 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_NoneWithRs
             throw_java_ex(EX_SIGNATURE_EXCEPTION, "Failed to get RSA key");
         }
 
-        size_t hLen = EVP_MD_size(md);
-
-        if (static_cast<size_t>(length) != hLen) {
-            throw_java_ex(EX_SIGNATURE_EXCEPTION, "Digest length mismatch");
-        }
-
         java_buffer digestBuf = java_buffer::from_array(env, digestArr, offset, length);
 
         // Allocate output buffer for signature
-        size_t maxOut = RSA_size(rsa);
-        std::vector<uint8_t, SecureAlloc<uint8_t> > signature(maxOut);
+        const size_t rsaSize = RSA_size(rsa);
+        std::vector<uint8_t, SecureAlloc<uint8_t> > signature(rsaSize);
 
         // Borrow digest for the crypto call, release before creating Java array
+        size_t sigLen = 0;
         {
             jni_borrow digest(env, digestBuf, "digest");
 
             switch (paddingType) {
             case RSA_PKCS1_PSS_PADDING: {
+                if (static_cast<size_t>(length) != EVP_MD_size(md)) {
+                    throw_java_ex(EX_SIGNATURE_EXCEPTION, "Digest length mismatch");
+                }
                 const EVP_MD* mgf_md = reinterpret_cast<const EVP_MD*>(mgfMd);
-                size_t sigLen = 0;
-                if (RSA_sign_pss_mgf1(rsa, &sigLen, signature.data(), maxOut, digest.data(), hLen, md, mgf_md, saltLen)
+                if (RSA_sign_pss_mgf1(
+                        rsa, &sigLen, signature.data(), rsaSize, digest.data(), length, md, mgf_md, saltLen)
                     != 1) {
                     throw_openssl("RSA_sign_pss_mgf1 failed");
                 }
-                signature.resize(sigLen);
                 break;
             }
             case RSA_PKCS1_PADDING: {
-                unsigned int sigLen = 0;
-                if (RSA_sign(EVP_MD_type(md), digest.data(), hLen, signature.data(), &sigLen, rsa) != 1) {
-                    throw_openssl("RSA_sign failed");
+                if ((size_t)length > (rsaSize - 11)) { // PKCS1 padding is 11 bytes for raw NONEwithRSA
+                    throw_java_ex(EX_SIGNATURE_EXCEPTION, "Message too long for RSA key");
                 }
-                signature.resize(sigLen);
+                int rc
+                    = RSA_sign_raw(rsa, &sigLen, signature.data(), rsaSize, digest.data(), length, RSA_PKCS1_PADDING);
+                if (rc != 1) {
+                    throw_openssl("RSA_sign_raw failed");
+                }
                 break;
             }
             default:
@@ -688,6 +710,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_NoneWithRs
             }
         }
 
+        signature.resize(sigLen);
         return vecToArray(env, signature);
 
     } catch (java_ex& ex) {
@@ -716,19 +739,13 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_NoneWithRsa_
         EVP_PKEY* key = reinterpret_cast<EVP_PKEY*>(pKey);
         const EVP_MD* md = reinterpret_cast<const EVP_MD*>(hashMd);
 
-        if (EVP_PKEY_base_id(key) != EVP_PKEY_RSA) {
+        if (!isRsaKeyType(EVP_PKEY_base_id(key))) {
             throw_java_ex(EX_SIGNATURE_EXCEPTION, "Key must be RSA");
         }
 
         RSA* rsa = EVP_PKEY_get0_RSA(key);
         if (rsa == nullptr) {
             throw_java_ex(EX_SIGNATURE_EXCEPTION, "Failed to get RSA key");
-        }
-
-        size_t hLen = EVP_MD_size(md);
-
-        if (static_cast<size_t>(length) != hLen) {
-            throw_java_ex(EX_SIGNATURE_EXCEPTION, "Digest length mismatch");
         }
 
         java_buffer digestBuf = java_buffer::from_array(env, digestArr, offset, length);
@@ -740,13 +757,26 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_NoneWithRsa_
         int result = 0;
         switch (paddingType) {
         case RSA_PKCS1_PSS_PADDING: {
+            if (static_cast<size_t>(length) != EVP_MD_size(md)) {
+                throw_java_ex(EX_SIGNATURE_EXCEPTION, "Digest length mismatch");
+            }
             const EVP_MD* mgf_md = reinterpret_cast<const EVP_MD*>(mgfMd);
-            result = RSA_verify_pss_mgf1(rsa, digest.data(), hLen, md, mgf_md, saltLen, sig.data(), sig.len());
+            result = RSA_verify_pss_mgf1(rsa, digest.data(), length, md, mgf_md, saltLen, sig.data(), sig.len());
             break;
         }
-        case RSA_PKCS1_PADDING:
-            result = RSA_verify(EVP_MD_type(md), digest.data(), hLen, sig.data(), sig.len(), rsa);
+        case RSA_PKCS1_PADDING: {
+            if ((size_t)length > (RSA_size(rsa) - 11)) {
+                throw_java_ex(EX_SIGNATURE_EXCEPTION, "Message too long for RSA key");
+            }
+            size_t outLen = 0;
+            std::vector<uint8_t> buf(RSA_size(rsa));
+            if (1 != RSA_verify_raw(rsa, &outLen, buf.data(), buf.size(), sig.data(), sig.len(), RSA_PKCS1_PADDING)
+                || (size_t)length != outLen || 0 != CRYPTO_memcmp(buf.data(), digest.data(), outLen)) {
+                break; // result stays 0
+            }
+            result = 1;
             break;
+        }
         default:
             throw_java_ex(EX_RUNTIME_CRYPTO, "Unexpected padding type");
         }

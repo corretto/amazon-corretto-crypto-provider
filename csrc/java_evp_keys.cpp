@@ -104,8 +104,22 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_p
 
         {
             jni_borrow borrow = jni_borrow(env, pkcs8Buff, "pkcs8Buff");
-            result.set(der2EvpPrivateKey(borrow, derLen, evpType, shouldCheckPrivate, EX_INVALID_KEY_SPEC));
-            if (EVP_PKEY_base_id(result) != evpType) {
+            // RSASSA-PSS keys use OID id-RSASSA-PSS (1.2.840.113549.1.1.10) which
+            // causes d2i_PrivateKey(EVP_PKEY_RSA, ...) to fail. Retry with
+            // EVP_PKEY_RSA_PSS if the initial parse fails for an RSA key type.
+            try {
+                result.set(der2EvpPrivateKey(borrow, derLen, evpType, shouldCheckPrivate, EX_INVALID_KEY_SPEC));
+            } catch (java_ex&) {
+                if (evpType == EVP_PKEY_RSA) {
+                    ERR_clear_error();
+                    result.set(
+                        der2EvpPrivateKey(borrow, derLen, EVP_PKEY_RSA_PSS, shouldCheckPrivate, EX_INVALID_KEY_SPEC));
+                } else {
+                    throw;
+                }
+            }
+            int baseId = EVP_PKEY_base_id(result);
+            if (baseId != evpType && !(evpType == EVP_PKEY_RSA && baseId == EVP_PKEY_RSA_PSS)) {
                 throw_java_ex(EX_INVALID_KEY_SPEC, "Incorrect key type");
             }
         }
@@ -134,7 +148,8 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKeyFactory_x
         {
             jni_borrow borrow = jni_borrow(env, x509Buff, "x509Buff");
             result.set(der2EvpPublicKey(borrow, derLen, EX_INVALID_KEY_SPEC));
-            if (EVP_PKEY_base_id(result) != evpType) {
+            int baseId = EVP_PKEY_base_id(result);
+            if (baseId != evpType && !(evpType == EVP_PKEY_RSA && baseId == EVP_PKEY_RSA_PSS)) {
                 throw_java_ex(EX_INVALID_KEY_SPEC, "Incorrect key type");
             }
         }

@@ -76,10 +76,8 @@ Any time an instance of `SecureRandom` is used, ACCP routes the requests to the 
 Because the output of calls to `SecureRandom` is computationally indistinguishable from actual random data, this implementation detail has no impact on callers other than improving performance.
 
 ## NONEwithRSA pre-hashed signature
-ACCP's `NONEwithRSA` implements RSASSA-PKCS1-v1_5 (RFC 8017 Sec. 8.2) as a **pre-hashed, one-shot** signature algorithm. This differs from Sun and BouncyCastle's `NONEwithRSA` in several ways:
+ACCP's NONEwithRSA differs from Sun and BouncyCastle's `NONEwithRSA` in the following ways:
 
-- **Pre-hashed input only.** ACCP's `NONEwithRSA` expects a message digest (exactly matching the configured hash algorithm's output length) rather than arbitrary-length data. The caller must hash the message externally before calling `Signature.update()`.
-- **Digest algorithm selection via `PSSParameterSpec`.** The digest algorithm (which is only used to configure expected input length) defaults to SHA-256 and can be changed by calling `Signature.setParameter()` with a `PSSParameterSpec`. Only the digest algorithm field is used; the MGF, salt length, and trailer fields are ignored since they are PSS-specific. This differs from other providers where arbitrary input length is allowed. ACCP only supports "pre-hash" usages of `NONEwithRSA`, so restricts input length to digest length.
 - **One-shot semantics.** The complete digest must be provided in a single `update()` call. Byte-by-byte and incremental updates are not supported. Calling `update(byte)` always throws `SignatureException`.
 
 ## RSASSA-PSS Signature parameters may not be updated in-flight

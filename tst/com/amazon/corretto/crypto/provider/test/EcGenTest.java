@@ -21,6 +21,8 @@ import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.bouncycastle.asn1.ASN1Encodable;
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.ASN1Sequence;
@@ -378,7 +380,8 @@ public class EcGenTest {
 
   public static void assertECEquals(
       final String message, final ECGenParameterSpec expected, final ECGenParameterSpec actual) {
-    assertEquals(expected.getName(), actual.getName(), message);
+    assertEquals(
+        TestUtil.getCurveOid(expected.getName()), TestUtil.getCurveOid(actual.getName()), message);
   }
 
   private static class TestThread extends Thread {
@@ -403,5 +406,53 @@ public class EcGenTest {
         }
       }
     }
+  }
+
+  private static final String CURVE_NAME = "secp256r1";
+
+  private ECPublicKey createECPublicKey(Provider provider) throws GeneralSecurityException {
+    final KeyPairGenerator generator = KeyPairGenerator.getInstance("EC", provider);
+    generator.initialize(new ECGenParameterSpec(CURVE_NAME));
+    final KeyPair keyPair = generator.generateKeyPair();
+    return (ECPublicKey) keyPair.getPublic();
+  }
+
+  private void checkEcToStringOutput(ECPublicKey publicKey, String providerPrefix) {
+    final Pattern genericPattern =
+        Pattern.compile(
+            providerPrefix
+                + " "
+                + "EC public key, (\\d+) bits\\n"
+                + "  public x coord: ([0-9]+)\\n"
+                + "  public y coord: ([0-9]+)\\n"
+                + "  parameters: (.+)",
+            Pattern.DOTALL);
+    final Matcher matcher = genericPattern.matcher(publicKey.toString());
+    assertTrue(
+        matcher.find(),
+        providerPrefix
+            + " toString output should match expected pattern. Actual output:\n"
+            + publicKey.toString());
+
+    final ECPoint w = publicKey.getW();
+    assertTrue(
+        matcher.group(1).matches("\\d+"),
+        providerPrefix + " pattern should capture bit length as digits");
+    assertEquals(
+        w.getAffineX().toString(),
+        matcher.group(2),
+        providerPrefix + " pattern should capture correct x coordinate value");
+    assertEquals(
+        w.getAffineY().toString(),
+        matcher.group(3),
+        providerPrefix + " pattern should capture correct y coordinate value");
+    assertTrue(matcher.group(4).length() > 0, providerPrefix + " pattern should capture params");
+  }
+
+  @Test
+  public void testECPublicKeyToString() throws GeneralSecurityException {
+    checkEcToStringOutput(createECPublicKey(Security.getProvider("SunEC")), "Sun");
+    checkEcToStringOutput(
+        createECPublicKey(NATIVE_PROVIDER.INSTANCE), NATIVE_PROVIDER.PROVIDER_NAME);
   }
 }
