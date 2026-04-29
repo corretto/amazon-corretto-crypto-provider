@@ -42,9 +42,6 @@ public final class DigestUtils {
   }
 
   private static String normalizeDigestName(final String jceName) {
-    if (jceName == null) {
-      return null;
-    }
     final String upper = jceName.toUpperCase();
     // SHA3 short names in AWS-LC retain their hyphen (e.g. "SHA3-256"), so don't strip it.
     if (upper.startsWith("SHA3-")) {

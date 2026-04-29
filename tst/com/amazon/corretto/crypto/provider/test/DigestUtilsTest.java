@@ -29,6 +29,48 @@ public class DigestUtilsTest {
   private static final byte[] SHA1_PREFIX = {
     0x30, 0x21, 0x30, 0x09, 0x06, 0x05, 0x2b, 0x0e, 0x03, 0x02, 0x1a, 0x05, 0x00, 0x04, 0x14
   };
+  private static final byte[] SHA224_PREFIX = {
+    0x30,
+    0x2d,
+    0x30,
+    0x0d,
+    0x06,
+    0x09,
+    0x60,
+    (byte) 0x86,
+    0x48,
+    0x01,
+    0x65,
+    0x03,
+    0x04,
+    0x02,
+    0x04,
+    0x05,
+    0x00,
+    0x04,
+    0x1c
+  };
+  private static final byte[] SHA512_224_PREFIX = {
+    0x30,
+    0x2d,
+    0x30,
+    0x0d,
+    0x06,
+    0x09,
+    0x60,
+    (byte) 0x86,
+    0x48,
+    0x01,
+    0x65,
+    0x03,
+    0x04,
+    0x02,
+    0x05,
+    0x05,
+    0x00,
+    0x04,
+    0x1c
+  };
   private static final byte[] SHA256_PREFIX = {
     0x30,
     0x31,
@@ -211,7 +253,6 @@ public class DigestUtilsTest {
         MessageDigest.getInstance("SHA-256", NATIVE_PROVIDER).digest("hello".getBytes());
     byte[] wrapped = DigestUtils.digestInfoWrap("SHA-256", digest);
     assertArrayEquals(concat(SHA256_PREFIX, digest), wrapped);
-    assertEquals(digest.length + 19, wrapped.length);
   }
 
   @Test
@@ -219,7 +260,6 @@ public class DigestUtilsTest {
     byte[] digest = MessageDigest.getInstance("SHA-1", NATIVE_PROVIDER).digest("hello".getBytes());
     byte[] wrapped = DigestUtils.digestInfoWrap("SHA-1", digest);
     assertArrayEquals(concat(SHA1_PREFIX, digest), wrapped);
-    assertEquals(digest.length + 15, wrapped.length);
   }
 
   @Test
@@ -239,7 +279,24 @@ public class DigestUtilsTest {
   }
 
   @Test
+  public void testSha224() throws Exception {
+    // ACCP doesn't register SHA-224, so use the JDK default provider.
+    byte[] digest = MessageDigest.getInstance("SHA-224").digest("hello".getBytes());
+    byte[] wrapped = DigestUtils.digestInfoWrap("SHA-224", digest);
+    assertArrayEquals(concat(SHA224_PREFIX, digest), wrapped);
+  }
+
+  @Test
+  public void testSha512_224() throws Exception {
+    // Below uses JDK default provider as ACCP doesn't support truncated SHA-512 digests
+    byte[] digest = MessageDigest.getInstance("SHA-512/224").digest("hello".getBytes());
+    byte[] wrapped = DigestUtils.digestInfoWrap("SHA-512/224", digest);
+    assertArrayEquals(concat(SHA512_224_PREFIX, digest), wrapped);
+  }
+
+  @Test
   public void testSha512_256() throws Exception {
+    // Below uses JDK default provider as ACCP doesn't support truncated SHA-512 digests
     byte[] digest = MessageDigest.getInstance("SHA-512/256").digest("hello".getBytes());
     byte[] wrapped = DigestUtils.digestInfoWrap("SHA-512/256", digest);
     assertArrayEquals(concat(SHA512_256_PREFIX, digest), wrapped);
@@ -278,6 +335,13 @@ public class DigestUtilsTest {
     Arrays.fill(digest, (byte) 0x44);
     byte[] wrapped = DigestUtils.digestInfoWrap("SHA3-512", digest);
     assertArrayEquals(concat(SHA3_512_PREFIX, digest), wrapped);
+  }
+
+  @Test
+  public void testLowerCaseShaValid() throws Exception {
+    byte[] digest = new byte[32];
+    byte[] wrapped = DigestUtils.digestInfoWrap("sha-256", digest);
+    assertArrayEquals(concat(SHA256_PREFIX, digest), wrapped);
   }
 
   @Test

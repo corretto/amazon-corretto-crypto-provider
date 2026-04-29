@@ -273,7 +273,8 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_utils_DigestUtils_d
         jni_string md_name(env, digestName);
         const EVP_MD* md = EVP_get_digestbyname(md_name.native_str);
         if (md == nullptr) {
-            throw_java_ex(EX_ILLEGAL_ARGUMENT, "Unsupported digest algorithm");
+            throw_java_ex(
+                EX_ILLEGAL_ARGUMENT, std::string("Unsupported digest algorithm: ") + md_name.native_str);
         }
         const int hash_nid = EVP_MD_type(md);
 
