@@ -7,9 +7,11 @@ import static com.amazon.corretto.crypto.provider.test.TestUtil.assertArraysHexE
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.nio.ByteBuffer;
+import java.security.AlgorithmParameters;
 import java.security.GeneralSecurityException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
@@ -62,7 +64,7 @@ public final class AesGcmSivTest {
   private static final String N = "030000000000000000000000";
 
   // -----------------------------------------------------------------------
-  // RFC 8452 Appendix C.1 – AEAD_AES_128_GCM_SIV
+  // RFC 8452 Appendix C.1 - AEAD_AES_128_GCM_SIV
   // -----------------------------------------------------------------------
 
   // C.1, test 1: empty PT, empty AAD
@@ -98,7 +100,7 @@ public final class AesGcmSivTest {
   private static final String CT128_14 = "a8fe3e8707eb1f84fb28f8cb73de8e99e2f48a14";
 
   // -----------------------------------------------------------------------
-  // RFC 8452 Appendix C.2 – AEAD_AES_256_GCM_SIV
+  // RFC 8452 Appendix C.2 - AEAD_AES_256_GCM_SIV
   // -----------------------------------------------------------------------
 
   // C.2, test 1: empty PT, empty AAD
@@ -519,7 +521,7 @@ public final class AesGcmSivTest {
     enc.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(new byte[16], "AES"), spec);
     final byte[] ct1 = enc.doFinal(plaintext);
 
-    // Different key — ciphertext must differ
+    // Different key - ciphertext must differ
     final byte[] rawKey2 = new byte[16];
     rawKey2[0] = 1;
     enc.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(rawKey2, "AES"), spec);
@@ -611,5 +613,239 @@ public final class AesGcmSivTest {
       failures.forEach(error::addSuppressed);
       throw error;
     }
+  }
+
+  // -----------------------------------------------------------------------
+  // engineInit with random nonce (no AlgorithmParameterSpec)
+  // -----------------------------------------------------------------------
+
+  @Test
+  public void encryptWithRandomNonce() throws GeneralSecurityException {
+    final SecretKey key = new SecretKeySpec(new byte[16], "AES");
+    final Cipher enc = Cipher.getInstance(ALGO, NATIVE_PROVIDER);
+    enc.init(Cipher.ENCRYPT_MODE, key, new SecureRandom());
+    final byte[] nonce = enc.getIV();
+    assertNotNull(nonce);
+    assertEquals(12, nonce.length);
+
+    final byte[] plaintext = "random nonce test".getBytes();
+    final byte[] ct = enc.doFinal(plaintext);
+
+    final Cipher dec = Cipher.getInstance(ALGO, NATIVE_PROVIDER);
+    dec.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(128, nonce));
+    assertArrayEquals(plaintext, dec.doFinal(ct));
+  }
+
+  @Test
+  public void decryptWithoutNonceThrows() throws GeneralSecurityException {
+    final SecretKey key = new SecretKeySpec(new byte[16], "AES");
+    final Cipher cipher = Cipher.getInstance(ALGO, NATIVE_PROVIDER);
+    assertThrows(InvalidKeyException.class, () -> cipher.init(Cipher.DECRYPT_MODE, key, new SecureRandom()));
+  }
+
+  // -----------------------------------------------------------------------
+  // engineInit with AlgorithmParameters
+  // -----------------------------------------------------------------------
+
+  @Test
+  public void initWithAlgorithmParameters() throws GeneralSecurityException {
+    final SecretKey key = new SecretKeySpec(new byte[16], "AES");
+    final byte[] nonce = new byte[12];
+
+    final Cipher enc = Cipher.getInstance(ALGO, NATIVE_PROVIDER);
+    enc.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, nonce));
+    final AlgorithmParameters params = enc.getParameters();
+    assertNotNull(params);
+
+    final byte[] plaintext = "algo params test".getBytes();
+    final byte[] ct = enc.doFinal(plaintext);
+
+    final Cipher dec = Cipher.getInstance(ALGO, NATIVE_PROVIDER);
+    dec.init(Cipher.DECRYPT_MODE, key, params);
+    assertArrayEquals(plaintext, dec.doFinal(ct));
+  }
+
+  // -----------------------------------------------------------------------
+  // engineGetIV: null before init, 12 bytes after
+  // -----------------------------------------------------------------------
+
+  @Test
+  public void getIvBeforeInit() throws GeneralSecurityException {
+    final Cipher cipher = Cipher.getInstance(ALGO, NATIVE_PROVIDER);
+    assertNull(cipher.getIV());
+  }
+
+  @Test
+  public void getIvAfterInit() throws GeneralSecurityException {
+    final SecretKey key = new SecretKeySpec(new byte[16], "AES");
+    final byte[] nonce = new byte[12];
+    nonce[0] = 42;
+    final Cipher cipher = Cipher.getInstance(ALGO, NATIVE_PROVIDER);
+    cipher.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, nonce));
+    assertArrayEquals(nonce, cipher.getIV());
+  }
+
+  // -----------------------------------------------------------------------
+  // engineGetParameters: generates a fresh nonce when uninitialized
+  // -----------------------------------------------------------------------
+
+  @Test
+  public void getParametersBeforeInit() throws GeneralSecurityException {
+    final Cipher cipher = Cipher.getInstance(ALGO, NATIVE_PROVIDER);
+    final AlgorithmParameters params = cipher.getParameters();
+    assertNotNull(params);
+    final GCMParameterSpec spec = params.getParameterSpec(GCMParameterSpec.class);
+    assertEquals(12, spec.getIV().length);
+    assertEquals(128, spec.getTLen());
+  }
+
+  // -----------------------------------------------------------------------
+  // engineGetBlockSize
+  // -----------------------------------------------------------------------
+
+  @Test
+  public void getBlockSize() throws GeneralSecurityException {
+    final Cipher cipher = Cipher.getInstance(ALGO, NATIVE_PROVIDER);
+    assertEquals(16, cipher.getBlockSize());
+  }
+
+  // -----------------------------------------------------------------------
+  // engineUpdateAAD(ByteBuffer): array-backed and direct
+  // -----------------------------------------------------------------------
+
+  @Test
+  public void updateAadByteBufferArrayBacked() throws GeneralSecurityException {
+    final SecretKey key = new SecretKeySpec(new byte[16], "AES");
+    final GCMParameterSpec spec = new GCMParameterSpec(128, new byte[12]);
+    final byte[] plaintext = "aad bytebuffer".getBytes();
+    final byte[] aad = "associated".getBytes();
+
+    final Cipher enc = Cipher.getInstance(ALGO, NATIVE_PROVIDER);
+    enc.init(Cipher.ENCRYPT_MODE, key, spec);
+    enc.updateAAD(ByteBuffer.wrap(aad));
+    final byte[] ct = enc.doFinal(plaintext);
+
+    final Cipher dec = Cipher.getInstance(ALGO, NATIVE_PROVIDER);
+    dec.init(Cipher.DECRYPT_MODE, key, spec);
+    dec.updateAAD(ByteBuffer.wrap(aad));
+    assertArrayEquals(plaintext, dec.doFinal(ct));
+  }
+
+  @Test
+  public void updateAadByteBufferDirect() throws GeneralSecurityException {
+    final SecretKey key = new SecretKeySpec(new byte[16], "AES");
+    final GCMParameterSpec spec = new GCMParameterSpec(128, new byte[12]);
+    final byte[] plaintext = "aad direct buffer".getBytes();
+    final byte[] aad = "direct aad".getBytes();
+
+    final ByteBuffer aadBuf = ByteBuffer.allocateDirect(aad.length);
+    aadBuf.put(aad).flip();
+
+    final Cipher enc = Cipher.getInstance(ALGO, NATIVE_PROVIDER);
+    enc.init(Cipher.ENCRYPT_MODE, key, spec);
+    enc.updateAAD(aadBuf.duplicate());
+    final byte[] ct = enc.doFinal(plaintext);
+
+    final Cipher dec = Cipher.getInstance(ALGO, NATIVE_PROVIDER);
+    dec.init(Cipher.DECRYPT_MODE, key, spec);
+    dec.updateAAD(aadBuf.duplicate());
+    assertArrayEquals(plaintext, dec.doFinal(ct));
+  }
+
+  // -----------------------------------------------------------------------
+  // Wrap / Unwrap
+  // -----------------------------------------------------------------------
+
+  @Test
+  public void wrapAndUnwrap() throws GeneralSecurityException {
+    final SecretKey wrappingKey = new SecretKeySpec(new byte[16], "AES");
+    final SecretKey keyToWrap = new SecretKeySpec(new byte[32], "AES");
+    final GCMParameterSpec spec = new GCMParameterSpec(128, new byte[12]);
+
+    final Cipher enc = Cipher.getInstance(ALGO, NATIVE_PROVIDER);
+    enc.init(Cipher.WRAP_MODE, wrappingKey, spec);
+    final byte[] wrapped = enc.wrap(keyToWrap);
+
+    final Cipher dec = Cipher.getInstance(ALGO, NATIVE_PROVIDER);
+    dec.init(Cipher.UNWRAP_MODE, wrappingKey, spec);
+    final SecretKey recovered = (SecretKey) dec.unwrap(wrapped, "AES", Cipher.SECRET_KEY);
+
+    assertArrayEquals(keyToWrap.getEncoded(), recovered.getEncoded());
+  }
+
+  // -----------------------------------------------------------------------
+  // Decrypt with ciphertext shorter than the 16-byte tag
+  // -----------------------------------------------------------------------
+
+  @Test
+  public void decryptTooShortThrows() throws GeneralSecurityException {
+    final SecretKey key = new SecretKeySpec(new byte[16], "AES");
+    final Cipher dec = Cipher.getInstance(ALGO, NATIVE_PROVIDER);
+    dec.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(128, new byte[12]));
+    assertThrows(AEADBadTagException.class, () -> dec.doFinal(new byte[8]));
+  }
+
+  // -----------------------------------------------------------------------
+  // Same-key context caching: exercises the cached-context path in nSeal/nOpen
+  // -----------------------------------------------------------------------
+
+  @Test
+  public void sameKeyContextCachingEncrypt() throws GeneralSecurityException {
+    final SecretKey key = new SecretKeySpec(new byte[16], "AES");
+    final byte[] plaintext = "cache test".getBytes();
+
+    final Cipher enc = Cipher.getInstance(ALGO, NATIVE_PROVIDER);
+
+    // First call: new key, no cached context
+    enc.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, new byte[12]));
+    enc.doFinal(plaintext);
+
+    // Second call: same key bytes, context gets saved (sameKey=true -> saveNativeContext=true)
+    final byte[] nonce2 = new byte[12];
+    nonce2[0] = 1;
+    enc.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, nonce2));
+    enc.doFinal(plaintext);
+
+    // Third call: context != null, uses cached context
+    final byte[] nonce3 = new byte[12];
+    nonce3[0] = 2;
+    enc.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, nonce3));
+    final byte[] ct = enc.doFinal(plaintext);
+
+    // Verify correctness via decrypt
+    final Cipher dec = Cipher.getInstance(ALGO, NATIVE_PROVIDER);
+    dec.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(128, nonce3));
+    assertArrayEquals(plaintext, dec.doFinal(ct));
+  }
+
+  @Test
+  public void sameKeyContextCachingDecrypt() throws GeneralSecurityException {
+    final SecretKey key = new SecretKeySpec(new byte[16], "AES");
+    final byte[] plaintext = "cache decrypt test".getBytes();
+
+    // Pre-encrypt three ciphertexts with distinct nonces
+    final byte[][] nonces = {new byte[12], new byte[12], new byte[12]};
+    nonces[1][0] = 1;
+    nonces[2][0] = 2;
+    final byte[][] cts = new byte[3][];
+    for (int i = 0; i < 3; i++) {
+      final Cipher enc = Cipher.getInstance(ALGO, NATIVE_PROVIDER);
+      enc.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, nonces[i]));
+      cts[i] = enc.doFinal(plaintext);
+    }
+
+    final Cipher dec = Cipher.getInstance(ALGO, NATIVE_PROVIDER);
+
+    // First decrypt: no cached context
+    dec.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(128, nonces[0]));
+    dec.doFinal(cts[0]);
+
+    // Second decrypt: sameKey=true, context saved
+    dec.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(128, nonces[1]));
+    dec.doFinal(cts[1]);
+
+    // Third decrypt: context != null, uses cached context
+    dec.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(128, nonces[2]));
+    assertArrayEquals(plaintext, dec.doFinal(cts[2]));
   }
 }
