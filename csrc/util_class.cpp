@@ -283,6 +283,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_utils_DigestUtils_d
         int is_alloced = 0;
         if (1 != RSA_add_pkcs1_prefix(
                 &out_msg, &out_msg_len, &is_alloced, hash_nid, (const uint8_t*)digest, (size_t)digest_len)) {
+            ERR_clear_error();
             throw_java_ex(EX_ILLEGAL_ARGUMENT, "RSA_add_pkcs1_prefix failed");
         }
         if (!(result = env->NewByteArray((jsize)out_msg_len))) {
