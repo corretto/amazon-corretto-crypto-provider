@@ -647,6 +647,8 @@ final class Utils {
 
   static native void releaseEvpCipherCtx(long ctxPtr);
 
+  static native void releaseEvpAeadCtx(long ctxPtr);
+
   static byte[] checkAesKey(final Key key) throws InvalidKeyException {
     if (key == null) {
       throw new InvalidKeyException("Key can't be null");
