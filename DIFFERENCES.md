@@ -86,12 +86,14 @@ To prevent callers from corrupting their signatures, we forbid them from updatin
 # Extensions
 Applications are unlikely to directly encounter any of these changes but may choose to take advantage of them.
 
-## AES-GCM-SIV rejects IvParameterSpec and enforces fixed nonce and tag length
-Unlike `AES/GCM/NoPadding`, ACCP's `AES/GCM-SIV/NoPadding` implementation does **not** accept
-[IvParameterSpec](https://docs.oracle.com/javase/8/docs/api/javax/crypto/spec/IvParameterSpec.html).
-Callers must use [GCMParameterSpec](https://docs.oracle.com/javase/8/docs/api/javax/crypto/spec/GCMParameterSpec.html)
-with exactly a 12-byte nonce and a 128-bit tag length, as required by [RFC 8452](https://www.rfc-editor.org/rfc/rfc8452).
-Any other combination will throw `InvalidAlgorithmParameterException`.
+## AES-GCM-SIV enforces a fixed 12-byte nonce and 128-bit tag length
+`AES/GCM-SIV/NoPadding` accepts either
+[GCMParameterSpec](https://docs.oracle.com/javase/8/docs/api/javax/crypto/spec/GCMParameterSpec.html)
+or [IvParameterSpec](https://docs.oracle.com/javase/8/docs/api/javax/crypto/spec/IvParameterSpec.html)
+to supply the nonce. In both cases the nonce must be exactly 12 bytes, as required by
+[RFC 8452](https://www.rfc-editor.org/rfc/rfc8452). When using `GCMParameterSpec`, the tag
+length must be 128 bits — any other value throws `InvalidAlgorithmParameterException`. When using
+`IvParameterSpec`, the 128-bit tag length is implicit (it is the only tag length supported).
 Only 128-bit and 256-bit AES keys are supported; 192-bit keys will throw `InvalidKeyException`.
 
 ## AES-GCM-SIV tolerates nonce reuse
