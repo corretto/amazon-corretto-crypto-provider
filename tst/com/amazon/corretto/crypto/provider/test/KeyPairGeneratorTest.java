@@ -10,6 +10,7 @@ import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.security.SecureRandom;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.parallel.Execution;
@@ -31,7 +32,7 @@ public class KeyPairGeneratorTest {
   }
 
   @Test
-  public void generateXECKeys() {
+  public void testGenerateXECKeys() {
     TestUtil.assumeMinimumJavaVersion(11);
     final KeyPairGenerator keyPairGenerator = getXECKeyPairGenerator();
     assertEquals("X25519", keyPairGenerator.getAlgorithm());
@@ -50,5 +51,13 @@ public class KeyPairGeneratorTest {
     assertEquals("X.509", publicKey.getFormat());
     assertEquals("XDH", publicKey.getAlgorithm());
     assertEquals(44, publicKey.getEncoded().length);
+  }
+
+  @Test
+  public void testInitKeyPairNoOp() {
+    TestUtil.assumeMinimumJavaVersion(11);
+    final KeyPairGenerator keyPairGenerator = getXECKeyPairGenerator();
+    keyPairGenerator.initialize(123, new SecureRandom());
+    keyPairGenerator.generateKeyPair();
   }
 }

@@ -27,7 +27,7 @@ abstract class EvpKeyPairGenerator extends KeyPairGeneratorSpi {
 
   @Override
   public void initialize(final int keysize, final SecureRandom random) {
-    throw new UnsupportedOperationException();
+    // No-op for compatibility
   }
 
   // Provides an appropriate KeyFactory for this key type
