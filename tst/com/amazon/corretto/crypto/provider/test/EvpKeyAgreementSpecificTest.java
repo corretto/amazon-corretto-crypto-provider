@@ -73,19 +73,20 @@ public class EvpKeyAgreementSpecificTest {
 
   @Test
   public void testXECKeyAgreementWithBouncyCastle() throws Exception {
+    TestUtil.assumeMinimumJavaVersion(17);
     assertAccpXECKeysInteropWith("X25519", TestUtil.BC_PROVIDER);
     assertAccpXECKeysInteropWith("XDH", TestUtil.BC_PROVIDER);
   }
 
   @Test
   public void testXECKeyAgreementWithSunEC() throws Exception {
+    TestUtil.assumeMinimumJavaVersion(17);
     assertAccpXECKeysInteropWith("X25519", Security.getProvider("SunEC"));
     assertAccpXECKeysInteropWith("XDH", Security.getProvider("SunEC"));
   }
 
   private static void assertAccpXECKeysInteropWith(final String algorithm, final Provider provider)
       throws Exception {
-    TestUtil.assumeMinimumJavaVersion(11);
     final KeyPairGenerator keyPairGenerator =
         KeyPairGenerator.getInstance(algorithm, NATIVE_PROVIDER);
     final KeyPair aliceKeyPair = keyPairGenerator.generateKeyPair();
