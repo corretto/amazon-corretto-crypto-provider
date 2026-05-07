@@ -398,7 +398,14 @@ final class AesGcmSpi extends CipherSpi {
       final byte[] newIv)
       throws InvalidAlgorithmParameterException {
 
-    final boolean sameKey = ConstantTime.equals(lastKey, newKey);
+    // The cached EVP_CIPHER_CTX retains its ivlen from the prior init.
+    // Reusing it with a new IV of a different length would either read past
+    // the new IV buffer or silently truncate the nonce, so treat differing
+    // IV lengths as a key change to force a full native re-init.
+    final boolean secretKeyIsTheSame = ConstantTime.equals(lastKey, newKey);
+    final boolean ivLengthIsTheSame =
+        lastIv != null && newIv != null && lastIv.length == newIv.length;
+    final boolean sameKey = secretKeyIsTheSame && ivLengthIsTheSame;
 
     if (sameKey
         && (jceOpMode == Cipher.ENCRYPT_MODE || jceOpMode == Cipher.WRAP_MODE)
