@@ -15,6 +15,7 @@ import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.Provider;
+import java.security.SecureRandom;
 import java.security.Security;
 import java.security.interfaces.ECPublicKey;
 import java.security.spec.ECGenParameterSpec;
@@ -89,6 +90,9 @@ public class EvpKeyAgreementSpecificTest {
       throws Exception {
     final KeyPairGenerator keyPairGenerator =
         KeyPairGenerator.getInstance(algorithm, NATIVE_PROVIDER);
+    // Exercise the BC TLS compatibility path: callers may invoke initialize(int, SecureRandom)
+    // before generateKeyPair(). 255 is the X25519 key size in bits.
+    keyPairGenerator.initialize(255, new SecureRandom());
     final KeyPair aliceKeyPair = keyPairGenerator.generateKeyPair();
     final KeyPair bobKeyPair = keyPairGenerator.generateKeyPair();
 

@@ -89,14 +89,14 @@ KeyPairGenerator:
 * EC
 * RSA
 * ED25519
-* X25519 (JDK >11)
+* X25519 (JDK 12+)
 
 KeyGenerator:
 * AES
 
 KeyAgreement:
 * ECDH
-* X25519 (JDK >11)
+* X25519 (JDK 12+)
 
 KEM algorithms:
 * ML-KEM (JDK 17+ LTS, also see [ML-KEM Considerations](#ml-kem-considerations))
@@ -122,7 +122,7 @@ KeyFactory:
 * EC
 * RSA
 * ED25519 (JDK 15+). Please refer to [system properties](https://github.com/corretto/amazon-corretto-crypto-provider#other-system-properties) for more information.
-* X25519 (JDK >11)
+* X25519 (JDK 12+)
 
 AlgorithmParameters:
 * EC. Please refer to [system properties](https://github.com/corretto/amazon-corretto-crypto-provider#other-system-properties) for more information.

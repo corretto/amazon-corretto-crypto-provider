@@ -57,7 +57,9 @@ public class KeyPairGeneratorTest {
   public void testInitKeyPairNoOp() {
     TestUtil.assumeMinimumJavaVersion(17);
     final KeyPairGenerator keyPairGenerator = getXECKeyPairGenerator();
-    keyPairGenerator.initialize(123, new SecureRandom());
+    // 255 is X25519's key size in bits; ACCP ignores it (and the SecureRandom),
+    // but the call must not throw. This mirrors BouncyCastle TLS's invocation.
+    keyPairGenerator.initialize(255, new SecureRandom());
     keyPairGenerator.generateKeyPair();
   }
 }
