@@ -14,6 +14,9 @@ import java.security.Key;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.Provider;
+import java.security.SecureRandom;
+import java.security.Security;
 import java.security.interfaces.ECPublicKey;
 import java.security.spec.ECGenParameterSpec;
 import javax.crypto.KeyAgreement;
@@ -67,6 +70,43 @@ public class EvpKeyAgreementSpecificTest {
             agree(
                 EC_KEYPAIR.getPrivate(),
                 EvpKeyAgreementTest.buildKeyOnWrongCurve((ECPublicKey) EC_KEYPAIR.getPublic())));
+  }
+
+  @Test
+  public void testXECKeyAgreementWithBouncyCastle() throws Exception {
+    TestUtil.assumeMinimumJavaVersion(17);
+    assertAccpXECKeysInteropWith("X25519", TestUtil.BC_PROVIDER);
+    assertAccpXECKeysInteropWith("XDH", TestUtil.BC_PROVIDER);
+  }
+
+  @Test
+  public void testXECKeyAgreementWithSunEC() throws Exception {
+    TestUtil.assumeMinimumJavaVersion(17);
+    assertAccpXECKeysInteropWith("X25519", Security.getProvider("SunEC"));
+    assertAccpXECKeysInteropWith("XDH", Security.getProvider("SunEC"));
+  }
+
+  private static void assertAccpXECKeysInteropWith(final String algorithm, final Provider provider)
+      throws Exception {
+    final KeyPairGenerator keyPairGenerator =
+        KeyPairGenerator.getInstance(algorithm, NATIVE_PROVIDER);
+    // Exercise the BC TLS compatibility path: callers may invoke initialize(int, SecureRandom)
+    // before generateKeyPair(). 255 is the X25519 key size in bits.
+    keyPairGenerator.initialize(255, new SecureRandom());
+    final KeyPair aliceKeyPair = keyPairGenerator.generateKeyPair();
+    final KeyPair bobKeyPair = keyPairGenerator.generateKeyPair();
+
+    final KeyAgreement aliceAgreement = KeyAgreement.getInstance(algorithm, provider);
+    aliceAgreement.init(aliceKeyPair.getPrivate());
+    aliceAgreement.doPhase(bobKeyPair.getPublic(), true);
+    final byte[] aliceSecret = aliceAgreement.generateSecret();
+
+    final KeyAgreement bobAgreement = KeyAgreement.getInstance(algorithm, provider);
+    bobAgreement.init(bobKeyPair.getPrivate());
+    bobAgreement.doPhase(aliceKeyPair.getPublic(), true);
+    final byte[] bobSecret = bobAgreement.generateSecret();
+
+    assertArrayEquals(aliceSecret, bobSecret);
   }
 
   @Test

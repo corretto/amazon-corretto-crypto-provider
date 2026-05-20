@@ -602,7 +602,9 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
     this.shouldRegisterMLKEM = Utils.isMlKemSupported();
 
-    this.shouldRegisterX25519 = Utils.getJavaVersion() >= 11;
+    // XECKeys were introduced in JDK11, but ACCP's keys aren't compatible until JDK12+.
+    // See comment in XDHGen.java for more details.
+    this.shouldRegisterX25519 = Utils.getJavaVersion() > 11;
 
     this.nativeContextReleaseStrategy = Utils.getNativeContextReleaseStrategyProperty();
 

@@ -10,6 +10,7 @@ import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.security.SecureRandom;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.parallel.Execution;
@@ -22,18 +23,18 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 @ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
 public class KeyPairGeneratorTest {
 
-  KeyPairGenerator getXECKeyPairGenerator() {
+  KeyPairGenerator getKeyPairGenerator(String alg) {
     try {
-      return KeyPairGenerator.getInstance("X25519", TestUtil.NATIVE_PROVIDER);
+      return KeyPairGenerator.getInstance(alg, TestUtil.NATIVE_PROVIDER);
     } catch (final NoSuchAlgorithmException e) {
       throw new RuntimeException(e);
     }
   }
 
   @Test
-  public void generateXECKeys() {
-    TestUtil.assumeMinimumJavaVersion(11);
-    final KeyPairGenerator keyPairGenerator = getXECKeyPairGenerator();
+  public void testGenerateXECKeys() {
+    TestUtil.assumeMinimumJavaVersion(17);
+    final KeyPairGenerator keyPairGenerator = getKeyPairGenerator("X25519");
     assertEquals("X25519", keyPairGenerator.getAlgorithm());
 
     final KeyPair keyPair = keyPairGenerator.generateKeyPair();
@@ -50,5 +51,17 @@ public class KeyPairGeneratorTest {
     assertEquals("X.509", publicKey.getFormat());
     assertEquals("XDH", publicKey.getAlgorithm());
     assertEquals(44, publicKey.getEncoded().length);
+  }
+
+  @Test
+  public void testInitKeyPairNoOp() {
+    TestUtil.assumeMinimumJavaVersion(17);
+    for (String alg : new String[] {"Ed25519", "X25519"}) {
+      final KeyPairGenerator keyPairGenerator = getKeyPairGenerator(alg);
+      // 255 is Curve25519's key size in bits; ACCP ignores it (and the SecureRandom),
+      // but the call must not throw. This mirrors BouncyCastle TLS's invocation.
+      keyPairGenerator.initialize(255, new SecureRandom());
+      keyPairGenerator.generateKeyPair();
+    }
   }
 }
