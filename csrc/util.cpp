@@ -59,6 +59,8 @@ EVP_MD const* digest_code_to_EVP_MD(int digestCode)
         return EVP_sha384();
     case com_amazon_corretto_crypto_provider_Utils_SHA512_CODE:
         return EVP_sha512();
+    case com_amazon_corretto_crypto_provider_Utils_SHA224_CODE:
+        return EVP_sha224();
     default:
         throw java_ex(EX_ERROR, "THIS SHOULD NOT BE REACHABLE.");
     }
