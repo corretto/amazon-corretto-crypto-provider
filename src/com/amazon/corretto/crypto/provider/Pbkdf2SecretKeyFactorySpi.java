@@ -47,14 +47,8 @@ class Pbkdf2SecretKeyFactorySpi extends KdfSpi {
     final int iterations = spec.getIterationCount();
     final int keyLengthBits = spec.getKeyLength();
 
-    if (password == null) {
-      throw new InvalidKeySpecException("Password cannot be null");
-    }
     if (salt == null) {
       throw new InvalidKeySpecException("Salt cannot be null");
-    }
-    if (iterations < 1) {
-      throw new InvalidKeySpecException("Positive iteration count required");
     }
     if (keyLengthBits <= 0) {
       throw new InvalidKeySpecException("Positive key length required");
@@ -89,8 +83,7 @@ class Pbkdf2SecretKeyFactorySpi extends KdfSpi {
     final int len = bb.limit();
     final byte[] passwordBytes = new byte[len];
     bb.get(passwordBytes, 0, len);
-    bb.clear();
-    bb.put(new byte[len]);
+    Arrays.fill(bb.array(), bb.arrayOffset(), bb.arrayOffset() + bb.capacity(), (byte) 0);
     return passwordBytes;
   }
 

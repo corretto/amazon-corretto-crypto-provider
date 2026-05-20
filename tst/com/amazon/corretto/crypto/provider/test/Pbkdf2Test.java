@@ -185,6 +185,21 @@ public class Pbkdf2Test {
     }
   }
 
+  @Test
+  public void testUtf8Encoding() throws Exception {
+    final char[][] passwords = {"fooä".toCharArray(), "bár".toCharArray()};
+    final SecretKeyFactory sun = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256", "SunJCE");
+    final SecretKeyFactory accp =
+        SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256", TestUtil.NATIVE_PROVIDER);
+    for (char[] password : passwords) {
+      final PBEKeySpec spec = new PBEKeySpec(password, "salt".getBytes(), 1000, 256);
+      assertArrayEquals(
+          sun.generateSecret(spec).getEncoded(),
+          accp.generateSecret(spec).getEncoded(),
+          new String(password));
+    }
+  }
+
   // Verify wrong spec type, null salt, and zero key length each throw InvalidKeySpecException
   @Test
   public void invalidParameterTests() throws Exception {
