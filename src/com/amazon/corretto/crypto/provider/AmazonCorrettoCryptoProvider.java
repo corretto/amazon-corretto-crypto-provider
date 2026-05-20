@@ -94,6 +94,10 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     addService("Cipher", "AES_128/GCM/NoPadding", "AesGcmSpi");
     addService("Cipher", "AES_256/GCM/NoPadding", "AesGcmSpi");
 
+    addService("Cipher", "AES/GCM-SIV/NoPadding", "AesGcmSivSpi");
+    addService("Cipher", "AES_128/GCM-SIV/NoPadding", "AesGcmSivSpi");
+    addService("Cipher", "AES_256/GCM-SIV/NoPadding", "AesGcmSivSpi");
+
     addService("Cipher", "AES/KW/NoPadding", "AesKeyWrapSpi", /*attributes*/ null, "AesWrap");
     addService(
         "Cipher", "AES/KWP/NoPadding", "AesKeyWrapPaddingSpi", /*attributes*/ null, "AesWrapPad");
@@ -497,6 +501,11 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
       // Allow the padding scheme to be set later by defaulting to a no-padding Cipher.
       if (algo.toUpperCase().startsWith("AES/CBC")) {
         return new AesCbcSpi(AesCbcSpi.Padding.NONE, saveContext);
+      }
+      if ("AES/GCM-SIV/NoPadding".equalsIgnoreCase(algo)
+          || "AES_128/GCM-SIV/NoPadding".equalsIgnoreCase(algo)
+          || "AES_256/GCM-SIV/NoPadding".equalsIgnoreCase(algo)) {
+        return new AesGcmSivSpi(AmazonCorrettoCryptoProvider.this);
       }
       throw new NoSuchAlgorithmException(format("No service class for Cipher/%s", algo));
     }
