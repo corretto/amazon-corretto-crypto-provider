@@ -185,9 +185,12 @@ public class Pbkdf2Test {
     }
   }
 
+  // Verify ACCP matches SunJCE for non-ASCII passwords
+  // Non-ASCII characters are encoded as Unicode escape sequences so the source compiles on the
+  // Ubuntu CI runners.
   @Test
   public void testUtf8Encoding() throws Exception {
-    final char[][] passwords = {"fooä".toCharArray(), "bár".toCharArray()};
+    final char[][] passwords = {"foo\u00e4".toCharArray(), "b\u00e1r".toCharArray()};
     final SecretKeyFactory sun = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256", "SunJCE");
     final SecretKeyFactory accp =
         SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256", TestUtil.NATIVE_PROVIDER);
