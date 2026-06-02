@@ -129,89 +129,91 @@ class RsaCipher extends CipherSpi {
     synchronized (lock_) {
       assertInitialized();
 
-      if (buffer_.size() != 0) { // Not one-shot
-        if (input != null) {
-          buffer_.write(input, inputOffset, inputLen);
-        }
-        input = buffer_.getDataBuffer();
-        inputOffset = 0;
-        inputLen = buffer_.size();
-      }
-      // One-shot, no input. Cipher only calls engineDoFinal with null input in doFinal overloads
-      // that don't take an input buffer, and in those cases, inputOffset and inputLen are 0.
-      // We set them here anyways to be safe, because the API makes no such guarantee.
-      else if (input == null) {
-        input = Utils.EMPTY_ARRAY;
-        inputOffset = 0;
-        inputLen = 0;
-      }
-
-      if (output.length - outputOffset < engineGetOutputSize(inputLen)) {
-        throw new ShortBufferException();
-      }
-      if (mode_ == Cipher.ENCRYPT_MODE || mode_ == Cipher.WRAP_MODE) {
-        if (inputLen > keySizeBytes_ - paddingSize_) {
-          throw new IllegalBlockSizeException(
-              "Data must not be longer than " + (keySizeBytes_ - paddingSize_) + " bytes");
-        }
-        // We're allowed to pad NO_PADDING with zero bytes on the left.
-        // This is because RSA fundamentally works on positive integers so
-        // adding new high-order zero bytes does not change the numeric value
-        // of the input and thus does not change the output.
-        if (padding_.equals(Padding.NO_PADDING) && inputLen < keySizeBytes_) {
-          byte[] tmp = new byte[keySizeBytes_];
-          System.arraycopy(input, inputOffset, tmp, keySizeBytes_ - inputLen, inputLen);
-          input = tmp;
+      try {
+        if (buffer_.size() != 0) { // Not one-shot
+          if (input != null) {
+            buffer_.write(input, inputOffset, inputLen);
+          }
+          input = buffer_.getDataBuffer();
           inputOffset = 0;
-          inputLen = keySizeBytes_;
+          inputLen = buffer_.size();
         }
-      } else {
-        if (inputLen > keySizeBytes_) {
-          throw new IllegalBlockSizeException(
-              "Data must not be longer than " + keySizeBytes_ + " bytes");
+        // One-shot, no input. Cipher only calls engineDoFinal with null input in doFinal overloads
+        // that don't take an input buffer, and in those cases, inputOffset and inputLen are 0.
+        // We set them here anyways to be safe, because the API makes no such guarantee.
+        else if (input == null) {
+          input = Utils.EMPTY_ARRAY;
+          inputOffset = 0;
+          inputLen = 0;
         }
+
+        if (output.length - outputOffset < engineGetOutputSize(inputLen)) {
+          throw new ShortBufferException();
+        }
+        if (mode_ == Cipher.ENCRYPT_MODE || mode_ == Cipher.WRAP_MODE) {
+          if (inputLen > keySizeBytes_ - paddingSize_) {
+            throw new IllegalBlockSizeException(
+                "Data must not be longer than " + (keySizeBytes_ - paddingSize_) + " bytes");
+          }
+          // We're allowed to pad NO_PADDING with zero bytes on the left.
+          // This is because RSA fundamentally works on positive integers so
+          // adding new high-order zero bytes does not change the numeric value
+          // of the input and thus does not change the output.
+          if (padding_.equals(Padding.NO_PADDING) && inputLen < keySizeBytes_) {
+            byte[] tmp = new byte[keySizeBytes_];
+            System.arraycopy(input, inputOffset, tmp, keySizeBytes_ - inputLen, inputLen);
+            input = tmp;
+            inputOffset = 0;
+            inputLen = keySizeBytes_;
+          }
+        } else {
+          if (inputLen > keySizeBytes_) {
+            throw new IllegalBlockSizeException(
+                "Data must not be longer than " + keySizeBytes_ + " bytes");
+          }
+        }
+
+        final long oaepMdPtr;
+        final long mgfMdPtr;
+        final byte[] oaepLabel;
+        if (padding_ == Padding.OAEP) {
+          oaepMdPtr = Utils.getMdPtr(oaepParams_.getDigestAlgorithm());
+          mgfMdPtr =
+              Utils.getMdPtr(
+                  ((MGF1ParameterSpec) oaepParams_.getMGFParameters()).getDigestAlgorithm());
+          oaepLabel =
+              oaepParams_.getPSource() == null
+                  ? null
+                  : ((PSource.PSpecified) oaepParams_.getPSource()).getValue();
+        } else {
+          oaepMdPtr = 0;
+          mgfMdPtr = 0;
+          oaepLabel = null;
+        }
+
+        final byte[] finalInput = input;
+        final int finalInputOffset = inputOffset;
+        final int finalInputLen = inputLen;
+        final int result =
+            nativeKey_.use(
+                ptr ->
+                    cipher(
+                        ptr,
+                        mode_,
+                        padding_.nativeVal,
+                        oaepMdPtr,
+                        mgfMdPtr,
+                        oaepLabel,
+                        finalInput,
+                        finalInputOffset,
+                        finalInputLen,
+                        output,
+                        outputOffset));
+
+        return result;
+      } finally {
+        buffer_ = new AccessibleByteArrayOutputStream(keySizeBytes_, keySizeBytes_);
       }
-
-      final long oaepMdPtr;
-      final long mgfMdPtr;
-      final byte[] oaepLabel;
-      if (padding_ == Padding.OAEP) {
-        oaepMdPtr = Utils.getMdPtr(oaepParams_.getDigestAlgorithm());
-        mgfMdPtr =
-            Utils.getMdPtr(
-                ((MGF1ParameterSpec) oaepParams_.getMGFParameters()).getDigestAlgorithm());
-        oaepLabel =
-            oaepParams_.getPSource() == null
-                ? null
-                : ((PSource.PSpecified) oaepParams_.getPSource()).getValue();
-      } else {
-        oaepMdPtr = 0;
-        mgfMdPtr = 0;
-        oaepLabel = null;
-      }
-
-      final byte[] finalInput = input;
-      final int finalInputOffset = inputOffset;
-      final int finalInputLen = inputLen;
-      final int result =
-          nativeKey_.use(
-              ptr ->
-                  cipher(
-                      ptr,
-                      mode_,
-                      padding_.nativeVal,
-                      oaepMdPtr,
-                      mgfMdPtr,
-                      oaepLabel,
-                      finalInput,
-                      finalInputOffset,
-                      finalInputLen,
-                      output,
-                      outputOffset));
-
-      buffer_ = new AccessibleByteArrayOutputStream();
-
-      return result;
     }
   }
 
@@ -309,9 +311,9 @@ class RsaCipher extends CipherSpi {
 
         key_ = (RSAKey) key;
         keySizeBytes_ = (key_.getModulus().bitLength() + 7) / 8;
-        buffer_ = new AccessibleByteArrayOutputStream(keySizeBytes_, keySizeBytes_);
         nativeKey_ = provider_.translateKey(key, EvpKeyType.RSA);
       }
+      buffer_ = new AccessibleByteArrayOutputStream(keySizeBytes_, keySizeBytes_);
 
       if (params instanceof OAEPParameterSpec) {
         // Cache MD struct ptrs, validate digest names, update params + padding len

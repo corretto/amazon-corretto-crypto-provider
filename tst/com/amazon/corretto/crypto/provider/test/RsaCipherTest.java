@@ -1197,6 +1197,66 @@ public class RsaCipherTest {
     assertArrayEquals(PAIR_512.getPrivate().getEncoded(), priv.getEncoded());
   }
 
+  @Test
+  public void reinitWithSameKeyClearsBuffer() throws Exception {
+    PublicKey pk = PAIR_2048.getPublic();
+
+    byte[] secretA = new byte[16];
+    Arrays.fill(secretA, (byte) 0xAA);
+    byte[] aesKeyBytes = new byte[16];
+    Arrays.fill(aesKeyBytes, (byte) 0xBB);
+
+    Cipher c = Cipher.getInstance("RSA/ECB/OAEPPadding", NATIVE_PROVIDER);
+
+    // Operation A -- aborted before doFinal
+    c.init(Cipher.ENCRYPT_MODE, pk);
+    c.update(secretA);
+
+    // Operation B -- re-init with same key, then wrap
+    c.init(Cipher.WRAP_MODE, pk);
+    byte[] wrapped = c.wrap(new SecretKeySpec(aesKeyBytes, "AES"));
+
+    // Unwrap and verify only operation B's data is present
+    Cipher unwrap = Cipher.getInstance("RSA/ECB/OAEPPadding", NATIVE_PROVIDER);
+    unwrap.init(Cipher.UNWRAP_MODE, PAIR_2048.getPrivate());
+    byte[] recovered = unwrap.unwrap(wrapped, "AES", Cipher.SECRET_KEY).getEncoded();
+
+    assertArrayEquals(
+        aesKeyBytes,
+        recovered,
+        "Re-init must clear buffer; stale data must not bleed into next operation");
+  }
+
+  @Test
+  public void failedDoFinalClearsBuffer() throws Exception {
+    PublicKey pk = PAIR_2048.getPublic();
+
+    Cipher c = Cipher.getInstance("RSA/ECB/OAEPPadding", NATIVE_PROVIDER);
+    c.init(Cipher.ENCRYPT_MODE, pk);
+
+    // Feed data that exceeds OAEP plaintext capacity (214 bytes for 2048-bit RSA)
+    // but fits in the buffer (256 bytes)
+    byte[] tooLarge = new byte[215];
+    Arrays.fill(tooLarge, (byte) 0xCC);
+    c.update(tooLarge);
+    try {
+      c.doFinal();
+      fail("Expected IllegalBlockSizeException");
+    } catch (IllegalBlockSizeException expected) {
+    }
+
+    // Next operation on same cipher should work cleanly
+    byte[] plaintext = new byte[16];
+    Arrays.fill(plaintext, (byte) 0xDD);
+    byte[] ciphertext = c.doFinal(plaintext);
+
+    Cipher dec = Cipher.getInstance("RSA/ECB/OAEPPadding", NATIVE_PROVIDER);
+    dec.init(Cipher.DECRYPT_MODE, PAIR_2048.getPrivate());
+    byte[] recovered = dec.doFinal(ciphertext);
+
+    assertArrayEquals(plaintext, recovered, "Buffer must be cleared after failed doFinal");
+  }
+
   private class TestThread extends Thread {
     private final SecureRandom rnd_;
     private final List<KeyPair> keys_;
