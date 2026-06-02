@@ -716,6 +716,41 @@ public class HmacTest {
     assertArrayEquals(expected, nativeMac.doFinal());
   }
 
+  @Test
+  public void cloneThenRekeyOriginalDoesNotCorruptClone() throws Exception {
+    byte[] keyBytesA = new byte[32];
+    for (int i = 0; i < 32; i++) keyBytesA[i] = (byte) (i + 1);
+    byte[] keyBytesB = new byte[32];
+    Arrays.fill(keyBytesB, (byte) 0x55);
+    byte[] msg = "test message".getBytes(StandardCharsets.UTF_8);
+
+    Mac mac = Mac.getInstance("HmacSHA256", NATIVE_PROVIDER);
+    mac.init(new SecretKeySpec(keyBytesA, "HmacSHA256"));
+
+    Mac cloned = (Mac) mac.clone();
+
+    // Re-key the original — must not affect the clone
+    mac.init(new SecretKeySpec(keyBytesB, "HmacSHA256"));
+
+    byte[] cloneResult = cloned.doFinal(msg);
+
+    // Compute expected result: HMAC(keyA, msg) using a fresh instance
+    Mac reference = Mac.getInstance("HmacSHA256", NATIVE_PROVIDER);
+    reference.init(new SecretKeySpec(keyBytesA, "HmacSHA256"));
+    byte[] expected = reference.doFinal(msg);
+
+    assertArrayEquals(expected, cloneResult, "Clone must use original key, not zeroed key");
+
+    // Also verify clone does NOT produce HMAC(zeros, msg)
+    Mac zeroMac = Mac.getInstance("HmacSHA256", NATIVE_PROVIDER);
+    zeroMac.init(new SecretKeySpec(new byte[32], "HmacSHA256"));
+    byte[] zeroResult = zeroMac.doFinal(msg);
+
+    if (Arrays.equals(cloneResult, zeroResult)) {
+      throw new AssertionError("Clone produced HMAC with zeroed key — encoded_key was corrupted");
+    }
+  }
+
   @ParameterizedTest
   @MethodSource("supportedHmacs")
   public void selfTest(final String algorithm) throws Throwable {
