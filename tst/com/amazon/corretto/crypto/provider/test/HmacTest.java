@@ -729,7 +729,7 @@ public class HmacTest {
 
     Mac cloned = (Mac) mac.clone();
 
-    // Re-key the original — must not affect the clone
+    // Re-key the original -- must not affect the clone
     mac.init(new SecretKeySpec(keyBytesB, "HmacSHA256"));
 
     byte[] cloneResult = cloned.doFinal(msg);
@@ -747,7 +747,7 @@ public class HmacTest {
     byte[] zeroResult = zeroMac.doFinal(msg);
 
     if (Arrays.equals(cloneResult, zeroResult)) {
-      throw new AssertionError("Clone produced HMAC with zeroed key — encoded_key was corrupted");
+      throw new AssertionError("Clone produced HMAC with zeroed key -- encoded_key was corrupted");
     }
   }
 
