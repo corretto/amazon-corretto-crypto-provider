@@ -212,7 +212,7 @@ class RsaCipher extends CipherSpi {
 
         return result;
       } finally {
-        buffer_ = new AccessibleByteArrayOutputStream(keySizeBytes_, keySizeBytes_);
+        buffer_.reset();
       }
     }
   }

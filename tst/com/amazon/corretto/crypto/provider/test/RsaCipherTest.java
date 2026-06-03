@@ -1239,11 +1239,7 @@ public class RsaCipherTest {
     byte[] tooLarge = new byte[215];
     Arrays.fill(tooLarge, (byte) 0xCC);
     c.update(tooLarge);
-    try {
-      c.doFinal();
-      fail("Expected IllegalBlockSizeException");
-    } catch (IllegalBlockSizeException expected) {
-    }
+    assertThrows(IllegalBlockSizeException.class, () -> c.doFinal());
 
     // Next operation on same cipher should work cleanly
     byte[] plaintext = new byte[16];
