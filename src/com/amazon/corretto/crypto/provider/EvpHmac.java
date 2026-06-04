@@ -361,6 +361,7 @@ class EvpHmac extends MacSpi implements Cloneable {
       try {
         HmacState cloned = (HmacState) super.clone();
         cloned.context = cloned.context.clone();
+        cloned.encoded_key = (encoded_key != null) ? encoded_key.clone() : null;
         return cloned;
       } catch (final CloneNotSupportedException ex) {
         throw new AssertionError(ex);
