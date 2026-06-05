@@ -21,10 +21,10 @@ extern "C" JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_HkdfS
     jint infoLen)
 {
     try {
-        JByteArrayCritical output(env, jOutput);
-        JByteArrayCritical secret(env, jSecret);
-        JByteArrayCritical salt(env, jSalt);
-        JByteArrayCritical info(env, jInfo);
+        JByteArrayCritical output(env, jOutput, /*wipe=*/true);
+        JByteArrayCritical secret(env, jSecret, /*wipe=*/true);
+        JByteArrayCritical salt(env, jSalt, /*wipe=*/false);
+        JByteArrayCritical info(env, jInfo, /*wipe=*/false);
         EVP_MD const* digest = digest_code_to_EVP_MD(digestCode);
 
         if (HKDF(output.get(), outputLen, digest, secret.get(), secretLen, salt.get(), saltLen, info.get(), infoLen)
@@ -49,9 +49,9 @@ extern "C" JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_HkdfS
     jint saltLen)
 {
     try {
-        JByteArrayCritical output(env, jOutput);
-        JByteArrayCritical secret(env, jSecret);
-        JByteArrayCritical salt(env, jSalt);
+        JByteArrayCritical output(env, jOutput, /*wipe=*/true);
+        JByteArrayCritical secret(env, jSecret, /*wipe=*/true);
+        JByteArrayCritical salt(env, jSalt, /*wipe=*/false);
         EVP_MD const* digest = digest_code_to_EVP_MD(digestCode);
 
         size_t out_len = 0;
@@ -77,9 +77,9 @@ extern "C" JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_HkdfS
     jint infoLen)
 {
     try {
-        JByteArrayCritical output(env, jOutput);
-        JByteArrayCritical prk(env, jPrk);
-        JByteArrayCritical info(env, jInfo);
+        JByteArrayCritical output(env, jOutput, /*wipe=*/true);
+        JByteArrayCritical prk(env, jPrk, /*wipe=*/true);
+        JByteArrayCritical info(env, jInfo, /*wipe=*/false);
         EVP_MD const* digest = digest_code_to_EVP_MD(digestCode);
 
         if (HKDF_expand(output.get(), outputLen, digest, prk.get(), prkLen, info.get(), infoLen) != 1) {

@@ -37,17 +37,36 @@ jbyteArray vecToArray(raii_env& env, const std::vector<uint8_t, SecureAlloc<uint
     return array;
 }
 
-JByteArrayCritical::JByteArrayCritical(JNIEnv* env, jbyteArray jarray)
+JByteArrayCritical::JByteArrayCritical(JNIEnv* env, jbyteArray jarray, bool wipe)
     : env_(env)
     , jarray_(jarray)
+    , len_(0)
+    , is_copy_(JNI_FALSE)
+    , wipe_(wipe)
 {
-    ptr_ = env->GetPrimitiveArrayCritical(jarray, nullptr);
+    len_ = env->GetArrayLength(jarray);
+    ptr_ = env->GetPrimitiveArrayCritical(jarray, &is_copy_);
     if (ptr_ == nullptr) {
         throw java_ex(EX_ERROR, "GetPrimitiveArrayCritical failed.");
     }
 }
 
-JByteArrayCritical::~JByteArrayCritical() { env_->ReleasePrimitiveArrayCritical(jarray_, ptr_, 0); }
+JByteArrayCritical::~JByteArrayCritical()
+{
+    if (wipe_ && is_copy_) {
+        // JNI_COMMIT copies any modifications back to the Java array but keeps the
+        // native buffer alive, so we can OPENSSL_cleanse it before the JNI_ABORT
+        // release that frees it without re-copying the cleansed bytes back. Inputs
+        // were never written by C code, so the commit is a no-op for the Java array.
+        env_->ReleasePrimitiveArrayCritical(jarray_, ptr_, JNI_COMMIT);
+        if (len_ > 0) {
+            OPENSSL_cleanse(ptr_, len_);
+        }
+        env_->ReleasePrimitiveArrayCritical(jarray_, ptr_, JNI_ABORT);
+    } else {
+        env_->ReleasePrimitiveArrayCritical(jarray_, ptr_, 0);
+    }
+}
 
 unsigned char* JByteArrayCritical::get() { return (unsigned char*)ptr_; }
 

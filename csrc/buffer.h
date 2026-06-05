@@ -559,9 +559,15 @@ public:
 
 // Please follow the guidelines outlined in {Get,Release}PrimitiveArrayCritical when using this class:
 // https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/functions.html#GetPrimitiveArrayCritical_ReleasePrimitiveArrayCritical
+//
+// When |wipe| is true, any native copy made by the JVM (GetPrimitiveArrayCritical may return
+// either a pin into the Java heap or a copy) is OPENSSL_cleansed before being freed, so secret
+// material does not persist on the C heap after the call returns. Java-visible array contents
+// are unaffected: writes performed via get() are committed back to the Java array as with the
+// default release. Use this for buffers holding key material, passwords, or plaintext.
 class JByteArrayCritical {
 public:
-    JByteArrayCritical(JNIEnv* env, jbyteArray jarray);
+    JByteArrayCritical(JNIEnv* env, jbyteArray jarray, bool wipe);
     ~JByteArrayCritical();
     unsigned char* get();
 
@@ -575,6 +581,9 @@ private:
     void* ptr_;
     JNIEnv* env_;
     jbyteArray jarray_;
+    jsize len_;
+    jboolean is_copy_;
+    bool wipe_;
 };
 
 class SimpleBuffer {

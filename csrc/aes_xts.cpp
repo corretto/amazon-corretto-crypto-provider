@@ -86,9 +86,9 @@ extern "C" JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_AesXt
     jint outputOffset)
 {
     try {
-        JByteArrayCritical packedTweakKey(env, jPackedTweakKey);
-        JByteArrayCritical input(env, jinput);
-        JByteArrayCritical output(env, joutput);
+        JByteArrayCritical packedTweakKey(env, jPackedTweakKey, /*wipe=*/true);
+        JByteArrayCritical input(env, jinput, /*wipe=*/true);
+        JByteArrayCritical output(env, joutput, /*wipe=*/false);
 
         AesXtsCipher cipher(true, packedTweakKey.get() + AES_XTS_KEY_INDEX_START, packedTweakKey.get());
         cipher.encrypt(input.get() + inputOffset, inputLen, output.get() + outputOffset);
@@ -107,8 +107,10 @@ extern "C" JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_AesXt
     jint outputOffset)
 {
     try {
-        JByteArrayCritical packedTweakKey(env, jPackedTweakKey);
-        JByteArrayCritical input(env, jinput);
+        JByteArrayCritical packedTweakKey(env, jPackedTweakKey, /*wipe=*/true);
+        // Buffer holds plaintext on entry and ciphertext on exit; the native copy holds
+        // plaintext mid-call, so it must be cleansed before being freed.
+        JByteArrayCritical input(env, jinput, /*wipe=*/true);
 
         AesXtsCipher cipher(true, packedTweakKey.get() + AES_XTS_KEY_INDEX_START, packedTweakKey.get());
         cipher.encrypt(input.get() + inputOffset, inputLen, input.get() + outputOffset);
@@ -128,9 +130,9 @@ extern "C" JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_AesXt
     jint outputOffset)
 {
     try {
-        JByteArrayCritical packedTweakKey(env, jPackedTweakKey);
-        JByteArrayCritical input(env, jinput);
-        JByteArrayCritical output(env, joutput);
+        JByteArrayCritical packedTweakKey(env, jPackedTweakKey, /*wipe=*/true);
+        JByteArrayCritical input(env, jinput, /*wipe=*/false);
+        JByteArrayCritical output(env, joutput, /*wipe=*/true);
 
         AesXtsCipher cipher(false, packedTweakKey.get() + AES_XTS_KEY_INDEX_START, packedTweakKey.get());
         cipher.decrypt(input.get() + inputOffset, inputLen, output.get() + outputOffset);
@@ -151,8 +153,9 @@ extern "C" JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_AesXt
     jint outputOffset)
 {
     try {
-        JByteArrayCritical packedTweakKey(env, jPackedTweakKey);
-        JByteArrayCritical input(env, jinput);
+        JByteArrayCritical packedTweakKey(env, jPackedTweakKey, /*wipe=*/true);
+        // Buffer holds ciphertext on entry and plaintext on exit; cleanse the native copy.
+        JByteArrayCritical input(env, jinput, /*wipe=*/true);
 
         AesXtsCipher cipher(false, packedTweakKey.get() + AES_XTS_KEY_INDEX_START, packedTweakKey.get());
         cipher.decrypt(input.get() + inputOffset, inputLen, input.get() + outputOffset);
