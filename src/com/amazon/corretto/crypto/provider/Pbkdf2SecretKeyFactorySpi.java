@@ -42,7 +42,6 @@ class Pbkdf2SecretKeyFactorySpi extends KdfSpi {
     }
 
     final PBEKeySpec spec = (PBEKeySpec) keySpec;
-    final char[] password = spec.getPassword();
     final byte[] salt = spec.getSalt();
     final int iterations = spec.getIterationCount();
     final int keyLengthBits = spec.getKeyLength();
@@ -54,6 +53,7 @@ class Pbkdf2SecretKeyFactorySpi extends KdfSpi {
       throw new InvalidKeySpecException("Positive key length required");
     }
 
+    final char[] password = spec.getPassword();
     final byte[] passwordBytes = charsToBytes(password);
     final byte[] derivedKey = new byte[keyLengthBits / 8];
 
@@ -69,6 +69,7 @@ class Pbkdf2SecretKeyFactorySpi extends KdfSpi {
           derivedKey.length);
       return new SecretKeySpec(derivedKey, algorithmName);
     } finally {
+      Arrays.fill(password, '\0');
       Arrays.fill(passwordBytes, (byte) 0);
       Arrays.fill(derivedKey, (byte) 0);
     }
