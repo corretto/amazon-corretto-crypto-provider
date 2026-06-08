@@ -330,6 +330,7 @@ set(C_SRC
     csrc/libcrypto_rng.cpp
     csrc/loader.cpp
     csrc/md5.cpp
+    csrc/pbkdf2.cpp
     csrc/rsa_cipher.cpp
     csrc/rsa_gen.cpp
     csrc/sha1.cpp

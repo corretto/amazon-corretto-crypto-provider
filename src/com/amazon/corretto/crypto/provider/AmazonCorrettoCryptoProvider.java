@@ -23,6 +23,11 @@ import static com.amazon.corretto.crypto.provider.Loader.EXPERIMENTAL_FIPS_BUILD
 import static com.amazon.corretto.crypto.provider.Loader.FIPS_BUILD;
 import static com.amazon.corretto.crypto.provider.Loader.PROVIDER_VERSION;
 import static com.amazon.corretto.crypto.provider.Loader.PROVIDER_VERSION_STR;
+import static com.amazon.corretto.crypto.provider.Pbkdf2SecretKeyFactorySpi.PBKDF2_WITH_SHA1;
+import static com.amazon.corretto.crypto.provider.Pbkdf2SecretKeyFactorySpi.PBKDF2_WITH_SHA224;
+import static com.amazon.corretto.crypto.provider.Pbkdf2SecretKeyFactorySpi.PBKDF2_WITH_SHA256;
+import static com.amazon.corretto.crypto.provider.Pbkdf2SecretKeyFactorySpi.PBKDF2_WITH_SHA384;
+import static com.amazon.corretto.crypto.provider.Pbkdf2SecretKeyFactorySpi.PBKDF2_WITH_SHA512;
 import static java.lang.String.format;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonMap;
@@ -138,6 +143,13 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     addService("SecretKeyFactory", HKDF_WITH_SHA256, hkdfSpi, false);
     addService("SecretKeyFactory", HKDF_WITH_SHA384, hkdfSpi, false);
     addService("SecretKeyFactory", HKDF_WITH_SHA512, hkdfSpi, false);
+
+    final String pbkdf2Spi = "Pbkdf2SecretKeyFactorySpi";
+    addService("SecretKeyFactory", PBKDF2_WITH_SHA1, pbkdf2Spi, false);
+    addService("SecretKeyFactory", PBKDF2_WITH_SHA224, pbkdf2Spi, false);
+    addService("SecretKeyFactory", PBKDF2_WITH_SHA256, pbkdf2Spi, false);
+    addService("SecretKeyFactory", PBKDF2_WITH_SHA384, pbkdf2Spi, false);
+    addService("SecretKeyFactory", PBKDF2_WITH_SHA512, pbkdf2Spi, false);
 
     final String concatenationKdfSpi = "ConcatenationKdfSpi";
     addService("SecretKeyFactory", CKDF_WITH_SHA256, concatenationKdfSpi, false);
@@ -435,6 +447,13 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
                   HkdfSecretKeyFactorySpi.getSpiFactoryForAlgName(algo));
           if (spi != null) {
             return spi;
+          }
+
+          final Pbkdf2SecretKeyFactorySpi pbkdf2Spi =
+              Pbkdf2SecretKeyFactorySpi.INSTANCES.get(
+                  Pbkdf2SecretKeyFactorySpi.getSpiFactoryForAlgName(algo));
+          if (pbkdf2Spi != null) {
+            return pbkdf2Spi;
           }
 
           final ConcatenationKdfSpi ckdfSpi =
