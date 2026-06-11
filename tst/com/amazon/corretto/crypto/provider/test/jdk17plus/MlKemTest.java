@@ -129,6 +129,30 @@ public class MlKemTest {
   }
 
   @ParameterizedTest
+  @MethodSource("getParams")
+  public void testKemSecretsAreDestroyable(TestParams params) throws Exception {
+    KEM encapsulatorKem = KEM.getInstance(params.parameterSet, params.encapsulatorProv);
+    KEM decapsulatorKem = KEM.getInstance(params.parameterSet, params.decapsulatorProv);
+    NamedParameterSpec paramSpec = new NamedParameterSpec(params.parameterSet);
+
+    KEM.Encapsulator encapsulator = encapsulatorKem.newEncapsulator(params.pub, paramSpec, null);
+    KEM.Encapsulated encapsulated = encapsulator.encapsulate();
+    KEM.Decapsulator decapsulator = decapsulatorKem.newDecapsulator(params.priv, paramSpec);
+    SecretKey recovered = decapsulator.decapsulate(encapsulated.encapsulation());
+
+    for (SecretKey key : new SecretKey[] {encapsulated.key(), recovered}) {
+      org.junit.jupiter.api.Assertions.assertFalse(key.isDestroyed());
+      org.junit.jupiter.api.Assertions.assertNotNull(key.getEncoded());
+
+      key.destroy();
+
+      org.junit.jupiter.api.Assertions.assertTrue(key.isDestroyed());
+      assertThrows(IllegalStateException.class, key::getEncoded);
+      assertThrows(IllegalStateException.class, key::getAlgorithm);
+    }
+  }
+
+  @ParameterizedTest
   @MethodSource("mlKemParamSets")
   public void testKeyGeneration(String paramSet) throws Exception {
     KeyPairGenerator keyGen = KeyPairGenerator.getInstance(paramSet, NATIVE_PROVIDER);
