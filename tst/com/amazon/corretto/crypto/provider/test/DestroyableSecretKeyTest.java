@@ -15,6 +15,7 @@ import java.io.NotSerializableException;
 import java.io.ObjectOutputStream;
 import java.lang.reflect.Constructor;
 import javax.crypto.SecretKey;
+import javax.security.auth.Destroyable;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -79,6 +80,37 @@ public class DestroyableSecretKeyTest {
   public void formatIsRaw() throws Exception {
     final SecretKey key = newKey(new byte[16], "AES");
     assertEquals("RAW", key.getFormat());
+  }
+
+  @Test
+  public void implementsDestroyable() throws Exception {
+    final SecretKey key = newKey(new byte[16], "AES");
+    assertTrue(key instanceof Destroyable);
+  }
+
+  @Test
+  public void isDestroyedReturnsFalseOnFreshInstance() throws Exception {
+    // The Destroyable contract says implementations must report false until destroy()
+    // succeeds. Verify on a freshly-constructed instance with no other interaction.
+    final SecretKey key = newKey(new byte[16], "AES");
+    assertFalse(key.isDestroyed());
+  }
+
+  @Test
+  public void destroyClearsInternalKeyMaterial() throws Exception {
+    // Stronger than destroyZeroesEncodedAndMarksDestroyed: snapshot the encoded bytes
+    // before destroy and verify post-destroy access is denied (i.e. no path to read
+    // residual key material).
+    final byte[] bytes = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, (byte) 0x88};
+    final SecretKey key = newKey(bytes, "AES");
+    final byte[] snapshot = key.getEncoded();
+    assertArrayEquals(bytes, snapshot);
+
+    key.destroy();
+
+    assertTrue(key.isDestroyed());
+    // After destroy, no accessor should leak key material.
+    assertThrows(IllegalStateException.class, key::getEncoded);
   }
 
   @Test

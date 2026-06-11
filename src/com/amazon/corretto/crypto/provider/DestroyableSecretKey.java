@@ -9,6 +9,7 @@ import java.io.ObjectOutputStream;
 import java.util.Arrays;
 import java.util.Objects;
 import javax.crypto.SecretKey;
+import javax.security.auth.Destroyable;
 
 /**
  * A {@link SecretKey} that holds raw key material in a byte array which the consumer can actively
@@ -28,7 +29,7 @@ import javax.crypto.SecretKey;
  * serializing a destroyable key would silently copy the raw bytes outside the JVM, defeating the
  * purpose. {@code writeObject}/{@code readObject} throw {@link NotSerializableException}.
  */
-final class DestroyableSecretKey implements SecretKey {
+final class DestroyableSecretKey implements SecretKey, Destroyable {
   private static final long serialVersionUID = 1L;
 
   private final String algorithm;

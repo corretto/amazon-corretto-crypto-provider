@@ -5,7 +5,9 @@ package com.amazon.corretto.crypto.provider.test;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
@@ -141,12 +143,12 @@ public class MlKemTest {
     SecretKey recovered = decapsulator.decapsulate(encapsulated.encapsulation());
 
     for (SecretKey key : new SecretKey[] {encapsulated.key(), recovered}) {
-      org.junit.jupiter.api.Assertions.assertFalse(key.isDestroyed());
-      org.junit.jupiter.api.Assertions.assertNotNull(key.getEncoded());
+      assertFalse(key.isDestroyed());
+      assertNotNull(key.getEncoded());
 
       key.destroy();
 
-      org.junit.jupiter.api.Assertions.assertTrue(key.isDestroyed());
+      assertTrue(key.isDestroyed());
       assertThrows(IllegalStateException.class, key::getEncoded);
       assertThrows(IllegalStateException.class, key::getAlgorithm);
     }
