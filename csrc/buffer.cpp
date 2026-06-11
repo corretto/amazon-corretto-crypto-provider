@@ -54,15 +54,25 @@ JByteArrayCritical::JByteArrayCritical(JNIEnv* env, jbyteArray jarray, bool wipe
 JByteArrayCritical::~JByteArrayCritical()
 {
     if (wipe_ && is_copy_) {
-        // JNI_COMMIT copies any modifications back to the Java array but keeps the
-        // native buffer alive, so we can OPENSSL_cleanse it before the JNI_ABORT
-        // release that frees it without re-copying the cleansed bytes back. Inputs
-        // were never written by C code, so the commit is a no-op for the Java array.
-        env_->ReleasePrimitiveArrayCritical(jarray_, ptr_, JNI_COMMIT);
+        // The JVM returned a separate native copy. Stash the (possibly modified) bytes in
+        // a SecureAlloc-backed vector, OPENSSL_cleanse the native buffer, end the critical
+        // region with JNI_ABORT (so the cleansed bytes don't get copied back), and only
+        // then call SetByteArrayRegion to commit the saved bytes to the Java array. The
+        // intermediate vector is itself cleansed when it goes out of scope (SecureAlloc).
+        //
+        // This avoids relying on calling ReleasePrimitiveArrayCritical twice (once with
+        // JNI_COMMIT and once with JNI_ABORT) on the same pointer, which is not portably
+        // documented across JVM implementations.
+        std::vector<uint8_t, SecureAlloc<uint8_t> > tmp(static_cast<uint8_t*>(ptr_),
+                                                        static_cast<uint8_t*>(ptr_) + len_);
         if (len_ > 0) {
             OPENSSL_cleanse(ptr_, len_);
         }
         env_->ReleasePrimitiveArrayCritical(jarray_, ptr_, JNI_ABORT);
+        // Now outside the critical region; safe to call other JNI functions.
+        if (len_ > 0) {
+            env_->SetByteArrayRegion(jarray_, 0, len_, reinterpret_cast<const jbyte*>(tmp.data()));
+        }
     } else {
         env_->ReleasePrimitiveArrayCritical(jarray_, ptr_, 0);
     }
@@ -120,10 +130,10 @@ JBinaryBlob::~JBinaryBlob()
 uint8_t* JBinaryBlob::get() { return ptr_; }
 
 JIOBlobs::JIOBlobs(JNIEnv* env,
-    jobject inputDirectByteBuffer,
-    jbyteArray inputArray,
-    jobject outputDirectByteBuffer,
-    jbyteArray outputArray)
+                   jobject inputDirectByteBuffer,
+                   jbyteArray inputArray,
+                   jobject outputDirectByteBuffer,
+                   jbyteArray outputArray)
     : env_(env)
     , input_array_(inputArray)
     , output_array_(outputArray)
@@ -132,7 +142,8 @@ JIOBlobs::JIOBlobs(JNIEnv* env,
     if (inputDirectByteBuffer != nullptr) {
         // One should be null. In the Java layer, we ensure this.
         if (inputArray != nullptr) {
-            throw java_ex(EX_ERROR,
+            throw java_ex(
+                EX_ERROR,
                 "THIS SHOULD NOT BE REACHABLE. Both inputDirectByteBuffer and inputArray cannot be provided.");
         }
         input_ptr_ = (uint8_t*)env->GetDirectBufferAddress(inputDirectByteBuffer);
@@ -141,7 +152,8 @@ JIOBlobs::JIOBlobs(JNIEnv* env,
     if (outputDirectByteBuffer != nullptr) {
         // One should be null. In the Java layer, we ensure this.
         if (outputArray != nullptr) {
-            throw java_ex(EX_ERROR,
+            throw java_ex(
+                EX_ERROR,
                 "THIS SHOULD NOT BE REACHABLE. Both outputDirectByteBuffer and outputArray cannot be provided.");
         }
         output_ptr_ = (inputDirectByteBuffer == outputDirectByteBuffer)
