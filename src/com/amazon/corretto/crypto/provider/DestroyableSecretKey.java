@@ -33,7 +33,6 @@ final class DestroyableSecretKey implements SecretKey, Destroyable {
   private static final long serialVersionUID = 1L;
 
   private final String algorithm;
-  // not final: bytes cleared on destroy() via Arrays.fill
   private final byte[] key;
   private volatile boolean destroyed;
 
@@ -100,8 +99,9 @@ final class DestroyableSecretKey implements SecretKey, Destroyable {
   //      synchronization.
   // Identity-based equality (Object.equals) is the safer default for stateful keys.
 
-  // Block serialization. SecretKey extends Serializable, but emitting the raw key bytes
-  // in a serialized form would defeat the destroyable contract.
+  // Even though SecretKey extends Serializable, block implicit serialization. We can relax
+  // this in the future if callers need this behavior and have adequate leakage prevention
+  // measures in place.
   private void writeObject(final ObjectOutputStream out) throws IOException {
     throw new NotSerializableException("DestroyableSecretKey");
   }
