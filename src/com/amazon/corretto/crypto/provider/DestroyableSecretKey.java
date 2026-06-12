@@ -50,8 +50,13 @@ final class DestroyableSecretKey implements SecretKey, Destroyable {
     this.key = key.clone();
   }
 
+  // getAlgorithm() and getEncoded() share destroy()'s monitor to close a TOCTOU window:
+  // without synchronization, a reader can pass assertNotDestroyed() before a concurrent
+  // destroy() runs, then read zeros (or partial zeros) after Arrays.fill completes,
+  // returning a corrupted key without throwing. Holding the lock guarantees readers either
+  // observe destroyed==false and a fully-intact key or destroyed==true and throw.
   @Override
-  public String getAlgorithm() {
+  public synchronized String getAlgorithm() {
     assertNotDestroyed();
     return algorithm;
   }
@@ -62,7 +67,7 @@ final class DestroyableSecretKey implements SecretKey, Destroyable {
   }
 
   @Override
-  public byte[] getEncoded() {
+  public synchronized byte[] getEncoded() {
     assertNotDestroyed();
     return key.clone();
   }
@@ -84,6 +89,16 @@ final class DestroyableSecretKey implements SecretKey, Destroyable {
       throw new IllegalStateException("Key has been destroyed");
     }
   }
+
+  // equals() and hashCode() are intentionally not overridden. SecretKeySpec compares by
+  // (algorithm, key bytes) -- a value-based identity. We diverge for two reasons:
+  //   1. After destroy(), the key bytes are zero; equals-by-content would silently report
+  //      destroyed instances as equal to a fresh all-zero key, which is a misleading and
+  //      potentially security-relevant lie.
+  //   2. A content-based hashCode forces us to read the key bytes, which is both a
+  //      pointless perf hit on every hash and another place that would need destroy-state
+  //      synchronization.
+  // Identity-based equality (Object.equals) is the safer default for stateful keys.
 
   // Block serialization. SecretKey extends Serializable, but emitting the raw key bytes
   // in a serialized form would defeat the destroyable contract.
