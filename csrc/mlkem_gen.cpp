@@ -9,7 +9,7 @@
 
 using namespace AmazonCorrettoCryptoProvider;
 
-JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_MlKemGen_generateEvpMlKemKey(
+extern "C" JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_MlKemGen_generateEvpMlKemKey(
     JNIEnv* pEnv, jclass, jint parameterSet)
 {
     try {

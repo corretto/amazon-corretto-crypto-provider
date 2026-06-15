@@ -15,7 +15,6 @@ import javax.crypto.DecapsulateException;
 import javax.crypto.KEM;
 import javax.crypto.KEMSpi;
 import javax.crypto.SecretKey;
-import javax.crypto.spec.SecretKeySpec;
 
 abstract class MlKemSpi implements KEMSpi {
 
@@ -166,7 +165,8 @@ abstract class MlKemSpi implements KEMSpi {
       byte[] sharedSecret = new byte[engineSecretSize()];
       try {
         publicKey.useVoid(ptr -> nativeEncapsulate(ptr, ciphertext, sharedSecret));
-        return new KEM.Encapsulated(new SecretKeySpec(sharedSecret, algorithm), ciphertext, null);
+        return new KEM.Encapsulated(
+            new DestroyableSecretKey(sharedSecret, algorithm), ciphertext, null);
       } finally {
         Arrays.fill(sharedSecret, (byte) 0);
       }
@@ -208,7 +208,7 @@ abstract class MlKemSpi implements KEMSpi {
       byte[] sharedSecret = new byte[engineSecretSize()];
       try {
         privateKey.useVoid(ptr -> nativeDecapsulate(ptr, encapsulation, sharedSecret));
-        return new SecretKeySpec(sharedSecret, algorithm);
+        return new DestroyableSecretKey(sharedSecret, algorithm);
       } finally {
         Arrays.fill(sharedSecret, (byte) 0);
       }
