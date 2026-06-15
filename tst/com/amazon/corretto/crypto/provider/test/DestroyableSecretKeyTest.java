@@ -155,7 +155,7 @@ public class DestroyableSecretKeyTest {
                 java.lang.reflect.InvocationTargetException.class,
                 () -> ctor.newInstance(null, "AES"))
             .getCause();
-    assertTrue(cause instanceof NullPointerException);
+    assertTrue(cause instanceof IllegalArgumentException);
   }
 
   @Test
@@ -165,7 +165,7 @@ public class DestroyableSecretKeyTest {
                 java.lang.reflect.InvocationTargetException.class,
                 () -> ctor.newInstance(new byte[16], null))
             .getCause();
-    assertTrue(cause instanceof NullPointerException);
+    assertTrue(cause instanceof IllegalArgumentException);
   }
 
   @Test

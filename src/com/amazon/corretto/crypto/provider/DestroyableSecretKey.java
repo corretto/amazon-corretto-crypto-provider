@@ -7,7 +7,6 @@ import java.io.NotSerializableException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.util.Arrays;
-import java.util.Objects;
 import javax.crypto.SecretKey;
 import javax.security.auth.Destroyable;
 
@@ -37,8 +36,8 @@ final class DestroyableSecretKey implements SecretKey, Destroyable {
   private volatile boolean destroyed;
 
   DestroyableSecretKey(final byte[] key, final String algorithm) {
-    Objects.requireNonNull(key, "key must not be null");
-    Objects.requireNonNull(algorithm, "algorithm must not be null");
+    Utils.requireNonNull(key, "key must not be null");
+    Utils.requireNonNull(algorithm, "algorithm must not be null");
     if (algorithm.isEmpty()) {
       throw new IllegalArgumentException("algorithm must not be empty");
     }
