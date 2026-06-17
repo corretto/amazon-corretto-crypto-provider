@@ -37,48 +37,106 @@ jbyteArray vecToArray(raii_env& env, const std::vector<uint8_t, SecureAlloc<uint
     return array;
 }
 
-JByteArrayCritical::JByteArrayCritical(JNIEnv* env, jbyteArray jarray, bool wipe)
-    : env_(env)
+void JByteArrayCritical::cleanse_and_stash(
+    uint8_t* src, jsize len, std::vector<uint8_t, SecureAlloc<uint8_t> >& dst)
+{
+    if (len <= 0) {
+        return;
+    }
+    dst.assign(src, src + len);
+    OPENSSL_cleanse(src, len);
+}
+
+JByteArrayCritical::JByteArrayCritical(JNIEnv* env, jbyteArray jarray, WipeMode mode)
+    : ptr_(nullptr)
+    , env_(env)
     , jarray_(jarray)
     , len_(0)
     , is_copy_(JNI_FALSE)
-    , wipe_(wipe)
+    , mode_(mode)
+    , released_(false)
 {
     len_ = env->GetArrayLength(jarray);
+
     ptr_ = env->GetPrimitiveArrayCritical(jarray, &is_copy_);
     if (ptr_ == nullptr) {
         throw java_ex(EX_ERROR, "GetPrimitiveArrayCritical failed.");
+    }
+
+    // Reserve stash capacity now that we know whether the JVM made a copy. Skipping this
+    // allocation entirely on the pinned path (HotSpot's typical behavior) is the
+    // optimization. release() must remain allocation-free and noexcept, so the reserve()
+    // happens here rather than later -- but if it throws, the partially-constructed JBAC's
+    // dtor won't run (ctor never finished), so we'd leak the critical region. Catch
+    // bad_alloc, release the critical region ourselves, and rethrow to preserve the
+    // original failure mode.
+    if (mode_ == WipeMode::WIPE_OUTPUT && is_copy_ && len_ > 0) {
+        try {
+            stash_.reserve(static_cast<size_t>(len_));
+        } catch (...) {
+            env_->ReleasePrimitiveArrayCritical(jarray_, ptr_, JNI_ABORT);
+            ptr_ = nullptr;
+            throw;
+        }
     }
 }
 
 JByteArrayCritical::~JByteArrayCritical()
 {
-    if (wipe_ && is_copy_) {
-        // The JVM returned a separate native copy. Stash the (possibly modified) bytes in
-        // a SecureAlloc-backed vector, OPENSSL_cleanse the native buffer, end the critical
-        // region with JNI_ABORT (so the cleansed bytes don't get copied back), and only
-        // then call SetByteArrayRegion to commit the saved bytes to the Java array. The
-        // intermediate vector is itself cleansed when it goes out of scope (SecureAlloc).
-        //
-        // This avoids relying on calling ReleasePrimitiveArrayCritical twice (once with
-        // JNI_COMMIT and once with JNI_ABORT) on the same pointer, which is not portably
-        // documented across JVM implementations.
-        std::vector<uint8_t, SecureAlloc<uint8_t> > tmp(static_cast<uint8_t*>(ptr_),
-                                                        static_cast<uint8_t*>(ptr_) + len_);
-        if (len_ > 0) {
-            OPENSSL_cleanse(ptr_, len_);
-        }
-        env_->ReleasePrimitiveArrayCritical(jarray_, ptr_, JNI_ABORT);
-        // Now outside the critical region; safe to call other JNI functions.
-        if (len_ > 0) {
-            env_->SetByteArrayRegion(jarray_, 0, len_, reinterpret_cast<const jbyte*>(tmp.data()));
-        }
-    } else {
-        env_->ReleasePrimitiveArrayCritical(jarray_, ptr_, 0);
+    // RAII fallback for the single-WIPE_OUTPUT-per-scope case: end the critical region
+    // and commit any stashed writes. Multi-WIPE_OUTPUT scopes must drive these manually
+    // (see class comment); calls here will be no-ops if the caller already did.
+    if (!released_) {
+        release();
     }
+    commitBack();
 }
 
-unsigned char* JByteArrayCritical::get() { return (unsigned char*)ptr_; }
+void JByteArrayCritical::release() noexcept
+{
+    if (released_) {
+        return;
+    }
+    released_ = true;
+
+    // Pinned or non-sensitive: ptr_ aliases the Java array (or is opaque to us). Mode-0
+    // release commits any writes that already landed in the array; for the pinned WIPE_*
+    // paths we must not mutate the array, which mode 0 also satisfies (no rewrite occurs
+    // when ptr_ IS the array).
+    if (!is_copy_ || mode_ == WipeMode::NO_WIPE) {
+        env_->ReleasePrimitiveArrayCritical(jarray_, ptr_, 0);
+        return;
+    }
+
+    // Wipe path on the JVM-copy variant. For WIPE_OUTPUT, stash the caller's writes
+    // (allocation-free; capacity was reserved in the ctor). Cleanse the native copy in
+    // both cases, then JNI_ABORT to free without copying the cleansed bytes back.
+    if (mode_ == WipeMode::WIPE_OUTPUT) {
+        JByteArrayCritical::cleanse_and_stash(static_cast<uint8_t*>(ptr_), len_, stash_);
+    } else if (len_ > 0) { // WIPE_INPUT
+        OPENSSL_cleanse(ptr_, len_);
+    }
+    env_->ReleasePrimitiveArrayCritical(jarray_, ptr_, JNI_ABORT);
+    // The stashed bytes (if any) are committed in commitBack(), which the dtor or
+    // caller invokes after every critical region on the thread is closed.
+}
+
+void JByteArrayCritical::commitBack()
+{
+    if (mode_ != WipeMode::WIPE_OUTPUT || stash_.empty()) {
+        return;
+    }
+    env_->SetByteArrayRegion(jarray_,
+        0,
+        static_cast<jsize>(stash_.size()),
+        reinterpret_cast<const jbyte*>(stash_.data()));
+    stash_.clear(); // idempotent: subsequent calls are no-ops
+}
+
+unsigned char* JByteArrayCritical::get()
+{
+    return released_ ? nullptr : static_cast<unsigned char*>(ptr_);
+}
 
 SimpleBuffer::SimpleBuffer(int size)
     : buffer_(nullptr)

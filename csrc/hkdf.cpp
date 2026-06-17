@@ -21,10 +21,11 @@ extern "C" JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_HkdfS
     jint infoLen)
 {
     try {
-        JByteArrayCritical output(env, jOutput, /*wipe=*/true);
-        JByteArrayCritical secret(env, jSecret, /*wipe=*/true);
-        JByteArrayCritical salt(env, jSalt, /*wipe=*/false);
-        JByteArrayCritical info(env, jInfo, /*wipe=*/false);
+        // |output| (WIPE_OUTPUT) declared first so it destructs last; see csrc/buffer.h.
+        JByteArrayCritical output(env, jOutput, WipeMode::WIPE_OUTPUT);
+        JByteArrayCritical secret(env, jSecret, WipeMode::WIPE_INPUT);
+        JByteArrayCritical salt(env, jSalt, WipeMode::NO_WIPE);
+        JByteArrayCritical info(env, jInfo, WipeMode::NO_WIPE);
         EVP_MD const* digest = digest_code_to_EVP_MD(digestCode);
 
         if (HKDF(output.get(), outputLen, digest, secret.get(), secretLen, salt.get(), saltLen, info.get(), infoLen)
@@ -49,9 +50,9 @@ extern "C" JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_HkdfS
     jint saltLen)
 {
     try {
-        JByteArrayCritical output(env, jOutput, /*wipe=*/true);
-        JByteArrayCritical secret(env, jSecret, /*wipe=*/true);
-        JByteArrayCritical salt(env, jSalt, /*wipe=*/false);
+        JByteArrayCritical output(env, jOutput, WipeMode::WIPE_OUTPUT);
+        JByteArrayCritical secret(env, jSecret, WipeMode::WIPE_INPUT);
+        JByteArrayCritical salt(env, jSalt, WipeMode::NO_WIPE);
         EVP_MD const* digest = digest_code_to_EVP_MD(digestCode);
 
         size_t out_len = 0;
@@ -77,9 +78,9 @@ extern "C" JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_HkdfS
     jint infoLen)
 {
     try {
-        JByteArrayCritical output(env, jOutput, /*wipe=*/true);
-        JByteArrayCritical prk(env, jPrk, /*wipe=*/true);
-        JByteArrayCritical info(env, jInfo, /*wipe=*/false);
+        JByteArrayCritical output(env, jOutput, WipeMode::WIPE_OUTPUT);
+        JByteArrayCritical prk(env, jPrk, WipeMode::WIPE_INPUT);
+        JByteArrayCritical info(env, jInfo, WipeMode::NO_WIPE);
         EVP_MD const* digest = digest_code_to_EVP_MD(digestCode);
 
         if (HKDF_expand(output.get(), outputLen, digest, prk.get(), prkLen, info.get(), infoLen) != 1) {

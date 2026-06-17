@@ -557,19 +557,91 @@ public:
     void zeroize() { OPENSSL_cleanse(&m_storage, sizeof(m_storage)); }
 };
 
+// Wipe modes for JByteArrayCritical. Callers must specify intent explicitly; there is no
+// default. Each mode reflects what the buffer holds and how its native copy must be handled
+// when the JVM returns one (GetPrimitiveArrayCritical may pin or copy at the JVM's discretion).
+//
+//   NO_WIPE:     Default release (mode 0). Use for non-sensitive buffers (salt, info, ciphertext).
+//   WIPE_INPUT:  Sensitive read-only buffer (key, password, plaintext-in). Caller does not write
+//                through get(). On the copy path, the native buffer is OPENSSL_cleansed and
+//                discarded via JNI_ABORT; the Java array is preserved unchanged.
+//   WIPE_OUTPUT: Sensitive buffer the caller writes through (derived key, plaintext-out). On the
+//                copy path, the bytes the caller wrote are stashed in a SecureAlloc-backed
+//                vector, the native buffer is OPENSSL_cleansed and discarded via JNI_ABORT, and
+//                the stashed bytes are committed back to the Java array via SetByteArrayRegion
+//                AFTER all critical regions on the thread have been released.
+enum class WipeMode {
+    NO_WIPE,
+    WIPE_INPUT,
+    WIPE_OUTPUT,
+};
+
 // Please follow the guidelines outlined in {Get,Release}PrimitiveArrayCritical when using this class:
 // https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/functions.html#GetPrimitiveArrayCritical_ReleasePrimitiveArrayCritical
 //
-// When |wipe| is true, any native copy made by the JVM (GetPrimitiveArrayCritical may return
-// either a pin into the Java heap or a copy) is OPENSSL_cleansed before being freed, so secret
-// material does not persist on the C heap after the call returns. Java-visible array contents
-// are unaffected: writes performed via get() are committed back to the Java array as with the
-// default release. Use this for buffers holding key material, passwords, or plaintext.
+// JNI requires that no non-Release JNI calls be made while ANY critical region on the
+// thread is open. Notably, SetByteArrayRegion is forbidden. WIPE_OUTPUT eventually calls
+// SetByteArrayRegion to commit the caller's writes back to the Java array.
+//
+// The class supports two usage patterns:
+//
+// 1. Single WIPE_OUTPUT per scope (the common case): rely on RAII. Declare the
+//    WIPE_OUTPUT first so it destructs LAST under C++'s LIFO order, after every other
+//    JByteArrayCritical's critical region has ended. The dtor handles everything.
+//
+//        JByteArrayCritical output(env, jOutput, WipeMode::WIPE_OUTPUT);  // declared FIRST
+//        JByteArrayCritical secret(env, jSecret, WipeMode::WIPE_INPUT);
+//        JByteArrayCritical salt(env, jSalt, WipeMode::NO_WIPE);
+//        // ... algorithm ...
+//        // Destruction at scope exit (reverse order):
+//        //   1. salt   -> ends salt's critical region (mode 0)
+//        //   2. secret -> ends secret's critical region (cleanse + JNI_ABORT)
+//        //   3. output -> ends output's critical region, then SetByteArrayRegion
+//        //                (safe: no other criticals are open at this point)
+//
+// 2. Multiple WIPE_OUTPUTs in one scope: the caller MUST drive release() and
+//    commitBack() manually so that ALL criticals are closed before ANY commit runs:
+//
+//        JByteArrayCritical out1(env, jA, WipeMode::WIPE_OUTPUT);
+//        JByteArrayCritical out2(env, jB, WipeMode::WIPE_OUTPUT);
+//        JByteArrayCritical password(env, jPassword, WipeMode::WIPE_INPUT);
+//        // ... algorithm writes through out1, out2 ...
+//        // Close every critical region first:
+//        password.release();
+//        out2.release();
+//        out1.release();
+//        // Now no critical regions are open; safe to SetByteArrayRegion:
+//        out2.commitBack();
+//        out1.commitBack();
+//        // Subsequent dtor calls are no-ops (release/commit are idempotent).
+//
+//    Without the manual sequence, RAII alone would invoke out2's auto-commitBack while
+//    out1's critical region was still open -- a JNI rule violation.
 class JByteArrayCritical {
 public:
-    JByteArrayCritical(JNIEnv* env, jbyteArray jarray, bool wipe);
+    JByteArrayCritical(JNIEnv* env, jbyteArray jarray, WipeMode mode);
+    // Destructor calls release() and (for WIPE_OUTPUT) commitBack() if the caller has
+    // not done so. Safe for the single-WIPE_OUTPUT-per-scope case; the multi-output
+    // case requires the explicit pattern documented above.
     ~JByteArrayCritical();
     unsigned char* get();
+
+    // End the critical region. For WIPE_OUTPUT on the copy path, also OPENSSL_cleanses
+    // the native buffer, frees it via JNI_ABORT, and stashes the caller's writes for a
+    // later commitBack(). Idempotent and noexcept (allocations happen in the ctor).
+    void release() noexcept;
+
+    // For WIPE_OUTPUT only: commit stashed bytes back to the Java array via
+    // SetByteArrayRegion. No-op for other modes or when no native copy was made.
+    // Idempotent. MUST be called only after release() has run on this object AND every
+    // OTHER JByteArrayCritical on the thread has exited its critical region.
+    void commitBack();
+
+    // Exposed for unit testing of the cleanse-and-stash logic without a real JVM. Copies
+    // |len| bytes from |src| into |dst| (resizing |dst| accordingly), then OPENSSL_cleanses
+    // |src|. Tolerates len == 0.
+    static void cleanse_and_stash(
+        uint8_t* src, jsize len, std::vector<uint8_t, SecureAlloc<uint8_t> >& dst);
 
     // deleting copy & move operations to satisfy rule of five
     JByteArrayCritical(const JByteArrayCritical&) = delete;
@@ -583,8 +655,13 @@ private:
     jbyteArray jarray_;
     jsize len_;
     jboolean is_copy_;
-    bool wipe_;
+    WipeMode mode_;
+    bool released_;
+    // Pre-allocated in the ctor for WIPE_OUTPUT on the copy path so release() is
+    // allocation-free and noexcept. Cleared by commitBack() to make it idempotent.
+    std::vector<uint8_t, SecureAlloc<uint8_t> > stash_;
 };
+
 
 class SimpleBuffer {
 public:
