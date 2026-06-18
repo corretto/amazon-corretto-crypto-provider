@@ -134,6 +134,7 @@ extern "C" JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_AesXt
     jint outputOffset)
 {
     try {
+        // |output| (WIPE_OUTPUT) declared first so its dtor runs last, after the other
         JByteArrayCritical output(env, joutput, WipeMode::WIPE_OUTPUT);
         JByteArrayCritical packedTweakKey(env, jPackedTweakKey, WipeMode::WIPE_INPUT);
         JByteArrayCritical input(env, jinput, WipeMode::NO_WIPE);
