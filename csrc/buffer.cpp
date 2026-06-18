@@ -76,7 +76,7 @@ JByteArrayCritical::JByteArrayCritical(JNIEnv* env, jbyteArray jarray, WipeMode 
         } catch (...) {
             env_->ReleasePrimitiveArrayCritical(jarray_, ptr_, JNI_ABORT);
             ptr_ = nullptr;
-            throw;
+            throw java_ex(EX_OOM, "Failed to allocate stash buffer for sensitive output array");
         }
     }
 }
