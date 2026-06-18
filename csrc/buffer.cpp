@@ -2,9 +2,21 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "buffer.h"
 #include <openssl/mem.h>
+#include <cassert>
 #include <cstdlib>
 
 namespace AmazonCorrettoCryptoProvider {
+
+#ifndef NDEBUG
+// Per-thread count of currently-open JByteArrayCritical regions. Incremented after
+// successful GetPrimitiveArrayCritical and decremented in release(). Used by
+// commitBack() to assert that no other critical regions are still open on this thread
+// when SetByteArrayRegion runs -- which would silently violate JNI's "no other JNI
+// calls within a critical region" rule. The count is independent of pin-vs-copy, so a
+// buggy multi-WIPE_OUTPUT scope trips the assertion on a normal pinned run, not just
+// on the rare JVM-copy path. Compiled out under NDEBUG.
+static thread_local int s_open_criticals = 0;
+#endif
 
 void jni_borrow::bad_release()
 {
@@ -62,6 +74,9 @@ JByteArrayCritical::JByteArrayCritical(JNIEnv* env, jbyteArray jarray, WipeMode 
     if (ptr_ == nullptr) {
         throw java_ex(EX_ERROR, "GetPrimitiveArrayCritical failed.");
     }
+#ifndef NDEBUG
+    ++s_open_criticals;
+#endif
 
     // Reserve stash capacity now that we know whether the JVM made a copy. Skipping this
     // allocation entirely on the pinned path (HotSpot's typical behavior) is the
@@ -75,6 +90,9 @@ JByteArrayCritical::JByteArrayCritical(JNIEnv* env, jbyteArray jarray, WipeMode 
             stash_.reserve(static_cast<size_t>(len_));
         } catch (...) {
             env_->ReleasePrimitiveArrayCritical(jarray_, ptr_, JNI_ABORT);
+#ifndef NDEBUG
+            --s_open_criticals;
+#endif
             ptr_ = nullptr;
             throw java_ex(EX_OOM, "Failed to allocate stash buffer for sensitive output array");
         }
@@ -98,6 +116,9 @@ void JByteArrayCritical::release() noexcept
         return;
     }
     released_ = true;
+#ifndef NDEBUG
+    --s_open_criticals;
+#endif
 
     // Pinned or non-sensitive: ptr_ aliases the Java array (or is opaque to us). Mode-0
     // release commits any writes that already landed in the array; for the pinned WIPE_*
@@ -126,6 +147,18 @@ void JByteArrayCritical::commitBack()
     if (mode_ != WipeMode::WIPE_OUTPUT || stash_.empty()) {
         return;
     }
+    // Tripping this assertion means another JByteArrayCritical's critical region is
+    // still open on this thread. SetByteArrayRegion is forbidden in that state. See the
+    // class comment in buffer.h for the call-site pattern (single WIPE_OUTPUT per scope
+    // declared first; multi-WIPE_OUTPUT requires manual release()/commitBack() ordering).
+    //
+    // Not directly unit-tested: assert() calls abort() on failure, which is incompatible
+    // with the in-process test harness, and constructing a JByteArrayCritical needs a real
+    // JNIEnv. Code review of new call sites is the primary defense; this assertion is the
+    // backstop that fires in any debug-mode test run that misuses the API.
+#ifndef NDEBUG
+    assert(s_open_criticals == 0 && "commitBack() called while a critical region is still open on this thread");
+#endif
     env_->SetByteArrayRegion(jarray_,
         0,
         static_cast<jsize>(stash_.size()),
