@@ -175,7 +175,7 @@ void JByteArrayCritical::commitBack()
     assert(s_open_criticals == 0 && "commitBack() called while a critical region is still open on this thread");
 #endif
    if (stash_.empty()) {
-        return;
+      return;
    }
     env_->SetByteArrayRegion(jarray_,
         0,
