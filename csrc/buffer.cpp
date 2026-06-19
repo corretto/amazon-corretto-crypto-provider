@@ -124,7 +124,7 @@ void JByteArrayCritical::release() noexcept
     }
     released_ = true;
 #ifndef NDEBUG
-    assert(s_open_criticals > 0 && "release() called with negative open criticals, should never happen");
+    assert(s_open_criticals > 0 && "release() would underflow s_open_criticals; unbalanced ctor/release()");
     --s_open_criticals;
 #endif
 
