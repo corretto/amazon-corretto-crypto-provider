@@ -602,9 +602,12 @@ enum class WipeMode {
 // 2. Multiple WIPE_OUTPUTs in one scope: the caller MUST drive release() and
 //    commitBack() manually so that ALL criticals are closed before ANY commit runs:
 //
-//        JByteArrayCritical out1(env, jA, WipeMode::WIPE_OUTPUT);
-//        JByteArrayCritical out2(env, jB, WipeMode::WIPE_OUTPUT);
-//        JByteArrayCritical password(env, jPassword, WipeMode::WIPE_INPUT);
+//        const jsize aLen        = env->GetArrayLength(jA);
+//        const jsize bLen        = env->GetArrayLength(jB);
+//        const jsize passwordLen = env->GetArrayLength(jPassword);
+//        JByteArrayCritical out1(env, jA, aLen, WipeMode::WIPE_OUTPUT);
+//        JByteArrayCritical out2(env, jB, bLen, WipeMode::WIPE_OUTPUT);
+//        JByteArrayCritical password(env, jPassword, passwordLen, WipeMode::WIPE_INPUT);
 //        // ... algorithm writes through out1, out2 ...
 //        // Close every critical region first:
 //        password.release();
