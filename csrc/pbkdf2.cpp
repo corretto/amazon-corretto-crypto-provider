@@ -24,14 +24,13 @@ Java_com_amazon_corretto_crypto_provider_Pbkdf2SecretKeyFactorySpi_pbkdf2(JNIEnv
         // non-Release JNI call and JNI forbids them while any critical region is open.
         const jsize jOutputLen = env->GetArrayLength(jOutput);
         const jsize jPasswordLen = env->GetArrayLength(jPassword);
-        const jsize jSaltLen = env->GetArrayLength(jSalt);
 
-        // |output| (WIPE_OUTPUT) is declared FIRST so its dtor runs LAST, after every
-        // other JBAC's critical region has been released. WIPE_OUTPUT's release path
-        // calls SetByteArrayRegion, which JNI forbids while any critical region is held.
-        JByteArrayCritical output(env, jOutput, jOutputLen, WipeMode::WIPE_OUTPUT);
-        JByteArrayCritical password(env, jPassword, jPasswordLen, WipeMode::WIPE_INPUT);
-        JByteArrayCritical salt(env, jSalt, jSaltLen, WipeMode::NO_WIPE);
+        // |output| (SecretOutputArray) is declared FIRST so its dtor runs LAST, after every
+        // other JBAC's critical region has been released. Its release path calls
+        // SetByteArrayRegion, which JNI forbids while any critical region is held.
+        SecretOutputArray output(env, jOutput, jOutputLen);
+        SecretInputArray password(env, jPassword, jPasswordLen);
+        JByteArrayCritical salt(env, jSalt);
         EVP_MD const* digest = digest_code_to_EVP_MD(digestCode);
 
         if (PKCS5_PBKDF2_HMAC(reinterpret_cast<const char*>(password.get()), passwordLen, salt.get(), saltLen,
