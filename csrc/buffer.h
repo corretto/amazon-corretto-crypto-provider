@@ -589,9 +589,13 @@ enum class WipeMode {
 //    WIPE_OUTPUT first so it destructs LAST under C++'s LIFO order, after every other
 //    JByteArrayCritical's critical region has ended. The dtor handles everything.
 //
-//        JByteArrayCritical output(env, jOutput, WipeMode::WIPE_OUTPUT);  // declared FIRST
-//        JByteArrayCritical secret(env, jSecret, WipeMode::WIPE_INPUT);
-//        JByteArrayCritical salt(env, jSalt, WipeMode::NO_WIPE);
+//        const jsize outLen    = env->GetArrayLength(jOutput);
+//        const jsize secretLen = env->GetArrayLength(jSecret);
+//        const jsize saltLen   = env->GetArrayLength(jSalt);
+//        // All GetArrayLength calls happen BEFORE the first ctor (see ctor docs below).
+//        JByteArrayCritical output(env, jOutput, outLen, WipeMode::WIPE_OUTPUT);  // declared FIRST
+//        JByteArrayCritical secret(env, jSecret, secretLen, WipeMode::WIPE_INPUT);
+//        JByteArrayCritical salt(env, jSalt, saltLen, WipeMode::NO_WIPE);
 //        // ... algorithm ...
 //        // Destruction at scope exit (reverse order):
 //        //   1. salt   -> ends salt's critical region (mode 0)
