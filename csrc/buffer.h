@@ -619,7 +619,12 @@ enum class WipeMode {
 //    out1's critical region was still open -- a JNI rule violation.
 class JByteArrayCritical {
 public:
-    JByteArrayCritical(JNIEnv* env, jbyteArray jarray, WipeMode mode);
+    // |len| MUST be the result of env->GetArrayLength(jarray). Callers compute it
+    // before constructing any JByteArrayCritical so that all GetArrayLength calls
+    // happen outside any critical region (GetArrayLength is a non-Release JNI call,
+    // and JNI forbids non-Release JNI calls while any critical region on the thread
+    // is open).
+    JByteArrayCritical(JNIEnv* env, jbyteArray jarray, jsize len, WipeMode mode);
     // Destructor calls release() and (for WIPE_OUTPUT) commitBack() if the caller has
     // not done so. Safe for the single-WIPE_OUTPUT-per-scope case; the multi-output
     // case requires the explicit pattern documented above.

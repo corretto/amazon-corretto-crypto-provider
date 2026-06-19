@@ -12,9 +12,20 @@ namespace AmazonCorrettoCryptoProvider {
 // successful GetPrimitiveArrayCritical and decremented in release(). Used by
 // commitBack() to assert that no other critical regions are still open on this thread
 // when SetByteArrayRegion runs -- which would silently violate JNI's "no other JNI
-// calls within a critical region" rule. The count is independent of pin-vs-copy, so a
-// buggy multi-WIPE_OUTPUT scope trips the assertion on a normal pinned run, not just
-// on the rare JVM-copy path. Compiled out under NDEBUG.
+// calls within a critical region" rule.
+//
+// "Pin vs. copy" refers to the two outcomes of GetPrimitiveArrayCritical, per the JNI
+// spec: "If possible, the VM returns a pointer to the primitive array; otherwise, a
+// copy is made." On the pin path commitBack() is a no-op because stash_ is empty (the
+// release() call on a pinned, non-NO_WIPE buffer skips the stash step entirely; the
+// pinned writes already landed in the Java array). The pin-vs-copy choice is made by
+// the JVM and is rare in practice on HotSpot. Counting in this thread-local is
+// independent of which outcome occurred, so a buggy multi-WIPE_OUTPUT scope trips the
+// assertion even on a normal pinned run, not just on the rare JVM-copy path. Compiled
+// out under NDEBUG.
+//
+// JNI spec reference:
+// https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/functions.html#GetPrimitiveArrayCritical_ReleasePrimitiveArrayCritical
 static thread_local int s_open_criticals = 0;
 #endif
 
@@ -59,17 +70,15 @@ void JByteArrayCritical::cleanse_and_stash(
     OPENSSL_cleanse(src, len);
 }
 
-JByteArrayCritical::JByteArrayCritical(JNIEnv* env, jbyteArray jarray, WipeMode mode)
+JByteArrayCritical::JByteArrayCritical(JNIEnv* env, jbyteArray jarray, jsize len, WipeMode mode)
     : ptr_(nullptr)
     , env_(env)
     , jarray_(jarray)
-    , len_(0)
+    , len_(len)
     , is_copy_(JNI_FALSE)
     , mode_(mode)
     , released_(false)
 {
-    len_ = env->GetArrayLength(jarray);
-
     ptr_ = env->GetPrimitiveArrayCritical(jarray, &is_copy_);
     if (ptr_ == nullptr) {
         throw java_ex(EX_ERROR, "GetPrimitiveArrayCritical failed.");
@@ -104,9 +113,7 @@ JByteArrayCritical::~JByteArrayCritical()
     // RAII fallback for the single-WIPE_OUTPUT-per-scope case: end the critical region
     // and commit any stashed writes. Multi-WIPE_OUTPUT scopes must drive these manually
     // (see class comment); calls here will be no-ops if the caller already did.
-    if (!released_) {
-        release();
-    }
+    release();
     commitBack();
 }
 
@@ -117,13 +124,21 @@ void JByteArrayCritical::release() noexcept
     }
     released_ = true;
 #ifndef NDEBUG
+    assert(s_open_criticals > 0 && "release() called with negative open criticals, should never happen");
     --s_open_criticals;
 #endif
 
-    // Pinned or non-sensitive: ptr_ aliases the Java array (or is opaque to us). Mode-0
-    // release commits any writes that already landed in the array; for the pinned WIPE_*
-    // paths we must not mutate the array, which mode 0 also satisfies (no rewrite occurs
-    // when ptr_ IS the array).
+    // Pinned or non-sensitive: ptr_ aliases the Java array (or is opaque to us). The
+    // ReleasePrimitiveArrayCritical mode parameter is per the JNI spec:
+    //   0           -- copy back any modifications, then free the native buffer (the
+    //                  default; commits writes back to the Java array on the copy path).
+    //   JNI_COMMIT  -- copy back, but keep the native buffer alive.
+    //   JNI_ABORT   -- free the native buffer WITHOUT copying back (used below on the
+    //                  wipe path so cleansed zeros don't reach the Java array).
+    // Mode 0 here commits any writes that already landed in the Java array; for the
+    // pinned WIPE_* paths we must not mutate the array, which mode 0 also satisfies (no
+    // rewrite occurs when ptr_ IS the array). See:
+    // https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/functions.html#ReleasePrimitiveArrayCritical
     if (!is_copy_ || mode_ == WipeMode::NO_WIPE) {
         env_->ReleasePrimitiveArrayCritical(jarray_, ptr_, 0);
         return;
@@ -144,7 +159,7 @@ void JByteArrayCritical::release() noexcept
 
 void JByteArrayCritical::commitBack()
 {
-    if (mode_ != WipeMode::WIPE_OUTPUT || stash_.empty()) {
+    if (mode_ != WipeMode::WIPE_OUTPUT) {
         return;
     }
     // Tripping this assertion means another JByteArrayCritical's critical region is
@@ -159,6 +174,9 @@ void JByteArrayCritical::commitBack()
 #ifndef NDEBUG
     assert(s_open_criticals == 0 && "commitBack() called while a critical region is still open on this thread");
 #endif
+   if (stash_.empty()) {
+        return;
+   }
     env_->SetByteArrayRegion(jarray_,
         0,
         static_cast<jsize>(stash_.size()),

@@ -21,11 +21,17 @@ extern "C" JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_HkdfS
     jint infoLen)
 {
     try {
+        // GetArrayLength must be called BEFORE any JBAC ctor; see csrc/buffer.h.
+        const jsize jOutputLen = env->GetArrayLength(jOutput);
+        const jsize jSecretLen = env->GetArrayLength(jSecret);
+        const jsize jSaltLen = env->GetArrayLength(jSalt);
+        const jsize jInfoLen = env->GetArrayLength(jInfo);
+
         // |output| (WIPE_OUTPUT) declared first so it destructs last; see csrc/buffer.h.
-        JByteArrayCritical output(env, jOutput, WipeMode::WIPE_OUTPUT);
-        JByteArrayCritical secret(env, jSecret, WipeMode::WIPE_INPUT);
-        JByteArrayCritical salt(env, jSalt, WipeMode::NO_WIPE);
-        JByteArrayCritical info(env, jInfo, WipeMode::NO_WIPE);
+        JByteArrayCritical output(env, jOutput, jOutputLen, WipeMode::WIPE_OUTPUT);
+        JByteArrayCritical secret(env, jSecret, jSecretLen, WipeMode::WIPE_INPUT);
+        JByteArrayCritical salt(env, jSalt, jSaltLen, WipeMode::NO_WIPE);
+        JByteArrayCritical info(env, jInfo, jInfoLen, WipeMode::NO_WIPE);
         EVP_MD const* digest = digest_code_to_EVP_MD(digestCode);
 
         if (HKDF(output.get(), outputLen, digest, secret.get(), secretLen, salt.get(), saltLen, info.get(), infoLen)
@@ -50,9 +56,14 @@ extern "C" JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_HkdfS
     jint saltLen)
 {
     try {
-        JByteArrayCritical output(env, jOutput, WipeMode::WIPE_OUTPUT);
-        JByteArrayCritical secret(env, jSecret, WipeMode::WIPE_INPUT);
-        JByteArrayCritical salt(env, jSalt, WipeMode::NO_WIPE);
+        // GetArrayLength must be called BEFORE any JBAC ctor; see csrc/buffer.h.
+        const jsize jOutputLen = env->GetArrayLength(jOutput);
+        const jsize jSecretLen = env->GetArrayLength(jSecret);
+        const jsize jSaltLen = env->GetArrayLength(jSalt);
+
+        JByteArrayCritical output(env, jOutput, jOutputLen, WipeMode::WIPE_OUTPUT);
+        JByteArrayCritical secret(env, jSecret, jSecretLen, WipeMode::WIPE_INPUT);
+        JByteArrayCritical salt(env, jSalt, jSaltLen, WipeMode::NO_WIPE);
         EVP_MD const* digest = digest_code_to_EVP_MD(digestCode);
 
         size_t out_len = 0;
@@ -78,9 +89,14 @@ extern "C" JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_HkdfS
     jint infoLen)
 {
     try {
-        JByteArrayCritical output(env, jOutput, WipeMode::WIPE_OUTPUT);
-        JByteArrayCritical prk(env, jPrk, WipeMode::WIPE_INPUT);
-        JByteArrayCritical info(env, jInfo, WipeMode::NO_WIPE);
+        // GetArrayLength must be called BEFORE any JBAC ctor; see csrc/buffer.h.
+        const jsize jOutputLen = env->GetArrayLength(jOutput);
+        const jsize jPrkLen = env->GetArrayLength(jPrk);
+        const jsize jInfoLen = env->GetArrayLength(jInfo);
+
+        JByteArrayCritical output(env, jOutput, jOutputLen, WipeMode::WIPE_OUTPUT);
+        JByteArrayCritical prk(env, jPrk, jPrkLen, WipeMode::WIPE_INPUT);
+        JByteArrayCritical info(env, jInfo, jInfoLen, WipeMode::NO_WIPE);
         EVP_MD const* digest = digest_code_to_EVP_MD(digestCode);
 
         if (HKDF_expand(output.get(), outputLen, digest, prk.get(), prkLen, info.get(), infoLen) != 1) {
