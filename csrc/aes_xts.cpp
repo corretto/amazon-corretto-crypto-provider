@@ -149,6 +149,7 @@ extern "C" JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_AesXt
         const jsize jOutputArrLen = env->GetArrayLength(joutput);
 
         // |output| (WIPE_OUTPUT) declared first so its dtor runs last, after the other
+        // buffers' critical regions have been released; see csrc/buffer.h.
         JByteArrayCritical output(env, joutput, jOutputArrLen, WipeMode::WIPE_OUTPUT);
         JByteArrayCritical packedTweakKey(env, jPackedTweakKey, jPackedTweakKeyLen, WipeMode::WIPE_INPUT);
         JByteArrayCritical input(env, jinput, jInputArrLen, WipeMode::NO_WIPE);
