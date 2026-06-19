@@ -379,6 +379,9 @@ if(ENABLE_NATIVE_TEST_HOOKS)
     add_executable(test_keyutils EXCLUDE_FROM_ALL csrc/test_keyutils.cpp)
     # No need to link OpenSSL (AWS-LC)
     target_link_libraries(test_keyutils amazonCorrettoCryptoProvider)
+
+    add_executable(test_buffer EXCLUDE_FROM_ALL csrc/test_buffer.cpp)
+    target_link_libraries(test_buffer amazonCorrettoCryptoProvider)
 endif()
 
 #### Start of feature tests
@@ -920,6 +923,12 @@ if(ENABLE_NATIVE_TEST_HOOKS)
         COMMAND $<TARGET_FILE:test_keyutils>
     )
     add_dependencies(check check-keyutils)
+
+    add_custom_target(check-buffer
+        COMMAND ${CMAKE_COMMAND} -E copy ${OPENSSL_CRYPTO_LIBRARY} $<TARGET_FILE_DIR:test_buffer>
+        COMMAND $<TARGET_FILE:test_buffer>
+    )
+    add_dependencies(check check-buffer)
 endif()
 
 add_custom_target(coverage

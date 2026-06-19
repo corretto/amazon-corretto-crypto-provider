@@ -2,9 +2,32 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "buffer.h"
 #include <openssl/mem.h>
+#include <cassert>
 #include <cstdlib>
 
 namespace AmazonCorrettoCryptoProvider {
+
+#ifndef NDEBUG
+// Per-thread count of currently-open JByteArrayCritical regions. Incremented after
+// successful GetPrimitiveArrayCritical and decremented in release(). Used by
+// commitBack() to assert that no other critical regions are still open on this thread
+// when SetByteArrayRegion runs -- which would silently violate JNI's "no other JNI
+// calls within a critical region" rule.
+//
+// "Pin vs. copy" refers to the two outcomes of GetPrimitiveArrayCritical, per the JNI
+// spec: "If possible, the VM returns a pointer to the primitive array; otherwise, a
+// copy is made." On the pin path commitBack() is a no-op because stash_ is empty (the
+// release() call on a pinned, non-NO_WIPE buffer skips the stash step entirely; the
+// pinned writes already landed in the Java array). The pin-vs-copy choice is made by
+// the JVM and is rare in practice on HotSpot. Counting in this thread-local is
+// independent of which outcome occurred, so a buggy multi-WIPE_OUTPUT scope trips the
+// assertion even on a normal pinned run, not just on the rare JVM-copy path. Compiled
+// out under NDEBUG.
+//
+// JNI spec reference:
+// https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/functions.html#GetPrimitiveArrayCritical_ReleasePrimitiveArrayCritical
+static thread_local int s_open_criticals = 0;
+#endif
 
 void jni_borrow::bad_release()
 {
@@ -37,19 +60,134 @@ jbyteArray vecToArray(raii_env& env, const std::vector<uint8_t, SecureAlloc<uint
     return array;
 }
 
-JByteArrayCritical::JByteArrayCritical(JNIEnv* env, jbyteArray jarray)
-    : env_(env)
-    , jarray_(jarray)
+void JByteArrayCritical::cleanse_and_stash(
+    uint8_t* src, jsize len, std::vector<uint8_t, SecureAlloc<uint8_t> >& dst)
 {
-    ptr_ = env->GetPrimitiveArrayCritical(jarray, nullptr);
+    if (len <= 0) {
+        return;
+    }
+    dst.assign(src, src + len);
+    OPENSSL_cleanse(src, len);
+}
+
+JByteArrayCritical::JByteArrayCritical(JNIEnv* env, jbyteArray jarray, jsize len, WipeMode mode)
+    : ptr_(nullptr)
+    , env_(env)
+    , jarray_(jarray)
+    , len_(len)
+    , is_copy_(JNI_FALSE)
+    , mode_(mode)
+    , released_(false)
+{
+    ptr_ = env->GetPrimitiveArrayCritical(jarray, &is_copy_);
     if (ptr_ == nullptr) {
         throw java_ex(EX_ERROR, "GetPrimitiveArrayCritical failed.");
     }
+#ifndef NDEBUG
+    ++s_open_criticals;
+#endif
+
+    // Reserve stash capacity now that we know whether the JVM made a copy. Skipping this
+    // allocation entirely on the pinned path (HotSpot's typical behavior) is the
+    // optimization. release() must remain allocation-free and noexcept, so the reserve()
+    // happens here rather than later -- but if it throws, the partially-constructed JBAC's
+    // dtor won't run (ctor never finished), so we'd leak the critical region. Catch
+    // bad_alloc, release the critical region ourselves, and rethrow to preserve the
+    // original failure mode.
+    if (mode_ == WipeMode::WIPE_OUTPUT && is_copy_ && len_ > 0) {
+        try {
+            stash_.reserve(static_cast<size_t>(len_));
+        } catch (...) {
+            env_->ReleasePrimitiveArrayCritical(jarray_, ptr_, JNI_ABORT);
+#ifndef NDEBUG
+            --s_open_criticals;
+#endif
+            ptr_ = nullptr;
+            throw java_ex(EX_OOM, "Failed to allocate stash buffer for sensitive output array");
+        }
+    }
 }
 
-JByteArrayCritical::~JByteArrayCritical() { env_->ReleasePrimitiveArrayCritical(jarray_, ptr_, 0); }
+JByteArrayCritical::~JByteArrayCritical()
+{
+    // RAII fallback for the single-WIPE_OUTPUT-per-scope case: end the critical region
+    // and commit any stashed writes. Multi-WIPE_OUTPUT scopes must drive these manually
+    // (see class comment); calls here will be no-ops if the caller already did.
+    release();
+    commitBack();
+}
 
-unsigned char* JByteArrayCritical::get() { return (unsigned char*)ptr_; }
+void JByteArrayCritical::release() noexcept
+{
+    if (released_) {
+        return;
+    }
+    released_ = true;
+#ifndef NDEBUG
+    assert(s_open_criticals > 0 && "release() would underflow s_open_criticals; unbalanced ctor/release()");
+    --s_open_criticals;
+#endif
+
+    // Pinned or non-sensitive: ptr_ aliases the Java array (or is opaque to us). The
+    // ReleasePrimitiveArrayCritical mode parameter is per the JNI spec:
+    //   0           -- copy back any modifications, then free the native buffer (the
+    //                  default; commits writes back to the Java array on the copy path).
+    //   JNI_COMMIT  -- copy back, but keep the native buffer alive.
+    //   JNI_ABORT   -- free the native buffer WITHOUT copying back (used below on the
+    //                  wipe path so cleansed zeros don't reach the Java array).
+    // Mode 0 here commits any writes that already landed in the Java array; for the
+    // pinned WIPE_* paths we must not mutate the array, which mode 0 also satisfies (no
+    // rewrite occurs when ptr_ IS the array). See:
+    // https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/functions.html#ReleasePrimitiveArrayCritical
+    if (!is_copy_ || mode_ == WipeMode::NO_WIPE) {
+        env_->ReleasePrimitiveArrayCritical(jarray_, ptr_, 0);
+        return;
+    }
+
+    // Wipe path on the JVM-copy variant. For WIPE_OUTPUT, stash the caller's writes
+    // (allocation-free; capacity was reserved in the ctor). Cleanse the native copy in
+    // both cases, then JNI_ABORT to free without copying the cleansed bytes back.
+    if (mode_ == WipeMode::WIPE_OUTPUT) {
+        JByteArrayCritical::cleanse_and_stash(static_cast<uint8_t*>(ptr_), len_, stash_);
+    } else if (len_ > 0) { // WIPE_INPUT
+        OPENSSL_cleanse(ptr_, len_);
+    }
+    env_->ReleasePrimitiveArrayCritical(jarray_, ptr_, JNI_ABORT);
+    // The stashed bytes (if any) are committed in commitBack(), which the dtor or
+    // caller invokes after every critical region on the thread is closed.
+}
+
+void JByteArrayCritical::commitBack()
+{
+    if (mode_ != WipeMode::WIPE_OUTPUT) {
+        return;
+    }
+    // Tripping this assertion means another JByteArrayCritical's critical region is
+    // still open on this thread. SetByteArrayRegion is forbidden in that state. See the
+    // class comment in buffer.h for the call-site pattern (single WIPE_OUTPUT per scope
+    // declared first; multi-WIPE_OUTPUT requires manual release()/commitBack() ordering).
+    //
+    // Not directly unit-tested: assert() calls abort() on failure, which is incompatible
+    // with the in-process test harness, and constructing a JByteArrayCritical needs a real
+    // JNIEnv. Code review of new call sites is the primary defense; this assertion is the
+    // backstop that fires in any debug-mode test run that misuses the API.
+#ifndef NDEBUG
+    assert(s_open_criticals == 0 && "commitBack() called while a critical region is still open on this thread");
+#endif
+   if (stash_.empty()) {
+      return;
+   }
+    env_->SetByteArrayRegion(jarray_,
+        0,
+        static_cast<jsize>(stash_.size()),
+        reinterpret_cast<const jbyte*>(stash_.data()));
+    stash_.clear(); // idempotent: subsequent calls are no-ops
+}
+
+unsigned char* JByteArrayCritical::get()
+{
+    return released_ ? nullptr : static_cast<unsigned char*>(ptr_);
+}
 
 SimpleBuffer::SimpleBuffer(int size)
     : buffer_(nullptr)
@@ -101,10 +239,10 @@ JBinaryBlob::~JBinaryBlob()
 uint8_t* JBinaryBlob::get() { return ptr_; }
 
 JIOBlobs::JIOBlobs(JNIEnv* env,
-    jobject inputDirectByteBuffer,
-    jbyteArray inputArray,
-    jobject outputDirectByteBuffer,
-    jbyteArray outputArray)
+                   jobject inputDirectByteBuffer,
+                   jbyteArray inputArray,
+                   jobject outputDirectByteBuffer,
+                   jbyteArray outputArray)
     : env_(env)
     , input_array_(inputArray)
     , output_array_(outputArray)
@@ -113,7 +251,8 @@ JIOBlobs::JIOBlobs(JNIEnv* env,
     if (inputDirectByteBuffer != nullptr) {
         // One should be null. In the Java layer, we ensure this.
         if (inputArray != nullptr) {
-            throw java_ex(EX_ERROR,
+            throw java_ex(
+                EX_ERROR,
                 "THIS SHOULD NOT BE REACHABLE. Both inputDirectByteBuffer and inputArray cannot be provided.");
         }
         input_ptr_ = (uint8_t*)env->GetDirectBufferAddress(inputDirectByteBuffer);
@@ -122,7 +261,8 @@ JIOBlobs::JIOBlobs(JNIEnv* env,
     if (outputDirectByteBuffer != nullptr) {
         // One should be null. In the Java layer, we ensure this.
         if (outputArray != nullptr) {
-            throw java_ex(EX_ERROR,
+            throw java_ex(
+                EX_ERROR,
                 "THIS SHOULD NOT BE REACHABLE. Both outputDirectByteBuffer and outputArray cannot be provided.");
         }
         output_ptr_ = (inputDirectByteBuffer == outputDirectByteBuffer)

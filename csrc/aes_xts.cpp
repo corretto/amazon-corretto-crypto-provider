@@ -86,9 +86,16 @@ extern "C" JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_AesXt
     jint outputOffset)
 {
     try {
-        JByteArrayCritical packedTweakKey(env, jPackedTweakKey);
-        JByteArrayCritical input(env, jinput);
-        JByteArrayCritical output(env, joutput);
+        // GetArrayLength must be called BEFORE any JBAC ctor; see csrc/buffer.h.
+        const jsize jPackedTweakKeyLen = env->GetArrayLength(jPackedTweakKey);
+        const jsize jInputArrLen = env->GetArrayLength(jinput);
+        const jsize jOutputArrLen = env->GetArrayLength(joutput);
+
+        // No WIPE_OUTPUT here: ciphertext is not sensitive, plaintext input is read-only.
+        // Plain RAII suffices; no commitBack() needed.
+        JByteArrayCritical packedTweakKey(env, jPackedTweakKey, jPackedTweakKeyLen, WipeMode::WIPE_INPUT);
+        JByteArrayCritical input(env, jinput, jInputArrLen, WipeMode::WIPE_INPUT);
+        JByteArrayCritical output(env, joutput, jOutputArrLen, WipeMode::NO_WIPE);
 
         AesXtsCipher cipher(true, packedTweakKey.get() + AES_XTS_KEY_INDEX_START, packedTweakKey.get());
         cipher.encrypt(input.get() + inputOffset, inputLen, output.get() + outputOffset);
@@ -107,8 +114,16 @@ extern "C" JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_AesXt
     jint outputOffset)
 {
     try {
-        JByteArrayCritical packedTweakKey(env, jPackedTweakKey);
-        JByteArrayCritical input(env, jinput);
+        // GetArrayLength must be called BEFORE any JBAC ctor; see csrc/buffer.h.
+        const jsize jPackedTweakKeyLen = env->GetArrayLength(jPackedTweakKey);
+        const jsize jInputArrLen = env->GetArrayLength(jinput);
+
+        // Same buffer holds plaintext on entry and ciphertext on exit; native copy held
+        // plaintext mid-call, so we WIPE_OUTPUT (cleanse + commit ciphertext back).
+        // Declared first so its dtor runs last, after packedTweakKey's critical region
+        // has been released.
+        JByteArrayCritical input(env, jinput, jInputArrLen, WipeMode::WIPE_OUTPUT);
+        JByteArrayCritical packedTweakKey(env, jPackedTweakKey, jPackedTweakKeyLen, WipeMode::WIPE_INPUT);
 
         AesXtsCipher cipher(true, packedTweakKey.get() + AES_XTS_KEY_INDEX_START, packedTweakKey.get());
         cipher.encrypt(input.get() + inputOffset, inputLen, input.get() + outputOffset);
@@ -128,9 +143,16 @@ extern "C" JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_AesXt
     jint outputOffset)
 {
     try {
-        JByteArrayCritical packedTweakKey(env, jPackedTweakKey);
-        JByteArrayCritical input(env, jinput);
-        JByteArrayCritical output(env, joutput);
+        // GetArrayLength must be called BEFORE any JBAC ctor; see csrc/buffer.h.
+        const jsize jPackedTweakKeyLen = env->GetArrayLength(jPackedTweakKey);
+        const jsize jInputArrLen = env->GetArrayLength(jinput);
+        const jsize jOutputArrLen = env->GetArrayLength(joutput);
+
+        // |output| (WIPE_OUTPUT) declared first so its dtor runs last, after the other
+        // buffers' critical regions have been released; see csrc/buffer.h.
+        JByteArrayCritical output(env, joutput, jOutputArrLen, WipeMode::WIPE_OUTPUT);
+        JByteArrayCritical packedTweakKey(env, jPackedTweakKey, jPackedTweakKeyLen, WipeMode::WIPE_INPUT);
+        JByteArrayCritical input(env, jinput, jInputArrLen, WipeMode::NO_WIPE);
 
         AesXtsCipher cipher(false, packedTweakKey.get() + AES_XTS_KEY_INDEX_START, packedTweakKey.get());
         cipher.decrypt(input.get() + inputOffset, inputLen, output.get() + outputOffset);
@@ -151,8 +173,14 @@ extern "C" JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_AesXt
     jint outputOffset)
 {
     try {
-        JByteArrayCritical packedTweakKey(env, jPackedTweakKey);
-        JByteArrayCritical input(env, jinput);
+        // GetArrayLength must be called BEFORE any JBAC ctor; see csrc/buffer.h.
+        const jsize jPackedTweakKeyLen = env->GetArrayLength(jPackedTweakKey);
+        const jsize jInputArrLen = env->GetArrayLength(jinput);
+
+        // Same buffer holds ciphertext on entry and plaintext on exit; WIPE_OUTPUT cleanses
+        // any native copy and commits the plaintext back.
+        JByteArrayCritical input(env, jinput, jInputArrLen, WipeMode::WIPE_OUTPUT);
+        JByteArrayCritical packedTweakKey(env, jPackedTweakKey, jPackedTweakKeyLen, WipeMode::WIPE_INPUT);
 
         AesXtsCipher cipher(false, packedTweakKey.get() + AES_XTS_KEY_INDEX_START, packedTweakKey.get());
         cipher.decrypt(input.get() + inputOffset, inputLen, input.get() + outputOffset);

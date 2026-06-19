@@ -20,9 +20,18 @@ Java_com_amazon_corretto_crypto_provider_Pbkdf2SecretKeyFactorySpi_pbkdf2(JNIEnv
                                                                           jint outputLen)
 {
     try {
-        JByteArrayCritical password(env, jPassword);
-        JByteArrayCritical salt(env, jSalt);
-        JByteArrayCritical output(env, jOutput);
+        // GetArrayLength must be called BEFORE any JBAC ctor, since GetArrayLength is a
+        // non-Release JNI call and JNI forbids them while any critical region is open.
+        const jsize jOutputLen = env->GetArrayLength(jOutput);
+        const jsize jPasswordLen = env->GetArrayLength(jPassword);
+        const jsize jSaltLen = env->GetArrayLength(jSalt);
+
+        // |output| (WIPE_OUTPUT) is declared FIRST so its dtor runs LAST, after every
+        // other JBAC's critical region has been released. WIPE_OUTPUT's release path
+        // calls SetByteArrayRegion, which JNI forbids while any critical region is held.
+        JByteArrayCritical output(env, jOutput, jOutputLen, WipeMode::WIPE_OUTPUT);
+        JByteArrayCritical password(env, jPassword, jPasswordLen, WipeMode::WIPE_INPUT);
+        JByteArrayCritical salt(env, jSalt, jSaltLen, WipeMode::NO_WIPE);
         EVP_MD const* digest = digest_code_to_EVP_MD(digestCode);
 
         if (PKCS5_PBKDF2_HMAC(reinterpret_cast<const char*>(password.get()), passwordLen, salt.get(), saltLen,
