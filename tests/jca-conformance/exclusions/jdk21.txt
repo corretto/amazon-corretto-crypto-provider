@@ -1,0 +1,16 @@
+# JCA/JCE conformance test exclusions (jdk21).
+#
+# Each non-comment line is a jtreg test selector (path relative to the OpenJDK
+# test/jdk root) that fails under ACCP for a triaged, accepted reason. Every
+# entry MUST be preceded by a comment giving the rationale and a link to either
+# a DIFFERENCES.md section or a tracking issue. See ../README.md for details.
+#
+# Entries here apply only to JDK 21. Cross-version exclusions go in common.txt.
+
+# Environmental, not ACCP: this test writes a crypto policy file into the JDK
+# installation tree (<jdk>/conf/security/policy/testlimited), which fails with
+# AccessDeniedException on a read-only/system-installed JDK. It would fail the
+# same way against SunJCE; it exercises JDK crypto-policy plumbing, not ACCP.
+# (The CryptoPermissions policy tests differ by JDK version, so this is scoped
+# to JDK 21 rather than common.)
+javax/crypto/CryptoPermissions/InconsistentEntries.java

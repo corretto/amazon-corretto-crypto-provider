@@ -1,0 +1,31 @@
+# JCA/JCE conformance test exclusions (common).
+#
+# Each non-comment line is a jtreg test selector (path relative to the OpenJDK
+# test/jdk root) that fails under ACCP for a triaged, accepted reason. Every
+# entry MUST be preceded by a comment giving the rationale and a link to either
+# a DIFFERENCES.md section or a tracking issue. See ../README.md for details.
+#
+# Entries here apply to ALL JDK versions. JDK-specific exclusions go in
+# exclusions/jdk<major>.txt.
+
+# The three tests below are meta-tests that assert the JDK's *exact default
+# provider configuration*. ACCP deliberately installs itself at provider
+# priority 1 (ahead of the JDK defaults) -- that is the entire point of the
+# provider -- so these tests cannot pass with ACCP installed. None of them
+# exercise algorithm behavior, so excluding them does not reduce conformance
+# coverage.
+
+# Asserts the running provider list equals the JDK default list. ACCP is
+# intentionally present at position 1. (Also trips a ServiceLoader
+# instantiation path under the test's classloader.)
+java/security/Provider/DefaultProviderList.java
+
+# Verifies JDK provider version strings are consistent with the JDK license/
+# code. ACCP at position 1 changes what the test observes about the provider
+# set; not an ACCP algorithm concern.
+java/security/misc/Versions.java
+
+# Exercises modular (JPMS) provider loading of the JDK default providers. Does
+# not compile/run meaningfully with ACCP injected via -Xbootclasspath/a in this
+# harness; it tests the JDK's own modular provider plumbing, not ACCP.
+java/security/Provider/SecurityProviderModularTest.java

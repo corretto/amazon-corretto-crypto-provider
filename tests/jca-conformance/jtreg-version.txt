@@ -1,0 +1,4 @@
+# Pinned openjdk/jtreg tag to build the harness from. jtreg is built from source
+# (no third-party prebuilt binaries) for upstream provenance and reproducibility.
+# https://github.com/openjdk/jtreg/tags
+jtreg-7.5.1+1
