@@ -20,6 +20,7 @@ import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
 import java.security.Provider;
 import java.security.PublicKey;
+import java.security.Security;
 import java.security.interfaces.ECPublicKey;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.ECFieldFp;
@@ -70,6 +71,9 @@ public class EvpKeyAgreementTest {
     MASTER_PARAMS_LIST.add(buildEcdhParameters(EcGenTest.EXPLICIT_CURVE, "Explicit Curve"));
     if (TestUtil.JAVA_VERSION >= 11) {
       MASTER_PARAMS_LIST.add(buildX25519Parameters());
+      // JSSE requests KeyAgreement.getInstance("XDH") for the TLS 1.3 x25519 handshake, so ACCP must
+      // answer under the "XDH" name as well as "X25519". See P470070813.
+      MASTER_PARAMS_LIST.add(buildXdhParameters());
     }
   }
 
@@ -170,6 +174,18 @@ public class EvpKeyAgreementTest {
         KeyPairGenerator.getInstance("X25519", NATIVE_PROVIDER),
         NATIVE_PROVIDER,
         NATIVE_PROVIDER,
+        Arrays.asList());
+  }
+
+  // Exercises ACCP's KeyAgreement registered under the "XDH" name (the name JSSE uses) and verifies
+  // it interoperates with SunEC's XDH KeyAgreement, matching the real TLS handshake topology.
+  private static TestParams buildXdhParameters() throws GeneralSecurityException, IOException {
+    return new TestParams(
+        "XDH",
+        "XDH(X25519)",
+        KeyPairGenerator.getInstance("XDH", NATIVE_PROVIDER),
+        NATIVE_PROVIDER,
+        Security.getProvider("SunEC"),
         Arrays.asList());
   }
 

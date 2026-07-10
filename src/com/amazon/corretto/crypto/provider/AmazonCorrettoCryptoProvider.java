@@ -231,13 +231,15 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
             "java.security.interfaces.ECPublicKey|java.security.interfaces.ECPrivateKey"));
 
     if (shouldRegisterX25519) {
-      addService(
-          "KeyAgreement",
-          "X25519",
-          "EvpKeyAgreement$XDH",
+      final Map<String, String> xdhKeyAgreementAttributes =
           singletonMap(
               "SupportedKeyClasses",
-              "java.security.interfaces.XECPublicKey|java.security.interfaces.XECPrivateKey"));
+              "java.security.interfaces.XECPublicKey|java.security.interfaces.XECPrivateKey");
+      // Register under both the "XDH" and "X25519" names, mirroring the dual registration used for
+      // KeyPairGenerator/KeyFactory. JSSE's TLS 1.3 handshake requests KeyAgreement.getInstance("XDH"),
+      // so without the "XDH" alias it silently fails over to another provider (e.g. SunEC).
+      addService("KeyAgreement", "XDH", "EvpKeyAgreement$XDH", xdhKeyAgreementAttributes);
+      addService("KeyAgreement", "X25519", "EvpKeyAgreement$XDH", xdhKeyAgreementAttributes);
     }
 
     if (shouldRegisterEcParams) {
