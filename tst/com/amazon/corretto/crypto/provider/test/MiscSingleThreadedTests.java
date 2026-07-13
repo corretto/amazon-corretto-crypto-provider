@@ -102,8 +102,8 @@ public class MiscSingleThreadedTests {
    * KeyPairGenerator with a NamedParameterSpec. ACCP previously (a) threw from
    * XDHGen.initialize(AlgorithmParameterSpec) and (b) did not register KeyAgreement under the "XDH"
    * name, so the JCA silently failed over to SunEC for both operations. This test installs ACCP as
-   * the highest-priority provider and asserts that ACCP — not another provider — actually serves
-   * each operation, which is exactly the signal an isolated, provider-named test misses.
+   * the highest-priority provider and asserts that ACCP (not another provider) actually serves each
+   * operation, which is exactly the signal an isolated, provider-named test misses.
    */
   @Test
   public void xdhUsableByDefaultProviderLookup() throws Exception {
