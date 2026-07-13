@@ -109,6 +109,19 @@ public class EvpKeyAgreementSpecificTest {
     assertArrayEquals(aliceSecret, bobSecret);
   }
 
+  // ACCP registers KeyAgreement under the "XDH" name, whose SupportedKeyClasses (XECPublicKey /
+  // XECPrivateKey) also match X448 keys. ACCP only supports X25519, so init'ing with a (SunEC) X448
+  // key must fail with InvalidKeyException, letting the JCA fall through to another provider. This
+  // is the KeyAgreement-side twin of
+  // KeyPairGeneratorTest.initializeWithUnsupportedNamedParameterSpecThrows.
+  @Test
+  public void xdhKeyAgreementRejectsX448Key() throws Exception {
+    TestUtil.assumeMinimumJavaVersion(17);
+    final KeyPair x448KeyPair = KeyPairGenerator.getInstance("X448").generateKeyPair();
+    final KeyAgreement accpAgreement = KeyAgreement.getInstance("XDH", NATIVE_PROVIDER);
+    assertThrows(InvalidKeyException.class, () -> accpAgreement.init(x448KeyPair.getPrivate()));
+  }
+
   @Test
   public void evilEcKeys() {
     final Key privKey = EC_KEYPAIR.getPrivate();

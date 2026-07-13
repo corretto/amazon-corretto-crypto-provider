@@ -21,6 +21,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.security.spec.AlgorithmParameterSpec;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -466,6 +467,22 @@ public class TestUtil {
 
   public static void assumeMinimumJavaVersion(int minVersion) {
     Assumptions.assumeTrue(JAVA_VERSION >= minVersion);
+  }
+
+  /**
+   * Builds a {@code java.security.spec.NamedParameterSpec} (a JDK 11+ type) reflectively so callers
+   * can continue to compile against ACCP's lower bytecode target. Only call on JDK 11+ (e.g. after
+   * {@link #assumeMinimumJavaVersion(int)}).
+   */
+  public static AlgorithmParameterSpec namedParameterSpec(final String name) {
+    try {
+      return (AlgorithmParameterSpec)
+          Class.forName("java.security.spec.NamedParameterSpec")
+              .getConstructor(String.class)
+              .newInstance(name);
+    } catch (final ReflectiveOperationException e) {
+      throw new AssertionError("Unable to construct NamedParameterSpec", e);
+    }
   }
 
   public static synchronized Provider[] saveProviders() {
