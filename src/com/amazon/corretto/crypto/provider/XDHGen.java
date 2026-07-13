@@ -31,6 +31,8 @@ class XDHGen extends EvpKeyPairGenerator {
    * <p>{@code NamedParameterSpec} was introduced in JDK 11, but ACCP's main sources are compiled
    * for an older bytecode target, so the spec's curve name is read reflectively rather than by
    * importing the type directly.
+   *
+   * <p>The {@code random} parameter is ignored; key generation always draws from AWS-LC's DRBG.
    */
   @Override
   public void initialize(final AlgorithmParameterSpec params, final SecureRandom random)
