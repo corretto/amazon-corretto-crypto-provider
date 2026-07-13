@@ -17,9 +17,11 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
 import java.security.Provider;
+import java.security.SecureRandom;
 import java.security.Security;
 import java.security.Signature;
 import javax.crypto.Cipher;
+import javax.crypto.KeyAgreement;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -89,6 +91,46 @@ public class MiscSingleThreadedTests {
       assertNotEquals(
           ((Provider) TestUtil.NATIVE_PROVIDER).getName(),
           Cipher.getInstance("AES").getProvider().getName());
+    } finally {
+      restoreProviders(oldProviders);
+    }
+  }
+
+  /**
+   * Regression test for P470070813. JSSE's TLS 1.3 x25519 handshake looks up the "XDH"
+   * KeyPairGenerator and KeyAgreement <em>without</em> naming a provider, then initializes the
+   * KeyPairGenerator with a NamedParameterSpec. ACCP previously (a) threw from
+   * XDHGen.initialize(AlgorithmParameterSpec) and (b) did not register KeyAgreement under the "XDH"
+   * name, so the JCA silently failed over to SunEC for both operations. This test installs ACCP as
+   * the highest-priority provider and asserts that ACCP — not another provider — actually serves
+   * each operation, which is exactly the signal an isolated, provider-named test misses.
+   */
+  @Test
+  public void xdhUsableByDefaultProviderLookup() throws Exception {
+    // XDH is only registered on JDK versions where ACCP registers X25519 (getJavaVersion() > 11).
+    TestUtil.assumeMinimumJavaVersion(17);
+    final Provider[] oldProviders = saveProviders();
+    try {
+      AmazonCorrettoCryptoProvider.install();
+
+      // Default (unnamed) lookup + NamedParameterSpec init, as JSSE does. Pre-fix this silently
+      // failed over to SunEC because XDHGen.initialize(AlgorithmParameterSpec) threw.
+      final KeyPairGenerator kpg = KeyPairGenerator.getInstance("XDH");
+      kpg.initialize(TestUtil.namedParameterSpec("X25519"), new SecureRandom());
+      final KeyPair keyPair = kpg.generateKeyPair();
+      assertEquals(
+          NATIVE_PROVIDER.getName(),
+          kpg.getProvider().getName(),
+          "XDH KeyPairGenerator silently failed over to another provider");
+
+      // Default (unnamed) lookup for KeyAgreement.XDH. Pre-fix this resolved to SunEC because ACCP
+      // only registered KeyAgreement under the "X25519" name.
+      final KeyAgreement ka = KeyAgreement.getInstance("XDH");
+      ka.init(keyPair.getPrivate());
+      assertEquals(
+          NATIVE_PROVIDER.getName(),
+          ka.getProvider().getName(),
+          "XDH KeyAgreement silently failed over to another provider");
     } finally {
       restoreProviders(oldProviders);
     }

@@ -13,6 +13,7 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.spec.ECGenParameterSpec;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.parallel.Execution;
@@ -60,10 +61,10 @@ public class KeyPairGeneratorTest {
   // UnsupportedOperationException from initialize(), causing the JCA to silently fail over to
   // SunEC.
   @Test
-  public void initializeWithNamedParameterSpecX25519() throws Exception {
+  public void initializeWithNamedParameterSpecX25519() throws InvalidAlgorithmParameterException {
     TestUtil.assumeMinimumJavaVersion(17);
     final KeyPairGenerator keyPairGenerator = getKeyPairGenerator("XDH");
-    keyPairGenerator.initialize(namedParameterSpec("X25519"), new SecureRandom());
+    keyPairGenerator.initialize(TestUtil.namedParameterSpec("X25519"), new SecureRandom());
     final KeyPair keyPair = keyPairGenerator.generateKeyPair();
     assertNotNull(keyPair);
     assertEquals("XDH", keyPair.getPrivate().getAlgorithm());
@@ -75,21 +76,32 @@ public class KeyPairGeneratorTest {
   // ACCP only supports X25519, so an XDH generator asked for another curve (e.g. X448) must reject
   // the spec so the JCA can fail over rather than silently emit an X25519 key.
   @Test
-  public void initializeWithUnsupportedNamedParameterSpecThrows() throws Exception {
+  public void initializeWithUnsupportedNamedParameterSpecThrows() {
     TestUtil.assumeMinimumJavaVersion(17);
     final KeyPairGenerator keyPairGenerator = getKeyPairGenerator("XDH");
     assertThrows(
         InvalidAlgorithmParameterException.class,
-        () -> keyPairGenerator.initialize(namedParameterSpec("X448"), new SecureRandom()));
+        () -> keyPairGenerator.initialize(TestUtil.namedParameterSpec("X448"), new SecureRandom()));
   }
 
-  // Builds a java.security.spec.NamedParameterSpec (JDK 11+) reflectively so this test class can
-  // continue to compile against ACCP's lower bytecode target.
-  private static AlgorithmParameterSpec namedParameterSpec(final String name) throws Exception {
-    return (AlgorithmParameterSpec)
-        Class.forName("java.security.spec.NamedParameterSpec")
-            .getConstructor(String.class)
-            .newInstance(name);
+  // A null spec is rejected (rather than NPE'ing or silently generating a key).
+  @Test
+  public void initializeWithNullParamsThrows() {
+    TestUtil.assumeMinimumJavaVersion(17);
+    final KeyPairGenerator keyPairGenerator = getKeyPairGenerator("XDH");
+    assertThrows(
+        InvalidAlgorithmParameterException.class,
+        () -> keyPairGenerator.initialize((AlgorithmParameterSpec) null, new SecureRandom()));
+  }
+
+  // A non-NamedParameterSpec (e.g. ECGenParameterSpec) is rejected so the JCA can fail over.
+  @Test
+  public void initializeWithNonNamedParameterSpecThrows() {
+    TestUtil.assumeMinimumJavaVersion(17);
+    final KeyPairGenerator keyPairGenerator = getKeyPairGenerator("XDH");
+    assertThrows(
+        InvalidAlgorithmParameterException.class,
+        () -> keyPairGenerator.initialize(new ECGenParameterSpec("secp256r1"), new SecureRandom()));
   }
 
   @Test
