@@ -57,7 +57,8 @@ public class KeyPairGeneratorTest {
 
   // Regression test for P470070813: JSSE's TLS 1.3 x25519 handshake initializes the XDH
   // KeyPairGenerator with NamedParameterSpec.X25519. ACCP previously threw
-  // UnsupportedOperationException from initialize(), causing the JCA to silently fail over to SunEC.
+  // UnsupportedOperationException from initialize(), causing the JCA to silently fail over to
+  // SunEC.
   @Test
   public void initializeWithNamedParameterSpecX25519() throws Exception {
     TestUtil.assumeMinimumJavaVersion(11);

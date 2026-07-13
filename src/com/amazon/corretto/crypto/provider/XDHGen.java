@@ -28,9 +28,9 @@ class XDHGen extends EvpKeyPairGenerator {
    * a no-op; any other spec (e.g. X448) is rejected so the JCA can fail over to a provider that
    * supports it rather than silently producing an X25519 key.
    *
-   * <p>{@code NamedParameterSpec} was introduced in JDK 11, but ACCP's main sources are compiled for
-   * an older bytecode target, so the spec's curve name is read reflectively rather than by importing
-   * the type directly.
+   * <p>{@code NamedParameterSpec} was introduced in JDK 11, but ACCP's main sources are compiled
+   * for an older bytecode target, so the spec's curve name is read reflectively rather than by
+   * importing the type directly.
    */
   @Override
   public void initialize(final AlgorithmParameterSpec params, final SecureRandom random)

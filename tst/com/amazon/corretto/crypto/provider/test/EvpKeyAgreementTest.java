@@ -71,7 +71,8 @@ public class EvpKeyAgreementTest {
     MASTER_PARAMS_LIST.add(buildEcdhParameters(EcGenTest.EXPLICIT_CURVE, "Explicit Curve"));
     if (TestUtil.JAVA_VERSION >= 11) {
       MASTER_PARAMS_LIST.add(buildX25519Parameters());
-      // JSSE requests KeyAgreement.getInstance("XDH") for the TLS 1.3 x25519 handshake, so ACCP must
+      // JSSE requests KeyAgreement.getInstance("XDH") for the TLS 1.3 x25519 handshake, so ACCP
+      // must
       // answer under the "XDH" name as well as "X25519". See P470070813.
       MASTER_PARAMS_LIST.add(buildXdhParameters());
     }
