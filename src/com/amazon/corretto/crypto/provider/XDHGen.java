@@ -54,7 +54,7 @@ class XDHGen extends EvpKeyPairGenerator {
 
   // Returns the curve name if |params| is a java.security.spec.NamedParameterSpec, else null.
   // Uses reflection because NamedParameterSpec is a JDK 11+ type not available at our bytecode
-  // target. shouldRegisterX25519 already gates this SPI to JDK 11+, so the type is present at
+  // target. shouldRegisterX25519 already gates this SPI to JDK 12+, so the type is present at
   // runtime whenever this method is reachable.
   private static String getNamedCurve(final AlgorithmParameterSpec params) {
     if (!"java.security.spec.NamedParameterSpec".equals(params.getClass().getName())) {

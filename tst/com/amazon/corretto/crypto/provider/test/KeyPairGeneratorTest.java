@@ -61,7 +61,7 @@ public class KeyPairGeneratorTest {
   // SunEC.
   @Test
   public void initializeWithNamedParameterSpecX25519() throws Exception {
-    TestUtil.assumeMinimumJavaVersion(11);
+    TestUtil.assumeMinimumJavaVersion(17);
     final KeyPairGenerator keyPairGenerator = getKeyPairGenerator("XDH");
     keyPairGenerator.initialize(namedParameterSpec("X25519"), new SecureRandom());
     final KeyPair keyPair = keyPairGenerator.generateKeyPair();
@@ -76,7 +76,7 @@ public class KeyPairGeneratorTest {
   // the spec so the JCA can fail over rather than silently emit an X25519 key.
   @Test
   public void initializeWithUnsupportedNamedParameterSpecThrows() throws Exception {
-    TestUtil.assumeMinimumJavaVersion(11);
+    TestUtil.assumeMinimumJavaVersion(17);
     final KeyPairGenerator keyPairGenerator = getKeyPairGenerator("XDH");
     assertThrows(
         InvalidAlgorithmParameterException.class,
