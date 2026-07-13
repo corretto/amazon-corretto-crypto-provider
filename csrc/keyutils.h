@@ -88,6 +88,12 @@ EVP_PKEY* der2EvpPublicKey(const unsigned char* der, const int derLen, const cha
 bool checkKey(const EVP_PKEY* key);
 static bool inline BN_null_or_zero(const BIGNUM* bn) { return nullptr == bn || BN_is_zero(bn); }
 
+// Returns true if keyType is EVP_PKEY_RSA or EVP_PKEY_RSA_PSS. RSASSA-PSS keys
+// (OID 1.2.840.113549.1.1.10) are functionally identical to RSA keys but use a
+// different AlgorithmIdentifier, causing EVP_PKEY_base_id() to return
+// EVP_PKEY_RSA_PSS instead of EVP_PKEY_RSA.
+static inline bool isRsaKeyType(int keyType) { return keyType == EVP_PKEY_RSA || keyType == EVP_PKEY_RSA_PSS; }
+
 class raii_cipher_ctx {
 private:
     EVP_CIPHER_CTX* m_ctx;

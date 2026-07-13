@@ -139,7 +139,7 @@ bool initializeContext(raii_env& env,
         }
     }
 
-    if (EVP_PKEY_base_id(ctx->getKey()) == EVP_PKEY_RSA) {
+    if (isRsaKeyType(EVP_PKEY_base_id(ctx->getKey()))) {
         if (!configurePadding(env, pctx, paddingType, mgfMdPtr, pssSaltLen)) {
             throw_openssl("Unable to configure padding");
         }
@@ -392,7 +392,7 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
 
             // JCA/JCA requires us to try to throw an exception on corrupted signatures, but only if it isn't an RSA
             // signature
-            if (errorCode != 0 && keyType != EVP_PKEY_RSA) {
+            if (errorCode != 0 && !isRsaKeyType(keyType)) {
                 throw_java_ex(
                     EX_SIGNATURE_EXCEPTION, formatOpensslError(errorCode, "Unknown error verifying signature"));
             }
@@ -631,7 +631,7 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_EvpSignature
 
             // JCA/JCA requires us to try to throw an exception on corrupted signatures, but only if it isn't an RSA
             // signature
-            if (errorCode != 0 && EVP_PKEY_base_id(ctx.getKey()) != EVP_PKEY_RSA) {
+            if (errorCode != 0 && !isRsaKeyType(EVP_PKEY_base_id(ctx.getKey()))) {
                 throw_java_ex(
                     EX_SIGNATURE_EXCEPTION, formatOpensslError(errorCode, "Unknown error verifying signature"));
             }
@@ -661,7 +661,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_NoneWithRs
         EVP_PKEY* key = reinterpret_cast<EVP_PKEY*>(pKey);
         const EVP_MD* md = reinterpret_cast<const EVP_MD*>(hashMd);
 
-        if (EVP_PKEY_base_id(key) != EVP_PKEY_RSA) {
+        if (!isRsaKeyType(EVP_PKEY_base_id(key))) {
             throw_java_ex(EX_SIGNATURE_EXCEPTION, "Key must be RSA");
         }
 
@@ -687,18 +687,19 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_NoneWithRs
                     throw_java_ex(EX_SIGNATURE_EXCEPTION, "Digest length mismatch");
                 }
                 const EVP_MD* mgf_md = reinterpret_cast<const EVP_MD*>(mgfMd);
-                if (RSA_sign_pss_mgf1(rsa, &sigLen, signature.data(), rsaSize, digest.data(), length, md, mgf_md, saltLen)
+                if (RSA_sign_pss_mgf1(
+                        rsa, &sigLen, signature.data(), rsaSize, digest.data(), length, md, mgf_md, saltLen)
                     != 1) {
                     throw_openssl("RSA_sign_pss_mgf1 failed");
                 }
                 break;
             }
             case RSA_PKCS1_PADDING: {
-                if ((size_t)length > (rsaSize - 11)) {  // PKCS1 padding is 11 bytes for raw NONEwithRSA
+                if ((size_t)length > (rsaSize - 11)) { // PKCS1 padding is 11 bytes for raw NONEwithRSA
                     throw_java_ex(EX_SIGNATURE_EXCEPTION, "Message too long for RSA key");
                 }
-                int rc = RSA_sign_raw(rsa, &sigLen, signature.data(), rsaSize,
-                    digest.data(), length, RSA_PKCS1_PADDING);
+                int rc
+                    = RSA_sign_raw(rsa, &sigLen, signature.data(), rsaSize, digest.data(), length, RSA_PKCS1_PADDING);
                 if (rc != 1) {
                     throw_openssl("RSA_sign_raw failed");
                 }
@@ -738,7 +739,7 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_NoneWithRsa_
         EVP_PKEY* key = reinterpret_cast<EVP_PKEY*>(pKey);
         const EVP_MD* md = reinterpret_cast<const EVP_MD*>(hashMd);
 
-        if (EVP_PKEY_base_id(key) != EVP_PKEY_RSA) {
+        if (!isRsaKeyType(EVP_PKEY_base_id(key))) {
             throw_java_ex(EX_SIGNATURE_EXCEPTION, "Key must be RSA");
         }
 
@@ -770,8 +771,7 @@ JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_NoneWithRsa_
             size_t outLen = 0;
             std::vector<uint8_t> buf(RSA_size(rsa));
             if (1 != RSA_verify_raw(rsa, &outLen, buf.data(), buf.size(), sig.data(), sig.len(), RSA_PKCS1_PADDING)
-                || (size_t)length != outLen
-                || 0 != CRYPTO_memcmp(buf.data(), digest.data(), outLen)) {
+                || (size_t)length != outLen || 0 != CRYPTO_memcmp(buf.data(), digest.data(), outLen)) {
                 break; // result stays 0
             }
             result = 1;

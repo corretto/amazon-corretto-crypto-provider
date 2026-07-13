@@ -23,6 +23,11 @@ import static com.amazon.corretto.crypto.provider.Loader.EXPERIMENTAL_FIPS_BUILD
 import static com.amazon.corretto.crypto.provider.Loader.FIPS_BUILD;
 import static com.amazon.corretto.crypto.provider.Loader.PROVIDER_VERSION;
 import static com.amazon.corretto.crypto.provider.Loader.PROVIDER_VERSION_STR;
+import static com.amazon.corretto.crypto.provider.Pbkdf2SecretKeyFactorySpi.PBKDF2_WITH_SHA1;
+import static com.amazon.corretto.crypto.provider.Pbkdf2SecretKeyFactorySpi.PBKDF2_WITH_SHA224;
+import static com.amazon.corretto.crypto.provider.Pbkdf2SecretKeyFactorySpi.PBKDF2_WITH_SHA256;
+import static com.amazon.corretto.crypto.provider.Pbkdf2SecretKeyFactorySpi.PBKDF2_WITH_SHA384;
+import static com.amazon.corretto.crypto.provider.Pbkdf2SecretKeyFactorySpi.PBKDF2_WITH_SHA512;
 import static java.lang.String.format;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonMap;
@@ -138,6 +143,13 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     addService("SecretKeyFactory", HKDF_WITH_SHA256, hkdfSpi, false);
     addService("SecretKeyFactory", HKDF_WITH_SHA384, hkdfSpi, false);
     addService("SecretKeyFactory", HKDF_WITH_SHA512, hkdfSpi, false);
+
+    final String pbkdf2Spi = "Pbkdf2SecretKeyFactorySpi";
+    addService("SecretKeyFactory", PBKDF2_WITH_SHA1, pbkdf2Spi, false);
+    addService("SecretKeyFactory", PBKDF2_WITH_SHA224, pbkdf2Spi, false);
+    addService("SecretKeyFactory", PBKDF2_WITH_SHA256, pbkdf2Spi, false);
+    addService("SecretKeyFactory", PBKDF2_WITH_SHA384, pbkdf2Spi, false);
+    addService("SecretKeyFactory", PBKDF2_WITH_SHA512, pbkdf2Spi, false);
 
     final String concatenationKdfSpi = "ConcatenationKdfSpi";
     addService("SecretKeyFactory", CKDF_WITH_SHA256, concatenationKdfSpi, false);
@@ -440,6 +452,13 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
             return spi;
           }
 
+          final Pbkdf2SecretKeyFactorySpi pbkdf2Spi =
+              Pbkdf2SecretKeyFactorySpi.INSTANCES.get(
+                  Pbkdf2SecretKeyFactorySpi.getSpiFactoryForAlgName(algo));
+          if (pbkdf2Spi != null) {
+            return pbkdf2Spi;
+          }
+
           final ConcatenationKdfSpi ckdfSpi =
               ConcatenationKdfSpi.INSTANCES.get(ConcatenationKdfSpi.getSpiFactoryForAlgName(algo));
           if (ckdfSpi != null) {
@@ -605,7 +624,9 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
     this.shouldRegisterMLKEM = Utils.isMlKemSupported();
 
-    this.shouldRegisterX25519 = Utils.getJavaVersion() >= 11;
+    // XECKeys were introduced in JDK11, but ACCP's keys aren't compatible until JDK12+.
+    // See comment in XDHGen.java for more details.
+    this.shouldRegisterX25519 = Utils.getJavaVersion() > 11;
 
     this.nativeContextReleaseStrategy = Utils.getNativeContextReleaseStrategyProperty();
 

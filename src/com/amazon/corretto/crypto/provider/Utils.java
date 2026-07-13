@@ -30,6 +30,7 @@ final class Utils {
   static final int SHA256_CODE = 2;
   static final int SHA384_CODE = 3;
   static final int SHA512_CODE = 4;
+  static final int SHA224_CODE = 5;
   private static final String PROPERTY_NATIVE_CONTEXT_RELEASE_STRATEGY =
       "nativeContextReleaseStrategy";
 
@@ -374,7 +375,7 @@ final class Utils {
     }
   }
 
-  public static void testDigest(MessageDigest md, byte[] message, byte[] expected) {
+  static void testDigest(MessageDigest md, byte[] message, byte[] expected) {
     final int[] lengths = new int[] {1, 3, 4, 7, 8, 16, 32, 48, 64, 128, 256};
     final String alg = md.getAlgorithm();
     assertArrayEquals(alg, expected, md.digest(message));
@@ -647,7 +648,7 @@ final class Utils {
 
   static native void releaseEvpCipherCtx(long ctxPtr);
 
-  public static byte[] checkAesKey(final Key key) throws InvalidKeyException {
+  static byte[] checkAesKey(final Key key) throws InvalidKeyException {
     if (key == null) {
       throw new InvalidKeyException("Key can't be null");
     }

@@ -27,7 +27,12 @@ abstract class EvpKeyPairGenerator extends KeyPairGeneratorSpi {
 
   @Override
   public void initialize(final int keysize, final SecureRandom random) {
-    throw new UnsupportedOperationException();
+    // No-op for compatibility with callers (e.g. BouncyCastle TLS) that invoke
+    // initialize(int, SecureRandom) before generateKeyPair(). The keysize is
+    // fixed by the underlying algorithm, so there is nothing to configure, and
+    // ACCP's generator always uses libcrypto's DRBG regardless of |random|.
+    // Note: initialize(AlgorithmParameterSpec, SecureRandom) is intentionally
+    // left to throw UnsupportedOperationException via the default SPI impl.
   }
 
   // Provides an appropriate KeyFactory for this key type

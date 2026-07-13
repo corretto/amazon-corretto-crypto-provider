@@ -148,6 +148,11 @@ class EvpKeyAgreement extends KeyAgreementSpi {
     if (privKey != null) {
       privKey.releaseEphemeral();
     }
+    // If the following key translation throws an exception,
+    // then `key` must be invalid and we must not retain the `privKey` value
+    // to conform with JCE as described in JTREG test
+    // "sun/security/ec/ECDHKeyAgreementParamValidation.java".
+    privKey = null;
     privKey = provider_.translateKey(key, keyType_);
     reset();
   }

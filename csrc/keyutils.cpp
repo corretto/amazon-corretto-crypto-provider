@@ -34,7 +34,7 @@ EVP_PKEY* der2EvpPrivateKey(const unsigned char* der,
         throw_openssl(javaExceptionClass, "Unable to convert PKCS8_PRIV_KEY_INFO to EVP_PKEY");
     }
 
-    if (EVP_PKEY_base_id(result) == EVP_PKEY_RSA) {
+    if (isRsaKeyType(EVP_PKEY_base_id(result))) {
         const RSA* rsa = EVP_PKEY_get0_RSA(result);
 
         if (rsa) {
@@ -132,6 +132,7 @@ bool checkKey(const EVP_PKEY* key)
 
     switch (keyType) {
     case EVP_PKEY_RSA:
+    case EVP_PKEY_RSA_PSS:
         rsaKey = EVP_PKEY_get0_RSA(key);
         RSA_get0_factors(rsaKey, &p, &q);
         // RSA_check_key only works when sufficient private values are set

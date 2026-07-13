@@ -397,6 +397,34 @@ public class AesTest {
     }
   }
 
+  /**
+   * V2200543407: re-initializing a Cipher with the same key but a different-length IV must produce
+   * the same output as a fresh Cipher. The native EVP_CIPHER_CTX caches its ivlen from the prior
+   * init; if reused, a different-length IV would be truncated or read past the buffer. The two
+   * primer cycles get the native context cached so the regression step exercises that reuse path;
+   * primer IVs must differ to avoid the "Cannot reuse same iv and key" guard.
+   */
+  @Test
+  public void gcm_reinit_differentIvLengthMustNotReuseCachedIvlen()
+      throws GeneralSecurityException {
+    final byte[] ivPrimerA = TestUtil.getRandomBytes(12);
+    final byte[] ivPrimerB = TestUtil.getRandomBytes(12);
+    amznC.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, ivPrimerA));
+    amznC.doFinal(PLAINTEXT);
+    amznC.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, ivPrimerB));
+    amznC.doFinal(PLAINTEXT);
+
+    final byte[] ivDifferentLength = TestUtil.getRandomBytes(16);
+    amznC.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, ivDifferentLength));
+    final byte[] ctReused = amznC.doFinal(PLAINTEXT);
+
+    final Cipher fresh = Cipher.getInstance(ALGO_NAME, NATIVE_PROVIDER);
+    fresh.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, ivDifferentLength));
+    final byte[] ctFresh = fresh.doFinal(PLAINTEXT);
+
+    assertArrayEquals(ctFresh, ctReused);
+  }
+
   @Test
   public void edge_badSetMode() throws Throwable {
     assertThrows(
@@ -881,7 +909,7 @@ public class AesTest {
 
     for (int bit = 0; bit < data.length * 8; bit++) {
       byte[] corruptData = data.clone();
-      corruptData[bit / 8] ^= (1 << (bit % 8));
+      corruptData[bit / 8] ^= (byte) (1 << (bit % 8));
 
       Cipher check = Cipher.getInstance(ALGO_NAME, NATIVE_PROVIDER);
       check.init(Cipher.DECRYPT_MODE, key, algorithmParameterSpec, rnd);
@@ -906,7 +934,7 @@ public class AesTest {
 
     for (int bit = 0; bit < data.length * 8; bit++) {
       byte[] corruptData = data.clone();
-      corruptData[bit / 8] ^= (1 << (bit % 8));
+      corruptData[bit / 8] ^= (byte) (1 << (bit % 8));
 
       Cipher check = Cipher.getInstance(ALGO_NAME, NATIVE_PROVIDER);
       check.init(Cipher.DECRYPT_MODE, key, algorithmParameterSpec, rnd);
@@ -934,7 +962,7 @@ public class AesTest {
 
     for (int bit = 0; bit < data.length * 8; bit++) {
       byte[] corruptData = data.clone();
-      corruptData[bit / 8] ^= (1 << (bit % 8));
+      corruptData[bit / 8] ^= (byte) (1 << (bit % 8));
       ByteBuffer corruptBuff = ByteBuffer.wrap(corruptData);
       ByteBuffer outputBuff = ByteBuffer.wrap(output);
 

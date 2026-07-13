@@ -187,6 +187,7 @@ abstract class EvpKey implements Key, Destroyable {
     // for a hashCode
     Integer result = cachedHashCode;
     if (result == null) {
+      final int javaVersion = Utils.getJavaVersion();
       synchronized (this) {
         result = cachedHashCode;
         if (result != null) {
@@ -197,12 +198,16 @@ abstract class EvpKey implements Key, Destroyable {
         // sun.security.x509.X509Key
         int workingValue = 0;
         if (isPublicKey) {
-          workingValue = internalEncoded.length;
-          for (final byte b : internalEncoded) {
-            workingValue += (b & 0xff) * 37;
+          if (javaVersion >= 22) {
+            workingValue = Arrays.hashCode(internalEncoded);
+          } else {
+            workingValue = internalEncoded.length;
+            for (final byte b : internalEncoded) {
+              workingValue += (b & 0xff) * 37;
+            }
           }
         } else {
-          if (Utils.getJavaVersion() >= 17) {
+          if (javaVersion >= 17) {
             workingValue = Arrays.hashCode(internalEncoded);
           } else {
             for (int idx = 0; idx < internalEncoded.length; idx++) {

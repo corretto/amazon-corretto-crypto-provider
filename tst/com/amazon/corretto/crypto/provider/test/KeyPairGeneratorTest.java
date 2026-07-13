@@ -25,18 +25,18 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 @ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
 public class KeyPairGeneratorTest {
 
-  KeyPairGenerator getXECKeyPairGenerator() {
+  KeyPairGenerator getKeyPairGenerator(String alg) {
     try {
-      return KeyPairGenerator.getInstance("X25519", TestUtil.NATIVE_PROVIDER);
+      return KeyPairGenerator.getInstance(alg, TestUtil.NATIVE_PROVIDER);
     } catch (final NoSuchAlgorithmException e) {
       throw new RuntimeException(e);
     }
   }
 
   @Test
-  public void generateXECKeys() {
-    TestUtil.assumeMinimumJavaVersion(11);
-    final KeyPairGenerator keyPairGenerator = getXECKeyPairGenerator();
+  public void testGenerateXECKeys() {
+    TestUtil.assumeMinimumJavaVersion(17);
+    final KeyPairGenerator keyPairGenerator = getKeyPairGenerator("X25519");
     assertEquals("X25519", keyPairGenerator.getAlgorithm());
 
     final KeyPair keyPair = keyPairGenerator.generateKeyPair();
@@ -57,12 +57,11 @@ public class KeyPairGeneratorTest {
 
   // Regression test for P470070813: JSSE's TLS 1.3 x25519 handshake initializes the XDH
   // KeyPairGenerator with NamedParameterSpec.X25519. ACCP previously threw
-  // UnsupportedOperationException from initialize(), causing the JCA to silently fail over to
-  // SunEC.
+  // UnsupportedOperationException from initialize(), causing the JCA to silently fail over to SunEC.
   @Test
   public void initializeWithNamedParameterSpecX25519() throws Exception {
     TestUtil.assumeMinimumJavaVersion(11);
-    final KeyPairGenerator keyPairGenerator = getXECKeyPairGenerator();
+    final KeyPairGenerator keyPairGenerator = getKeyPairGenerator("XDH");
     keyPairGenerator.initialize(namedParameterSpec("X25519"), new SecureRandom());
     final KeyPair keyPair = keyPairGenerator.generateKeyPair();
     assertNotNull(keyPair);
@@ -77,7 +76,7 @@ public class KeyPairGeneratorTest {
   @Test
   public void initializeWithUnsupportedNamedParameterSpecThrows() throws Exception {
     TestUtil.assumeMinimumJavaVersion(11);
-    final KeyPairGenerator keyPairGenerator = getXECKeyPairGenerator();
+    final KeyPairGenerator keyPairGenerator = getKeyPairGenerator("XDH");
     assertThrows(
         InvalidAlgorithmParameterException.class,
         () -> keyPairGenerator.initialize(namedParameterSpec("X448"), new SecureRandom()));
@@ -90,5 +89,17 @@ public class KeyPairGeneratorTest {
         Class.forName("java.security.spec.NamedParameterSpec")
             .getConstructor(String.class)
             .newInstance(name);
+  }
+
+  @Test
+  public void testInitKeyPairNoOp() {
+    TestUtil.assumeMinimumJavaVersion(17);
+    for (String alg : new String[] {"Ed25519", "X25519", "XDH"}) {
+      final KeyPairGenerator keyPairGenerator = getKeyPairGenerator(alg);
+      // 255 is Curve25519's key size in bits; ACCP ignores it (and the SecureRandom),
+      // but the call must not throw. This mirrors BouncyCastle TLS's invocation.
+      keyPairGenerator.initialize(255, new SecureRandom());
+      keyPairGenerator.generateKeyPair();
+    }
   }
 }

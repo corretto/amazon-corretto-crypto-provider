@@ -4,6 +4,7 @@ package com.amazon.corretto.crypto.provider;
 
 import java.math.BigInteger;
 import java.security.interfaces.ECPublicKey;
+import java.security.spec.ECParameterSpec;
 import java.security.spec.ECPoint;
 
 class EvpEcPublicKey extends EvpEcKey implements ECPublicKey {
@@ -42,5 +43,23 @@ class EvpEcPublicKey extends EvpEcKey implements ECPublicKey {
       }
     }
     return result;
+  }
+
+  @Override
+  public String toString() {
+    final ECParameterSpec parameterSpec = getParams();
+    final ECPoint point = getW();
+
+    final StringBuffer sb = new StringBuffer(AmazonCorrettoCryptoProvider.PROVIDER_NAME);
+    sb.append(" ");
+    sb.append(getAlgorithm());
+    sb.append(" public key, ");
+    sb.append(parameterSpec.getOrder().bitLength());
+    sb.append(" bits\n  public x coord: ");
+    sb.append(point.getAffineX());
+    sb.append("\n  public y coord: ");
+    sb.append(point.getAffineY());
+    sb.append("\n  parameters: ").append(parameterSpec);
+    return sb.toString();
   }
 }

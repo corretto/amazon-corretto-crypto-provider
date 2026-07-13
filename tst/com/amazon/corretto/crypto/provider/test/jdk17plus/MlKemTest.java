@@ -5,7 +5,9 @@ package com.amazon.corretto.crypto.provider.test;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
@@ -126,6 +128,30 @@ public class MlKemTest {
         sharedSecret.getEncoded(),
         recoveredSecret.getEncoded(),
         "Original and recovered secrets should match");
+  }
+
+  @ParameterizedTest
+  @MethodSource("getParams")
+  public void testKemSecretsAreDestroyable(TestParams params) throws Exception {
+    KEM encapsulatorKem = KEM.getInstance(params.parameterSet, params.encapsulatorProv);
+    KEM decapsulatorKem = KEM.getInstance(params.parameterSet, params.decapsulatorProv);
+    NamedParameterSpec paramSpec = new NamedParameterSpec(params.parameterSet);
+
+    KEM.Encapsulator encapsulator = encapsulatorKem.newEncapsulator(params.pub, paramSpec, null);
+    KEM.Encapsulated encapsulated = encapsulator.encapsulate();
+    KEM.Decapsulator decapsulator = decapsulatorKem.newDecapsulator(params.priv, paramSpec);
+    SecretKey recovered = decapsulator.decapsulate(encapsulated.encapsulation());
+
+    for (SecretKey key : new SecretKey[] {encapsulated.key(), recovered}) {
+      assertFalse(key.isDestroyed());
+      assertNotNull(key.getEncoded());
+
+      key.destroy();
+
+      assertTrue(key.isDestroyed());
+      assertThrows(IllegalStateException.class, key::getEncoded);
+      assertThrows(IllegalStateException.class, key::getAlgorithm);
+    }
   }
 
   @ParameterizedTest

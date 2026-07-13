@@ -19,7 +19,7 @@ static EVP_PKEY_CTX_auto setupMlKemContext(JNIEnv* pEnv, jlong evpKeyPtr)
     return ctx;
 }
 
-JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_MlKemSpi_nativeEncapsulate(
+extern "C" JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_MlKemSpi_nativeEncapsulate(
     JNIEnv* pEnv, jclass, jlong evpKeyPtr, jbyteArray ciphertextArray, jbyteArray sharedSecretArray)
 {
     try {
@@ -38,7 +38,7 @@ JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_MlKemSpi_nativeE
     }
 }
 
-JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_MlKemSpi_nativeDecapsulate(
+extern "C" JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_MlKemSpi_nativeDecapsulate(
     JNIEnv* pEnv, jclass, jlong evpKeyPtr, jbyteArray ciphertextArray, jbyteArray sharedSecretArray)
 {
     try {

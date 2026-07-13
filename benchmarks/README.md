@@ -16,7 +16,7 @@ The reports are saved under `lib/build/results/jmh`.
 ```
 
 * `-Pfips` flag can be used to use the FIPS artifacts for benchmarking.
-* `-PaccpVerion="ACCP_VERSION"` can be used to run benchmarks for a specific version of ACCP
+* `-PaccpVersion="ACCP_VERSION"` can be used to run benchmarks for a specific version of ACCP
 
 ### Benchmarking locally built ACCP
 
