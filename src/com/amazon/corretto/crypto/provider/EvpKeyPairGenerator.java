@@ -31,8 +31,9 @@ abstract class EvpKeyPairGenerator extends KeyPairGeneratorSpi {
     // initialize(int, SecureRandom) before generateKeyPair(). The keysize is
     // fixed by the underlying algorithm, so there is nothing to configure, and
     // ACCP's generator always uses libcrypto's DRBG regardless of |random|.
-    // Note: initialize(AlgorithmParameterSpec, SecureRandom) is intentionally
-    // left to throw UnsupportedOperationException via the default SPI impl.
+    // Note: initialize(AlgorithmParameterSpec, SecureRandom) inherits the default
+    // SPI impl (throws UnsupportedOperationException) unless a subclass overrides
+    // it (e.g. XDHGen accepts NamedParameterSpec.X25519).
   }
 
   // Provides an appropriate KeyFactory for this key type

@@ -18,6 +18,21 @@ class XDHGen extends EvpKeyPairGenerator {
   // KeyPairGenerator for the TLS 1.3 handshake.
   private static final String X25519_CURVE_NAME = "X25519";
 
+  // java.security.spec.NamedParameterSpec is a JDK 11+ type not available at our bytecode target,
+  // so it is resolved reflectively. Null on JDKs that lack it; shouldRegisterX25519 already gates
+  // this SPI to JDK 12+, so the class is present whenever initialize(...) is reachable.
+  private static final Class<?> NAMED_PARAMETER_SPEC_CLASS;
+
+  static {
+    Class<?> clazz = null;
+    try {
+      clazz = Class.forName("java.security.spec.NamedParameterSpec");
+    } catch (final ClassNotFoundException e) {
+      // JDK 10 or older; getNamedCurve will reject all specs, which is correct there.
+    }
+    NAMED_PARAMETER_SPEC_CLASS = clazz;
+  }
+
   XDHGen(AmazonCorrettoCryptoProvider provider) {
     super(provider, EvpKeyType.XDH);
   }
@@ -52,16 +67,14 @@ class XDHGen extends EvpKeyPairGenerator {
     // Nothing else to configure: generateKeyPair() always produces an X25519 key pair.
   }
 
-  // Returns the curve name if |params| is a java.security.spec.NamedParameterSpec, else null.
-  // Uses reflection because NamedParameterSpec is a JDK 11+ type not available at our bytecode
-  // target. shouldRegisterX25519 already gates this SPI to JDK 12+, so the type is present at
-  // runtime whenever this method is reachable.
+  // Returns the curve name if |params| is a java.security.spec.NamedParameterSpec (or a subclass,
+  // matching SunEC's instanceof semantics -- NamedParameterSpec is not final), else null.
   private static String getNamedCurve(final AlgorithmParameterSpec params) {
-    if (!"java.security.spec.NamedParameterSpec".equals(params.getClass().getName())) {
+    if (NAMED_PARAMETER_SPEC_CLASS == null || !NAMED_PARAMETER_SPEC_CLASS.isInstance(params)) {
       return null;
     }
     try {
-      final Method getName = params.getClass().getMethod("getName");
+      final Method getName = NAMED_PARAMETER_SPEC_CLASS.getMethod("getName");
       return (String) getName.invoke(params);
     } catch (final ReflectiveOperationException e) {
       return null;
