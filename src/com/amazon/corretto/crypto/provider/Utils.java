@@ -74,8 +74,13 @@ final class Utils {
     if (jceName == null) {
       return null;
     }
+    final String upper = jceName.toUpperCase();
+    // SHA3 short names in AWS-LC retain their hyphen (e.g. "SHA3-256"), so don't strip it.
+    if (upper.startsWith("SHA3-")) {
+      return upper;
+    }
     // e.g. "SHA-512/256" => "SHA512-256"
-    return jceName.replace("-", "").replace("/", "-").toUpperCase();
+    return upper.replace("-", "").replace("/", "-");
   }
 
   /**
