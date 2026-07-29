@@ -8,7 +8,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.Arrays;
+import java.util.List;
 import java.util.zip.GZIPInputStream;
 import org.apache.commons.codec.binary.Hex;
 import org.junit.jupiter.api.Test;
@@ -24,18 +27,34 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 @ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ_WRITE)
 public abstract class BaseSHATest {
 
-  protected abstract String getAlgorithm();
+  private final String algorithm;
+  private final String nullDigest;
+  private final byte[] preimage;
+  private final String testVector;
+  private final List<String> cavpFiles;
 
-  protected abstract String getNullDigest();
-
-  protected abstract String getTestVector();
-
-  protected abstract String getCavpShortFile();
-
-  protected abstract String getCavpLongFile();
+  /**
+   * @param algorithm the JCA standard name of the digest under test
+   * @param nullDigest hex-encoded digest of the empty input
+   * @param preimage the input whose digest is {@code testVector}
+   * @param testVector hex-encoded digest of {@code preimage}
+   * @param cavpFiles gzipped CAVP response files (short and long message vectors)
+   */
+  protected BaseSHATest(
+      final String algorithm,
+      final String nullDigest,
+      final String preimage,
+      final String testVector,
+      final String... cavpFiles) {
+    this.algorithm = algorithm;
+    this.nullDigest = nullDigest;
+    this.preimage = preimage.getBytes(StandardCharsets.UTF_8);
+    this.testVector = testVector;
+    this.cavpFiles = Arrays.asList(cavpFiles);
+  }
 
   protected MessageDigest getDigest() throws Exception {
-    return MessageDigest.getInstance(getAlgorithm(), TestUtil.NATIVE_PROVIDER);
+    return MessageDigest.getInstance(algorithm, TestUtil.NATIVE_PROVIDER);
   }
 
   @Test
@@ -56,74 +75,67 @@ public abstract class BaseSHATest {
   @Test
   public void testNullDigest() throws Exception {
     MessageDigest digest = getDigest();
-    assertArrayEquals(Hex.decodeHex(getNullDigest().toCharArray()), digest.digest());
+    assertArrayEquals(Hex.decodeHex(nullDigest.toCharArray()), digest.digest());
     digest = getDigest();
     digest.update(new byte[0]);
-    assertArrayEquals(Hex.decodeHex(getNullDigest().toCharArray()), digest.digest());
+    assertArrayEquals(Hex.decodeHex(nullDigest.toCharArray()), digest.digest());
     digest = getDigest();
     digest.update(ByteBuffer.allocateDirect(0));
-    assertArrayEquals(Hex.decodeHex(getNullDigest().toCharArray()), digest.digest());
+    assertArrayEquals(Hex.decodeHex(nullDigest.toCharArray()), digest.digest());
   }
 
   @Test
   public void testVector() throws Exception {
     MessageDigest digest = getDigest();
-    digest.update("testing".getBytes());
+    digest.update(preimage);
 
-    assertArrayEquals(Hex.decodeHex(getTestVector().toCharArray()), digest.digest());
+    assertArrayEquals(Hex.decodeHex(testVector.toCharArray()), digest.digest());
   }
 
   @Test
   public void testFastPath() throws Exception {
     MessageDigest digest = getDigest();
 
-    assertArrayEquals(
-        Hex.decodeHex(getTestVector().toCharArray()), digest.digest("testing".getBytes()));
+    assertArrayEquals(Hex.decodeHex(testVector.toCharArray()), digest.digest(preimage));
   }
 
   @Test
   public void testNativeByteBuffer() throws Exception {
-    byte[] testData = "testing".getBytes();
-    ByteBuffer nativeBuf = ByteBuffer.allocateDirect(testData.length);
-    nativeBuf.put(testData);
+    ByteBuffer nativeBuf = ByteBuffer.allocateDirect(preimage.length);
+    nativeBuf.put(preimage);
     nativeBuf.flip();
 
     MessageDigest digest = getDigest();
     digest.update(nativeBuf);
     assertEquals(nativeBuf.position(), nativeBuf.limit());
 
-    assertArrayEquals(Hex.decodeHex(getTestVector().toCharArray()), digest.digest());
+    assertArrayEquals(Hex.decodeHex(testVector.toCharArray()), digest.digest());
   }
 
   @Test
   public void testRandomly() throws Exception {
     // SHA3 is not exposed in SUN JDK8, so we can't test against it
-    if (getAlgorithm().startsWith("SHA3")) {
+    if (algorithm.startsWith("SHA3")) {
       TestUtil.assumeMinimumJavaVersion(11);
     }
-    new HashFunctionTester(getAlgorithm()).testRandomly(1000);
+    new HashFunctionTester(algorithm).testRandomly(1000);
   }
 
   @Test
   public void testAPIDetails() throws Exception {
     // SHA3 is not exposed in SUN JDK8, so we can't test against it
-    if (getAlgorithm().startsWith("SHA3")) {
+    if (algorithm.startsWith("SHA3")) {
       TestUtil.assumeMinimumJavaVersion(11);
     }
-    new HashFunctionTester(getAlgorithm()).testAPI();
+    new HashFunctionTester(algorithm).testAPI();
   }
 
   @Test
-  public void cavpShortVectors() throws Throwable {
-    try (final InputStream is = new GZIPInputStream(TestUtil.getTestData(getCavpShortFile()))) {
-      new HashFunctionTester(getAlgorithm()).test(RspTestEntry.iterateOverResource(is));
-    }
-  }
-
-  @Test
-  public void cavpLongVectors() throws Throwable {
-    try (final InputStream is = new GZIPInputStream(TestUtil.getTestData(getCavpLongFile()))) {
-      new HashFunctionTester(getAlgorithm()).test(RspTestEntry.iterateOverResource(is));
+  public void cavpVectors() throws Throwable {
+    for (final String cavpFile : cavpFiles) {
+      try (final InputStream is = new GZIPInputStream(TestUtil.getTestData(cavpFile))) {
+        new HashFunctionTester(algorithm).test(RspTestEntry.iterateOverResource(is));
+      }
     }
   }
 }
