@@ -5,6 +5,7 @@ package com.amazon.corretto.crypto.provider.test;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.JAVA_VERSION;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.assumeMinimumJavaVersion;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assumeMinimumVersion;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.versionCompare;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -26,6 +27,7 @@ import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.Provider;
 import java.security.PublicKey;
@@ -75,6 +77,24 @@ public final class EvpSignatureSpecificTest {
   private static final byte[] MESSAGE = new byte[513];
   private static final KeyPair RSA_PAIR;
   private static final KeyPair ECDSA_PAIR;
+
+  // Digests usable for RSASSA-PSS (message digest and MGF1 digest). The SHA3 short names retain
+  // their hyphen (e.g. "SHA3-256"), unlike the SHA2 names (e.g. "SHA-256").
+  private static final String[] PSS_DIGESTS = {
+    "SHA-1",
+    "SHA-224",
+    "SHA-256",
+    "SHA-384",
+    "SHA-512",
+    "SHA3-224",
+    "SHA3-256",
+    "SHA3-384",
+    "SHA3-512"
+  };
+
+  static String[] pssDigests() {
+    return PSS_DIGESTS;
+  }
 
   static {
     for (int x = 0; x < MESSAGE.length; x++) {
@@ -730,7 +750,7 @@ public final class EvpSignatureSpecificTest {
     }
 
     // RSASSA-PSS support added in v2.0, skip PSS validation for older versions
-    if (versionCompare("2.0.0", NATIVE_PROVIDER) <= 0) {
+    if (versionCompare("2.0.0", NATIVE_PROVIDER) > 0) {
       return;
     }
 
@@ -740,10 +760,16 @@ public final class EvpSignatureSpecificTest {
     // against
     //       SuncJCE in EvpSignatureTest. enforce min key size of 2048 bits, consistent with ffSize
     // above.
-    for (int shaVersion : new int[] {1, 224, 256, 384, 512}) {
+    for (final String mdName : PSS_DIGESTS) {
       final String algorithmStr = "RSASSA-PSS";
-      final String mdName = String.format("SHA-%d", shaVersion);
-      final int mdLen = MessageDigest.getInstance(mdName).getDigestLength();
+      // SHA3 MessageDigests are unavailable before JDK 9; skip those digests on older JDKs.
+      final MessageDigest md;
+      try {
+        md = MessageDigest.getInstance(mdName);
+      } catch (final NoSuchAlgorithmException e) {
+        continue;
+      }
+      final int mdLen = md.getDigestLength();
       final int keySize = mdLen * 8 < 2048 ? 2048 : mdLen * 8;
       final KeyPairGenerator kg = KeyPairGenerator.getInstance("RSA", NATIVE_PROVIDER);
       kg.initialize(keySize);
@@ -755,7 +781,7 @@ public final class EvpSignatureSpecificTest {
       nativeSig.setParameter(pssParams);
       bcSig.setParameter(pssParams);
 
-      simpleCorrectnessSignVerify(algorithmStr, pair, bcSig, nativeSig);
+      simpleCorrectnessSignVerify(algorithmStr + "/" + mdName, pair, bcSig, nativeSig);
     }
   }
 
@@ -780,6 +806,40 @@ public final class EvpSignatureSpecificTest {
       assertTrue(nativeSig.verify(signature), "BC->Native: " + algorithm);
     } catch (SignatureException ex) {
       throw new AssertionError(algorithm, ex);
+    }
+  }
+
+  /**
+   * ACCP allows the RSASSA-PSS message digest and MGF1 digest to differ. For each supported message
+   * digest, exercise every MGF1 digest pairing (including the matching-digest cases) and
+   * cross-verify against SunRsaSign, which, like ACCP, permits them to differ. BouncyCastle
+   * requires them to match, so it is not used here; the matching-digest cases are also
+   * cross-verified against BouncyCastle in {@link #simpleCorrectnessSHAAlgorithms()}.
+   *
+   * <p>SunRsaSign only gained SHA3 support for RSASSA-PSS in JDK 17, so this test is gated on that.
+   * ACCP's own SHA3 PSS support is still covered on older JDKs by the BouncyCastle loop in {@link
+   * #simpleCorrectnessSHAAlgorithms()}.
+   */
+  @ParameterizedTest
+  @MethodSource("pssDigests")
+  public void testRsaPssMixedMgf1Digest(final String digest) throws Throwable {
+    assumeMinimumVersion("2.0.0", NATIVE_PROVIDER);
+    assumeMinimumJavaVersion(17); // SunRsaSign supports SHA3 RSASSA-PSS only on JDK 17+
+    final int mdLen = MessageDigest.getInstance(digest).getDigestLength();
+    final int keySize = mdLen * 8 < 2048 ? 2048 : mdLen * 8;
+    final KeyPairGenerator kg = KeyPairGenerator.getInstance("RSA", NATIVE_PROVIDER);
+    kg.initialize(keySize);
+    final KeyPair pair = kg.generateKeyPair();
+    final Signature sunSig = Signature.getInstance("RSASSA-PSS", "SunRsaSign");
+
+    for (final String mgfDigest : PSS_DIGESTS) {
+      final PSSParameterSpec spec =
+          new PSSParameterSpec(digest, "MGF1", new MGF1ParameterSpec(mgfDigest), mdLen, 1);
+      sunSig.setParameter(spec);
+      final Signature nativeSig = Signature.getInstance("RSASSA-PSS", NATIVE_PROVIDER);
+      nativeSig.setParameter(spec);
+      simpleCorrectnessSignVerify(
+          "RSASSA-PSS/" + digest + "+MGF1-" + mgfDigest, pair, sunSig, nativeSig);
     }
   }
 
