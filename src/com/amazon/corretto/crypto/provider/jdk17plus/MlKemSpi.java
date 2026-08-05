@@ -32,19 +32,25 @@ abstract class MlKemSpi implements KEMSpi {
   }
 
   /**
-   * Validates that a NamedParameterSpec is compatible with the given ML-KEM key. Ensures the spec's
-   * algorithm name matches the key's parameter set.
+   * Validates that an optional {@code AlgorithmParameterSpec} is compatible with the given ML-KEM
+   * key. The {@code javax.crypto.KEM} contract permits a {@code null} spec, meaning "use the key's
+   * implicit parameters"; the JDK's {@code KEM.newEncapsulator(PublicKey, SecureRandom)} and {@code
+   * KEM.newDecapsulator(PrivateKey)} convenience overloads (used by BouncyCastle's TLS 1.3 stack)
+   * always call through with a null spec. Since each ACCP ML-KEM key already carries its parameter
+   * set, a null spec is accepted as a no-op; a non-null spec must be a {@code NamedParameterSpec}
+   * naming that same parameter set, otherwise it is rejected.
    *
-   * @param spec the algorithm parameter spec (must not be null)
-   * @param key the parameter set of the given
-   * @throws InvalidAlgorithmParameterException if spec is null, wrong type, or incompatible with
-   *     key
+   * @param spec the algorithm parameter spec, or null to use the key's parameter set
+   * @param parameterSet the algorithm name of the key's parameter set (e.g. "ML-KEM-768")
+   * @throws InvalidAlgorithmParameterException if spec is non-null and is the wrong type or names a
+   *     different parameter set
    */
   private static void validateParameterSpec(AlgorithmParameterSpec spec, String parameterSet)
       throws InvalidAlgorithmParameterException {
 
     if (spec == null) {
-      throw new InvalidAlgorithmParameterException("Please pass in a non-null parameter spec.");
+      // Null spec means "use the key's parameter set", which is exactly what we do.
+      return;
     }
     if (!(spec instanceof NamedParameterSpec)) {
       throw new InvalidAlgorithmParameterException("ACCP can only accept NamedParameterSpec");
@@ -86,11 +92,10 @@ abstract class MlKemSpi implements KEMSpi {
       throw new InvalidKeyException("Public key cannot be null");
     }
 
-    // AWS-LC handles randomness for ML-KEM
-    if (secureRandom != null) {
-      throw new InvalidAlgorithmParameterException(
-          "SecureRandom must be null - AWS-LC handles its own randomness");
-    }
+    // A caller-supplied SecureRandom is accepted but ignored: AWS-LC draws ML-KEM randomness from
+    // its own DRBG. The javax.crypto.KEM API always supplies one (defaulting to a fresh
+    // SecureRandom when the caller passes none), so rejecting it here would break standard callers
+    // such as BouncyCastle's TLS 1.3 stack.
     if (!(publicKey instanceof EvpKemPublicKey)) {
       throw new InvalidKeyException("Unsupported public key type");
     }
