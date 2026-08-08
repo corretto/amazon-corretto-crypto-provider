@@ -14,6 +14,18 @@ plugins {
 
 group = 'software.amazon.cryptools'
 version = '2.6.0'
+
+// Gradle 9 removed Project.getBuildDir(); shadow it with a local File so the
+// many `${buildDir}/...` interpolations throughout this script keep working.
+def buildDir = layout.buildDirectory.get().asFile
+
+// Gradle 9 removed the implicit `exec {}` method lookup from task action closures.
+// Inject ExecOperations so task actions below can call `execOps.exec { ... }`.
+interface InjectedExecOps {
+    @javax.inject.Inject
+    org.gradle.process.ExecOperations getExecOps()
+}
+def execOps = project.objects.newInstance(InjectedExecOps).execOps
 ext.awsLcMainTag = 'v1.72.0'
 ext.awsLcFipsTag = 'AWS-LC-FIPS-3.1.0'
 ext.isExperimentalFips = Boolean.getBoolean('EXPERIMENTAL_FIPS')
@@ -80,7 +92,10 @@ spotless {
   java {
     target 'src/**/*.java', 'tst/**/*.java'
     licenseHeaderFile 'build-tools/license-headers/LicenseHeader.java'
-    googleJavaFormat().reflowLongStrings()
+    // Pin google-java-format to a version that supports JDK 25's javac internals;
+    // older versions (shipped by default with spotless 7.0.2) hit NoSuchMethodError
+    // on com.sun.tools.javac.util.Log$DeferredDiagnosticHandler.getDiagnostics().
+    googleJavaFormat('1.25.2').reflowLongStrings()
   }
 
   // clang-format is difficult to configure across all of our platforms so we
@@ -141,13 +156,11 @@ def detect_cmake3 = {
 def cmakeBin = detect_cmake3()
 
 ext.isJceSigned = { pathToJar ->
-    def stdout = new ByteArrayOutputStream()
-    exec {
+    def verify_exec = providers.exec {
         executable "jarsigner"
         args "-verify", pathToJar
-        standardOutput = stdout;
     }
-    return stdout.toString().contains("jar verified")
+    return verify_exec.standardOutput.asText.get().contains("jar verified")
 }
 
 ext.assertJceSigned = { pathToJar ->
@@ -221,11 +234,11 @@ task buildAwsLc {
                 throw new GradleException("aws-lc dir empty! run 'git submodule update --init --recursive' to populate.")
             }
         }
-        exec {
+        execOps.exec {
             workingDir awslcSrcPath
             commandLine "git", "fetch", "--tags"
         }
-        exec {
+        execOps.exec {
             workingDir awslcSrcPath
             commandLine "git", "checkout", awsLcGitVersionId
         }
@@ -235,7 +248,7 @@ task buildAwsLc {
     }
 
     doLast {
-        exec {
+        execOps.exec {
             workingDir awslcSrcPath
             executable cmakeBin
             args "-B${cMakeBuildDir}"
@@ -265,7 +278,7 @@ task buildAwsLc {
 
             args '.'
         }
-        exec {
+        execOps.exec {
             workingDir awslcSrcPath
             commandLine 'make', '-j', Runtime.runtime.availableProcessors(), '-C', "${cMakeBuildDir}", 'install'
         }
@@ -287,7 +300,7 @@ def getStagedArtifact(platformClassifier, destDir) {
     println "Loaded staging id is " + stagingProperties['staging.id']
     def repoBase = "https://aws.oss.sonatype.org/content/repositories/" + stagingProperties['staging.id']
     mkdir "${destDir}"
-    exec {
+    execOps.exec {
         workingDir "${destDir}"
         commandLine 'wget', "${repoBase}/software/amazon/cryptools/${projectName}/${version}/${prebuiltJarFileName}"
     }
@@ -386,7 +399,7 @@ task build_objects {
     outputs.file("${buildDir}/cmake/AmazonCorrettoCryptoProvider.jar")
 
     doLast {
-      exec {
+      execOps.exec {
         workingDir "${buildDir}/cmake"
 
         commandLine 'make', '-j', Runtime.runtime.availableProcessors(), 'accp-jar'
@@ -439,7 +452,7 @@ task accp_javadoc(type: Jar) {
     dependsOn executeCmake, create_javadoc_folder
     doFirst {
         mkdir "${buildDir}/lib"
-        exec {
+        execOps.exec {
             workingDir "${buildDir}/cmake"
             commandLine 'make', 'javadoc'
         }
@@ -456,7 +469,7 @@ task src_jar {
     outputs.file("${buildDir}/lib/AmazonCorrettoCryptoProvider-sources.jar")
     doLast {
         mkdir "${buildDir}/lib"
-        exec {
+        execOps.exec {
             workingDir "${buildDir}/cmake"
             commandLine 'make', 'accp-jar-source'
         }
@@ -611,28 +624,28 @@ task coverage_cpp_report {
         mkdir "${buildDir}/reports/cpp"
     }
     doLast {
-        exec {
+        execOps.exec {
             workingDir "${buildDir}/cmake-coverage"
             commandLine 'lcov', '--capture', '--directory', "${buildDir}/cmake-coverage/CMakeFiles/amazonCorrettoCryptoProvider.dir/csrc", '--output-file', "${buildDir}/cmake-coverage/coverage.info", '--rc', 'lcov_branch_coverage=1', '--ignore-errors', lcovIgnore
         }
         // Convert absolute to relative paths
-        exec {
+        execOps.exec {
             workingDir "${buildDir}/cmake-coverage"
             commandLine 'perl', '-i', '-pe', "s[^SF:${projectDir}/*][SF:]", "${buildDir}/cmake-coverage/coverage.info"
         }
         // lcov captures coverage data for inline functions in system headers; strip this out to avoid
         // polluting our metrics with unused STL code.
-        exec {
+        execOps.exec {
             workingDir "${buildDir}/cmake-coverage"
             commandLine 'lcov', '-e', "${buildDir}/cmake-coverage/coverage.info", 'csrc/*', '--rc', 'lcov_branch_coverage=1', '--ignore-errors', lcovIgnore
             standardOutput = new FileOutputStream("${buildDir}/reports/cpp/coverage.info")
         }
-        exec {
+        execOps.exec {
             workingDir "${buildDir}/cmake-coverage"
             commandLine 'gcovr', '-r', "${projectDir}", '--xml'
             standardOutput = new FileOutputStream("${buildDir}/reports/cpp/cobertura.xml")
         }
-        exec {
+        execOps.exec {
              workingDir projectDir
              commandLine 'genhtml', '-o', "${buildDir}/reports/cpp", '--rc', 'genhtml_branch_coverage=1', "${buildDir}/reports/cpp/coverage.info", '--ignore-errors', lcovIgnore
         }
