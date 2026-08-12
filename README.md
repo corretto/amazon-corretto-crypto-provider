@@ -65,6 +65,10 @@ Signature algorithms:
 * SHA256withRSA
 * SHA384withRSA
 * SHA512withRSA
+* SHA3-224withRSA
+* SHA3-256withRSA
+* SHA3-384withRSA
+* SHA3-512withRSA
 * NONEwithECDSA
 * SHA1withECDSA
 * SHA1withECDSAinP1363Format

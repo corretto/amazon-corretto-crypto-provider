@@ -547,6 +547,30 @@ class EvpSignature extends EvpSignatureBase {
     }
   }
 
+  static final class SHA3_224withRSA extends EvpSignature {
+    SHA3_224withRSA(final AmazonCorrettoCryptoProvider provider) {
+      super(provider, EvpKeyType.RSA, RSA_PKCS1_PADDING, "SHA3-224", false);
+    }
+  }
+
+  static final class SHA3_256withRSA extends EvpSignature {
+    SHA3_256withRSA(final AmazonCorrettoCryptoProvider provider) {
+      super(provider, EvpKeyType.RSA, RSA_PKCS1_PADDING, "SHA3-256", false);
+    }
+  }
+
+  static final class SHA3_384withRSA extends EvpSignature {
+    SHA3_384withRSA(final AmazonCorrettoCryptoProvider provider) {
+      super(provider, EvpKeyType.RSA, RSA_PKCS1_PADDING, "SHA3-384", false);
+    }
+  }
+
+  static final class SHA3_512withRSA extends EvpSignature {
+    SHA3_512withRSA(final AmazonCorrettoCryptoProvider provider) {
+      super(provider, EvpKeyType.RSA, RSA_PKCS1_PADDING, "SHA3-512", false);
+    }
+  }
+
   static final class RSASSA_PSS extends EvpSignature {
     RSASSA_PSS(final AmazonCorrettoCryptoProvider provider) {
       super(provider, EvpKeyType.RSA, RSA_PKCS1_PSS_PADDING, null, false);
