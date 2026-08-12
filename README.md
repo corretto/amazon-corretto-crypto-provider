@@ -51,7 +51,7 @@ Cipher algorithms:
   * PKCS7Padding is also accepted with AES/CBC and it is treated the same as PKCS5.
 * AES/CBC/ISO10126Padding
     * AES_\<n\>/CBC/ISO10126Padding, where n can be 128, 192, or 256
-* AES/CFB/NoPadding (non-FIPS builds only)
+* AES/CFB/NoPadding
     * AES_\<n\>/CFB/NoPadding, where n can be 128 or 256
 * RSA/ECB/NoPadding
 * RSA/ECB/PKCS1Padding
@@ -80,16 +80,16 @@ Signature algorithms:
 * NONEwithRSASSA-PSS
 * NONEwithRSA
 * Ed25519 (also registered under the alias EdDSA)
-* Ed25519ph (non-FIPS builds only)
-* NONEwithEd25519ph (non-FIPS builds only)
-* ML-DSA, ML-DSA-ExtMu (non-FIPS builds only)
+* Ed25519ph
+* NONEwithEd25519ph
+* ML-DSA, ML-DSA-ExtMu
 
 KeyPairGenerator:
 * EC
 * RSA
 * Ed25519 (also registered under the alias EdDSA)
 * X25519 (JDK 12+, also registered under the alias XDH)
-* ML-DSA, ML-DSA-44, ML-DSA-65, ML-DSA-87 (non-FIPS builds only)
+* ML-DSA, ML-DSA-44, ML-DSA-65, ML-DSA-87
 * ML-KEM, ML-KEM-512, ML-KEM-768, ML-KEM-1024 (JDK 17+ builds only, also see [ML-KEM Considerations](#ml-kem-considerations))
 
 KeyGenerator:
@@ -129,7 +129,7 @@ KeyFactory:
 * RSA
 * Ed25519 (JDK 15+, opt-in; also registered under the alias EdDSA). Please refer to [system properties](https://github.com/corretto/amazon-corretto-crypto-provider#other-system-properties) for more information.
 * X25519 (JDK 12+, also registered under the alias XDH)
-* ML-DSA, ML-DSA-44, ML-DSA-65, ML-DSA-87 (non-FIPS builds only)
+* ML-DSA, ML-DSA-44, ML-DSA-65, ML-DSA-87
 * ML-KEM, ML-KEM-512, ML-KEM-768, ML-KEM-1024 (JDK 17+ builds only, also see [ML-KEM Considerations](#ml-kem-considerations))
 
 AlgorithmParameters:
