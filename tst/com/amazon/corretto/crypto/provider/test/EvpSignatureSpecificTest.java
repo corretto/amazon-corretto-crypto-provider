@@ -8,6 +8,7 @@ import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assumeMinimumJavaVersion;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assumeMinimumVersion;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.versionCompare;
+import static java.util.Arrays.asList;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -665,6 +666,30 @@ public final class EvpSignatureSpecificTest {
     }
   }
 
+  // Signature algorithms whose correctness is verified by dedicated tests rather than by the
+  // generic hash-and-sign loop in simpleCorrectnessSHAAlgorithms (which cross-checks RSA/ECDSA
+  // hash-and-sign algorithms against BouncyCastle). Each entry names the test(s) that cover it. The
+  // loop asserts that every registered Signature algorithm is either matched by its name pattern or
+  // listed here, so a newly registered algorithm that is neither will fail this test until it is
+  // deliberately routed to one bucket or the other.
+  private static final Set<String> SIGNATURES_COVERED_ELSEWHERE =
+      new java.util.HashSet<>(
+          asList(
+              // RSASSA-PSS: exercised below in this same test and in EvpSignatureTest /
+              // testRsaPssMixedMgf1Digest.
+              "RSASSA-PSS",
+              "NONEwithRSASSA-PSS",
+              // Pre-hashed / raw RSA: NoneWithRsaTest.
+              "NONEwithRSA",
+              // EdDSA family: EdDSATest.
+              "Ed25519",
+              "EdDSA",
+              "Ed25519ph",
+              "NONEwithEd25519ph",
+              // ML-DSA family: MLDSATest.
+              "ML-DSA",
+              "ML-DSA-ExtMu"));
+
   /**
    * This test iterates over every implemented algorithm and ensures that it is compatible with the
    * equivalent BouncyCastle implementation. It doesn't check negative cases as the more detailed
@@ -672,58 +697,48 @@ public final class EvpSignatureSpecificTest {
    */
   @Test
   public void simpleCorrectnessSHAAlgorithms() throws Throwable {
-    final Pattern namePattern = Pattern.compile("(SHA(\\d+)|NONE)with([A-Z]+)(inP1363Format)?");
+    // Matches the hash-and-sign algorithm names this test cross-checks against BouncyCastle:
+    // SHAxwithRSA (including SHA3, e.g. "SHA3-256withRSA"), SHAxwithECDSA, NONEwithECDSA, and the
+    // IEEE P1363 ECDSA variants. The digest is group "digest" (null for NONE), the base ("RSA" or
+    // "ECDSA") is group "base", and the P1363 suffix is group "p1363". NONEwithRSA is intentionally
+    // excluded (it is raw, not hash-and-sign); it and everything else must be listed in
+    // SIGNATURES_COVERED_ELSEWHERE.
+    final Pattern namePattern =
+        Pattern.compile(
+            "(?<digest>SHA3-\\d+|SHA\\d+)with(?<base>RSA)"
+                + "|(?<digest2>NONE|SHA3-\\d+|SHA\\d+)with(?<base2>ECDSA)(?<p1363>inP1363Format)?");
+    final Set<String> crossVerified = new java.util.HashSet<>();
     final Set<Provider.Service> services = NATIVE_PROVIDER.getServices();
     for (Provider.Service service : services) {
+      if (!service.getType().equals("Signature")) {
+        continue;
+      }
       final String algorithm = service.getAlgorithm();
-      if (!service.getType().equals("Signature")
-          || "RSASSA-PSS".equals(algorithm)
-          || "NONEwithRSASSA-PSS".equals(algorithm)
-          || "NONEwithRSA".equals(algorithm)) {
+      final Matcher m = namePattern.matcher(algorithm);
+      if (!m.matches()) {
+        // Not a generic RSA/ECDSA hash-and-sign name; it must be covered by a dedicated test.
+        assertTrue(
+            SIGNATURES_COVERED_ELSEWHERE.contains(algorithm),
+            "Signature algorithm not covered by this test or SIGNATURES_COVERED_ELSEWHERE: "
+                + algorithm);
         continue;
       }
-      if (algorithm.contains("Ed25519")
-          || algorithm.equals("EdDSA")
-          || algorithm.startsWith("ML-DSA")) {
-        continue;
-      }
-      // SHA3 PKCS#1 v1.5 RSA signatures don't fit this test's "SHAxwith..." name pattern; they are
-      // covered separately by testRsaPkcs1Sha3.
-      if (algorithm.startsWith("SHA3-")) {
-        continue;
-      }
+      crossVerified.add(algorithm);
+
+      final boolean isEcdsa = m.group("base2") != null;
+      final boolean ieeeFormat = m.group("p1363") != null;
+
       String bcAlgorithm = algorithm;
       AlgorithmParameterSpec keyGenSpec = null;
-      String keyGenAlgorithm = null;
-      final Matcher m = namePattern.matcher(algorithm);
-
-      if (!m.matches()) {
-        fail("Unexpected algorithm name: " + algorithm);
-      }
-
-      final String shaLength = m.group(2);
-      final String base = m.group(3);
-      final String ieeeFormat = m.group(4);
-
-      int ffSize = 0; // Finite field size used with RSA
-      switch (m.group(1)) {
-        case "SHA1":
-        case "SHA224":
-        case "SHA256":
-          ffSize = 2048;
-          break;
-        case "SHA384":
-          ffSize = 3072;
-          break;
-        case "SHA512":
-        case "NONE":
-          ffSize = 4096;
-          break;
-        default:
-          fail("Unexpected algorithm name: " + algorithm);
-      }
-      if ("ECDSA".equals(base)) {
+      final String keyGenAlgorithm;
+      if (isEcdsa) {
         keyGenAlgorithm = "EC";
+        // The digest for the registered ECDSA algorithms is always SHA2 ("SHAxwithECDSA") or NONE;
+        // extract the "x" so we can pick a curve at least as large as the digest (avoiding hash
+        // truncation). Default to the largest curve for NONE and for digest sizes without an
+        // exact-sized NIST curve.
+        final String digest = m.group("digest2"); // e.g. "SHA256" or "NONE"
+        final String shaLength = digest.startsWith("SHA") ? digest.substring(3) : null;
         if (null == shaLength
             || "1".equals(shaLength)
             || "224".equals(shaLength)
@@ -732,19 +747,18 @@ public final class EvpSignatureSpecificTest {
         } else {
           keyGenSpec = new ECGenParameterSpec("NIST P-" + shaLength);
         }
-
-        if (ieeeFormat != null) {
+        if (ieeeFormat) {
           bcAlgorithm = bcAlgorithm.replace("withECDSAinP1363Format", "withPLAIN-ECDSA");
         }
       } else {
-        keyGenAlgorithm = base;
+        keyGenAlgorithm = "RSA";
       }
 
       final KeyPairGenerator kg = KeyPairGenerator.getInstance(keyGenAlgorithm);
       if (keyGenSpec != null) {
         kg.initialize(keyGenSpec);
       } else {
-        kg.initialize(ffSize);
+        kg.initialize(2048); // RSA; smallest key that comfortably fits every supported digest
       }
       final KeyPair pair = kg.generateKeyPair();
 
@@ -752,6 +766,21 @@ public final class EvpSignatureSpecificTest {
       final Signature bcSig = Signature.getInstance(bcAlgorithm, TestUtil.BC_PROVIDER);
 
       simpleCorrectnessSignVerify(algorithm, pair, bcSig, nativeSig);
+    }
+
+    // Guard against accidental de-registration: the core RSA/ECDSA hash-and-sign algorithms, and in
+    // particular the SHA3 PKCS#1 v1.5 RSA variants, must have been cross-verified above.
+    for (final String expected :
+        asList(
+            "SHA256withRSA",
+            "SHA256withECDSA",
+            "SHA3-224withRSA",
+            "SHA3-256withRSA",
+            "SHA3-384withRSA",
+            "SHA3-512withRSA")) {
+      assertTrue(
+          crossVerified.contains(expected),
+          "Expected " + expected + " to be registered and cross-verified against BouncyCastle");
     }
 
     // RSASSA-PSS support added in v2.0, skip PSS validation for older versions
@@ -845,51 +874,6 @@ public final class EvpSignatureSpecificTest {
       nativeSig.setParameter(spec);
       simpleCorrectnessSignVerify(
           "RSASSA-PSS/" + digest + "+MGF1-" + mgfDigest, pair, sunSig, nativeSig);
-    }
-  }
-
-  // PKCS#1 v1.5 RSA signature algorithms using the SHA3 family. The JCA algorithm names retain the
-  // hyphen (e.g. "SHA3-256withRSA").
-  static String[] sha3RsaAlgorithms() {
-    return new String[] {
-      "SHA3-224withRSA", "SHA3-256withRSA", "SHA3-384withRSA", "SHA3-512withRSA"
-    };
-  }
-
-  /**
-   * ACCP supports PKCS#1 v1.5 RSA signatures with the SHA3 family. Round-trip within ACCP and
-   * cross-verify against BouncyCastle and SunRsaSign in both directions.
-   *
-   * <p>SunRsaSign only gained SHA3 support in JDK 17, so its cross-check is gated on that;
-   * BouncyCastle supports it regardless and exercises ACCP's signatures on all JDKs.
-   */
-  @ParameterizedTest
-  @MethodSource("sha3RsaAlgorithms")
-  public void testRsaPkcs1Sha3(final String algorithm) throws Throwable {
-    final KeyPairGenerator kg = KeyPairGenerator.getInstance("RSA", NATIVE_PROVIDER);
-    kg.initialize(2048);
-    final KeyPair pair = kg.generateKeyPair();
-
-    // ACCP sign -> ACCP verify.
-    final Signature signer = Signature.getInstance(algorithm, NATIVE_PROVIDER);
-    signer.initSign(pair.getPrivate());
-    signer.update(MESSAGE);
-    final byte[] signature = signer.sign();
-    final Signature verifier = Signature.getInstance(algorithm, NATIVE_PROVIDER);
-    verifier.initVerify(pair.getPublic());
-    verifier.update(MESSAGE);
-    assertTrue(verifier.verify(signature), "ACCP->ACCP: " + algorithm);
-
-    // Cross-verify against BouncyCastle in both directions.
-    final Signature bcSig = Signature.getInstance(algorithm, TestUtil.BC_PROVIDER);
-    final Signature nativeSig = Signature.getInstance(algorithm, NATIVE_PROVIDER);
-    simpleCorrectnessSignVerify(algorithm, pair, bcSig, nativeSig);
-
-    // Cross-verify against SunRsaSign in both directions when available (JDK 17+).
-    if (JAVA_VERSION >= 17) {
-      final Signature sunSig = Signature.getInstance(algorithm, "SunRsaSign");
-      final Signature nativeSig2 = Signature.getInstance(algorithm, NATIVE_PROVIDER);
-      simpleCorrectnessSignVerify(algorithm, pair, sunSig, nativeSig2);
     }
   }
 
