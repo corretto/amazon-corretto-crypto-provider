@@ -168,6 +168,42 @@ else()
     set(INCLUDE_JDK17PLUS_DIR TRUE)
 endif()
 
+# When the base jar targets a JDK older than 17 (e.g. single-artifact
+# distributions that target 8 for broad compatibility), we can still expose
+# ML-KEM on 17+ by shipping a Multi-Release JAR: the base is compiled at
+# TARGET_JDK_VERSION with jdk17plus/ excluded, and the jdk17plus/ classes (the
+# KEM SPI, which references javax.crypto.KEM) are compiled for 17 and packed
+# into META-INF/versions/17. JDK 8/11 never see the versioned classes, so there
+# is no UnsupportedClassVersionError and Utils.isMlKemSupported() returns false
+# there; JDK 17 (KEM backport) and 21+ load the overlay and register ML-KEM.
+# Requires a build-time JDK that actually exposes the KEM API. It is GA in JDK
+# 21+ and backported into some 17 builds (e.g. Corretto 17), but a stock JDK 17
+# does not have it -- so probe by compiling a tiny source rather than trusting
+# the version number.
+#
+# ML-KEM is enabled for FIPS builds as well: the AWS-LC-FIPS release ACCP
+# consumes provides an approved ML-KEM implementation, and the native ML-KEM
+# sources below are compiled for FIPS accordingly.
+set(BUILD_JDK_HAS_KEM FALSE)
+set(_KEM_PROBE_DIR "${CMAKE_CURRENT_BINARY_DIR}/kem-probe")
+file(MAKE_DIRECTORY ${_KEM_PROBE_DIR})
+file(WRITE ${_KEM_PROBE_DIR}/KemProbe.java "import javax.crypto.KEM; public final class KemProbe {}\n")
+execute_process(
+    COMMAND ${Java_JAVAC_EXECUTABLE} -d ${_KEM_PROBE_DIR} ${_KEM_PROBE_DIR}/KemProbe.java
+    RESULT_VARIABLE _KEM_PROBE_RC
+    OUTPUT_QUIET ERROR_QUIET)
+if(_KEM_PROBE_RC EQUAL 0)
+    set(BUILD_JDK_HAS_KEM TRUE)
+endif()
+
+if((TARGET_JDK_VERSION VERSION_LESS "17")
+        AND BUILD_JDK_HAS_KEM)
+    set(BUILD_MLKEM_MRJAR TRUE)
+    message(STATUS "ACCP: emitting Multi-Release JAR; ML-KEM overlay -> META-INF/versions/17")
+else()
+    set(BUILD_MLKEM_MRJAR FALSE)
+endif()
+
 # macro to filter source lists based on conditions
 # FILTER_LIST: the list variable to filter
 # PATH_PATTERN: regex pattern to match paths for filtering (".*/jdk17plus/.*")
@@ -185,10 +221,19 @@ endmacro()
 if (${CMAKE_VERSION} VERSION_LESS "3.12.0")
     file(GLOB_RECURSE ACCP_SRC "src/com/amazon/corretto/crypto/provider/*.java")
     file(GLOB_RECURSE ACCP_UTILS_SRC "src/com/amazon/corretto/crypto/utils/*.java")
-    filter_sources_by_condition(ACCP_SRC ".*/jdk17plus/.*" ${INCLUDE_JDK17PLUS_DIR})
 else()
     file(GLOB_RECURSE ACCP_SRC CONFIGURE_DEPENDS "src/com/amazon/corretto/crypto/provider/*.java")
     file(GLOB_RECURSE ACCP_UTILS_SRC CONFIGURE_DEPENDS "src/com/amazon/corretto/crypto/utils/*.java")
+endif()
+
+# Collect the jdk17plus overlay sources. For the Multi-Release build they are
+# always split out of the base and compiled into META-INF/versions/17; otherwise
+# preserve the historical "compile into base when INCLUDE_JDK17PLUS_DIR" behavior.
+set(ACCP_JDK17PLUS_SRC ${ACCP_SRC})
+list(FILTER ACCP_JDK17PLUS_SRC INCLUDE REGEX ".*/jdk17plus/.*")
+if(BUILD_MLKEM_MRJAR)
+    list(FILTER ACCP_SRC EXCLUDE REGEX ".*/jdk17plus/.*")
+else()
     filter_sources_by_condition(ACCP_SRC ".*/jdk17plus/.*" ${INCLUDE_JDK17PLUS_DIR})
 endif()
 set(ACCP_SRC ${ACCP_SRC} ${ACCP_UTILS_SRC} ${GENERATED_JAVA_SRC})
@@ -253,6 +298,27 @@ add_jar(
     INCLUDE_JARS ${BUILD_CLASSPATH_LIST}
 )
 
+# Compile the jdk17plus overlay (the KEM SPI) for JDK 17 and stage it under
+# META-INF/versions/17. Uses -source/-target 17 (NOT --release 17) so the KEM
+# API backported onto the build JDK stays visible, mirroring set_java_compile_flags().
+# The base code-only-jar plus the build classpath satisfy the overlay's compile deps.
+if(BUILD_MLKEM_MRJAR)
+    set(MR_V17_DIR "${CMAKE_CURRENT_BINARY_DIR}/mr/META-INF/versions/17")
+    set(MR_MANIFEST "${CMAKE_CURRENT_BINARY_DIR}/mr-manifest.txt")
+    set(MR_STAMP "${CMAKE_CURRENT_BINARY_DIR}/mr.stamp")
+    file(WRITE ${MR_MANIFEST} "Multi-Release: true\n")
+    add_custom_command(
+        OUTPUT ${MR_STAMP}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${MR_V17_DIR}
+        COMMAND ${Java_JAVAC_EXECUTABLE} -Xlint:-options -source 17 -target 17
+                -classpath "$<TARGET_PROPERTY:code-only-jar,JAR_FILE>:${BUILD_CLASSPATH}"
+                -d ${MR_V17_DIR} ${ACCP_JDK17PLUS_SRC}
+        COMMAND ${CMAKE_COMMAND} -E touch ${MR_STAMP}
+        DEPENDS code-only-jar ${ACCP_JDK17PLUS_SRC}
+        COMMENT "Compiling ML-KEM jdk17plus overlay -> META-INF/versions/17"
+    )
+endif()
+
 if (SIGNED_JAR)
 # Just copy the JAR in
     add_custom_command(
@@ -280,6 +346,19 @@ else()
         COMMAND ${CMAKE_COMMAND} -E copy ${ACCP_JAR_TMP} ${ACCP_JAR}
         DEPENDS code-only-jar module-jar ${VERSION_PROPERTIES_FILE}
     )
+
+    # Multi-Release overlay: add the versioned KEM SPI classes as ordinary jar
+    # entries (NOT via 'jar --release', whose validation rejects a versioned
+    # class that has no base counterpart), then flip the manifest to
+    # Multi-Release. Modifies ${ACCP_JAR} in place after the copy above.
+    if(BUILD_MLKEM_MRJAR)
+        add_custom_command(
+            OUTPUT ${ACCP_JAR} APPEND
+            COMMAND ${Java_JAR_EXECUTABLE} uf ${ACCP_JAR} -C ${CMAKE_CURRENT_BINARY_DIR}/mr META-INF/versions/17
+            COMMAND ${Java_JAR_EXECUTABLE} ufm ${ACCP_JAR} ${MR_MANIFEST}
+            DEPENDS ${MR_STAMP}
+        )
+    endif()
 endif()
 
 add_custom_target(accp-jar ALL DEPENDS ${ACCP_JAR})
@@ -353,13 +432,19 @@ else()
     set(TEST_FIPS_PROPERTY "-DFIPS=false")
 endif()
 
-# The source files under this guard should be removed and added to all builds, including FIPS,
-# once the corresponding algorithms are added to a FIPS branch of AWS-LC consumable by ACCP.
+# ML-DSA is not yet in a FIPS branch of AWS-LC consumable by ACCP, so keep its
+# native source gated to non-FIPS / experimental-FIPS builds.
 if(EXPERIMENTAL_FIPS OR (NOT FIPS))
     set(C_SRC ${C_SRC} csrc/mldsa_gen.cpp)
-    if(INCLUDE_JDK17PLUS_DIR)
-        set(C_SRC ${C_SRC} csrc/mlkem_gen.cpp csrc/mlkem_spi.cpp)
-    endif()
+endif()
+
+# ML-KEM has an approved implementation in the FIPS branch of AWS-LC that ACCP
+# consumes, so its native sources are compiled for ALL builds (including FIPS)
+# whenever ML-KEM ships -- either compiled into the base (TARGET >= 17) or as a
+# Multi-Release overlay (BUILD_MLKEM_MRJAR). The JNI symbols must exist wherever
+# ML-KEM registers.
+if(INCLUDE_JDK17PLUS_DIR OR BUILD_MLKEM_MRJAR)
+    set(C_SRC ${C_SRC} csrc/mlkem_gen.cpp csrc/mlkem_spi.cpp)
 endif()
 
 add_library(amazonCorrettoCryptoProvider SHARED ${C_SRC})
@@ -655,12 +740,26 @@ link_with_openssl(amazonCorrettoCryptoProvider)
 #       detected by CMake.
 if (${CMAKE_VERSION} VERSION_LESS "3.12.0")
     file(GLOB_RECURSE ACCP_TEST_SRC "tst/com/amazon/corretto/crypto/provider/*.java")
-    filter_sources_by_condition(ACCP_TEST_SRC ".*/jdk17plus/.*" ${INCLUDE_JDK17PLUS_DIR})
 else()
     file(GLOB_RECURSE ACCP_TEST_SRC CONFIGURE_DEPENDS "tst/com/amazon/corretto/crypto/provider/*.java")
-    filter_sources_by_condition(ACCP_TEST_SRC ".*/jdk17plus/.*" ${INCLUDE_JDK17PLUS_DIR})
+endif()
+# Include the jdk17plus tests (e.g. MlKemTest) whenever ML-KEM ships -- compiled
+# into the base (TARGET >= 17) or shipped as the Multi-Release overlay
+# (BUILD_MLKEM_MRJAR). The test jar is not multi-release: it only runs on the
+# KEM-capable TEST_JAVA, so it is compiled in a single pass (see the
+# -source/-target 17 override below for the MRJAR case).
+if(NOT (INCLUDE_JDK17PLUS_DIR OR BUILD_MLKEM_MRJAR))
+    list(FILTER ACCP_TEST_SRC EXCLUDE REGEX ".*/jdk17plus/.*")
 endif()
 
+
+# The jdk17plus tests reference javax.crypto.KEM. In the MRJAR case (base target
+# < 17) the regular test-compile flags would be --release 8, which hides KEM, so
+# compile the test jar with -source/-target 17 instead. Tests only run on the
+# KEM-capable TEST_JAVA, so the higher class-file version is irrelevant.
+if(BUILD_MLKEM_MRJAR)
+    set(CMAKE_JAVA_COMPILE_FLAGS ${BASE_JAVA_COMPILE_FLAGS} -Xlint:-options -source 17 -target 17)
+endif()
 
 ## Tests
 add_jar(
