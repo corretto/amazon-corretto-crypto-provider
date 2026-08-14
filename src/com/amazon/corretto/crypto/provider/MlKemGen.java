@@ -11,9 +11,8 @@ import java.security.spec.AlgorithmParameterSpec;
 
 class MlKemGen extends KeyPairGeneratorSpi {
   // java.security.spec.NamedParameterSpec is a JDK 11+ type not available at ACCP's bytecode
-  // target,
-  // so it is resolved reflectively. Null on JDKs that lack it, in which case initialize(spec, ...)
-  // rejects all specs, which is correct there.
+  // target, so it is resolved reflectively. Null only on JDK 10 and older (see the static
+  // initializer), where initialize(spec, ...) rejects all specs, which is correct there.
   private static final Class<?> NAMED_PARAMETER_SPEC_CLASS;
 
   static {
@@ -21,7 +20,12 @@ class MlKemGen extends KeyPairGeneratorSpi {
     try {
       clazz = Class.forName("java.security.spec.NamedParameterSpec");
     } catch (final ClassNotFoundException e) {
-      // JDK 10 or older; getNamedParameter will reject all specs, which is correct there.
+      // Absent only on JDK 10 and older. On JDK 11+ the class must exist, so a load failure
+      // signals a broken runtime -- fail fast instead of silently disabling spec initialization.
+      if (Utils.getJavaVersion() > 10) {
+        throw new AssertionError(
+            "java.security.spec.NamedParameterSpec must be present on JDK 11+", e);
+      }
     }
     NAMED_PARAMETER_SPEC_CLASS = clazz;
   }
