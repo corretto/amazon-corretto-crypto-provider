@@ -714,6 +714,14 @@ public final class EvpSignatureSpecificTest {
         continue;
       }
       final String algorithm = service.getAlgorithm();
+      // SHA3 PKCS#1 v1.5 RSA signatures don't fit this test's "SHAxwith..." name pattern; they are
+      // covered separately by testRsaPkcs1Sha3.
+      if (algorithm.startsWith("SHA3-")) {
+        continue;
+      }
+      String bcAlgorithm = algorithm;
+      AlgorithmParameterSpec keyGenSpec = null;
+      String keyGenAlgorithm = null;
       final Matcher m = namePattern.matcher(algorithm);
       if (!m.matches()) {
         // Not a generic RSA/ECDSA hash-and-sign name; it must be covered by a dedicated test.
@@ -874,6 +882,51 @@ public final class EvpSignatureSpecificTest {
       nativeSig.setParameter(spec);
       simpleCorrectnessSignVerify(
           "RSASSA-PSS/" + digest + "+MGF1-" + mgfDigest, pair, sunSig, nativeSig);
+    }
+  }
+
+  // PKCS#1 v1.5 RSA signature algorithms using the SHA3 family. The JCA algorithm names retain the
+  // hyphen (e.g. "SHA3-256withRSA").
+  static String[] sha3RsaAlgorithms() {
+    return new String[] {
+      "SHA3-224withRSA", "SHA3-256withRSA", "SHA3-384withRSA", "SHA3-512withRSA"
+    };
+  }
+
+  /**
+   * ACCP supports PKCS#1 v1.5 RSA signatures with the SHA3 family. Round-trip within ACCP and
+   * cross-verify against BouncyCastle and SunRsaSign in both directions.
+   *
+   * <p>SunRsaSign only gained SHA3 support in JDK 17, so its cross-check is gated on that;
+   * BouncyCastle supports it regardless and exercises ACCP's signatures on all JDKs.
+   */
+  @ParameterizedTest
+  @MethodSource("sha3RsaAlgorithms")
+  public void testRsaPkcs1Sha3(final String algorithm) throws Throwable {
+    final KeyPairGenerator kg = KeyPairGenerator.getInstance("RSA", NATIVE_PROVIDER);
+    kg.initialize(2048);
+    final KeyPair pair = kg.generateKeyPair();
+
+    // ACCP sign -> ACCP verify.
+    final Signature signer = Signature.getInstance(algorithm, NATIVE_PROVIDER);
+    signer.initSign(pair.getPrivate());
+    signer.update(MESSAGE);
+    final byte[] signature = signer.sign();
+    final Signature verifier = Signature.getInstance(algorithm, NATIVE_PROVIDER);
+    verifier.initVerify(pair.getPublic());
+    verifier.update(MESSAGE);
+    assertTrue(verifier.verify(signature), "ACCP->ACCP: " + algorithm);
+
+    // Cross-verify against BouncyCastle in both directions.
+    final Signature bcSig = Signature.getInstance(algorithm, TestUtil.BC_PROVIDER);
+    final Signature nativeSig = Signature.getInstance(algorithm, NATIVE_PROVIDER);
+    simpleCorrectnessSignVerify(algorithm, pair, bcSig, nativeSig);
+
+    // Cross-verify against SunRsaSign in both directions when available (JDK 17+).
+    if (JAVA_VERSION >= 17) {
+      final Signature sunSig = Signature.getInstance(algorithm, "SunRsaSign");
+      final Signature nativeSig2 = Signature.getInstance(algorithm, NATIVE_PROVIDER);
+      simpleCorrectnessSignVerify(algorithm, pair, sunSig, nativeSig2);
     }
   }
 

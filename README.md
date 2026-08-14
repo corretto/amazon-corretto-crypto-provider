@@ -83,33 +83,39 @@ Signature algorithms:
 * RSASSA-PSS
 * NONEwithRSASSA-PSS
 * NONEwithRSA
-* ED25519
-* ED25519ph
-* NONEwithED25519ph
-* ML-DSA
-* ML-DSA-ExtMu
+* Ed25519 (also registered under the alias EdDSA)
+* Ed25519ph
+* NONEwithEd25519ph
+* ML-DSA, ML-DSA-ExtMu
 
 KeyPairGenerator:
 * EC
 * RSA
-* ED25519
-* X25519 (JDK 12+)
+* Ed25519 (also registered under the alias EdDSA)
+* X25519 (JDK 12+, also registered under the alias XDH)
+* ML-DSA, ML-DSA-44, ML-DSA-65, ML-DSA-87
+* ML-KEM, ML-KEM-512, ML-KEM-768, ML-KEM-1024 (JDK 17+ builds only, also see [ML-KEM Considerations](#ml-kem-considerations))
 
 KeyGenerator:
 * AES
 
 KeyAgreement:
 * ECDH
-* X25519 (JDK 12+)
+* X25519 (JDK 12+, also registered under the alias XDH)
 
 KEM algorithms:
-* ML-KEM (JDK 17+ LTS, also see [ML-KEM Considerations](#ml-kem-considerations))
+* ML-KEM, ML-KEM-512, ML-KEM-768, ML-KEM-1024 (JDK 17+ LTS, also see [ML-KEM Considerations](#ml-kem-considerations))
 
 SecretKeyFactory:
 * HkdfWithHmacSHA1
 * HkdfWithHmacSHA256
 * HkdfWithHmacSHA384
 * HkdfWithHmacSHA512
+* PBKDF2WithHmacSHA1
+* PBKDF2WithHmacSHA224
+* PBKDF2WithHmacSHA256
+* PBKDF2WithHmacSHA384
+* PBKDF2WithHmacSHA512
 * ConcatenationKdfWithSHA256
 * ConcatenationKdfWithSHA384
 * ConcatenationKdfWithSHA512
@@ -125,8 +131,10 @@ SecureRandom:
 KeyFactory:
 * EC
 * RSA
-* ED25519 (JDK 15+). Please refer to [system properties](https://github.com/corretto/amazon-corretto-crypto-provider#other-system-properties) for more information.
-* X25519 (JDK 12+)
+* Ed25519 (JDK 15+, opt-in; also registered under the alias EdDSA). Please refer to [system properties](https://github.com/corretto/amazon-corretto-crypto-provider#other-system-properties) for more information.
+* X25519 (JDK 12+, also registered under the alias XDH)
+* ML-DSA, ML-DSA-44, ML-DSA-65, ML-DSA-87
+* ML-KEM, ML-KEM-512, ML-KEM-768, ML-KEM-1024 (JDK 17+ builds only, also see [ML-KEM Considerations](#ml-kem-considerations))
 
 AlgorithmParameters:
 * EC. Please refer to [system properties](https://github.com/corretto/amazon-corretto-crypto-provider#other-system-properties) for more information.
