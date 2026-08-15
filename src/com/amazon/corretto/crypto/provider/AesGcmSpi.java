@@ -46,9 +46,8 @@ final class AesGcmSpi extends CipherSpi {
   private static final int NATIVE_MODE_DECRYPT = 0;
 
   /**
-   * Performs an encryption operation in a single call. AAD data is not supported in this mode. The
-   * native-side code will take care of periodically dropping any buffer locks it has to allow GC to
-   * make progress.
+   * Performs an encryption operation in a single call. The native-side code will take care of
+   * periodically dropping any buffer locks it has to allow GC to make progress.
    *
    * @param ctxPtr Optional Context pointer
    * @param ctxPtrOut Optional out parameter to recieve new context
@@ -60,6 +59,8 @@ final class AesGcmSpi extends CipherSpi {
    * @param tagLen Length of GCM tag
    * @param key AES key
    * @param iv Initialization vector
+   * @param aadBuffer AAD data buffer; the data must start from offset zero in this buffer
+   * @param aadSize Size of AAD data; any data in the buffer beyond this point is ignored
    * @return Actual number of bytes written
    */
   private static native int oneShotEncrypt(
@@ -73,7 +74,9 @@ final class AesGcmSpi extends CipherSpi {
       int resultOffset,
       int tagLen,
       byte[] key,
-      byte[] iv);
+      byte[] iv,
+      byte[] aadBuffer,
+      int aadSize);
 
   /**
    * Performs a decryption operation in a single call. Unlike oneShotEncrypt, AAD mode is supported.
@@ -194,7 +197,7 @@ final class AesGcmSpi extends CipherSpi {
 
   private final AccessibleByteArrayOutputStream decryptInputBuf =
       new AccessibleByteArrayOutputStream(0, Integer.MAX_VALUE);
-  private final AccessibleByteArrayOutputStream decryptAADBuf =
+  private final AccessibleByteArrayOutputStream aadBuffer =
       new AccessibleByteArrayOutputStream(0, Integer.MAX_VALUE);
 
   AesGcmSpi(final AmazonCorrettoCryptoProvider provider) {
@@ -466,6 +469,7 @@ final class AesGcmSpi extends CipherSpi {
           checkOutputBuffer(inputLen, output, outputOffset, false);
 
           lazyInit();
+          flushBufferedAAD();
 
           // If we have an overlap, we'll need to clone the input buffer before we potentially start
           // overwriting it.
@@ -494,16 +498,27 @@ final class AesGcmSpi extends CipherSpi {
     if (hasConsumedData) {
       throw new IllegalStateException("AAD data cannot be updated after calling update()");
     }
+    if (opMode < 0) {
+      throw new IllegalStateException("Cipher not initialized");
+    }
+    if (opMode == NATIVE_MODE_ENCRYPT) {
+      checkNeedReset();
+    }
 
-    // Older (<= 1.0.1) versions of openssl don't allow AAD data to be provided before the AEAD tag
-    if (opMode == NATIVE_MODE_DECRYPT) {
-      decryptAADBuf.write(bytes, offset, length);
+    // Buffer AAD until the first data operation. This allows the common updateAAD() + doFinal()
+    // sequence to initialize the native context, process AAD, and encrypt in a single JNI call.
+    // Decryption already requires this buffering because older (<= 1.0.1) OpenSSL versions don't
+    // allow AAD to be provided before the AEAD tag.
+    aadBuffer.write(bytes, offset, length);
+  }
+
+  private void flushBufferedAAD() {
+    if (aadBuffer.isEmpty()) {
       return;
     }
 
-    lazyInit();
-
-    internalUpdateAAD(bytes, offset, length);
+    internalUpdateAAD(aadBuffer.getDataBuffer(), 0, aadBuffer.size());
+    aadBuffer.reset();
   }
 
   private void internalUpdateAAD(byte[] bytes, int offset, int length) {
@@ -586,8 +601,10 @@ final class AesGcmSpi extends CipherSpi {
 
       if (!contextInitialized) {
         // Context has not been initialized, meaning the user called doFinal immediately after
-        // init(). In this case
-        // we make a single native call to perform the encryption operation in one go.
+        // init(), optionally with updateAAD() in between. In this case we make a single native call
+        // to perform the encryption operation in one go.
+        final int finalAadSize = aadBuffer.size();
+        final byte[] finalAad = finalAadSize == 0 ? EMPTY_ARRAY : aadBuffer.getDataBuffer();
 
         if (context != null) {
           return context.use(
@@ -603,7 +620,9 @@ final class AesGcmSpi extends CipherSpi {
                       finalOutputOffset,
                       tagLength,
                       key,
-                      iv));
+                      iv,
+                      finalAad,
+                      finalAadSize));
         }
         // We don't have an existing context, however we might want to save one
         if (saveNativeContext()) {
@@ -620,7 +639,9 @@ final class AesGcmSpi extends CipherSpi {
                   finalOutputOffset,
                   tagLength,
                   key,
-                  iv);
+                  iv,
+                  finalAad,
+                  finalAadSize);
           context = new NativeEvpCipherCtx(ptrOut[0]);
           return outLen;
         }
@@ -636,9 +657,11 @@ final class AesGcmSpi extends CipherSpi {
             finalOutputOffset,
             tagLength,
             key,
-            iv);
+            iv,
+            finalAad,
+            finalAadSize);
       }
-      // Context is initialized, which means either updateAAD or update has been invoked after init
+      // Context is initialized, which means update() has been invoked after init().
 
       // We need to make sure to add resultLength here; engineUpdate in encrypt mode produces
       // incremental output (unlike in decrypt mode) and so we need to carry forward whatever
@@ -737,12 +760,12 @@ final class AesGcmSpi extends CipherSpi {
                     tagLength,
                     key,
                     iv,
-                    // The cost of calling decryptAADBuf.getDataBuffer() when its buffer is empty
+                    // The cost of calling aadBuffer.getDataBuffer() when its buffer is empty
                     // is significant for 16-byte decrypt operations (approximately a 7%
                     // performance hit). To avoid this, we reuse the same empty array instead in
                     // this common-case path.
-                    decryptAADBuf.isEmpty() ? EMPTY_ARRAY : decryptAADBuf.getDataBuffer(),
-                    decryptAADBuf.size()));
+                    aadBuffer.isEmpty() ? EMPTY_ARRAY : aadBuffer.getDataBuffer(),
+                    aadBuffer.size()));
       }
 
       // We don't have an existing context, however we might want to save one
@@ -762,11 +785,11 @@ final class AesGcmSpi extends CipherSpi {
                 key,
                 iv,
 
-                // The cost of calling decryptAADBuf.getDataBuffer() when its buffer is empty is
+                // The cost of calling aadBuffer.getDataBuffer() when its buffer is empty is
                 // significant for 16-byte decrypt operations (approximately a 7% performance hit).
                 // To avoid this, we reuse the same empty array
-                decryptAADBuf.isEmpty() ? EMPTY_ARRAY : decryptAADBuf.getDataBuffer(),
-                decryptAADBuf.size());
+                aadBuffer.isEmpty() ? EMPTY_ARRAY : aadBuffer.getDataBuffer(),
+                aadBuffer.size());
         context = new NativeEvpCipherCtx(ptrOut[0]);
         return outlen;
       }
@@ -784,11 +807,11 @@ final class AesGcmSpi extends CipherSpi {
           key,
           iv,
 
-          // The cost of calling decryptAADBuf.getDataBuffer() when its buffer is empty is
+          // The cost of calling aadBuffer.getDataBuffer() when its buffer is empty is
           // significant for 16-byte decrypt operations (approximately a 7% performance hit).
           // To avoid this, we reuse the same empty array
-          decryptAADBuf.isEmpty() ? EMPTY_ARRAY : decryptAADBuf.getDataBuffer(),
-          decryptAADBuf.size());
+          aadBuffer.isEmpty() ? EMPTY_ARRAY : aadBuffer.getDataBuffer(),
+          aadBuffer.size());
     } catch (final AEADBadTagException e) {
       final int maxFillSize = output.length - outputOffset;
       final int endIndex = outputOffset + Math.min(maxFillSize, engineGetOutputSize(inputLen));
@@ -1029,7 +1052,7 @@ final class AesGcmSpi extends CipherSpi {
       context = null;
     }
     decryptInputBuf.reset();
-    decryptAADBuf.reset();
+    aadBuffer.reset();
 
     hasConsumedData = false;
     contextInitialized = false;
