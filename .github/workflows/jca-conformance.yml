@@ -4,11 +4,12 @@ name: JCA Conformance
 # catch behavioral divergence from the JDK-default providers. See
 # tests/jca-conformance/README.md and issue #550.
 #
-# Branch 1 (this commit) wires the harness in --smoke mode: it validates that
-# ACCP installs as the highest-priority provider and that the exclusion/roots
-# config parses, without checking out the OpenJDK test tree. Branch 2 switches
-# the run to --full and (once the suite is green via exclusions) the job can be
-# made gating.
+# The harness builds jtreg from pinned openjdk/jtreg, sparse-checks-out the
+# pinned per-version OpenJDK test content, installs ACCP at provider priority 1,
+# and runs the configured JCA roots with the exclusion lists applied. Tests that
+# fail for a triaged, accepted reason are listed in
+# tests/jca-conformance/exclusions/ with a rationale; CI is green as long as no
+# non-excluded test fails.
 
 on:
   push:
@@ -49,5 +50,12 @@ jobs:
         env:
           TEST_JAVA_HOME: ${{ env.JAVA_HOME }}
           ACCP_JAR: ${{ github.workspace }}/build/cmake/AmazonCorrettoCryptoProvider.jar
-        # --smoke validates harness wiring. Branch 2 switches this to --full.
-        run: ./tests/jca-conformance/run-jtreg.sh --smoke
+        run: ./tests/jca-conformance/run-jtreg.sh --full
+
+      - name: Upload jtreg report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jtreg-report-jdk${{ matrix.jdk }}
+          path: build/jca-conformance/jtreg-report
+          if-no-files-found: ignore
