@@ -38,14 +38,15 @@ abstract class MlKemSpi implements KEMSpi {
    * KEM.newDecapsulator(PrivateKey)} convenience overloads (used by BouncyCastle's TLS 1.3 stack)
    * always call through with a null spec. Since each ACCP ML-KEM key already carries its parameter
    * set, a null spec is accepted as a no-op; a non-null spec must be a {@code NamedParameterSpec}
-   * naming that same parameter set, otherwise it is rejected.
+   * naming that same parameter set (case-insensitively), otherwise it is rejected.
    *
    * @param spec the algorithm parameter spec, or null to use the key's parameter set
-   * @param parameterSet the algorithm name of the key's parameter set (e.g. "ML-KEM-768")
+   * @param parameterSet the key's parameter set
    * @throws InvalidAlgorithmParameterException if spec is non-null and is the wrong type or names a
    *     different parameter set
    */
-  private static void validateParameterSpec(AlgorithmParameterSpec spec, String parameterSet)
+  private static void validateParameterSpec(
+      AlgorithmParameterSpec spec, MlKemParameter parameterSet)
       throws InvalidAlgorithmParameterException {
 
     if (spec == null) {
@@ -57,7 +58,9 @@ abstract class MlKemSpi implements KEMSpi {
     }
 
     NamedParameterSpec namedSpec = (NamedParameterSpec) spec;
-    if (!namedSpec.getName().equals(parameterSet)) {
+    // Case-insensitive match via MlKemParameter, shared with MlKemGen so the KeyPairGenerator and
+    // KEM paths agree on which NamedParameterSpec names are accepted.
+    if (!parameterSet.matchesAlgorithmName(namedSpec.getName())) {
       throw new InvalidAlgorithmParameterException(
           "Unsupported parameters. Please use valid parameters");
     }
@@ -66,9 +69,9 @@ abstract class MlKemSpi implements KEMSpi {
   /**
    * Validates that the algorithm is supported for ML-KEM operations.
    *
-   * @param algorithm the algorithm name to validate
    * @param algorithm the algorithm name to validate (must be "Generic", "ML-KEM", or match the
    *     parameter set)
+   * @param parameterSetAlgorithmName the key's parameter set algorithm name (e.g. "ML-KEM-768")
    * @throws UnsupportedOperationException if the algorithm is not supported
    */
   private static void validateAlgorithm(String algorithm, String parameterSetAlgorithmName) {
@@ -101,8 +104,7 @@ abstract class MlKemSpi implements KEMSpi {
     }
 
     EvpKemPublicKey kemKey = (EvpKemPublicKey) publicKey;
-    String keyParamSetName = kemKey.getParameterSet().getAlgorithmName();
-    validateParameterSpec(spec, keyParamSetName);
+    validateParameterSpec(spec, kemKey.getParameterSet());
 
     return new MlKemEncapsulatorSpi(kemKey, kemKey.getParameterSet());
   }
@@ -119,8 +121,7 @@ abstract class MlKemSpi implements KEMSpi {
       throw new InvalidKeyException("Unsupported private key type");
     }
     EvpKemPrivateKey kemKey = (EvpKemPrivateKey) privateKey;
-    String keyParamSetName = kemKey.getParameterSet().getAlgorithmName();
-    validateParameterSpec(spec, keyParamSetName);
+    validateParameterSpec(spec, kemKey.getParameterSet());
 
     return new MlKemDecapsulatorSpi(kemKey, kemKey.getParameterSet());
   }

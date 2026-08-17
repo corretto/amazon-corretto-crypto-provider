@@ -11,14 +11,18 @@ import java.security.spec.AlgorithmParameterSpec;
 
 class MlKemGen extends KeyPairGeneratorSpi {
   // java.security.spec.NamedParameterSpec is a JDK 11+ type not available at ACCP's bytecode
-  // target, so it is resolved reflectively. Null only on JDK 10 and older (see the static
-  // initializer), where initialize(spec, ...) rejects all specs, which is correct there.
+  // target, so it and its getName() accessor are resolved reflectively once, here. Both are null
+  // only on JDK 10 and older (see the static initializer), where initialize(spec, ...) rejects all
+  // specs, which is correct there.
   private static final Class<?> NAMED_PARAMETER_SPEC_CLASS;
+  private static final Method NAMED_PARAMETER_SPEC_GET_NAME;
 
   static {
     Class<?> clazz = null;
+    Method getName = null;
     try {
       clazz = Class.forName("java.security.spec.NamedParameterSpec");
+      getName = clazz.getMethod("getName");
     } catch (final ClassNotFoundException e) {
       // Absent only on JDK 10 and older. On JDK 11+ the class must exist, so a load failure
       // signals a broken runtime -- fail fast instead of silently disabling spec initialization.
@@ -26,8 +30,13 @@ class MlKemGen extends KeyPairGeneratorSpi {
         throw new AssertionError(
             "java.security.spec.NamedParameterSpec must be present on JDK 11+", e);
       }
+    } catch (final NoSuchMethodException e) {
+      // The class exists but lacks its public getName() accessor -- impossible on a sane JDK 11+.
+      throw new AssertionError(
+          "java.security.spec.NamedParameterSpec.getName() must be present", e);
     }
     NAMED_PARAMETER_SPEC_CLASS = clazz;
+    NAMED_PARAMETER_SPEC_GET_NAME = getName;
   }
 
   private MlKemParameter parameterSet = null;
@@ -50,8 +59,9 @@ class MlKemGen extends KeyPairGeneratorSpi {
    * Accepts the standard {@code NamedParameterSpec} initialization that JSSE providers (e.g.
    * BouncyCastle's TLS 1.3 stack) and application code perform before {@code generateKeyPair()}.
    * Each {@code MlKemGen} instance is bound to a single parameter set at construction, so any spec
-   * naming that same parameter set is a no-op; any other spec is rejected so the JCA can fail over
-   * to a provider that supports it rather than this one silently producing the wrong parameter set.
+   * naming that same parameter set (case-insensitively) is a no-op; any other spec is rejected with
+   * {@code InvalidAlgorithmParameterException} so this generator never silently produces a key of
+   * the wrong parameter set.
    *
    * <p>{@code NamedParameterSpec} was introduced in JDK 11, but ACCP's main sources are compiled
    * for an older bytecode target, so the spec's name is read reflectively rather than by importing
@@ -70,7 +80,7 @@ class MlKemGen extends KeyPairGeneratorSpi {
       throw new InvalidAlgorithmParameterException(
           "Unsupported AlgorithmParameterSpec: " + params.getClass().getName());
     }
-    if (!parameterSet.getAlgorithmName().equalsIgnoreCase(name)) {
+    if (!parameterSet.matchesAlgorithmName(name)) {
       throw new InvalidAlgorithmParameterException(
           "Unsupported ML-KEM parameter set: "
               + name
@@ -89,10 +99,11 @@ class MlKemGen extends KeyPairGeneratorSpi {
       return null;
     }
     try {
-      final Method getName = NAMED_PARAMETER_SPEC_CLASS.getMethod("getName");
-      return (String) getName.invoke(params);
+      return (String) NAMED_PARAMETER_SPEC_GET_NAME.invoke(params);
     } catch (final ReflectiveOperationException e) {
-      return null;
+      // getName() is a public method on a public JDK type resolved successfully at class load, so a
+      // failure here signals a broken runtime rather than an unsupported spec -- fail fast.
+      throw new AssertionError("Failed to invoke NamedParameterSpec.getName()", e);
     }
   }
 

@@ -48,6 +48,16 @@ enum MlKemParameter {
     return "ML-KEM-" + parameterSize;
   }
 
+  /**
+   * Case-insensitive match of {@code name} against this parameter set's JCA standard algorithm name
+   * (e.g. "ML-KEM-768"). Shared by the KeyPairGenerator ({@code MlKemGen}) and KEM ({@code
+   * MlKemSpi}) SPIs so the two code paths agree on which {@code NamedParameterSpec} names they
+   * accept. Null-safe: returns false for a null name.
+   */
+  public boolean matchesAlgorithmName(final String name) {
+    return getAlgorithmName().equalsIgnoreCase(name);
+  }
+
   public static MlKemParameter fromKeySize(int keySize) {
     if (keySize == MLKEM_512.publicKeySize || keySize == MLKEM_512.secretKeySize) {
       return MLKEM_512;

@@ -17,6 +17,7 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.KeyStore;
 import java.security.Provider;
+import java.security.SecureRandom;
 import java.security.Security;
 import java.security.cert.X509Certificate;
 import java.util.Date;
@@ -91,6 +92,9 @@ public class BouncyCastleJsseMlKemIntegrationTest {
   /** KEM algorithm name that BCJSSE looks up for either MLKEM768 group. */
   private static final String KEM_ALG = "ML-KEM-768";
 
+  /** Purely classical TLS 1.3 group (no ML-KEM); used by the negative control. */
+  private static final String CLASSICAL_GROUP = "X25519";
+
   @Test
   public void bcjsseSourcesPureMlKemFromAccp() throws Exception {
     runHandshakeAndAssertAccpServedMlKem(PURE_MLKEM_GROUP);
@@ -106,31 +110,38 @@ public class BouncyCastleJsseMlKemIntegrationTest {
   }
 
   /**
-   * Sanity check that the recording harness itself doesn't manufacture the positive signal: with
-   * ACCP <em>absent</em> from the provider list, BCJSSE falls back to BC's own ML-KEM
-   * implementation and the recorder observes no lookups.
+   * Negative control proving the recording harness does not manufacture the positive signal. The
+   * recorder wrapping ACCP is installed as the top provider exactly as in the positive tests, but
+   * the handshake is pinned to a purely classical group ({@code X25519}). The recorder still sits
+   * at the top of the provider list and delegates the handshake's classical operations (the X25519
+   * key exchange and the RSA certificate signature) to ACCP, so it is genuinely in the handshake
+   * path -- yet it observes zero lookups, because its counters are scoped to ML-KEM service names
+   * only (see {@code isMlKemService}) and no ML-KEM is negotiated. In other words this asserts the
+   * recorder tallies ML-KEM operations and nothing else, so the non-zero counts in the positive
+   * tests come specifically from ML-KEM negotiation rather than from generic handshake activity
+   * flowing through the recorder.
    */
   @Test
-  public void bcjsseWithoutAccpDoesNotObserveAccpKemLookups() throws Exception {
+  public void bcjsseClassicalHandshakeYieldsNoMlKemLookups() throws Exception {
     assumeMlKemDelegationReachable();
 
     final Provider[] saved = TestUtil.saveProviders();
     try {
-      // Drop ACCP entirely so BCJSSE has no chance to delegate to it.
-      Security.removeProvider(AmazonCorrettoCryptoProvider.PROVIDER_NAME);
       final Provider bcProv = newBcProvider();
+      // Same setup as the positive tests: RecordingProvider(ACCP) at position 1 so it wins (and
+      // would record) any unpinned ML-KEM getInstance() call BCJSSE makes.
+      final RecordingProvider recorder =
+          new RecordingProvider(AmazonCorrettoCryptoProvider.INSTANCE, "AccpRecorder");
+      Security.insertProviderAt(recorder, 1);
       Security.addProvider(bcProv);
       Security.addProvider(new BouncyCastleJsseProvider());
 
-      // A recorder is present but wraps no one; it should not be routed through by JCA at all
-      // (it isn't registered).
-      final RecordingProvider recorder = new RecordingProvider(bcProv, "AccpAbsentRecorder");
-      final boolean negotiated = drivehandshake(PURE_MLKEM_GROUP, recorder, false);
-      assertTrue(negotiated, "TLS 1.3 handshake should succeed without ACCP too");
+      final boolean negotiated = drivehandshake(CLASSICAL_GROUP, recorder, false);
+      assertTrue(negotiated, "classical TLS 1.3 handshake should complete over " + CLASSICAL_GROUP);
       assertEquals(
           0,
           recorder.totalMlKemLookups(),
-          "Recorder must not observe ML-KEM lookups when it is not on the provider list: "
+          "Recorder must observe no ML-KEM lookups for a purely classical handshake: "
               + recorder.summary());
     } finally {
       TestUtil.restoreProviders(saved);
@@ -248,8 +259,8 @@ public class BouncyCastleJsseMlKemIntegrationTest {
 
   /**
    * Drives one BCJSSE TLS 1.3 handshake pinned to {@code namedGroup} on both peers, on the loopback
-   * interface. Uses a JKS keystore holding a self-signed EC leaf so cert operations don't intersect
-   * the KEM path being measured. Returns true when both peers completed handshake + echo.
+   * interface. Uses a JKS keystore holding a self-signed RSA leaf so cert operations don't
+   * intersect the KEM path being measured. Returns true when both peers completed handshake + echo.
    */
   private boolean drivehandshake(
       String namedGroup, RecordingProvider recorder, boolean expectAccpServesMlKem)
@@ -358,9 +369,9 @@ public class BouncyCastleJsseMlKemIntegrationTest {
     final X500Principal dn = new X500Principal("CN=accp-bcjsse-mlkem-test");
     final Date notBefore = new Date(System.currentTimeMillis() - 60_000L);
     final Date notAfter = new Date(System.currentTimeMillis() + 3_600_000L);
+    final BigInteger serial = new BigInteger(64, new SecureRandom());
     final JcaX509v3CertificateBuilder builder =
-        new JcaX509v3CertificateBuilder(
-            dn, BigInteger.valueOf(System.nanoTime()), notBefore, notAfter, dn, kp.getPublic());
+        new JcaX509v3CertificateBuilder(dn, serial, notBefore, notAfter, dn, kp.getPublic());
     return new JcaX509CertificateConverter()
         .getCertificate(
             builder.build(
@@ -443,10 +454,16 @@ public class BouncyCastleJsseMlKemIntegrationTest {
   }
 
   /**
-   * Service wrapper that forwards {@link Service#newInstance(Object)} to the delegate. Aliases
-   * cannot be introspected off {@link Provider.Service} through public API, so this wrapper only
-   * mirrors the canonical algorithm name -- adequate for this test because BCJSSE looks up ML-KEM
-   * by its canonical {@code ML-KEM-512/768/1024} names, which ACCP registers directly.
+   * Service wrapper that forwards {@link Service#newInstance(Object)} to the delegate. Aliases and
+   * attributes cannot be introspected off {@link Provider.Service} through public API, so this
+   * wrapper only mirrors the canonical algorithm name -- adequate for this test because BCJSSE
+   * looks up ML-KEM by its canonical {@code ML-KEM-512/768/1024} names, which ACCP registers
+   * directly.
+   *
+   * <p>TODO: mirror the delegate's aliases and attributes if a future assertion needs to shadow
+   * alias/OID-based lookups. There is no public {@link Provider.Service} API to enumerate them, so
+   * this would require either reflecting into the delegate's service internals or hard-coding the
+   * ML-KEM aliases ACCP registers.
    */
   private static final class DelegatingService extends Provider.Service {
     private final Provider.Service delegate;
