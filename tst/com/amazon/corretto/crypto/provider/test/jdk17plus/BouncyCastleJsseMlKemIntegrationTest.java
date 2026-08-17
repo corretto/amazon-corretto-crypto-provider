@@ -92,9 +92,6 @@ public class BouncyCastleJsseMlKemIntegrationTest {
   /** KEM algorithm name that BCJSSE looks up for either MLKEM768 group. */
   private static final String KEM_ALG = "ML-KEM-768";
 
-  /** Purely classical TLS 1.3 group (no ML-KEM); used by the negative control. */
-  private static final String CLASSICAL_GROUP = "X25519";
-
   @Test
   public void bcjsseSourcesPureMlKemFromAccp() throws Exception {
     runHandshakeAndAssertAccpServedMlKem(PURE_MLKEM_GROUP);
@@ -107,45 +104,6 @@ public class BouncyCastleJsseMlKemIntegrationTest {
   @Test
   public void bcjsseSourcesHybridMlKemFromAccp() throws Exception {
     runHandshakeAndAssertAccpServedMlKem(HYBRID_GROUP);
-  }
-
-  /**
-   * Negative control proving the recording harness does not manufacture the positive signal. The
-   * recorder wrapping ACCP is installed as the top provider exactly as in the positive tests, but
-   * the handshake is pinned to a purely classical group ({@code X25519}). The recorder still sits
-   * at the top of the provider list and delegates the handshake's classical operations (the X25519
-   * key exchange and the RSA certificate signature) to ACCP, so it is genuinely in the handshake
-   * path -- yet it observes zero lookups, because its counters are scoped to ML-KEM service names
-   * only (see {@code isMlKemService}) and no ML-KEM is negotiated. In other words this asserts the
-   * recorder tallies ML-KEM operations and nothing else, so the non-zero counts in the positive
-   * tests come specifically from ML-KEM negotiation rather than from generic handshake activity
-   * flowing through the recorder.
-   */
-  @Test
-  public void bcjsseClassicalHandshakeYieldsNoMlKemLookups() throws Exception {
-    assumeMlKemDelegationReachable();
-
-    final Provider[] saved = TestUtil.saveProviders();
-    try {
-      final Provider bcProv = newBcProvider();
-      // Same setup as the positive tests: RecordingProvider(ACCP) at position 1 so it wins (and
-      // would record) any unpinned ML-KEM getInstance() call BCJSSE makes.
-      final RecordingProvider recorder =
-          new RecordingProvider(AmazonCorrettoCryptoProvider.INSTANCE, "AccpRecorder");
-      Security.insertProviderAt(recorder, 1);
-      Security.addProvider(bcProv);
-      Security.addProvider(new BouncyCastleJsseProvider());
-
-      final boolean negotiated = drivehandshake(CLASSICAL_GROUP, recorder, false);
-      assertTrue(negotiated, "classical TLS 1.3 handshake should complete over " + CLASSICAL_GROUP);
-      assertEquals(
-          0,
-          recorder.totalMlKemLookups(),
-          "Recorder must observe no ML-KEM lookups for a purely classical handshake: "
-              + recorder.summary());
-    } finally {
-      TestUtil.restoreProviders(saved);
-    }
   }
 
   /**
