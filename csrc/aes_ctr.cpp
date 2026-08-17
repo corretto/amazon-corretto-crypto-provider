@@ -134,9 +134,11 @@ extern "C" JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesCt
     jlongArray ctxContainer,
     jlong ctxPtr,
     jboolean saveCtx,
+    jobject inputDirect,
     jbyteArray inputArray,
     jint inputOffset,
     jint inputLen,
+    jobject outputDirect,
     jbyteArray outputArray,
     jint outputOffset)
 {
@@ -151,7 +153,7 @@ extern "C" JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesCt
         }
 
         // update and final
-        JIOBlobs io_blobs(env, nullptr, inputArray, nullptr, outputArray);
+        JIOBlobs io_blobs(env, inputDirect, inputArray, outputDirect, outputArray);
         int result
             = aes_ctr_cipher.update(io_blobs.get_input() + inputOffset, inputLen, io_blobs.get_output() + outputOffset);
         result += aes_ctr_cipher.do_final(io_blobs.get_output() + outputOffset + result);
@@ -172,9 +174,11 @@ extern "C" JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesCt
     jbyteArray iv,
     jlongArray ctxContainer,
     jlong ctxPtr,
+    jobject inputDirect,
     jbyteArray inputArray,
     jint inputOffset,
     jint inputLen,
+    jobject outputDirect,
     jbyteArray outputArray,
     jint outputOffset)
 {
@@ -189,7 +193,7 @@ extern "C" JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesCt
         }
 
         // update
-        JIOBlobs io_blobs(env, nullptr, inputArray, nullptr, outputArray);
+        JIOBlobs io_blobs(env, inputDirect, inputArray, outputDirect, outputArray);
         return aes_ctr_cipher.update(
             io_blobs.get_input() + inputOffset, inputLen, io_blobs.get_output() + outputOffset);
 
@@ -203,9 +207,11 @@ extern "C" JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesCt
     jclass,
     jint opMode,
     jlong ctxPtr,
+    jobject inputDirect,
     jbyteArray inputArray,
     jint inputOffset,
     jint inputLen,
+    jobject outputDirect,
     jbyteArray outputArray,
     jint outputOffset)
 {
@@ -213,7 +219,7 @@ extern "C" JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesCt
         AesCtrCipher aes_ctr_cipher(env, nullptr, ctxPtr, true);
 
         // update
-        JIOBlobs io_blobs(env, nullptr, inputArray, nullptr, outputArray);
+        JIOBlobs io_blobs(env, inputDirect, inputArray, outputDirect, outputArray);
         return aes_ctr_cipher.update(
             io_blobs.get_input() + inputOffset, inputLen, io_blobs.get_output() + outputOffset);
 
@@ -228,9 +234,11 @@ extern "C" JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesCt
     jint opMode,
     jlong ctxPtr,
     jboolean saveCtx,
+    jobject inputDirect,
     jbyteArray inputArray,
     jint inputOffset,
     jint inputLen,
+    jobject outputDirect,
     jbyteArray outputArray,
     jint outputOffset)
 {
@@ -238,7 +246,7 @@ extern "C" JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesCt
         AesCtrCipher aes_ctr_cipher(env, nullptr, ctxPtr, saveCtx);
 
         // update and final
-        JIOBlobs io_blobs(env, nullptr, inputArray, nullptr, outputArray);
+        JIOBlobs io_blobs(env, inputDirect, inputArray, outputDirect, outputArray);
         int result
             = aes_ctr_cipher.update(io_blobs.get_input() + inputOffset, inputLen, io_blobs.get_output() + outputOffset);
         result += aes_ctr_cipher.do_final(io_blobs.get_output() + outputOffset + result);

@@ -3,8 +3,10 @@
 package com.amazon.corretto.crypto.provider.test;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
+import java.nio.ByteBuffer;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
@@ -29,6 +31,7 @@ public class AesCtrTest {
   private static final int KEY_SIZE_128 = 128;
   private static final int KEY_SIZE_256 = 256;
   private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+  private static final byte PADDING_BYTE = (byte) 0x5A;
   private static final Class<?> SPI_CLASS;
 
   static {
@@ -125,6 +128,257 @@ public class AesCtrTest {
     cipher.update(buffer, 0, buffer.length / 2, buffer, 0);
     cipher.update(buffer, buffer.length / 2, buffer.length / 2, buffer, buffer.length / 2);
     assertArrayEquals(plaintext, buffer);
+  }
+
+  @Test
+  public void testEncryptDecryptWithByteBuffer() throws Exception {
+    final byte[] plaintext = new byte[100];
+    SECURE_RANDOM.nextBytes(plaintext);
+    final SecretKey key = generateKey(KEY_SIZE_128);
+    final byte[] iv = new byte[BLOCK_SIZE];
+    SECURE_RANDOM.nextBytes(iv);
+    final IvParameterSpec ivSpec = new IvParameterSpec(iv);
+
+    // heap input, heap output
+    roundTripByteBuffer(plaintext, key, ivSpec, false, false, false);
+    // direct input, direct output
+    roundTripByteBuffer(plaintext, key, ivSpec, true, true, false);
+    // read-only heap input, heap output
+    roundTripByteBuffer(plaintext, key, ivSpec, false, false, true);
+    // read-only direct input, direct output
+    roundTripByteBuffer(plaintext, key, ivSpec, true, true, true);
+  }
+
+  private void roundTripByteBuffer(
+      final byte[] plaintext,
+      final SecretKey key,
+      final IvParameterSpec ivSpec,
+      final boolean inputDirect,
+      final boolean outputDirect,
+      final boolean inputReadOnly)
+      throws Exception {
+    final Cipher encryptCipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
+    encryptCipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
+    ByteBuffer plaintextBuffer = wrapBuffer(plaintext, inputDirect);
+    if (inputReadOnly) {
+      plaintextBuffer = plaintextBuffer.asReadOnlyBuffer();
+    }
+    final ByteBuffer ciphertextBuffer = allocateBuffer(plaintext.length, outputDirect);
+    encryptCipher.doFinal(plaintextBuffer, ciphertextBuffer);
+    ciphertextBuffer.flip();
+    final byte[] ciphertext = new byte[ciphertextBuffer.remaining()];
+    ciphertextBuffer.get(ciphertext);
+
+    final Cipher decryptCipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
+    decryptCipher.init(Cipher.DECRYPT_MODE, key, ivSpec);
+    ByteBuffer ciphertextInputBuffer = wrapBuffer(ciphertext, inputDirect);
+    if (inputReadOnly) {
+      ciphertextInputBuffer = ciphertextInputBuffer.asReadOnlyBuffer();
+    }
+    final ByteBuffer decryptedBuffer = allocateBuffer(ciphertext.length, outputDirect);
+    decryptCipher.doFinal(ciphertextInputBuffer, decryptedBuffer);
+    decryptedBuffer.flip();
+    final byte[] decrypted = new byte[decryptedBuffer.remaining()];
+    decryptedBuffer.get(decrypted);
+
+    assertArrayEquals(plaintext, decrypted, "Decrypted text should match original plaintext");
+  }
+
+  @Test
+  public void testEncryptDecryptWithByteBufferUpdate() throws Exception {
+    final byte[] plaintext = new byte[100];
+    SECURE_RANDOM.nextBytes(plaintext);
+    final SecretKey key = generateKey(KEY_SIZE_128);
+    final byte[] iv = new byte[BLOCK_SIZE];
+    SECURE_RANDOM.nextBytes(iv);
+    final IvParameterSpec ivSpec = new IvParameterSpec(iv);
+
+    // heap input, heap output
+    splitRoundTripByteBuffer(plaintext, key, ivSpec, false, false, false);
+    // direct input, direct output
+    splitRoundTripByteBuffer(plaintext, key, ivSpec, true, true, false);
+    // read-only heap input, heap output
+    splitRoundTripByteBuffer(plaintext, key, ivSpec, false, false, true);
+    // read-only direct input, direct output
+    splitRoundTripByteBuffer(plaintext, key, ivSpec, true, true, true);
+  }
+
+  /** Exercises {@code Cipher.update(ByteBuffer, ByteBuffer)} followed by {@code doFinal}. */
+  private void splitRoundTripByteBuffer(
+      final byte[] plaintext,
+      final SecretKey key,
+      final IvParameterSpec ivSpec,
+      final boolean inputDirect,
+      final boolean outputDirect,
+      final boolean inputReadOnly)
+      throws Exception {
+    final int halfway = plaintext.length / 2;
+
+    final Cipher encryptCipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
+    encryptCipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
+    ByteBuffer plaintextBuffer = wrapBuffer(plaintext, inputDirect);
+    if (inputReadOnly) {
+      plaintextBuffer = plaintextBuffer.asReadOnlyBuffer();
+    }
+    final ByteBuffer ciphertextBuffer = allocateBuffer(plaintext.length, outputDirect);
+    plaintextBuffer.limit(halfway);
+    encryptCipher.update(plaintextBuffer, ciphertextBuffer);
+    plaintextBuffer.limit(plaintext.length);
+    encryptCipher.doFinal(plaintextBuffer, ciphertextBuffer);
+    ciphertextBuffer.flip();
+    final byte[] ciphertext = new byte[ciphertextBuffer.remaining()];
+    ciphertextBuffer.get(ciphertext);
+
+    final Cipher decryptCipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
+    decryptCipher.init(Cipher.DECRYPT_MODE, key, ivSpec);
+    ByteBuffer ciphertextInputBuffer = wrapBuffer(ciphertext, inputDirect);
+    if (inputReadOnly) {
+      ciphertextInputBuffer = ciphertextInputBuffer.asReadOnlyBuffer();
+    }
+    final ByteBuffer decryptedBuffer = allocateBuffer(ciphertext.length, outputDirect);
+    ciphertextInputBuffer.limit(halfway);
+    decryptCipher.update(ciphertextInputBuffer, decryptedBuffer);
+    ciphertextInputBuffer.limit(ciphertext.length);
+    decryptCipher.doFinal(ciphertextInputBuffer, decryptedBuffer);
+    decryptedBuffer.flip();
+    final byte[] decrypted = new byte[decryptedBuffer.remaining()];
+    decryptedBuffer.get(decrypted);
+
+    assertArrayEquals(plaintext, decrypted, "Decrypted text should match original plaintext");
+  }
+
+  @Test
+  public void testEncryptDecryptWithByteBufferOffsets() throws Exception {
+    final byte[] plaintext = new byte[100];
+    SECURE_RANDOM.nextBytes(plaintext);
+    final SecretKey key = generateKey(KEY_SIZE_256);
+    final byte[] iv = new byte[BLOCK_SIZE];
+    SECURE_RANDOM.nextBytes(iv);
+    final IvParameterSpec ivSpec = new IvParameterSpec(iv);
+
+    // heap input, heap output
+    offsetRoundTripByteBuffer(plaintext, key, ivSpec, false, false);
+    // direct input, direct output
+    offsetRoundTripByteBuffer(plaintext, key, ivSpec, true, true);
+  }
+
+  /**
+   * Verifies correctness when the input/output {@code ByteBuffer}s are views into the middle of
+   * larger backing storage: the accessible [position, limit) window neither starts at the beginning
+   * nor ends at the end of the backing array/direct buffer. Also verifies that native code
+   * reads/writes only within that window, leaving the surrounding padding untouched.
+   */
+  private void offsetRoundTripByteBuffer(
+      final byte[] plaintext,
+      final SecretKey key,
+      final IvParameterSpec ivSpec,
+      final boolean inputDirect,
+      final boolean outputDirect)
+      throws Exception {
+    final int inPrefix = 7;
+    final int inSuffix = 13;
+    final int outPrefix = 11;
+    final int outSuffix = 5;
+
+    final Cipher encryptCipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
+    encryptCipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
+    final ByteBuffer plaintextBuffer = wrapWithPadding(plaintext, inputDirect, inPrefix, inSuffix);
+    final ByteBuffer ciphertextBuffer =
+        allocateWithPadding(plaintext.length, outputDirect, outPrefix, outSuffix);
+    encryptCipher.doFinal(plaintextBuffer, ciphertextBuffer);
+    assertPaddingIntact(plaintextBuffer, inPrefix, plaintext.length);
+    assertPaddingIntact(ciphertextBuffer, outPrefix, plaintext.length);
+    final byte[] ciphertext = new byte[plaintext.length];
+    readWindow(ciphertextBuffer, outPrefix, ciphertext);
+
+    final Cipher decryptCipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
+    decryptCipher.init(Cipher.DECRYPT_MODE, key, ivSpec);
+    final ByteBuffer ciphertextInputBuffer =
+        wrapWithPadding(ciphertext, inputDirect, inPrefix, inSuffix);
+    final ByteBuffer decryptedBuffer =
+        allocateWithPadding(ciphertext.length, outputDirect, outPrefix, outSuffix);
+    decryptCipher.doFinal(ciphertextInputBuffer, decryptedBuffer);
+    assertPaddingIntact(ciphertextInputBuffer, inPrefix, ciphertext.length);
+    assertPaddingIntact(decryptedBuffer, outPrefix, ciphertext.length);
+    final byte[] decrypted = new byte[ciphertext.length];
+    readWindow(decryptedBuffer, outPrefix, decrypted);
+
+    assertArrayEquals(plaintext, decrypted, "Decrypted text should match original plaintext");
+  }
+
+  /**
+   * Wraps {@code data} in the middle of a larger backing buffer padded with {@link #PADDING_BYTE}
+   * on either side, returning a view whose [position, limit) exposes only the {@code data} region.
+   */
+  private static ByteBuffer wrapWithPadding(
+      final byte[] data, final boolean direct, final int prefixLen, final int suffixLen) {
+    final byte[] padded = new byte[prefixLen + data.length + suffixLen];
+    Arrays.fill(padded, PADDING_BYTE);
+    System.arraycopy(data, 0, padded, prefixLen, data.length);
+    final ByteBuffer buffer = wrapBuffer(padded, direct);
+    buffer.position(prefixLen);
+    buffer.limit(prefixLen + data.length);
+    return buffer;
+  }
+
+  /**
+   * Allocates a backing buffer of {@code prefixLen + size + suffixLen} bytes filled with {@link
+   * #PADDING_BYTE}, returning a view whose [position, limit) exposes only the middle {@code
+   * size}-byte region.
+   */
+  private static ByteBuffer allocateWithPadding(
+      final int size, final boolean direct, final int prefixLen, final int suffixLen) {
+    final int totalLen = prefixLen + size + suffixLen;
+    final ByteBuffer buffer = allocateBuffer(totalLen, direct);
+    for (int i = 0; i < totalLen; i++) {
+      buffer.put(i, PADDING_BYTE);
+    }
+    buffer.position(prefixLen);
+    buffer.limit(prefixLen + size);
+    return buffer;
+  }
+
+  /**
+   * Asserts that the padding surrounding the [prefixLen, prefixLen + contentLen) window is
+   * untouched, regardless of the buffer's current position/limit.
+   */
+  private static void assertPaddingIntact(
+      final ByteBuffer buffer, final int prefixLen, final int contentLen) {
+    final ByteBuffer view = buffer.duplicate();
+    view.clear();
+    for (int i = 0; i < prefixLen; i++) {
+      assertEquals(PADDING_BYTE, view.get(i), "prefix padding byte " + i + " was modified");
+    }
+    final int suffixStart = prefixLen + contentLen;
+    for (int i = suffixStart; i < view.capacity(); i++) {
+      assertEquals(PADDING_BYTE, view.get(i), "suffix padding byte " + i + " was modified");
+    }
+  }
+
+  /**
+   * Reads the {@code dest.length} bytes at [windowStart, windowStart + dest.length) without
+   * disturbing the buffer's own position/limit.
+   */
+  private static void readWindow(
+      final ByteBuffer buffer, final int windowStart, final byte[] dest) {
+    final ByteBuffer view = buffer.duplicate();
+    view.clear();
+    view.position(windowStart);
+    view.get(dest);
+  }
+
+  private static ByteBuffer wrapBuffer(final byte[] data, final boolean direct) {
+    if (!direct) {
+      return ByteBuffer.wrap(data);
+    }
+    final ByteBuffer buffer = ByteBuffer.allocateDirect(data.length);
+    buffer.put(data);
+    buffer.flip();
+    return buffer;
+  }
+
+  private static ByteBuffer allocateBuffer(final int size, final boolean direct) {
+    return direct ? ByteBuffer.allocateDirect(size) : ByteBuffer.allocate(size);
   }
 
   private SecretKey generateKey(int keySize)

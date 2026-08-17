@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.amazon.corretto.crypto.provider;
 
+import java.nio.ByteBuffer;
 import java.security.AlgorithmParameters;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
@@ -203,7 +204,44 @@ class AesCtrSpi extends CipherSpi {
       throws ShortBufferException {
     Utils.checkArrayLimits(input, inputOffset, inputLen);
     Utils.checkArrayLimits(output, outputOffset, inputLen);
+    return update(null, input, inputOffset, inputLen, null, output, outputOffset);
+  }
 
+  @Override
+  protected int engineUpdate(final ByteBuffer input, final ByteBuffer output)
+      throws ShortBufferException {
+    final int inputLen = input.remaining();
+    if (output.remaining() < inputLen) {
+      throw new ShortBufferException();
+    }
+
+    final ShimByteBuffer inputShimByteBuffer = new ShimByteBuffer(input, true);
+    final ShimByteBuffer outputShimByteBuffer = new ShimByteBuffer(output, false);
+
+    final int result =
+        update(
+            inputShimByteBuffer.directByteBuffer,
+            inputShimByteBuffer.array,
+            inputShimByteBuffer.offset,
+            inputLen,
+            outputShimByteBuffer.directByteBuffer,
+            outputShimByteBuffer.array,
+            outputShimByteBuffer.offset);
+
+    outputShimByteBuffer.writeBack(result);
+    input.position(input.limit());
+    output.position(output.position() + result);
+    return result;
+  }
+
+  private int update(
+      final ByteBuffer inputDirect,
+      final byte[] inputArray,
+      final int inputOffset,
+      final int inputLen,
+      final ByteBuffer outputDirect,
+      final byte[] outputArray,
+      final int outputOffset) {
     if (context == null) {
       // First update, need to initialize
       final long[] ctxContainer = new long[] {0};
@@ -215,17 +253,29 @@ class AesCtrSpi extends CipherSpi {
               ivParamSpec.getIV(),
               ctxContainer,
               0,
-              input,
+              inputDirect,
+              inputArray,
               inputOffset,
               inputLen,
-              output,
+              outputDirect,
+              outputArray,
               outputOffset);
       context = new NativeEvpCipherCtx(ctxContainer[0]);
       return result;
     }
     // Subsequent update
     return context.use(
-        ctxPtr -> nUpdate(opMode, ctxPtr, input, inputOffset, inputLen, output, outputOffset));
+        ctxPtr ->
+            nUpdate(
+                opMode,
+                ctxPtr,
+                inputDirect,
+                inputArray,
+                inputOffset,
+                inputLen,
+                outputDirect,
+                outputArray,
+                outputOffset));
   }
 
   @Override
@@ -253,8 +303,45 @@ class AesCtrSpi extends CipherSpi {
       throws ShortBufferException, IllegalBlockSizeException, BadPaddingException {
     Utils.checkArrayLimits(input, inputOffset, inputLen);
     Utils.checkArrayLimits(output, outputOffset, inputLen);
+    return doFinal(null, input, inputOffset, inputLen, null, output, outputOffset);
+  }
 
-    int result;
+  @Override
+  protected int engineDoFinal(final ByteBuffer input, final ByteBuffer output)
+      throws ShortBufferException, IllegalBlockSizeException, BadPaddingException {
+    final int inputLen = input.remaining();
+    if (output.remaining() < inputLen) {
+      throw new ShortBufferException();
+    }
+
+    final ShimByteBuffer inputShimByteBuffer = new ShimByteBuffer(input, true);
+    final ShimByteBuffer outputShimByteBuffer = new ShimByteBuffer(output, false);
+
+    final int result =
+        doFinal(
+            inputShimByteBuffer.directByteBuffer,
+            inputShimByteBuffer.array,
+            inputShimByteBuffer.offset,
+            inputLen,
+            outputShimByteBuffer.directByteBuffer,
+            outputShimByteBuffer.array,
+            outputShimByteBuffer.offset);
+
+    outputShimByteBuffer.writeBack(result);
+    input.position(input.limit());
+    output.position(output.position() + result);
+    return result;
+  }
+
+  private int doFinal(
+      final ByteBuffer inputDirect,
+      final byte[] inputArray,
+      final int inputOffset,
+      final int inputLen,
+      final ByteBuffer outputDirect,
+      final byte[] outputArray,
+      final int outputOffset) {
+    final int result;
     if (context == null) {
       // One-shot operation
       result =
@@ -266,10 +353,12 @@ class AesCtrSpi extends CipherSpi {
               null,
               0,
               false,
-              input,
+              inputDirect,
+              inputArray,
               inputOffset,
               inputLen,
-              output,
+              outputDirect,
+              outputArray,
               outputOffset);
     } else {
       // Final operation, take ownership of the context from Janitor
@@ -279,10 +368,12 @@ class AesCtrSpi extends CipherSpi {
               opMode,
               ctxPtr,
               /*saveCtx*/ false, // then free the context at end of operation
-              input,
+              inputDirect,
+              inputArray,
               inputOffset,
               inputLen,
-              output,
+              outputDirect,
+              outputArray,
               outputOffset);
       context = null; // nUpdateFinal releases the native context, so just null out our wrapper
     }
@@ -302,9 +393,11 @@ class AesCtrSpi extends CipherSpi {
       long[] ctxContainer,
       long ctxPtr,
       boolean saveCtx,
+      ByteBuffer inputDirect,
       byte[] inputArray,
       int inputOffset,
       int inputLen,
+      ByteBuffer outputDirect,
       byte[] outputArray,
       int outputOffset);
 
@@ -315,18 +408,22 @@ class AesCtrSpi extends CipherSpi {
       byte[] iv,
       long[] ctxContainer,
       long ctxPtr,
+      ByteBuffer inputDirect,
       byte[] inputArray,
       int inputOffset,
       int inputLen,
+      ByteBuffer outputDirect,
       byte[] outputArray,
       int outputOffset);
 
   private static native int nUpdate(
       int opMode,
       long ctxPtr,
+      ByteBuffer inputDirect,
       byte[] inputArray,
       int inputOffset,
       int inputLen,
+      ByteBuffer outputDirect,
       byte[] outputArray,
       int outputOffset);
 
@@ -334,9 +431,11 @@ class AesCtrSpi extends CipherSpi {
       int opMode,
       long ctxPtr,
       boolean saveCtx,
+      ByteBuffer inputDirect,
       byte[] inputArray,
       int inputOffset,
       int inputLen,
+      ByteBuffer outputDirect,
       byte[] outputArray,
       int outputOffset);
 }
