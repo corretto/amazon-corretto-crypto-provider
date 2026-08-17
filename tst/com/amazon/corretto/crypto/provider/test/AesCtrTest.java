@@ -27,6 +27,7 @@ public class AesCtrTest {
   private static final String ALGORITHM = "AES/CTR/NoPadding";
   private static final int BLOCK_SIZE = 16;
   private static final int KEY_SIZE_128 = 128;
+  private static final int KEY_SIZE_256 = 256;
   private static final SecureRandom SECURE_RANDOM = new SecureRandom();
   private static final Class<?> SPI_CLASS;
 
@@ -60,6 +61,69 @@ public class AesCtrTest {
     assertFalse(Arrays.equals(plaintext, buffer));
     cipher.init(Cipher.DECRYPT_MODE, key, ivSpec);
     cipher.doFinal(buffer, 0, buffer.length, buffer);
+    assertArrayEquals(plaintext, buffer);
+  }
+
+  @Test
+  public void testEncryptDecryptWithUpdate() throws Exception {
+    final byte[] plaintext = new byte[100];
+    SECURE_RANDOM.nextBytes(plaintext);
+    final SecretKey key = generateKey(KEY_SIZE_256);
+    final byte[] iv = new byte[BLOCK_SIZE];
+    SECURE_RANDOM.nextBytes(iv);
+    final IvParameterSpec ivSpec = new IvParameterSpec(iv);
+
+    final Cipher encryptCipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
+    encryptCipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
+    final int halfway = plaintext.length / 2;
+    encryptCipher.update(plaintext, 0, halfway);
+    encryptCipher.update(plaintext, 0, 0); // 0-len update should do nothing
+    encryptCipher.init(
+        Cipher.ENCRYPT_MODE,
+        key,
+        ivSpec); // ensure we can re-init in the middle of an update sequence
+    final byte[] firstPart = encryptCipher.update(plaintext, 0, halfway);
+    final byte[] secondPart = encryptCipher.doFinal(plaintext, halfway, plaintext.length - halfway);
+    final byte[] ciphertext = new byte[firstPart.length + secondPart.length];
+    System.arraycopy(firstPart, 0, ciphertext, 0, firstPart.length);
+    System.arraycopy(secondPart, 0, ciphertext, firstPart.length, secondPart.length);
+
+    final Cipher decryptCipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
+    decryptCipher.init(Cipher.DECRYPT_MODE, key, ivSpec);
+    final byte[] firstDecrypted = decryptCipher.update(ciphertext, 0, 50);
+    final byte[] secondDecrypted = decryptCipher.doFinal(ciphertext, 50, ciphertext.length - 50);
+    final byte[] decrypted = new byte[firstDecrypted.length + secondDecrypted.length];
+    System.arraycopy(firstDecrypted, 0, decrypted, 0, firstDecrypted.length);
+    System.arraycopy(secondDecrypted, 0, decrypted, firstDecrypted.length, secondDecrypted.length);
+
+    assertArrayEquals(plaintext, decrypted);
+  }
+
+  @Test
+  public void testEncryptDecryptSameBuffer() throws Exception {
+    final byte[] plaintext = "This is a test message for AES CTR mode".getBytes();
+    byte[] buffer = Arrays.copyOf(plaintext, plaintext.length);
+    final Cipher cipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
+    final SecretKey key = generateKey(KEY_SIZE_128);
+    final IvParameterSpec ivSpec = new IvParameterSpec(new byte[BLOCK_SIZE]);
+
+    // One-shot in same buffer
+    cipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
+    cipher.doFinal(buffer, 0, buffer.length, buffer);
+    assertFalse(Arrays.equals(plaintext, buffer));
+    cipher.init(Cipher.DECRYPT_MODE, key, ivSpec);
+    cipher.doFinal(buffer, 0, buffer.length, buffer);
+    assertArrayEquals(plaintext, buffer);
+
+    // Multi-shot in same buffer
+    cipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
+    buffer = Arrays.copyOf(plaintext, plaintext.length);
+    cipher.update(buffer, 0, buffer.length / 2, buffer, 0);
+    cipher.update(buffer, buffer.length / 2, buffer.length / 2, buffer, buffer.length / 2);
+    assertFalse(Arrays.equals(plaintext, buffer));
+    cipher.init(Cipher.DECRYPT_MODE, key, ivSpec);
+    cipher.update(buffer, 0, buffer.length / 2, buffer, 0);
+    cipher.update(buffer, buffer.length / 2, buffer.length / 2, buffer, buffer.length / 2);
     assertArrayEquals(plaintext, buffer);
   }
 
