@@ -64,8 +64,10 @@ if [[ "${testing_latest_awslc}" == "true" ]]; then
     awslc_src_override="-DAWSLC_SRC_DIR=${awslc_src} -DAWSLC_GITVERSION=main"
 fi
 
-# The JDK version should be least 10 for a regular ACCP build. We can
-# still test on older versions with the TEST_JAVA_HOME property.
+# The build JDK (JAVA_HOME) must be JDK 17+ and expose the javax.crypto.KEM API
+# (JDK 21+ or a KEM-backported JDK 17 such as Corretto 17) so the ML-KEM
+# Multi-Release overlay can be compiled. We can still test on older runtimes
+# (JDK 8/11) via the TEST_JAVA_HOME property.
 if (( "$version" <= "10" )); then
     ./gradlew \
         -DTEST_JAVA_HOME=$TEST_JAVA_HOME \
@@ -81,13 +83,13 @@ if (( "$version" <= "10" )); then
     exit $?
 fi
 
-# Assign the JDK version we're testing as the system's default JDK and
-# assign JAVA_HOME variable to the path. Otherwise, Ubuntu will
-# default to the newest version of Java on the system.
-export JAVA_HOME=$TEST_JAVA_HOME
-export PATH=$JAVA_HOME/bin:$PATH
-
+# Build with JAVA_HOME (assumed JDK 17+) and run the tests on TEST_JAVA_HOME,
+# which may be a newer runtime equal to the build JDK or an older one (JDK 11)
+# that ACCP still supports. Do not overwrite JAVA_HOME with the test JDK: the
+# build JDK must stay KEM-capable to compile the ML-KEM overlay.
 ./gradlew \
+    -DTEST_JAVA_HOME=$TEST_JAVA_HOME \
+    -DTEST_JAVA_MAJOR_VERSION=$version \
     -DEXPERIMENTAL_FIPS=$testing_experimental_fips \
     -DFIPS_SELF_TEST_SKIP_ABORT=$testing_fips_self_test_skip_abort \
     -DALLOW_FIPS_TEST_BREAK=$testing_fips_test_break \

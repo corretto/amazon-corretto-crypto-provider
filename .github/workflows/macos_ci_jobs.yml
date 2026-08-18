@@ -45,14 +45,16 @@ jobs:
     - name: Get JAVA_HOME variable for correto 8
       run: |
         echo "JAVA8_HOME=${{ env.JAVA_HOME }}" >> $GITHUB_ENV
-    # Set up Corretto 11.
-    - name: Set up corretto 11
+    # Set up Corretto 17 as the build JDK: it must expose the javax.crypto.KEM
+    # API to compile the ML-KEM Multi-Release overlay. JAVA_HOME becomes
+    # Corretto 17; JAVA8_HOME (saved above) is the JDK 8 runtime we test on.
+    - name: Set up corretto 17
       uses: actions/setup-java@v3
       with:
-        java-version: '11'
+        java-version: '17'
         distribution: 'corretto'
 
-    # Test on Corretto 8. Built with JDK11, but tested with JDK8.
+    # Test on Corretto 8. Built with JDK17, but tested with JDK8.
     - name: Build and run tests for ${{ env.PACKAGE_NAME }} in corretto 8
       env:
         TEST_JAVA_HOME: ${{ env.JAVA8_HOME }}
@@ -79,17 +81,27 @@ jobs:
       run: |
         pip install gcovr
 
-    # Set up Corretto 11.
+    # Set up Corretto 11 (the runtime we test against), saving its path, then
+    # Corretto 17 as the build JDK: it must expose the javax.crypto.KEM API to
+    # compile the ML-KEM Multi-Release overlay. JAVA_HOME ends up as Corretto 17.
     - name: Set up corretto 11
       uses: actions/setup-java@v3
       with:
         java-version: '11'
         distribution: 'corretto'
+    - name: Get JAVA_HOME variable for corretto 11
+      run: |
+        echo "JAVA11_HOME=${{ env.JAVA_HOME }}" >> $GITHUB_ENV
+    - name: Set up corretto 17
+      uses: actions/setup-java@v3
+      with:
+        java-version: '17'
+        distribution: 'corretto'
 
-    # Test on Corretto 11 targeting JDK 8.
+    # Test on Corretto 11. Built with JDK17, but tested with JDK11.
     - name: Build and run tests for ${{ env.PACKAGE_NAME }} in corretto 11
       env:
-        TEST_JAVA_HOME: ${{ env.JAVA_HOME }}
+        TEST_JAVA_HOME: ${{ env.JAVA11_HOME }}
       run: |
         ./tests/ci/run_accp_basic_tests.sh --lcov-ignore inconsistent
         ./tests/ci/run_accp_test_integration.sh
@@ -156,14 +168,16 @@ jobs:
     - name: Get JAVA_HOME variable for correto 8
       run: |
         echo "JAVA8_HOME=${{ env.JAVA_HOME }}" >> $GITHUB_ENV
-    # Set up Corretto 11.
-    - name: Set up corretto 11
+    # Set up Corretto 17 as the build JDK: it must expose the javax.crypto.KEM
+    # API to compile the ML-KEM Multi-Release overlay. JAVA_HOME becomes
+    # Corretto 17; JAVA8_HOME (saved above) is the JDK 8 runtime we test on.
+    - name: Set up corretto 17
       uses: actions/setup-java@v3
       with:
-        java-version: '11'
+        java-version: '17'
         distribution: 'corretto'
 
-    # Test on Corretto 8. Built with JDK11, but tested with JDK8.
+    # Test on Corretto 8. Built with JDK17, but tested with JDK8.
     - name: Build and run tests for ${{ env.PACKAGE_NAME }} in corretto 8
       env:
         TEST_JAVA_HOME: ${{ env.JAVA8_HOME }}
@@ -190,17 +204,27 @@ jobs:
       run: |
         pip install gcovr
 
-    # Set up Corretto 11.
+    # Set up Corretto 11 (the runtime we test against), saving its path, then
+    # Corretto 17 as the build JDK: it must expose the javax.crypto.KEM API to
+    # compile the ML-KEM Multi-Release overlay. JAVA_HOME ends up as Corretto 17.
     - name: Set up corretto 11
       uses: actions/setup-java@v3
       with:
         java-version: '11'
         distribution: 'corretto'
+    - name: Get JAVA_HOME variable for corretto 11
+      run: |
+        echo "JAVA11_HOME=${{ env.JAVA_HOME }}" >> $GITHUB_ENV
+    - name: Set up corretto 17
+      uses: actions/setup-java@v3
+      with:
+        java-version: '17'
+        distribution: 'corretto'
 
-    # Test on Corretto 11 targeting JDK 8.
+    # Test on Corretto 11. Built with JDK17, but tested with JDK11.
     - name: Build and run tests for ${{ env.PACKAGE_NAME }} in corretto 11
       env:
-        TEST_JAVA_HOME: ${{ env.JAVA_HOME }}
+        TEST_JAVA_HOME: ${{ env.JAVA11_HOME }}
       run: |
         ./tests/ci/run_accp_basic_tests.sh --lcov-ignore inconsistent
         ./tests/ci/run_accp_test_integration.sh
