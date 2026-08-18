@@ -64,10 +64,13 @@ if [[ "${testing_latest_awslc}" == "true" ]]; then
     awslc_src_override="-DAWSLC_SRC_DIR=${awslc_src} -DAWSLC_GITVERSION=main"
 fi
 
-# The build JDK (JAVA_HOME) must be JDK 17+ and expose the javax.crypto.KEM API
-# (JDK 21+ or a KEM-backported JDK 17 such as Corretto 17) so the ML-KEM
-# Multi-Release overlay can be compiled. We can still test on older runtimes
-# (JDK 8/11) via the TEST_JAVA_HOME property.
+# ACCP requires a build JDK that exposes the javax.crypto.KEM API (JDK 21+ or a
+# KEM-backported JDK 17 such as Corretto 17) to compile the ML-KEM Multi-Release
+# overlay. Point JAVA_HOME at such a JDK if it is not already one; tests still run
+# on TEST_JAVA_HOME, which may be an older runtime (JDK 8/11) that ACCP supports.
+source tests/ci/select_build_jdk.sh
+select_kem_capable_java_home
+
 if (( "$version" <= "10" )); then
     ./gradlew \
         -DTEST_JAVA_HOME=$TEST_JAVA_HOME \
@@ -83,10 +86,8 @@ if (( "$version" <= "10" )); then
     exit $?
 fi
 
-# Build with JAVA_HOME (assumed JDK 17+) and run the tests on TEST_JAVA_HOME,
-# which may be a newer runtime equal to the build JDK or an older one (JDK 11)
-# that ACCP still supports. Do not overwrite JAVA_HOME with the test JDK: the
-# build JDK must stay KEM-capable to compile the ML-KEM overlay.
+# Build with the KEM-capable JAVA_HOME selected above; tests run on
+# TEST_JAVA_HOME (which may be an older JDK 11 runtime that ACCP still supports).
 ./gradlew \
     -DTEST_JAVA_HOME=$TEST_JAVA_HOME \
     -DTEST_JAVA_MAJOR_VERSION=$version \
