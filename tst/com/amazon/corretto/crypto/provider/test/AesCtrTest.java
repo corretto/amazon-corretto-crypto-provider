@@ -9,7 +9,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import java.nio.ByteBuffer;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
+import java.security.Provider;
 import java.security.SecureRandom;
+import java.security.Security;
 import java.util.Arrays;
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
@@ -365,6 +367,85 @@ public class AesCtrTest {
     view.clear();
     view.position(windowStart);
     view.get(dest);
+  }
+
+  @Test
+  public void testVariousInputSizes() throws Exception {
+    final SecretKey key = generateKey(KEY_SIZE_256);
+    final byte[] iv = new byte[BLOCK_SIZE];
+    SECURE_RANDOM.nextBytes(iv);
+    final IvParameterSpec ivSpec = new IvParameterSpec(iv);
+
+    // Test different input sizes
+    for (int size : new int[] {1, 15, 16, 17, 32, 33, 63, 64, 65, 127, 128, 129}) {
+      final byte[] plaintext = new byte[size];
+      SECURE_RANDOM.nextBytes(plaintext);
+
+      final Cipher cipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
+      cipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
+      final byte[] ciphertext = cipher.doFinal(plaintext);
+      assertEquals(size, ciphertext.length);
+      // Don't do this check on 1-byte plaintext, as it's equal to ciphertext w/ some
+      // non-negligible probability when the keystream's single byte is 0.
+      if (size > 1) {
+        assertFalse(Arrays.equals(plaintext, ciphertext), "For size: " + size);
+      }
+      cipher.init(Cipher.DECRYPT_MODE, key, ivSpec);
+      final byte[] decrypted = cipher.doFinal(ciphertext);
+
+      assertArrayEquals(
+          plaintext, decrypted, "Decrypted text should match original plaintext for size " + size);
+    }
+  }
+
+  @Test
+  public void testCompatibilityWithSunJCE() throws Exception {
+    final Provider sunJce = Security.getProvider("SunJCE");
+    testCompatibilityHelper(sunJce, TestUtil.NATIVE_PROVIDER);
+    testCompatibilityHelper(TestUtil.NATIVE_PROVIDER, sunJce);
+  }
+
+  @Test
+  public void testCompatibilityWithBouncyCastle() throws Exception {
+    testCompatibilityHelper(TestUtil.BC_PROVIDER, TestUtil.NATIVE_PROVIDER);
+    testCompatibilityHelper(TestUtil.NATIVE_PROVIDER, TestUtil.BC_PROVIDER);
+  }
+
+  /**
+   * Encrypts with {@code encryptProvider} and decrypts with {@code decryptProvider}, asserting that
+   * the round-trip recovers the plaintext. A successful cross-provider round-trip pins the
+   * keystream byte-for-byte: any divergence in counter block construction or increment would yield
+   * garbage plaintext.
+   *
+   * <p>Uses 128-bit keys only; 192/256-bit cross-provider coverage arrives with the key size work.
+   * Sweeps block-aligned and unaligned lengths, since CTR handles a trailing partial block
+   * separately from whole blocks.
+   */
+  private void testCompatibilityHelper(
+      final Provider encryptProvider, final Provider decryptProvider) throws Exception {
+    final SecretKey key = generateKey(KEY_SIZE_128);
+    final byte[] iv = new byte[BLOCK_SIZE];
+    SECURE_RANDOM.nextBytes(iv);
+    final IvParameterSpec ivSpec = new IvParameterSpec(iv);
+
+    for (int size : new int[] {1, 15, 16, 17, 64, 100}) {
+      final byte[] plaintext = new byte[size];
+      SECURE_RANDOM.nextBytes(plaintext);
+      final String context =
+          encryptProvider.getName() + " -> " + decryptProvider.getName() + ", size " + size;
+
+      final Cipher encryptCipher = Cipher.getInstance(ALGORITHM, encryptProvider);
+      encryptCipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
+      final byte[] ciphertext = encryptCipher.doFinal(plaintext);
+      assertEquals(size, ciphertext.length, context);
+
+      final Cipher decryptCipher = Cipher.getInstance(ALGORITHM, decryptProvider);
+      decryptCipher.init(Cipher.DECRYPT_MODE, key, ivSpec);
+      final byte[] decrypted = decryptCipher.doFinal(ciphertext);
+
+      assertArrayEquals(plaintext, decrypted, context);
+      assertEquals(encryptCipher.getAlgorithm(), decryptCipher.getAlgorithm(), context);
+    }
   }
 
   private static ByteBuffer wrapBuffer(final byte[] data, final boolean direct) {
