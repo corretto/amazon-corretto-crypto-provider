@@ -711,12 +711,19 @@ if (${CMAKE_VERSION} VERSION_LESS "3.12.0")
 else()
     file(GLOB_RECURSE ACCP_TEST_SRC CONFIGURE_DEPENDS "tst/com/amazon/corretto/crypto/provider/*.java")
 endif()
-# The jdk17plus tests (e.g. MlKemTest) always ship and reference
-# javax.crypto.KEM. The test jar is not multi-release -- it only runs on the
-# KEM-capable TEST_JAVA -- so compile it in a single pass with -source/-target 17
-# (NOT --release, which would hide the backported KEM API). The higher class-file
-# version is irrelevant at run time.
-set(CMAKE_JAVA_COMPILE_FLAGS ${BASE_JAVA_COMPILE_FLAGS} -Xlint:-options -source 17 -target 17)
+# The jdk17plus tests (e.g. MlKemTest) reference javax.crypto.KEM and only run on
+# a KEM-capable runtime. The test jar is NOT multi-release -- it is compiled in a
+# single pass and must load on the TEST JVM:
+#  - TEST JVM 17+: include the jdk17plus tests and compile the whole jar with
+#    -source/-target 17 (NOT --release, which would hide the backported KEM API).
+#  - TEST JVM < 17 (JDK 8/11): the versioned ML-KEM overlay is never loaded there,
+#    so exclude the jdk17plus tests and keep the target-level compile flags so
+#    every test class still loads on that JVM.
+if(TEST_JAVA_MAJOR_VERSION VERSION_GREATER_EQUAL 17)
+    set(CMAKE_JAVA_COMPILE_FLAGS ${BASE_JAVA_COMPILE_FLAGS} -Xlint:-options -source 17 -target 17)
+else()
+    list(FILTER ACCP_TEST_SRC EXCLUDE REGEX ".*/jdk17plus/.*")
+endif()
 
 ## Tests
 add_jar(
