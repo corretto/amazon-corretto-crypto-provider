@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import java.nio.ByteBuffer;
+import java.security.GeneralSecurityException;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.Provider;
@@ -37,8 +38,10 @@ public class AesCtrTest {
   private static final String ALGORITHM = "AES/CTR/NoPadding";
   private static final int BLOCK_SIZE = 16;
   private static final int KEY_SIZE_128 = 128;
+  private static final int KEY_SIZE_192 = 192;
   private static final int KEY_SIZE_256 = 256;
-  private static final int[] SUPPORTED_KEY_SIZES = new int[] {KEY_SIZE_128, KEY_SIZE_256};
+  private static final int[] SUPPORTED_KEY_SIZES =
+      new int[] {KEY_SIZE_128, KEY_SIZE_192, KEY_SIZE_256};
   private static final SecureRandom SECURE_RANDOM = new SecureRandom();
   private static final byte PADDING_BYTE = (byte) 0x5A;
   private static final Class<?> SPI_CLASS;
@@ -420,6 +423,131 @@ public class AesCtrTest {
       }
     }
     return result.stream();
+  }
+
+  /**
+   * Compares ACCP's output byte-for-byte against a counter mode assembled by hand from SunJCE's
+   * AES/ECB primitive.
+   */
+  @ParameterizedTest
+  @MethodSource("referenceParams")
+  public void testAgainstReferenceImplementation(final int keySize, final int size)
+      throws Exception {
+    final SecretKey key = generateKey(keySize);
+    final byte[] iv = new byte[BLOCK_SIZE];
+    SECURE_RANDOM.nextBytes(iv);
+    final IvParameterSpec ivSpec = new IvParameterSpec(iv);
+    final byte[] plaintext = new byte[size];
+    SECURE_RANDOM.nextBytes(plaintext);
+    final byte[] expected = referenceCtr(key, iv, plaintext);
+
+    final Cipher cipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
+    cipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
+    assertArrayEquals(expected, cipher.doFinal(plaintext), "encryption diverged from reference");
+
+    // CTR is its own inverse, so decrypting the plaintext must produce the same keystream. Checked
+    // separately because DECRYPT_MODE takes a different path through the SPI.
+    cipher.init(Cipher.DECRYPT_MODE, key, ivSpec);
+    assertArrayEquals(expected, cipher.doFinal(plaintext), "decryption diverged from reference");
+  }
+
+  private static Stream<Arguments> referenceParams() {
+    final List<Arguments> result = new ArrayList<>();
+    for (final int keySize : SUPPORTED_KEY_SIZES) {
+      for (final int size : new int[] {1, 15, 16, 17, 32, 33, 63, 64, 65, 127, 128, 129}) {
+        result.add(Arguments.of(keySize, size));
+      }
+    }
+    return result.stream();
+  }
+
+  /**
+   * Pins counter increment behaviour where implementations could plausibly disagree: carry out of
+   * the low bytes, and full 128-bit wraparound. Random IVs never reach these cases, so nothing else
+   * in this class exercises them.
+   *
+   * <p>Asserts four-way agreement between ACCP, the ECB-derived reference, SunJCE, and
+   * BouncyCastle. Agreement with only the reference would leave open the possibility that the
+   * reference encodes the wrong increment semantics; agreement with only one other CTR
+   * implementation would not distinguish a shared misreading of SP 800-38A.
+   */
+  @ParameterizedTest
+  @MethodSource("counterEdgeCaseParams")
+  public void testCounterCarryAndWraparound(final int keySize, final String ivHex)
+      throws Exception {
+    final byte[] iv = TestUtil.decodeHex(ivHex);
+    assertEquals(BLOCK_SIZE, iv.length, "IV literal must be a full counter block");
+    final SecretKey key = generateKey(keySize);
+    final IvParameterSpec ivSpec = new IvParameterSpec(iv);
+    // Four blocks, so the carry-affected block is followed by ordinary increments.
+    final byte[] plaintext = new byte[4 * BLOCK_SIZE];
+    SECURE_RANDOM.nextBytes(plaintext);
+
+    final Cipher cipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
+    cipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
+    final byte[] ciphertext = cipher.doFinal(plaintext);
+
+    assertArrayEquals(
+        referenceCtr(key, iv, plaintext), ciphertext, "ACCP diverged from the ECB reference");
+
+    for (final Provider other :
+        new Provider[] {Security.getProvider("SunJCE"), TestUtil.BC_PROVIDER}) {
+      final Cipher otherCipher = Cipher.getInstance(ALGORITHM, other);
+      otherCipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
+      assertArrayEquals(
+          otherCipher.doFinal(plaintext), ciphertext, "ACCP diverged from " + other.getName());
+    }
+  }
+
+  private static Stream<Arguments> counterEdgeCaseParams() {
+    final List<Arguments> result = new ArrayList<>();
+    for (final int keySize : SUPPORTED_KEY_SIZES) {
+      // Carry out of the low 8 bytes: block 1's counter becomes ...8000000000000000.
+      result.add(Arguments.of(keySize, "00000000000000007fffffffffffffff"));
+      // Carry confined to the low 4 bytes: block 1 increments byte 11 and clears bytes 12-15.
+      result.add(Arguments.of(keySize, "000102030405060708090a0bffffffff"));
+      // Full 128-bit wraparound: block 1's counter becomes all zero.
+      result.add(Arguments.of(keySize, "ffffffffffffffffffffffffffffffff"));
+    }
+    return result.stream();
+  }
+
+  /**
+   * Counter mode built directly on SunJCE's AES/ECB primitive: encrypt each successive counter
+   * block and XOR the result into the input. Deliberately uses a different provider and a different
+   * primitive from the code under test, so a shared bug is not possible.
+   */
+  private static byte[] referenceCtr(final SecretKey key, final byte[] iv, final byte[] input)
+      throws GeneralSecurityException {
+    final Cipher ecb = Cipher.getInstance("AES/ECB/NoPadding", Security.getProvider("SunJCE"));
+    ecb.init(Cipher.ENCRYPT_MODE, key);
+
+    final byte[] counter = iv.clone();
+    final byte[] output = new byte[input.length];
+    for (int offset = 0; offset < input.length; offset += BLOCK_SIZE) {
+      final byte[] keystream = ecb.doFinal(counter);
+      final int len = Math.min(BLOCK_SIZE, input.length - offset);
+      for (int i = 0; i < len; i++) {
+        output[offset + i] = (byte) (input[offset + i] ^ keystream[i]);
+      }
+      incrementCounter(counter);
+    }
+    return output;
+  }
+
+  /**
+   * Increments the counter block as a single big-endian 128-bit integer, wrapping to zero on
+   * overflow. This is SP 800-38A's standard incrementing function applied to the full block, which
+   * is what both AWS-LC's {@code EVP_aes_*_ctr} and SunJCE's {@code CounterMode} implement — as
+   * opposed to incrementing only a narrow trailing counter field, which is a property of
+   * constructions layered above the primitive (e.g. RFC 3686) rather than of the primitive itself.
+   */
+  private static void incrementCounter(final byte[] counter) {
+    for (int i = counter.length - 1; i >= 0; i--) {
+      if (++counter[i] != 0) {
+        return; // No carry out of this byte, so higher bytes are unaffected.
+      }
+    }
   }
 
   /**

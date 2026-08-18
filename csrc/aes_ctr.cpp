@@ -10,6 +10,7 @@
 
 #define AES_CTR_BLOCK_SIZE_IN_BYTES 16
 #define KEY_LEN_AES128              16
+#define KEY_LEN_AES192              24
 #define KEY_LEN_AES256              32
 
 namespace AmazonCorrettoCryptoProvider {
@@ -76,6 +77,9 @@ public:
         switch (key_len) {
         case KEY_LEN_AES128:
             cipher = EVP_aes_128_ctr();
+            break;
+        case KEY_LEN_AES192:
+            cipher = EVP_aes_192_ctr();
             break;
         case KEY_LEN_AES256:
             cipher = EVP_aes_256_ctr();
