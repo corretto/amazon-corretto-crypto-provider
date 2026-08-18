@@ -77,4 +77,13 @@ public final class RecordingProvider extends Provider {
   public String summary() {
     return counters.toString();
   }
+
+  /**
+   * Clears all recorded counters. Lets a single recorder be installed once (e.g. in
+   * {@code @BeforeAll}) and reused across tests, with each test resetting the counters first so it
+   * observes only its own lookups.
+   */
+  public void reset() {
+    counters.clear();
+  }
 }

@@ -39,6 +39,9 @@ import org.bouncycastle.jsse.BCSSLParameters;
 import org.bouncycastle.jsse.BCSSLSocket;
 import org.bouncycastle.jsse.provider.BouncyCastleJsseProvider;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
@@ -90,103 +93,137 @@ public class BouncyCastleJsseMlKemIntegrationTest {
   /** KEM algorithm name that BCJSSE looks up for either MLKEM768 group. */
   private static final String KEM_ALG = "ML-KEM-768";
 
+  // The (type, algorithm) filter identifying the ML-KEM services the recorders below tally.
+  private static final BiPredicate<String, String> ML_KEM_SERVICES =
+      BouncyCastleJsseMlKemIntegrationTest::isMlKemService;
+
+  // Two passive RecordingProvider sniffers, installed once for the whole class (see
+  // installProviders). AccpRecorder sits just above ACCP and records the ML-KEM lookups routed to
+  // the top provider; BcRecorder sits just above BC (below ACCP) as a negative control.
+  private static final RecordingProvider ACCP_RECORDER =
+      new RecordingProvider("AccpRecorder", ML_KEM_SERVICES);
+  private static final RecordingProvider BC_RECORDER =
+      new RecordingProvider("BcRecorder", ML_KEM_SERVICES);
+
+  // Provider list captured by installProviders() and restored by restoreProviders(); null when the
+  // class was skipped before any provider mutation.
+  private static Provider[] savedProviders;
+
+  /**
+   * Installs the exact provider ordering under test once for the class, after saving the prior
+   * provider state for {@link #restoreProviders()}. The whole class is skipped here -- before any
+   * provider mutation -- when the ML-KEM KEM-delegation path is unreachable.
+   *
+   * <p>Provider list under test, top to bottom:
+   *
+   * <ol>
+   *   <li>AccpRecorder -- passive sniffer; records the ML-KEM lookups routed to this position
+   *   <li>ACCP -- actually serves them (the "top" functional provider)
+   *   <li>BcRecorder -- passive sniffer; negative control, just after ACCP and just before BC
+   *   <li>BC -- serves anything ACCP does not, plus the "BC"-pinned cert operators
+   *   <li>JDK providers (and BCJSSE, appended last; it is looked up by name anyway)
+   * </ol>
+   *
+   * <p>The recorders serve nothing, so each sits directly in front of the real provider it
+   * observes: a lookup ACCP satisfies at position 2 never reaches BcRecorder at position 3, which
+   * is what makes BcRecorder a meaningful negative control (see the assertions in the test).
+   */
+  @BeforeAll
+  public static void installProviders() {
+    assumeMlKemDelegationReachable();
+
+    savedProviders = TestUtil.saveProviders();
+    final Provider accp = AmazonCorrettoCryptoProvider.INSTANCE;
+    final Provider bc = TestUtil.BC_PROVIDER;
+
+    // Security.addProvider is a no-op when a provider of the same name is already installed, so
+    // remove every provider we are about to place (including a possibly pre-installed BCJSSE)
+    // before
+    // (re)inserting -- this yields the ordering above deterministically regardless of prior state.
+    Security.removeProvider(ACCP_RECORDER.getName());
+    Security.removeProvider(BC_RECORDER.getName());
+    Security.removeProvider(accp.getName());
+    Security.removeProvider(bc.getName());
+    Security.removeProvider(BouncyCastleJsseProvider.PROVIDER_NAME);
+
+    Security.insertProviderAt(ACCP_RECORDER, 1);
+    Security.insertProviderAt(accp, 2);
+    Security.insertProviderAt(BC_RECORDER, 3);
+    Security.insertProviderAt(bc, 4);
+    Security.addProvider(new BouncyCastleJsseProvider());
+  }
+
+  /** Resets both recorders so each test observes only the lookups from its own handshake. */
+  @BeforeEach
+  public void resetRecorders() {
+    ACCP_RECORDER.reset();
+    BC_RECORDER.reset();
+  }
+
+  /** Restores the provider list captured in {@link #installProviders()}. */
+  @AfterAll
+  public static void restoreProviders() {
+    if (savedProviders != null) {
+      TestUtil.restoreProviders(savedProviders);
+    }
+  }
+
   /**
    * Proves BCJSSE sources ML-KEM from ACCP across both TLS 1.3 group flavours and all three
    * parameter sets: the pure {@code MLKEM512/768/1024} groups, and the hybrid {@code
    * X25519MLKEM768} group -- which BCJSSE decomposes into an X25519 half and an ML-KEM-768 half,
-   * with the ML-KEM half still taking the KEM API path. Each case runs a real TLS 1.3 handshake
-   * with a RecordingProvider sniffer just above ACCP at the top of the provider list, then asserts
-   * ACCP served the ML-KEM lookups and BC never generated or reconstructed an ML-KEM key.
+   * with the ML-KEM half still taking the KEM API path. Each case runs a real TLS 1.3 handshake,
+   * then asserts ACCP served the ML-KEM lookups and BC never generated or reconstructed an ML-KEM
+   * key.
    */
   @ParameterizedTest
   @ValueSource(strings = {"MLKEM512", "MLKEM768", "MLKEM1024", "X25519MLKEM768"})
   public void bcjsseSourcesMlKemFromAccp(String namedGroup) throws Exception {
-    runHandshakeAndAssertAccpServedMlKem(namedGroup);
-  }
+    driveHandshake(namedGroup);
 
-  // ---------------------------------------------------------------------------
-  // Driver
-  // ---------------------------------------------------------------------------
+    // Positive signal: ACCP (via the recorder in front of it) served the handshake's ML-KEM.
+    final int kem = ACCP_RECORDER.lookupsByType("KEM");
+    final int kpg = ACCP_RECORDER.lookupsByType("KeyPairGenerator");
+    final int kf = ACCP_RECORDER.lookupsByType("KeyFactory");
+    assertTrue(
+        kem + kpg + kf > 0,
+        () ->
+            "Expected BCJSSE to look up ML-KEM services via the JCA against the top provider, "
+                + "but no ML-KEM service was requested. AccpRecorder: "
+                + ACCP_RECORDER.summary());
+    // A KEM lookup specifically is the strongest signal that the JEP-452 delegation path fired.
+    assertTrue(
+        kem > 0,
+        () ->
+            "Expected at least one ML-KEM KEM lookup to hit the top provider during "
+                + namedGroup
+                + " handshake. AccpRecorder: "
+                + ACCP_RECORDER.summary());
 
-  private void runHandshakeAndAssertAccpServedMlKem(String namedGroup) throws Exception {
-    assumeMlKemDelegationReachable();
-
-    final Provider[] saved = TestUtil.saveProviders();
-    try {
-      // Provider list under test, top to bottom:
-      //   1. AccpRecorder -- passive sniffer; records the ML-KEM lookups routed to this position
-      //   2. ACCP         -- actually serves them (the "top" functional provider)
-      //   3. BcRecorder   -- passive sniffer; negative control, registered just after ACCP and
-      //                      just before BC
-      //   4. BC           -- serves anything ACCP does not, plus the "BC"-pinned cert operators
-      //   5. JDK providers (and BCJSSE, appended last; it is looked up by name anyway)
-      // The recorders serve nothing, so each sits directly in front of the real provider it
-      // observes: a lookup ACCP satisfies at position 2 never reaches BcRecorder at position 3,
-      // which is what makes BcRecorder a meaningful negative control (see the assertion below).
-      final BiPredicate<String, String> mlKemServices =
-          BouncyCastleJsseMlKemIntegrationTest::isMlKemService;
-      final RecordingProvider accpRecorder = new RecordingProvider("AccpRecorder", mlKemServices);
-      final RecordingProvider bcRecorder = new RecordingProvider("BcRecorder", mlKemServices);
-      final Provider accp = AmazonCorrettoCryptoProvider.INSTANCE;
-      final Provider bc = newBcProvider();
-
-      // Build the exact ordering deterministically regardless of what was installed before.
-      Security.removeProvider(accp.getName());
-      Security.removeProvider(bc.getName());
-      Security.insertProviderAt(accpRecorder, 1);
-      Security.insertProviderAt(accp, 2);
-      Security.insertProviderAt(bcRecorder, 3);
-      Security.insertProviderAt(bc, 4);
-      Security.addProvider(new BouncyCastleJsseProvider());
-
-      final boolean negotiated = driveHandshake(namedGroup, accpRecorder, true);
-      assertTrue(negotiated, "TLS 1.3 handshake should complete over " + namedGroup);
-
-      // Positive signal: ACCP (via the recorder in front of it) served the handshake's ML-KEM.
-      final int kem = accpRecorder.lookupsByType("KEM");
-      final int kpg = accpRecorder.lookupsByType("KeyPairGenerator");
-      final int kf = accpRecorder.lookupsByType("KeyFactory");
-      assertTrue(
-          kem + kpg + kf > 0,
-          () ->
-              "Expected BCJSSE to look up ML-KEM services via the JCA against the top provider, "
-                  + "but no ML-KEM service was requested. AccpRecorder: "
-                  + accpRecorder.summary());
-      // A KEM lookup specifically is the strongest signal that the JEP-452 delegation path fired.
-      assertTrue(
-          kem > 0,
-          () ->
-              "Expected at least one KEM.getInstance(\""
-                  + KEM_ALG
-                  + "\") to hit the top provider during the handshake. AccpRecorder: "
-                  + accpRecorder.summary());
-
-      // Negative control: BC (position 4) must never generate or reconstruct an ML-KEM key, so the
-      // KeyPairGenerator / KeyFactory scans must stop at ACCP (position 2) and never fall through
-      // to BcRecorder (position 3). This transitively rules out BC serving the KEM too: with no
-      // ML-KEM key of its own, BC has nothing to encapsulate or decapsulate with.
-      //
-      // KEM lookups are deliberately NOT asserted to be zero here. BCJSSE probes every provider for
-      // every ML-KEM parameter set's KEM service when a TLS context initializes (capability
-      // discovery -- BcRecorder sees all of ML-KEM-512/768/1024 even for a single-group handshake),
-      // so KEM lookups reach BC regardless of provider order and cannot be driven to zero by
-      // positioning. The actual encapsulation still runs through ACCP: newEncapsulator walks the
-      // provider list with an ACCP-generated key and stops at ACCP before reaching BC.
-      assertEquals(
-          0,
-          bcRecorder.lookupsByType("KeyPairGenerator"),
-          () ->
-              "BC must not generate an ML-KEM key while ACCP is above it. BcRecorder: "
-                  + bcRecorder.summary());
-      assertEquals(
-          0,
-          bcRecorder.lookupsByType("KeyFactory"),
-          () ->
-              "BC must not reconstruct an ML-KEM key while ACCP is above it. BcRecorder: "
-                  + bcRecorder.summary());
-    } finally {
-      TestUtil.restoreProviders(saved);
-    }
+    // Negative control: BC (position 4) must never generate or reconstruct an ML-KEM key, so the
+    // KeyPairGenerator / KeyFactory scans must stop at ACCP (position 2) and never fall through to
+    // BcRecorder (position 3). This transitively rules out BC serving the KEM too: with no ML-KEM
+    // key of its own, BC has nothing to encapsulate or decapsulate with.
+    //
+    // KEM lookups are deliberately NOT asserted to be zero here. BCJSSE probes every provider for
+    // every ML-KEM parameter set's KEM service when a TLS context initializes (capability discovery
+    // -- BcRecorder sees all of ML-KEM-512/768/1024 even for a single-group handshake), so KEM
+    // lookups reach BC regardless of provider order and cannot be driven to zero by positioning.
+    // The
+    // actual encapsulation still runs through ACCP: newEncapsulator walks the provider list with an
+    // ACCP-generated key and stops at ACCP before reaching BC.
+    assertEquals(
+        0,
+        BC_RECORDER.lookupsByType("KeyPairGenerator"),
+        () ->
+            "BC must not generate an ML-KEM key while ACCP is above it. BcRecorder: "
+                + BC_RECORDER.summary());
+    assertEquals(
+        0,
+        BC_RECORDER.lookupsByType("KeyFactory"),
+        () ->
+            "BC must not reconstruct an ML-KEM key while ACCP is above it. BcRecorder: "
+                + BC_RECORDER.summary());
   }
 
   /**
@@ -203,13 +240,6 @@ public class BouncyCastleJsseMlKemIntegrationTest {
     return type.equals("KEM") || type.equals("KeyPairGenerator") || type.equals("KeyFactory");
   }
 
-  private static Provider newBcProvider() throws ReflectiveOperationException {
-    return (Provider)
-        Class.forName("org.bouncycastle.jce.provider.BouncyCastleProvider")
-            .getDeclaredConstructor()
-            .newInstance();
-  }
-
   // ---------------------------------------------------------------------------
   // BCJSSE runtime environment gate
   // ---------------------------------------------------------------------------
@@ -219,7 +249,7 @@ public class BouncyCastleJsseMlKemIntegrationTest {
    * (JDK 21+ or a KEM-backported JDK 17); the bundled bctls carries KEMSpiUtil (BC >= 1.84); and
    * ACCP itself has ML-KEM (its shipped Maven artifacts do not). Missing any one of these skips.
    */
-  private void assumeMlKemDelegationReachable() {
+  private static void assumeMlKemDelegationReachable() {
     assumeTrue(
         classPresent("javax.crypto.KEMSpi"),
         "javax.crypto.KEMSpi absent -- need JDK 21+ or KEM-backported JDK 17");
@@ -259,11 +289,10 @@ public class BouncyCastleJsseMlKemIntegrationTest {
   /**
    * Drives one BCJSSE TLS 1.3 handshake pinned to {@code namedGroup} on both peers, on the loopback
    * interface. Uses a JKS keystore holding a self-signed RSA leaf so cert operations don't
-   * intersect the KEM path being measured. Returns true when both peers completed handshake + echo.
+   * intersect the KEM path being measured. Asserts both peers complete the handshake + echo; the
+   * caller inspects the recorders for the ML-KEM lookups the handshake drove.
    */
-  private boolean driveHandshake(
-      String namedGroup, RecordingProvider recorder, boolean expectAccpServesMlKem)
-      throws Exception {
+  private void driveHandshake(String namedGroup) throws Exception {
     // An RSA leaf is used purely to let the TLS 1.3 handshake authenticate so the ML-KEM key
     // exchange (the actual subject of this test) runs; the certificate's key type is otherwise
     // incidental. RSA is chosen because it maps to signature schemes every BCJSSE peer offers.
@@ -307,10 +336,6 @@ public class BouncyCastleJsseMlKemIntegrationTest {
       // BCSSLServerSocket); the named-group pin is applied on the accepted
       // socket, which is itself a BCSSLSocket, inside the server thread below.
 
-      final int kemBefore = recorder.lookupsByType("KEM");
-      final int kpgBefore = recorder.lookupsByType("KeyPairGenerator");
-      final int kfBefore = recorder.lookupsByType("KeyFactory");
-
       final Future<Boolean> serverSide =
           executor.submit(
               () -> {
@@ -347,18 +372,6 @@ public class BouncyCastleJsseMlKemIntegrationTest {
 
       Boolean serverOk = serverSide.get(15, TimeUnit.SECONDS);
       assertTrue(serverOk, "server side handshake + echo should complete");
-
-      if (expectAccpServesMlKem) {
-        assertTrue(
-            recorder.lookupsByType("KEM") > kemBefore
-                || recorder.lookupsByType("KeyPairGenerator") > kpgBefore
-                || recorder.lookupsByType("KeyFactory") > kfBefore,
-            () ->
-                "No ML-KEM lookups observed against the recording provider during the handshake. "
-                    + "Total counters: "
-                    + recorder.summary());
-      }
-      return true;
     } finally {
       executor.shutdownNow();
     }
