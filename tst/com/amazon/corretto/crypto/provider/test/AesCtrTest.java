@@ -5,6 +5,7 @@ package com.amazon.corretto.crypto.provider.test;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import java.nio.ByteBuffer;
 import java.security.NoSuchAlgorithmException;
@@ -12,17 +13,22 @@ import java.security.NoSuchProviderException;
 import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Stream;
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.junit.jupiter.api.parallel.ResourceAccessMode;
 import org.junit.jupiter.api.parallel.ResourceLock;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 @Execution(ExecutionMode.CONCURRENT)
 @ExtendWith(TestResultLogger.class)
@@ -32,6 +38,7 @@ public class AesCtrTest {
   private static final int BLOCK_SIZE = 16;
   private static final int KEY_SIZE_128 = 128;
   private static final int KEY_SIZE_256 = 256;
+  private static final int[] SUPPORTED_KEY_SIZES = new int[] {KEY_SIZE_128, KEY_SIZE_256};
   private static final SecureRandom SECURE_RANDOM = new SecureRandom();
   private static final byte PADDING_BYTE = (byte) 0x5A;
   private static final Class<?> SPI_CLASS;
@@ -44,10 +51,15 @@ public class AesCtrTest {
     }
   }
 
-  @Test
-  public void testBasicEncryptDecrypt() throws Exception {
+  private static int[] supportedKeySizes() {
+    return SUPPORTED_KEY_SIZES;
+  }
+
+  @ParameterizedTest
+  @MethodSource("supportedKeySizes")
+  public void testBasicEncryptDecrypt(final int keySize) throws Exception {
     final byte[] plaintext = "This is a test message for AES CTR mode".getBytes();
-    final SecretKey key = generateKey(KEY_SIZE_128);
+    final SecretKey key = generateKey(keySize);
     final byte[] iv = new byte[BLOCK_SIZE];
     SECURE_RANDOM.nextBytes(iv);
     final IvParameterSpec ivSpec = new IvParameterSpec(iv);
@@ -69,11 +81,12 @@ public class AesCtrTest {
     assertArrayEquals(plaintext, buffer);
   }
 
-  @Test
-  public void testEncryptDecryptWithUpdate() throws Exception {
+  @ParameterizedTest
+  @MethodSource("supportedKeySizes")
+  public void testEncryptDecryptWithUpdate(final int keySize) throws Exception {
     final byte[] plaintext = new byte[100];
     SECURE_RANDOM.nextBytes(plaintext);
-    final SecretKey key = generateKey(KEY_SIZE_256);
+    final SecretKey key = generateKey(keySize);
     final byte[] iv = new byte[BLOCK_SIZE];
     SECURE_RANDOM.nextBytes(iv);
     final IvParameterSpec ivSpec = new IvParameterSpec(iv);
@@ -104,12 +117,13 @@ public class AesCtrTest {
     assertArrayEquals(plaintext, decrypted);
   }
 
-  @Test
-  public void testEncryptDecryptSameBuffer() throws Exception {
+  @ParameterizedTest
+  @MethodSource("supportedKeySizes")
+  public void testEncryptDecryptSameBuffer(final int keySize) throws Exception {
     final byte[] plaintext = "This is a test message for AES CTR mode".getBytes();
     byte[] buffer = Arrays.copyOf(plaintext, plaintext.length);
     final Cipher cipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
-    final SecretKey key = generateKey(KEY_SIZE_128);
+    final SecretKey key = generateKey(keySize);
     final IvParameterSpec ivSpec = new IvParameterSpec(new byte[BLOCK_SIZE]);
 
     // One-shot in same buffer
@@ -132,33 +146,21 @@ public class AesCtrTest {
     assertArrayEquals(plaintext, buffer);
   }
 
-  @Test
-  public void testEncryptDecryptWithByteBuffer() throws Exception {
-    final byte[] plaintext = new byte[100];
-    SECURE_RANDOM.nextBytes(plaintext);
-    final SecretKey key = generateKey(KEY_SIZE_128);
-    final byte[] iv = new byte[BLOCK_SIZE];
-    SECURE_RANDOM.nextBytes(iv);
-    final IvParameterSpec ivSpec = new IvParameterSpec(iv);
-
-    // heap input, heap output
-    roundTripByteBuffer(plaintext, key, ivSpec, false, false, false);
-    // direct input, direct output
-    roundTripByteBuffer(plaintext, key, ivSpec, true, true, false);
-    // read-only heap input, heap output
-    roundTripByteBuffer(plaintext, key, ivSpec, false, false, true);
-    // read-only direct input, direct output
-    roundTripByteBuffer(plaintext, key, ivSpec, true, true, true);
-  }
-
-  private void roundTripByteBuffer(
-      final byte[] plaintext,
-      final SecretKey key,
-      final IvParameterSpec ivSpec,
+  @ParameterizedTest
+  @MethodSource("byteBufferParams")
+  public void testEncryptDecryptWithByteBuffer(
+      final int keySize,
       final boolean inputDirect,
       final boolean outputDirect,
       final boolean inputReadOnly)
       throws Exception {
+    final byte[] plaintext = new byte[100];
+    SECURE_RANDOM.nextBytes(plaintext);
+    final SecretKey key = generateKey(keySize);
+    final byte[] iv = new byte[BLOCK_SIZE];
+    SECURE_RANDOM.nextBytes(iv);
+    final IvParameterSpec ivSpec = new IvParameterSpec(iv);
+
     final Cipher encryptCipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
     encryptCipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
     ByteBuffer plaintextBuffer = wrapBuffer(plaintext, inputDirect);
@@ -186,34 +188,21 @@ public class AesCtrTest {
     assertArrayEquals(plaintext, decrypted, "Decrypted text should match original plaintext");
   }
 
-  @Test
-  public void testEncryptDecryptWithByteBufferUpdate() throws Exception {
-    final byte[] plaintext = new byte[100];
-    SECURE_RANDOM.nextBytes(plaintext);
-    final SecretKey key = generateKey(KEY_SIZE_128);
-    final byte[] iv = new byte[BLOCK_SIZE];
-    SECURE_RANDOM.nextBytes(iv);
-    final IvParameterSpec ivSpec = new IvParameterSpec(iv);
-
-    // heap input, heap output
-    splitRoundTripByteBuffer(plaintext, key, ivSpec, false, false, false);
-    // direct input, direct output
-    splitRoundTripByteBuffer(plaintext, key, ivSpec, true, true, false);
-    // read-only heap input, heap output
-    splitRoundTripByteBuffer(plaintext, key, ivSpec, false, false, true);
-    // read-only direct input, direct output
-    splitRoundTripByteBuffer(plaintext, key, ivSpec, true, true, true);
-  }
-
   /** Exercises {@code Cipher.update(ByteBuffer, ByteBuffer)} followed by {@code doFinal}. */
-  private void splitRoundTripByteBuffer(
-      final byte[] plaintext,
-      final SecretKey key,
-      final IvParameterSpec ivSpec,
+  @ParameterizedTest
+  @MethodSource("byteBufferParams")
+  public void testEncryptDecryptWithByteBufferUpdate(
+      final int keySize,
       final boolean inputDirect,
       final boolean outputDirect,
       final boolean inputReadOnly)
       throws Exception {
+    final byte[] plaintext = new byte[100];
+    SECURE_RANDOM.nextBytes(plaintext);
+    final SecretKey key = generateKey(keySize);
+    final byte[] iv = new byte[BLOCK_SIZE];
+    SECURE_RANDOM.nextBytes(iv);
+    final IvParameterSpec ivSpec = new IvParameterSpec(iv);
     final int halfway = plaintext.length / 2;
 
     final Cipher encryptCipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
@@ -249,19 +238,15 @@ public class AesCtrTest {
     assertArrayEquals(plaintext, decrypted, "Decrypted text should match original plaintext");
   }
 
-  @Test
-  public void testEncryptDecryptWithByteBufferOffsets() throws Exception {
-    final byte[] plaintext = new byte[100];
-    SECURE_RANDOM.nextBytes(plaintext);
-    final SecretKey key = generateKey(KEY_SIZE_256);
-    final byte[] iv = new byte[BLOCK_SIZE];
-    SECURE_RANDOM.nextBytes(iv);
-    final IvParameterSpec ivSpec = new IvParameterSpec(iv);
-
-    // heap input, heap output
-    offsetRoundTripByteBuffer(plaintext, key, ivSpec, false, false);
-    // direct input, direct output
-    offsetRoundTripByteBuffer(plaintext, key, ivSpec, true, true);
+  /**
+   * Every combination of input directness, output directness, and input read-only-ness. The
+   * input/output directness axes are independent: mixed heap-input/direct-output (and vice versa)
+   * exercises paths that a matched pair cannot.
+   */
+  private static Stream<Arguments> byteBufferParams() {
+    // Only testing with a single key size because none of the tested logic should vary based on
+    // that.
+    return byteBufferMatrix(KEY_SIZE_128);
   }
 
   /**
@@ -269,14 +254,28 @@ public class AesCtrTest {
    * larger backing storage: the accessible [position, limit) window neither starts at the beginning
    * nor ends at the end of the backing array/direct buffer. Also verifies that native code
    * reads/writes only within that window, leaving the surrounding padding untouched.
+   *
+   * <p>The read-only input case is the most interesting one here. A read-only heap buffer reports
+   * neither {@code hasArray()} nor {@code isDirect()}, so {@code ShimByteBuffer} copies it into a
+   * fresh array and reports {@code offset = 0}, whereas a writable heap buffer is passed through
+   * with {@code offset = arrayOffset() + position()}. Combining read-only with a shifted window is
+   * therefore the only way to exercise that copy path against a non-zero position.
    */
-  private void offsetRoundTripByteBuffer(
-      final byte[] plaintext,
-      final SecretKey key,
-      final IvParameterSpec ivSpec,
+  @ParameterizedTest
+  @MethodSource("byteBufferOffsetParams")
+  public void testEncryptDecryptWithByteBufferOffsets(
+      final int keySize,
       final boolean inputDirect,
-      final boolean outputDirect)
+      final boolean outputDirect,
+      final boolean inputReadOnly)
       throws Exception {
+    final byte[] plaintext = new byte[100];
+    SECURE_RANDOM.nextBytes(plaintext);
+    final SecretKey key = generateKey(keySize);
+    final byte[] iv = new byte[BLOCK_SIZE];
+    SECURE_RANDOM.nextBytes(iv);
+    final IvParameterSpec ivSpec = new IvParameterSpec(iv);
+
     final int inPrefix = 7;
     final int inSuffix = 13;
     final int outPrefix = 11;
@@ -284,7 +283,8 @@ public class AesCtrTest {
 
     final Cipher encryptCipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
     encryptCipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
-    final ByteBuffer plaintextBuffer = wrapWithPadding(plaintext, inputDirect, inPrefix, inSuffix);
+    final ByteBuffer plaintextBuffer =
+        wrapWithPadding(plaintext, inputDirect, inPrefix, inSuffix, inputReadOnly);
     final ByteBuffer ciphertextBuffer =
         allocateWithPadding(plaintext.length, outputDirect, outPrefix, outSuffix);
     encryptCipher.doFinal(plaintextBuffer, ciphertextBuffer);
@@ -296,7 +296,7 @@ public class AesCtrTest {
     final Cipher decryptCipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
     decryptCipher.init(Cipher.DECRYPT_MODE, key, ivSpec);
     final ByteBuffer ciphertextInputBuffer =
-        wrapWithPadding(ciphertext, inputDirect, inPrefix, inSuffix);
+        wrapWithPadding(ciphertext, inputDirect, inPrefix, inSuffix, inputReadOnly);
     final ByteBuffer decryptedBuffer =
         allocateWithPadding(ciphertext.length, outputDirect, outPrefix, outSuffix);
     decryptCipher.doFinal(ciphertextInputBuffer, decryptedBuffer);
@@ -308,19 +308,139 @@ public class AesCtrTest {
     assertArrayEquals(plaintext, decrypted, "Decrypted text should match original plaintext");
   }
 
+  private static Stream<Arguments> byteBufferOffsetParams() {
+    return byteBufferMatrix(KEY_SIZE_256);
+  }
+
+  /**
+   * Cross product of {@code (keySize, inputDirect, outputDirect, inputReadOnly)}. The read-only
+   * axis applies to the input only; a read-only output buffer is a misuse case covered separately.
+   */
+  private static Stream<Arguments> byteBufferMatrix(final int keySize) {
+    final List<Arguments> result = new ArrayList<>();
+    for (final boolean inputDirect : new boolean[] {false, true}) {
+      for (final boolean outputDirect : new boolean[] {false, true}) {
+        for (final boolean inputReadOnly : new boolean[] {false, true}) {
+          result.add(Arguments.of(keySize, inputDirect, outputDirect, inputReadOnly));
+        }
+      }
+    }
+    return result.stream();
+  }
+
+  @ParameterizedTest
+  @MethodSource("inputSizeParams")
+  public void testVariousInputSizes(final int keySize, final int size) throws Exception {
+    final SecretKey key = generateKey(keySize);
+    final byte[] iv = new byte[BLOCK_SIZE];
+    SECURE_RANDOM.nextBytes(iv);
+    final IvParameterSpec ivSpec = new IvParameterSpec(iv);
+
+    final byte[] plaintext = new byte[size];
+    SECURE_RANDOM.nextBytes(plaintext);
+
+    final Cipher cipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
+    cipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
+    final byte[] ciphertext = cipher.doFinal(plaintext);
+    assertEquals(size, ciphertext.length);
+    // Don't do this check on 1-byte plaintext, as it's equal to ciphertext w/ some
+    // non-negligible probability when the keystream's single byte is 0.
+    if (size > 1) {
+      assertFalse(Arrays.equals(plaintext, ciphertext));
+    }
+    cipher.init(Cipher.DECRYPT_MODE, key, ivSpec);
+    final byte[] decrypted = cipher.doFinal(ciphertext);
+
+    assertArrayEquals(plaintext, decrypted, "Decrypted text should match original plaintext");
+  }
+
+  /** Lengths spanning empty-of-a-block, sub-block, exact-block, and block-plus-remainder cases. */
+  private static Stream<Arguments> inputSizeParams() {
+    final List<Arguments> result = new ArrayList<>();
+    for (final int size : new int[] {1, 15, 16, 17, 32, 33, 63, 64, 65, 127, 128, 129}) {
+      result.add(Arguments.of(KEY_SIZE_256, size));
+    }
+    return result.stream();
+  }
+
+  /**
+   * Encrypts with {@code encryptProvider} and decrypts with {@code decryptProvider}, asserting that
+   * the round-trip recovers the plaintext. A successful cross-provider round-trip pins the
+   * keystream byte-for-byte: any divergence in counter block construction or increment would yield
+   * garbage plaintext.
+   */
+  @ParameterizedTest
+  @MethodSource("compatibilityParams")
+  public void testCrossProviderCompatibility(
+      final int keySize,
+      final Provider encryptProvider,
+      final Provider decryptProvider,
+      final int size)
+      throws Exception {
+    final SecretKey key = generateKey(keySize);
+    final byte[] iv = new byte[BLOCK_SIZE];
+    SECURE_RANDOM.nextBytes(iv);
+    final IvParameterSpec ivSpec = new IvParameterSpec(iv);
+
+    final byte[] plaintext = new byte[size];
+    SECURE_RANDOM.nextBytes(plaintext);
+
+    final Cipher encryptCipher = Cipher.getInstance(ALGORITHM, encryptProvider);
+    encryptCipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
+    final byte[] ciphertext = encryptCipher.doFinal(plaintext);
+    assertEquals(size, ciphertext.length);
+
+    final Cipher decryptCipher = Cipher.getInstance(ALGORITHM, decryptProvider);
+    decryptCipher.init(Cipher.DECRYPT_MODE, key, ivSpec);
+    final byte[] decrypted = decryptCipher.doFinal(ciphertext);
+
+    assertArrayEquals(plaintext, decrypted);
+    assertEquals(encryptCipher.getAlgorithm(), decryptCipher.getAlgorithm());
+  }
+
+  /**
+   * Each third-party provider paired against ACCP in both directions, across block-aligned and
+   * unaligned lengths.
+   *
+   * <p>Providers are supplied as {@code Provider} objects rather than by name on purpose: {@link
+   * TestUtil#BC_PROVIDER} is constructed directly and never registered via {@code
+   * Security.addProvider}, so a name-based lookup of "BC" can return null.
+   */
+  private static Stream<Arguments> compatibilityParams() {
+    final Provider sunJce = Security.getProvider("SunJCE");
+    assertNotNull(sunJce, "SunJCE provider is required for cross-provider compatibility tests");
+
+    final List<Arguments> result = new ArrayList<>();
+    for (final int keySize : SUPPORTED_KEY_SIZES) {
+      for (final Provider other : new Provider[] {sunJce, TestUtil.BC_PROVIDER}) {
+        for (final int size : new int[] {1, 15, 16, 17, 64, 100}) {
+          result.add(Arguments.of(keySize, other, TestUtil.NATIVE_PROVIDER, size));
+          result.add(Arguments.of(keySize, TestUtil.NATIVE_PROVIDER, other, size));
+        }
+      }
+    }
+    return result.stream();
+  }
+
   /**
    * Wraps {@code data} in the middle of a larger backing buffer padded with {@link #PADDING_BYTE}
    * on either side, returning a view whose [position, limit) exposes only the {@code data} region.
+   * {@code readOnly} views are derived after the window is set, since {@code asReadOnlyBuffer()}
+   * preserves position and limit.
    */
   private static ByteBuffer wrapWithPadding(
-      final byte[] data, final boolean direct, final int prefixLen, final int suffixLen) {
+      final byte[] data,
+      final boolean direct,
+      final int prefixLen,
+      final int suffixLen,
+      final boolean readOnly) {
     final byte[] padded = new byte[prefixLen + data.length + suffixLen];
     Arrays.fill(padded, PADDING_BYTE);
     System.arraycopy(data, 0, padded, prefixLen, data.length);
     final ByteBuffer buffer = wrapBuffer(padded, direct);
     buffer.position(prefixLen);
     buffer.limit(prefixLen + data.length);
-    return buffer;
+    return readOnly ? buffer.asReadOnlyBuffer() : buffer;
   }
 
   /**
@@ -367,85 +487,6 @@ public class AesCtrTest {
     view.clear();
     view.position(windowStart);
     view.get(dest);
-  }
-
-  @Test
-  public void testVariousInputSizes() throws Exception {
-    final SecretKey key = generateKey(KEY_SIZE_256);
-    final byte[] iv = new byte[BLOCK_SIZE];
-    SECURE_RANDOM.nextBytes(iv);
-    final IvParameterSpec ivSpec = new IvParameterSpec(iv);
-
-    // Test different input sizes
-    for (int size : new int[] {1, 15, 16, 17, 32, 33, 63, 64, 65, 127, 128, 129}) {
-      final byte[] plaintext = new byte[size];
-      SECURE_RANDOM.nextBytes(plaintext);
-
-      final Cipher cipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
-      cipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
-      final byte[] ciphertext = cipher.doFinal(plaintext);
-      assertEquals(size, ciphertext.length);
-      // Don't do this check on 1-byte plaintext, as it's equal to ciphertext w/ some
-      // non-negligible probability when the keystream's single byte is 0.
-      if (size > 1) {
-        assertFalse(Arrays.equals(plaintext, ciphertext), "For size: " + size);
-      }
-      cipher.init(Cipher.DECRYPT_MODE, key, ivSpec);
-      final byte[] decrypted = cipher.doFinal(ciphertext);
-
-      assertArrayEquals(
-          plaintext, decrypted, "Decrypted text should match original plaintext for size " + size);
-    }
-  }
-
-  @Test
-  public void testCompatibilityWithSunJCE() throws Exception {
-    final Provider sunJce = Security.getProvider("SunJCE");
-    testCompatibilityHelper(sunJce, TestUtil.NATIVE_PROVIDER);
-    testCompatibilityHelper(TestUtil.NATIVE_PROVIDER, sunJce);
-  }
-
-  @Test
-  public void testCompatibilityWithBouncyCastle() throws Exception {
-    testCompatibilityHelper(TestUtil.BC_PROVIDER, TestUtil.NATIVE_PROVIDER);
-    testCompatibilityHelper(TestUtil.NATIVE_PROVIDER, TestUtil.BC_PROVIDER);
-  }
-
-  /**
-   * Encrypts with {@code encryptProvider} and decrypts with {@code decryptProvider}, asserting that
-   * the round-trip recovers the plaintext. A successful cross-provider round-trip pins the
-   * keystream byte-for-byte: any divergence in counter block construction or increment would yield
-   * garbage plaintext.
-   *
-   * <p>Uses 128-bit keys only; 192/256-bit cross-provider coverage arrives with the key size work.
-   * Sweeps block-aligned and unaligned lengths, since CTR handles a trailing partial block
-   * separately from whole blocks.
-   */
-  private void testCompatibilityHelper(
-      final Provider encryptProvider, final Provider decryptProvider) throws Exception {
-    final SecretKey key = generateKey(KEY_SIZE_128);
-    final byte[] iv = new byte[BLOCK_SIZE];
-    SECURE_RANDOM.nextBytes(iv);
-    final IvParameterSpec ivSpec = new IvParameterSpec(iv);
-
-    for (int size : new int[] {1, 15, 16, 17, 64, 100}) {
-      final byte[] plaintext = new byte[size];
-      SECURE_RANDOM.nextBytes(plaintext);
-      final String context =
-          encryptProvider.getName() + " -> " + decryptProvider.getName() + ", size " + size;
-
-      final Cipher encryptCipher = Cipher.getInstance(ALGORITHM, encryptProvider);
-      encryptCipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
-      final byte[] ciphertext = encryptCipher.doFinal(plaintext);
-      assertEquals(size, ciphertext.length, context);
-
-      final Cipher decryptCipher = Cipher.getInstance(ALGORITHM, decryptProvider);
-      decryptCipher.init(Cipher.DECRYPT_MODE, key, ivSpec);
-      final byte[] decrypted = decryptCipher.doFinal(ciphertext);
-
-      assertArrayEquals(plaintext, decrypted, context);
-      assertEquals(encryptCipher.getAlgorithm(), decryptCipher.getAlgorithm(), context);
-    }
   }
 
   private static ByteBuffer wrapBuffer(final byte[] data, final boolean direct) {
