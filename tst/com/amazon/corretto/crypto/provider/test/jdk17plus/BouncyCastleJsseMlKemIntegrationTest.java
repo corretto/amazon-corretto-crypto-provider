@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
+import com.amazon.corretto.crypto.provider.test.RecordingProvider;
 import com.amazon.corretto.crypto.provider.test.TestResultLogger;
 import com.amazon.corretto.crypto.provider.test.TestUtil;
 import java.io.InputStream;

@@ -1,8 +1,9 @@
 // Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
-package com.amazon.corretto.crypto.provider.test.jdk17plus;
+package com.amazon.corretto.crypto.provider.test;
 
 import java.security.Provider;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiPredicate;
 
@@ -34,7 +35,10 @@ public final class RecordingProvider extends Provider {
    * @param recordFilter tallies a lookup only when it returns true for the (type, algorithm) pair
    */
   public RecordingProvider(final String name, final BiPredicate<String, String> recordFilter) {
-    super(name, "1.0", "Records JCA service lookups that reach its position in the provider list");
+    // Provider(String, double, String) is used deliberately: it is the only constructor available
+    // under --release 8, which this package (com.amazon.corretto.crypto.provider.test) is compiled
+    // against for JDK 8 targets. The Provider(String, String, String) overload is JDK 9+ only.
+    super(name, 1.0d, "Records JCA service lookups that reach its position in the provider list");
     this.recordFilter = recordFilter;
   }
 
@@ -61,7 +65,7 @@ public final class RecordingProvider extends Provider {
    */
   public int lookupsByType(final String type) {
     int total = 0;
-    for (final var entry : counters.entrySet()) {
+    for (final Map.Entry<String, Integer> entry : counters.entrySet()) {
       if (entry.getKey().startsWith(type + "/")) {
         total += entry.getValue();
       }
