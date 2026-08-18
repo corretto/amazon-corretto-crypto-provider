@@ -149,6 +149,42 @@ public class AesCtrTest {
     assertArrayEquals(plaintext, buffer);
   }
 
+  /**
+   * Per the {@code Cipher} contract, {@code doFinal()} resets the cipher to the state it was in
+   * immediately after {@code init()}. For CTR mode that means a second {@code doFinal()} without an
+   * intervening {@code init()} re-encrypts under the *same* initial counter rather than continuing
+   * where the first call left off — a keystream-reuse hazard inherent to the JCE API and identical
+   * in SunJCE, not an ACCP defect. This test pins that behavior rather than validating it.
+   */
+  @ParameterizedTest
+  @MethodSource("supportedKeySizes")
+  public void testDoFinalTwiceWithoutReinitReusesCounter(final int keySize) throws Exception {
+    final SecretKey key = generateKey(keySize);
+    final byte[] iv = new byte[BLOCK_SIZE];
+    SECURE_RANDOM.nextBytes(iv);
+    final IvParameterSpec ivSpec = new IvParameterSpec(iv);
+    final byte[] plaintext = new byte[2 * BLOCK_SIZE + 5];
+    SECURE_RANDOM.nextBytes(plaintext);
+
+    final Cipher accpCipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
+    accpCipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
+    final byte[] accpFirst = accpCipher.doFinal(plaintext);
+    final byte[] accpSecond = accpCipher.doFinal(plaintext);
+
+    final Cipher sunJceCipher = Cipher.getInstance(ALGORITHM, Security.getProvider("SunJCE"));
+    sunJceCipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
+    final byte[] sunJceFirst = sunJceCipher.doFinal(plaintext);
+    final byte[] sunJceSecond = sunJceCipher.doFinal(plaintext);
+
+    assertArrayEquals(sunJceFirst, accpFirst, "first doFinal call diverged from SunJCE");
+    assertArrayEquals(sunJceSecond, accpSecond, "second doFinal call diverged from SunJCE");
+    assertArrayEquals(
+        accpFirst,
+        accpSecond,
+        "doFinal without an intervening init should reuse the initial counter, per the JCE"
+            + " reset-on-doFinal contract");
+  }
+
   @ParameterizedTest
   @MethodSource("byteBufferParams")
   public void testEncryptDecryptWithByteBuffer(
