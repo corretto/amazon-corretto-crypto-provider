@@ -155,6 +155,11 @@ JDK's [KEM interface](https://docs.oracle.com/en/java/javase/17/docs/api/java.ba
 ./gradlew -DTARGET_JDK_VERSION=17 build
 ``` 
 
+For ML-KEM key generation (`KeyPairGenerator`) and KEM encapsulation (`KEM.newEncapsulator`), any
+caller-supplied `SecureRandom` is accepted but ignored: AWS-LC always draws ML-KEM randomness from
+its own DRBG. Passing a custom `SecureRandom` (for example to force a specific entropy source) has
+no effect on these operations.
+
 # Notes on ACCP-FIPS
 ACCP-FIPS is a variation of ACCP which uses AWS-LC-FIPS 2.x as its cryptographic module. This version of AWS-LC-FIPS has FIPS certificate [4816](https://csrc.nist.gov/projects/cryptographic-module-validation-program/certificate/4816).
 

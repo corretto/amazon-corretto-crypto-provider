@@ -187,8 +187,12 @@ dependencies {
     testImplementation 'org.apiguardian:apiguardian-api:1.1.2'
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.3'
     testImplementation 'org.junit.vintage:junit-vintage-engine:5.10.3'
-    testImplementation 'org.bouncycastle:bcpkix-jdk18on:1.81'
-    testImplementation 'org.bouncycastle:bcprov-jdk18on:1.81'
+    // BC 1.84 first shipped the javax.crypto.KEM delegation path in bctls
+    // (KEMSpiUtil / SpiUtil.hasKEM); 1.85 is the current release. bctls is
+    // needed by the BCJSSE ML-KEM integration test.
+    testImplementation 'org.bouncycastle:bcpkix-jdk18on:1.85'
+    testImplementation 'org.bouncycastle:bcprov-jdk18on:1.85'
+    testImplementation 'org.bouncycastle:bctls-jdk18on:1.85'
     testImplementation 'commons-codec:commons-codec:1.18.0'
     testImplementation 'org.hamcrest:hamcrest:3.0'
     testImplementation 'org.jacoco:org.jacoco.core:0.8.13'
