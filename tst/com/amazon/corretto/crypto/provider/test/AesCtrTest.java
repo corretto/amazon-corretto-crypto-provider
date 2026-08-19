@@ -26,6 +26,7 @@ import java.security.SecureRandom;
 import java.security.Security;
 import java.security.interfaces.ECPrivateKey;
 import java.security.interfaces.ECPublicKey;
+import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.InvalidParameterSpecException;
 import java.util.ArrayList;
@@ -36,6 +37,7 @@ import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
+import javax.crypto.ShortBufferException;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.RC2ParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
@@ -787,6 +789,83 @@ public class AesCtrTest {
         InvalidAlgorithmParameterException.class, () -> c.init(Cipher.ENCRYPT_MODE, key, params));
   }
 
+  /**
+   * {@code init()} without explicit parameters may generate its own IV, which is only sound when
+   * encrypting — a random IV could not reproduce the keystream needed to decrypt. Covers all four
+   * outcomes of that opmode check: ENCRYPT and WRAP proceed, DECRYPT and UNWRAP are rejected.
+   */
+  @Test
+  public void testGeneratedIvRejectedForDecrypt() throws Exception {
+    final SecretKey key = generateKey(KEY_SIZE_128);
+    final Cipher cipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
+
+    for (final int opmode : new int[] {Cipher.DECRYPT_MODE, Cipher.UNWRAP_MODE}) {
+      assertThrows(
+          InvalidKeyException.class,
+          () -> cipher.init(opmode, key, SECURE_RANDOM),
+          "opmode " + opmode + " must require an explicitly supplied IV");
+    }
+
+    // The two modes that can safely generate their own IV must still be accepted.
+    for (final int opmode : new int[] {Cipher.ENCRYPT_MODE, Cipher.WRAP_MODE}) {
+      cipher.init(opmode, key, SECURE_RANDOM);
+      assertEquals(
+          BLOCK_SIZE,
+          cipher.getIV().length,
+          "opmode " + opmode + " should generate a full-block IV");
+    }
+  }
+
+  /**
+   * Parameter objects that cannot yield an {@code IvParameterSpec} must be reported as invalid
+   * parameters. These are distinct from the null-{@code AlgorithmParameters} case already covered
+   * by {@link #testMiscellaneous}: the first exercises the null {@code AlgorithmParameterSpec}
+   * overload, the second the path that unwraps an {@code InvalidParameterSpecException}.
+   */
+  @Test
+  public void testUnusableAlgorithmParametersRejected() throws Exception {
+    final SecretKey key = generateKey(KEY_SIZE_128);
+    final Cipher cipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
+
+    assertThrows(
+        InvalidAlgorithmParameterException.class,
+        () -> cipher.init(Cipher.ENCRYPT_MODE, key, (AlgorithmParameterSpec) null, SECURE_RANDOM));
+
+    // An uninitialized AlgorithmParameters throws InvalidParameterSpecException from
+    // getParameterSpec, which must surface as InvalidAlgorithmParameterException.
+    final AlgorithmParameters uninitialized = AlgorithmParameters.getInstance("AES");
+    assertThrows(
+        InvalidAlgorithmParameterException.class,
+        () -> cipher.init(Cipher.ENCRYPT_MODE, key, uninitialized, SECURE_RANDOM));
+  }
+
+  /**
+   * Both {@code ByteBuffer} overloads must reject an output buffer with too little remaining space
+   * instead of overrunning it. {@code javax.crypto.Cipher} delegates these two calls without a size
+   * check of its own, so this reaches ACCP's check rather than a JDK-level one.
+   */
+  @Test
+  public void testByteBufferShortOutputRejected() throws Exception {
+    final SecretKey key = generateKey(KEY_SIZE_128);
+    final IvParameterSpec ivSpec = new IvParameterSpec(getRandomBytes(BLOCK_SIZE));
+    final int inputLen = 2 * BLOCK_SIZE;
+
+    final Cipher updateCipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
+    updateCipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
+    assertThrows(
+        ShortBufferException.class,
+        () ->
+            updateCipher.update(ByteBuffer.allocate(inputLen), ByteBuffer.allocate(inputLen - 1)));
+
+    final Cipher doFinalCipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
+    doFinalCipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
+    assertThrows(
+        ShortBufferException.class,
+        () ->
+            doFinalCipher.doFinal(
+                ByteBuffer.allocate(inputLen), ByteBuffer.allocate(inputLen - 1)));
+  }
+
   @ParameterizedTest
   @MethodSource("wrapUnwrapParams")
   public void testWrapUnwrap(final int keySize, final int wrappedKeyLen) throws Exception {
@@ -943,6 +1022,45 @@ public class AesCtrTest {
           cipher.doFinal(plaintext),
           "cycle " + cycle + " diverged from reference");
     }
+  }
+
+  /**
+   * The saved-context reuse path in {@code update()} must honour a key change too. {@link
+   * #testKeyChangeAcrossInit} drives key changes only through {@code doFinal()}, which is a
+   * separate branch; the {@code update()} branch was previously reached only with an unchanged key,
+   * leaving the half that re-sends key bytes there unexecuted by the whole suite.
+   *
+   * <p>The first {@code update()} establishes a native context under {@code keyA}, which the
+   * following {@code init()} abandons mid-operation (as {@link #testEncryptDecryptWithUpdate} also
+   * does). Under LAZY/HYBRID that context survives the re-init, so the next {@code update()} takes
+   * the reuse path with a changed key; under EAGER the context is released and rebuilt. Either way
+   * the output must match the reference keystream for {@code keyB}.
+   */
+  @ParameterizedTest
+  @MethodSource("supportedKeySizes")
+  public void testKeyChangeOnUpdatePath(final int keySize) throws Exception {
+    final SecretKey keyA = new SecretKeySpec(getRandomBytes(keySize / 8), "AES");
+    final SecretKey keyB = new SecretKeySpec(getRandomBytes(keySize / 8), "AES");
+    final byte[] ivA = getRandomBytes(BLOCK_SIZE);
+    final byte[] ivB = getRandomBytes(BLOCK_SIZE);
+    final byte[] plaintext = getRandomBytes(3 * BLOCK_SIZE + 7);
+
+    final Cipher cipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
+    cipher.init(Cipher.ENCRYPT_MODE, keyA, new IvParameterSpec(ivA));
+    cipher.update(plaintext, 0, BLOCK_SIZE); // establishes a native context keyed with keyA
+
+    cipher.init(Cipher.ENCRYPT_MODE, keyB, new IvParameterSpec(ivB));
+    final int split = plaintext.length / 2;
+    final byte[] head = cipher.update(plaintext, 0, split);
+    final byte[] tail = cipher.doFinal(plaintext, split, plaintext.length - split);
+
+    final byte[] actual = new byte[head.length + tail.length];
+    System.arraycopy(head, 0, actual, 0, head.length);
+    System.arraycopy(tail, 0, actual, head.length, tail.length);
+    assertArraysHexEquals(
+        referenceCtr(keyB, ivB, plaintext),
+        actual,
+        "a key change applied on the update() reuse path produced the wrong keystream");
   }
 
   /**
