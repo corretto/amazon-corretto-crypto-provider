@@ -80,15 +80,13 @@ public class MlKemUtilsTest {
   @ValueSource(strings = {"ML-KEM-512", "ML-KEM-768", "ML-KEM-1024"})
   @DisabledIf("mlKemDisabled")
   public void testExpandSeedKey(String algorithm) throws Exception {
-    // ML-KEM seed expansion (RFC 9935) requires seed support in the underlying
-    // AWS-LC, present only in non-FIPS / experimental-FIPS builds (matches the
-    // native #if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD) guard).
-    // TODO: remove this guard once AWS-LC-FIPS is bumped to v5.0.0, which provides
-    // FIPS-validated ML-KEM private-key (seed-format) parsing.
+    // MlKemUtils.expandPrivateKey's native method (expandPrivateKeyInternal) is compiled only in
+    // non-FIPS / experimental-FIPS builds. Seed PARSING via KeyFactory is supported in regular FIPS
+    // (see MlKemTest#testSeedFormatPrivateKeyParses).
     assumeTrue(
         !AmazonCorrettoCryptoProvider.INSTANCE.isFips()
             || AmazonCorrettoCryptoProvider.INSTANCE.isExperimentalFips(),
-        "ML-KEM seed-format keys are unavailable in FIPS builds");
+        "MlKemUtils.expandPrivateKey is unavailable in regular FIPS");
     KeyFactory kf = KeyFactory.getInstance("ML-KEM", NATIVE_PROVIDER);
     byte[] seedDer = Base64.getDecoder().decode(seedPem(algorithm));
 

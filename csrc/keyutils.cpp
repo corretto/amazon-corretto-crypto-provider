@@ -10,13 +10,20 @@
 #include <openssl/obj.h>
 #include <openssl/pkcs8.h>
 #include <openssl/rsa.h>
+#if defined(FIPS_BUILD) && !defined(EXPERIMENTAL_FIPS_BUILD)
+// EVP_PKEY_keygen_deterministic (seed -> ML-KEM key) lives in this experimental header. Only regular
+// FIPS needs it: AWS-LC-FIPS 3.1.0's ASN.1 method cannot decode seed-format ML-KEM private keys.
+// TODO [AWS-LC-FIPS 4.x]: drop this experimental include once the FIPS module can d2i seed-format ML-KEM keys.
+#include <openssl/experimental/kem_deterministic_api.h>
+#endif
 
 namespace AmazonCorrettoCryptoProvider {
 
-// Parses an ML-KEM expanded-format PKCS8 private key via its raw secret key. Returns nullptr for
-// inputs it does not handle; EVP_PKEY_kem_new_raw_secret_key may queue an OpenSSL error when it
-// rejects a well-formed but wrong-length key. der2EvpPrivateKey calls this as a fallover after
-// d2i_PrivateKey fails. Defined below, next to parseMLKEMPublicKey.
+// Parses a PKCS8 ML-KEM private key via the raw APIs (bypassing the ASN.1 method absent from
+// AWS-LC-FIPS 3.1.0). Returns nullptr for inputs it does not handle; the key-construction helpers it
+// delegates to may queue an OpenSSL error when they reject a well-formed but invalid key.
+// der2EvpPrivateKey calls this as a fallover after d2i_PrivateKey fails. Defined below, next to
+// parseMLKEMPublicKey.
 static EVP_PKEY* parseMLKEMPrivateKey(const unsigned char* der, const int derLen);
 
 EVP_PKEY* der2EvpPrivateKey(const unsigned char* der,
@@ -243,6 +250,26 @@ static EVP_PKEY* parseMLKEMPublicKey(const unsigned char* der, const int derLen)
     return EVP_PKEY_kem_new_raw_public_key(nid, CBS_data(&bit_string), CBS_len(&bit_string));
 }
 
+#if defined(FIPS_BUILD) && !defined(EXPERIMENTAL_FIPS_BUILD)
+// Expands a raw ML-KEM keygen seed (d || z) into a full EVP_PKEY via deterministic keygen. Used only
+// in regular FIPS, where AWS-LC-FIPS 3.1.0's ASN.1 method cannot decode seed-format ML-KEM private
+// keys. Returns nullptr on failure so parseMLKEMPrivateKey falls through to d2i_PrivateKey.
+// TODO [AWS-LC-FIPS 4.x]: drop this seed-expansion helper once the FIPS module can d2i seed-format ML-KEM keys.
+static EVP_PKEY* mlkemKeyFromSeed(int nid, const uint8_t* seed, size_t seed_len)
+{
+    EVP_PKEY_CTX_auto ctx = EVP_PKEY_CTX_auto::from(EVP_PKEY_CTX_new_id(EVP_PKEY_KEM, nullptr));
+    if (!ctx.isInitialized() || EVP_PKEY_CTX_kem_set_params(ctx, nid) != 1 || EVP_PKEY_keygen_init(ctx) != 1) {
+        return nullptr;
+    }
+    EVP_PKEY* pkey = nullptr;
+    size_t len = seed_len;
+    if (!EVP_PKEY_keygen_deterministic(ctx, &pkey, seed, &len)) {
+        return nullptr;
+    }
+    return pkey;
+}
+#endif // defined(FIPS_BUILD) && !defined(EXPERIMENTAL_FIPS_BUILD)
+
 // Skips an optional context-specific field numbered |tag_number| from |cbs|, accepting both the
 // constructed and the primitive encoding of the tag. Returns false only when a matching tag is
 // present but its element is malformed; a missing field is not an error.
@@ -261,16 +288,18 @@ static bool skipOptionalContextSpecificField(CBS* cbs, unsigned tag_number)
     return true;
 }
 
-// See forward declaration above der2EvpPrivateKey. Parses an expanded-format ML-KEM PKCS8 private
-// key via EVP_PKEY_kem_new_raw_secret_key. The expandedKey CHOICE is specified in RFC 9935
+// See forward declaration above der2EvpPrivateKey. Parses a PKCS8 ML-KEM private key via the raw
+// APIs, bypassing the ASN.1 method that AWS-LC-FIPS 3.1.0 lacks. Handles the expanded-key CHOICE
+// (all builds) and, in regular FIPS only, the seed CHOICE. Both CHOICEs are specified in RFC 9935
 // Section 6 (Private Key Format), with the formal ASN.1 module in Appendix A:
 // https://datatracker.ietf.org/doc/html/rfc9935#section-6
 // https://datatracker.ietf.org/doc/html/rfc9935#appendix-A
-// Returns nullptr for seed-format or non-ML-KEM inputs; der2EvpPrivateKey calls this as a fallover
-// after d2i_PrivateKey fails.
+// Returns nullptr for non-ML-KEM inputs, and (in non-FIPS / experimental-FIPS builds) for
+// seed-format keys, which the standard d2i_PrivateKey handles natively there. der2EvpPrivateKey
+// calls this as a fallover after d2i_PrivateKey fails.
 static EVP_PKEY* parseMLKEMPrivateKey(const unsigned char* der, const int derLen)
 {
-    CBS cbs, pkcs8, algorithm, oid, priv, expanded;
+    CBS cbs, pkcs8, algorithm, oid, priv;
     uint64_t version = 0;
     CBS_init(&cbs, der, derLen);
     // The outer structure is a PrivateKeyInfo (RFC 5208, version 0) or a OneAsymmetricKey (RFC 5958,
@@ -290,9 +319,8 @@ static EVP_PKEY* parseMLKEMPrivateKey(const unsigned char* der, const int derLen
     if (!isMLKEMNid(nid)) {
         return nullptr;
     }
-    // The ML-KEM AlgorithmIdentifier has no parameters. The PrivateKey OCTET STRING wraps the
-    // expanded-key OCTET STRING. Seed-format keys instead wrap a context-specific [0] tag, which
-    // fails the inner OCTET STRING parse below, so this returns nullptr for them.
+    // The ML-KEM AlgorithmIdentifier has no parameters. The PrivateKey OCTET STRING wraps either the
+    // expanded key (OCTET STRING) or, in seed format, a [0] IMPLICIT OCTET STRING seed.
     // spotless:off
     if (CBS_len(&algorithm) != 0 ||
         !CBS_get_asn1(&pkcs8, &priv, CBS_ASN1_OCTETSTRING)) {
@@ -315,14 +343,31 @@ static EVP_PKEY* parseMLKEMPrivateKey(const unsigned char* der, const int derLen
     if (CBS_len(&pkcs8) != 0) {
         return nullptr;
     }
-    // spotless:off
-    if (!CBS_get_asn1(&priv, &expanded, CBS_ASN1_OCTETSTRING) || CBS_len(&priv) != 0) {
-        return nullptr;
+    if (CBS_peek_asn1_tag(&priv, CBS_ASN1_OCTETSTRING)) {
+        // Expanded format. EVP_PKEY_kem_new_raw_secret_key validates the length against the parameter
+        // set's secret_key_len and returns NULL otherwise (surfaced by der2EvpPrivateKey as a decode
+        // failure).
+        CBS expanded;
+        if (!CBS_get_asn1(&priv, &expanded, CBS_ASN1_OCTETSTRING) || CBS_len(&priv) != 0) {
+            return nullptr;
+        }
+        return EVP_PKEY_kem_new_raw_secret_key(nid, CBS_data(&expanded), CBS_len(&expanded));
     }
-    // spotless:on
-    // EVP_PKEY_kem_new_raw_secret_key validates that the length matches the parameter set's
-    // secret_key_len and returns NULL otherwise (surfaced by der2EvpPrivateKey as a decode failure).
-    return EVP_PKEY_kem_new_raw_secret_key(nid, CBS_data(&expanded), CBS_len(&expanded));
+#if defined(FIPS_BUILD) && !defined(EXPERIMENTAL_FIPS_BUILD)
+    // Seed format ([0] IMPLICIT OCTET STRING, the raw d || z keygen seed). AWS-LC-FIPS 3.1.0 cannot
+    // d2i a seed-format ML-KEM key, so expand the seed into a full key. (Serializing back to seed is
+    // still impossible in regular FIPS -- getEncoded() emits the expanded form.)
+    // See RFC 9935 Section 6 (Private Key Format): https://datatracker.ietf.org/doc/html/rfc9935#section-6
+    // TODO [AWS-LC-FIPS 4.x]: drop this seed branch once the FIPS module can d2i seed-format ML-KEM keys.
+    if (CBS_peek_asn1_tag(&priv, CBS_ASN1_CONTEXT_SPECIFIC | 0)) {
+        CBS seed;
+        if (!CBS_get_asn1(&priv, &seed, CBS_ASN1_CONTEXT_SPECIFIC | 0) || CBS_len(&priv) != 0) {
+            return nullptr;
+        }
+        return mlkemKeyFromSeed(nid, CBS_data(&seed), CBS_len(&seed));
+    }
+#endif // defined(FIPS_BUILD) && !defined(EXPERIMENTAL_FIPS_BUILD)
+    return nullptr;
 }
 
 EVP_PKEY* der2EvpPublicKey(const unsigned char* der, const int derLen, const char* javaExceptionClass)
