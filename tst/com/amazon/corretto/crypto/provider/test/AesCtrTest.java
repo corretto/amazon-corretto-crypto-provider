@@ -4,7 +4,9 @@ package com.amazon.corretto.crypto.provider.test;
 
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assertArraysHexEquals;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assertArraysHexNotEquals;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.getRandomBytes;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -15,12 +17,16 @@ import java.security.GeneralSecurityException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.Key;
+import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.security.interfaces.ECPrivateKey;
+import java.security.interfaces.ECPublicKey;
+import java.security.spec.ECGenParameterSpec;
 import java.security.spec.InvalidParameterSpecException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -76,9 +82,7 @@ public class AesCtrTest {
   public void testBasicEncryptDecrypt(final int keySize) throws Exception {
     final byte[] plaintext = "This is a test message for AES CTR mode".getBytes();
     final SecretKey key = generateKey(keySize);
-    final byte[] iv = new byte[BLOCK_SIZE];
-    SECURE_RANDOM.nextBytes(iv);
-    final IvParameterSpec ivSpec = new IvParameterSpec(iv);
+    final IvParameterSpec ivSpec = new IvParameterSpec(getRandomBytes(BLOCK_SIZE));
 
     final Cipher cipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
     cipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
@@ -100,12 +104,9 @@ public class AesCtrTest {
   @ParameterizedTest
   @MethodSource("supportedKeySizes")
   public void testEncryptDecryptWithUpdate(final int keySize) throws Exception {
-    final byte[] plaintext = new byte[100];
-    SECURE_RANDOM.nextBytes(plaintext);
+    final byte[] plaintext = getRandomBytes(100);
     final SecretKey key = generateKey(keySize);
-    final byte[] iv = new byte[BLOCK_SIZE];
-    SECURE_RANDOM.nextBytes(iv);
-    final IvParameterSpec ivSpec = new IvParameterSpec(iv);
+    final IvParameterSpec ivSpec = new IvParameterSpec(getRandomBytes(BLOCK_SIZE));
 
     final Cipher encryptCipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
     encryptCipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
@@ -173,11 +174,8 @@ public class AesCtrTest {
   @MethodSource("supportedKeySizes")
   public void testDoFinalTwiceWithoutReinitReusesCounter(final int keySize) throws Exception {
     final SecretKey key = generateKey(keySize);
-    final byte[] iv = new byte[BLOCK_SIZE];
-    SECURE_RANDOM.nextBytes(iv);
-    final IvParameterSpec ivSpec = new IvParameterSpec(iv);
-    final byte[] plaintext = new byte[2 * BLOCK_SIZE + 5];
-    SECURE_RANDOM.nextBytes(plaintext);
+    final IvParameterSpec ivSpec = new IvParameterSpec(getRandomBytes(BLOCK_SIZE));
+    final byte[] plaintext = getRandomBytes(2 * BLOCK_SIZE + 5);
 
     final Cipher accpCipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
     accpCipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
@@ -206,12 +204,9 @@ public class AesCtrTest {
       final boolean outputDirect,
       final boolean inputReadOnly)
       throws Exception {
-    final byte[] plaintext = new byte[100];
-    SECURE_RANDOM.nextBytes(plaintext);
+    final byte[] plaintext = getRandomBytes(100);
     final SecretKey key = generateKey(keySize);
-    final byte[] iv = new byte[BLOCK_SIZE];
-    SECURE_RANDOM.nextBytes(iv);
-    final IvParameterSpec ivSpec = new IvParameterSpec(iv);
+    final IvParameterSpec ivSpec = new IvParameterSpec(getRandomBytes(BLOCK_SIZE));
 
     final Cipher encryptCipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
     encryptCipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
@@ -249,12 +244,9 @@ public class AesCtrTest {
       final boolean outputDirect,
       final boolean inputReadOnly)
       throws Exception {
-    final byte[] plaintext = new byte[100];
-    SECURE_RANDOM.nextBytes(plaintext);
+    final byte[] plaintext = getRandomBytes(100);
     final SecretKey key = generateKey(keySize);
-    final byte[] iv = new byte[BLOCK_SIZE];
-    SECURE_RANDOM.nextBytes(iv);
-    final IvParameterSpec ivSpec = new IvParameterSpec(iv);
+    final IvParameterSpec ivSpec = new IvParameterSpec(getRandomBytes(BLOCK_SIZE));
     final int halfway = plaintext.length / 2;
 
     final Cipher encryptCipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
@@ -321,12 +313,9 @@ public class AesCtrTest {
       final boolean outputDirect,
       final boolean inputReadOnly)
       throws Exception {
-    final byte[] plaintext = new byte[100];
-    SECURE_RANDOM.nextBytes(plaintext);
+    final byte[] plaintext = getRandomBytes(100);
     final SecretKey key = generateKey(keySize);
-    final byte[] iv = new byte[BLOCK_SIZE];
-    SECURE_RANDOM.nextBytes(iv);
-    final IvParameterSpec ivSpec = new IvParameterSpec(iv);
+    final IvParameterSpec ivSpec = new IvParameterSpec(getRandomBytes(BLOCK_SIZE));
 
     final int inPrefix = 7;
     final int inSuffix = 13;
@@ -384,12 +373,9 @@ public class AesCtrTest {
   @MethodSource("inputSizeParams")
   public void testVariousInputSizes(final int keySize, final int size) throws Exception {
     final SecretKey key = generateKey(keySize);
-    final byte[] iv = new byte[BLOCK_SIZE];
-    SECURE_RANDOM.nextBytes(iv);
-    final IvParameterSpec ivSpec = new IvParameterSpec(iv);
+    final IvParameterSpec ivSpec = new IvParameterSpec(getRandomBytes(BLOCK_SIZE));
 
-    final byte[] plaintext = new byte[size];
-    SECURE_RANDOM.nextBytes(plaintext);
+    final byte[] plaintext = getRandomBytes(size);
 
     final Cipher cipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
     cipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
@@ -430,12 +416,9 @@ public class AesCtrTest {
       final int size)
       throws Exception {
     final SecretKey key = generateKey(keySize);
-    final byte[] iv = new byte[BLOCK_SIZE];
-    SECURE_RANDOM.nextBytes(iv);
-    final IvParameterSpec ivSpec = new IvParameterSpec(iv);
+    final IvParameterSpec ivSpec = new IvParameterSpec(getRandomBytes(BLOCK_SIZE));
 
-    final byte[] plaintext = new byte[size];
-    SECURE_RANDOM.nextBytes(plaintext);
+    final byte[] plaintext = getRandomBytes(size);
 
     final Cipher encryptCipher = Cipher.getInstance(ALGORITHM, encryptProvider);
     encryptCipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
@@ -483,11 +466,9 @@ public class AesCtrTest {
   public void testAgainstReferenceImplementation(final int keySize, final int size)
       throws Exception {
     final SecretKey key = generateKey(keySize);
-    final byte[] iv = new byte[BLOCK_SIZE];
-    SECURE_RANDOM.nextBytes(iv);
+    final byte[] iv = getRandomBytes(BLOCK_SIZE);
     final IvParameterSpec ivSpec = new IvParameterSpec(iv);
-    final byte[] plaintext = new byte[size];
-    SECURE_RANDOM.nextBytes(plaintext);
+    final byte[] plaintext = getRandomBytes(size);
     final byte[] expected = referenceCtr(key, iv, plaintext);
 
     final Cipher cipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
@@ -531,8 +512,7 @@ public class AesCtrTest {
     final SecretKey key = generateKey(keySize);
     final IvParameterSpec ivSpec = new IvParameterSpec(iv);
     // Four blocks, so the carry-affected block is followed by ordinary increments.
-    final byte[] plaintext = new byte[4 * BLOCK_SIZE];
-    SECURE_RANDOM.nextBytes(plaintext);
+    final byte[] plaintext = getRandomBytes(4 * BLOCK_SIZE);
 
     final Cipher cipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
     cipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
@@ -692,24 +672,19 @@ public class AesCtrTest {
   @Test
   public void testInvalidParameters() throws Throwable {
     final SecretKey key = generateKey(KEY_SIZE_128);
-    final byte[] iv = new byte[BLOCK_SIZE];
-    SECURE_RANDOM.nextBytes(iv);
-    final IvParameterSpec ivSpec = new IvParameterSpec(iv);
+    final IvParameterSpec ivSpec = new IvParameterSpec(getRandomBytes(BLOCK_SIZE));
     final Cipher cipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
 
     // Test invalid IV size
-    final byte[] shortIv = new byte[BLOCK_SIZE - 1];
-    SECURE_RANDOM.nextBytes(shortIv);
-    final IvParameterSpec shortIvSpec = new IvParameterSpec(shortIv);
+    final IvParameterSpec shortIvSpec = new IvParameterSpec(getRandomBytes(BLOCK_SIZE - 1));
     assertThrows(
         InvalidAlgorithmParameterException.class,
         () -> cipher.init(Cipher.ENCRYPT_MODE, key, shortIvSpec),
         "Should throw exception for invalid IV size");
 
     // Test invalid key size
-    final byte[] invalidKey = new byte[20]; // 160 bits is not supported
-    SECURE_RANDOM.nextBytes(invalidKey);
-    final SecretKeySpec invalidKeySpec = new SecretKeySpec(invalidKey, "AES");
+    // 160 bits is not supported
+    final SecretKeySpec invalidKeySpec = new SecretKeySpec(getRandomBytes(20), "AES");
     assertThrows(
         InvalidKeyException.class,
         () -> cipher.init(Cipher.ENCRYPT_MODE, invalidKeySpec, ivSpec),
@@ -740,8 +715,7 @@ public class AesCtrTest {
     assertEquals(BLOCK_SIZE, cipher.getBlockSize());
 
     final SecretKey key = generateKey(KEY_SIZE_128);
-    final byte[] iv = new byte[BLOCK_SIZE];
-    SECURE_RANDOM.nextBytes(iv);
+    final byte[] iv = getRandomBytes(BLOCK_SIZE);
     final IvParameterSpec ivSpec = new IvParameterSpec(iv);
     cipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
     assertArraysHexEquals(iv, cipher.getIV());
@@ -811,5 +785,94 @@ public class AesCtrTest {
 
     assertThrows(
         InvalidAlgorithmParameterException.class, () -> c.init(Cipher.ENCRYPT_MODE, key, params));
+  }
+
+  @ParameterizedTest
+  @MethodSource("wrapUnwrapParams")
+  public void testWrapUnwrap(final int keySize, final int wrappedKeyLen) throws Exception {
+    final String alg = "SECRET_KEY";
+    final SecretKey wrappingKey = generateKey(keySize);
+    final IvParameterSpec ivSpec = new IvParameterSpec(getRandomBytes(BLOCK_SIZE));
+
+    final SecretKeySpec keyToBeWrapped = new SecretKeySpec(getRandomBytes(wrappedKeyLen), alg);
+
+    final Cipher accp = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
+    final Cipher sun = Cipher.getInstance(ALGORITHM, Security.getProvider("SunJCE"));
+
+    accp.init(Cipher.WRAP_MODE, wrappingKey, ivSpec);
+    sun.init(Cipher.WRAP_MODE, wrappingKey, ivSpec);
+    final byte[] sunWrapped = sun.wrap(keyToBeWrapped);
+    final byte[] accpWrapped = accp.wrap(keyToBeWrapped);
+    assertArraysHexEquals(sunWrapped, accpWrapped, "wrapped output diverged from SunJCE");
+
+    accp.init(Cipher.UNWRAP_MODE, wrappingKey, ivSpec);
+    sun.init(Cipher.UNWRAP_MODE, wrappingKey, ivSpec);
+    final Key sunUnwrapped = sun.unwrap(sunWrapped, alg, Cipher.SECRET_KEY);
+    final Key accpUnwrapped = accp.unwrap(sunWrapped, alg, Cipher.SECRET_KEY);
+    assertEquals(sunUnwrapped.getAlgorithm(), accpUnwrapped.getAlgorithm());
+    assertEquals(sunUnwrapped.getFormat(), accpUnwrapped.getFormat());
+    assertArraysHexEquals(keyToBeWrapped.getEncoded(), sunUnwrapped.getEncoded());
+    assertArraysHexEquals(keyToBeWrapped.getEncoded(), accpUnwrapped.getEncoded());
+  }
+
+  private static Stream<Arguments> wrapUnwrapParams() {
+    final List<Arguments> result = new ArrayList<>();
+    for (final int keySize : SUPPORTED_KEY_SIZES) {
+      for (final int len : new int[] {1, 15, 16, 17, 32, 100}) {
+        result.add(Arguments.of(keySize, len));
+      }
+    }
+    return result.stream();
+  }
+
+  @Test
+  // Wrapping and unwrapping asymmetric keys uses a different flow and needs to be checked
+  // separately
+  public void testWrapUnwrapAsymmetric() throws Exception {
+    final KeyPairGenerator kg = KeyPairGenerator.getInstance("EC");
+    kg.initialize(new ECGenParameterSpec("secp256r1"));
+    final KeyPair keyPair = kg.generateKeyPair();
+
+    final SecretKey wrappingKey = generateKey(KEY_SIZE_128);
+    final Cipher accp = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
+    final Cipher sun = Cipher.getInstance(ALGORITHM, Security.getProvider("SunJCE"));
+
+    // Check public keys
+    IvParameterSpec ivSpec = new IvParameterSpec(getRandomBytes(BLOCK_SIZE));
+    accp.init(Cipher.WRAP_MODE, wrappingKey, ivSpec);
+    sun.init(Cipher.WRAP_MODE, wrappingKey, ivSpec);
+    byte[] sunWrapped = sun.wrap(keyPair.getPublic());
+    byte[] accpWrapped = accp.wrap(keyPair.getPublic());
+    assertArraysHexEquals(sunWrapped, accpWrapped, "wrapped output diverged from SunJCE");
+
+    accp.init(Cipher.UNWRAP_MODE, wrappingKey, ivSpec);
+    sun.init(Cipher.UNWRAP_MODE, wrappingKey, ivSpec);
+    Key sunUnwrapped = sun.unwrap(sunWrapped, "EC", Cipher.PUBLIC_KEY);
+    Key accpUnwrapped = accp.unwrap(sunWrapped, "EC", Cipher.PUBLIC_KEY);
+    assertInstanceOf(ECPublicKey.class, sunUnwrapped);
+    assertInstanceOf(ECPublicKey.class, accpUnwrapped);
+    assertEquals(sunUnwrapped.getAlgorithm(), accpUnwrapped.getAlgorithm());
+    assertEquals(sunUnwrapped.getFormat(), accpUnwrapped.getFormat());
+    assertArraysHexEquals(keyPair.getPublic().getEncoded(), sunUnwrapped.getEncoded());
+    assertArraysHexEquals(keyPair.getPublic().getEncoded(), accpUnwrapped.getEncoded());
+
+    // Check private keys
+    ivSpec = new IvParameterSpec(getRandomBytes(BLOCK_SIZE));
+    accp.init(Cipher.WRAP_MODE, wrappingKey, ivSpec);
+    sun.init(Cipher.WRAP_MODE, wrappingKey, ivSpec);
+    sunWrapped = sun.wrap(keyPair.getPrivate());
+    accpWrapped = accp.wrap(keyPair.getPrivate());
+    assertArraysHexEquals(sunWrapped, accpWrapped, "wrapped output diverged from SunJCE");
+
+    accp.init(Cipher.UNWRAP_MODE, wrappingKey, ivSpec);
+    sun.init(Cipher.UNWRAP_MODE, wrappingKey, ivSpec);
+    sunUnwrapped = sun.unwrap(sunWrapped, "EC", Cipher.PRIVATE_KEY);
+    accpUnwrapped = accp.unwrap(sunWrapped, "EC", Cipher.PRIVATE_KEY);
+    assertInstanceOf(ECPrivateKey.class, sunUnwrapped);
+    assertInstanceOf(ECPrivateKey.class, accpUnwrapped);
+    assertEquals(sunUnwrapped.getAlgorithm(), accpUnwrapped.getAlgorithm());
+    assertEquals(sunUnwrapped.getFormat(), accpUnwrapped.getFormat());
+    assertArraysHexEquals(keyPair.getPrivate().getEncoded(), sunUnwrapped.getEncoded());
+    assertArraysHexEquals(keyPair.getPrivate().getEncoded(), accpUnwrapped.getEncoded());
   }
 }

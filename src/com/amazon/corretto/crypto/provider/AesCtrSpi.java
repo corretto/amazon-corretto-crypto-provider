@@ -10,6 +10,7 @@ import java.security.Key;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.spec.InvalidKeySpecException;
 import java.security.spec.InvalidParameterSpecException;
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -164,9 +165,11 @@ class AesCtrSpi extends CipherSpi {
 
     switch (opmode) {
       case Cipher.ENCRYPT_MODE:
+      case Cipher.WRAP_MODE:
         this.opMode = ENC_MODE;
         break;
       case Cipher.DECRYPT_MODE:
+      case Cipher.UNWRAP_MODE:
         this.opMode = DEC_MODE;
         break;
       default:
@@ -438,4 +441,29 @@ class AesCtrSpi extends CipherSpi {
       ByteBuffer outputDirect,
       byte[] outputArray,
       int outputOffset);
+
+  @Override
+  protected byte[] engineWrap(final Key key) throws IllegalBlockSizeException, InvalidKeyException {
+    try {
+      final byte[] encoded = Utils.encodeForWrapping(key);
+      return engineDoFinal(encoded, 0, encoded.length);
+    } catch (final BadPaddingException ex) {
+      // This is not reachable when encrypting.
+      throw new InvalidKeyException("Wrapping failed", ex);
+    }
+  }
+
+  @Override
+  protected Key engineUnwrap(
+      final byte[] wrappedKey, final String wrappedKeyAlgorithm, final int wrappedKeyType)
+      throws InvalidKeyException, NoSuchAlgorithmException {
+    try {
+      final byte[] unwrappedKey = engineDoFinal(wrappedKey, 0, wrappedKey.length);
+      return Utils.buildUnwrappedKey(unwrappedKey, wrappedKeyAlgorithm, wrappedKeyType);
+    } catch (final BadPaddingException | IllegalBlockSizeException | InvalidKeySpecException ex) {
+      // BadPaddingException and IllegalBlockSizeException are not reachable for CTR, which has no
+      // padding, but the JCA spec only allows throwing InvalidKeyException for engineUnwrap.
+      throw new InvalidKeyException("Unwrapping failed", ex);
+    }
+  }
 }
