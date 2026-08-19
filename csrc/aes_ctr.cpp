@@ -88,6 +88,10 @@ public:
             // This should not happen since we enforce this in the Java layer.
             throw java_ex(EX_ERROR, "THIS SHOULD NOT BE REACHABLE. Invalid AES key size.");
         }
+        // If the key is null, then we also need the cipher to be null so as not to wipe the key schedule
+        if (key == nullptr) {
+            cipher = nullptr;
+        }
 
         if (EVP_CipherInit_ex(ctx_, cipher, nullptr, key, iv, op_mode) != 1) {
             throw_openssl(EX_RUNTIME_CRYPTO, "EVP_CipherInit_ex failed.");
@@ -149,11 +153,13 @@ extern "C" JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesCt
     try {
         AesCtrCipher aes_ctr_cipher(env, ctxContainer, ctxPtr, saveCtx);
 
-        // init in scope to auto-free j_key and j_iv
-        {
+        if (key != nullptr) {
             JBinaryBlob j_key(env, nullptr, key);
             JBinaryBlob j_iv(env, nullptr, iv);
             aes_ctr_cipher.init(opMode, j_key.get(), keyLen, j_iv.get());
+        } else {
+            JBinaryBlob j_iv(env, nullptr, iv);
+            aes_ctr_cipher.init(opMode, nullptr, keyLen, j_iv.get());
         }
 
         // update and final
@@ -189,11 +195,13 @@ extern "C" JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesCt
     try {
         AesCtrCipher aes_ctr_cipher(env, ctxContainer, ctxPtr, true);
 
-        // init in scope to auto-free j_key and j_iv
-        {
+        if (key != nullptr) {
             JBinaryBlob j_key(env, nullptr, key);
             JBinaryBlob j_iv(env, nullptr, iv);
             aes_ctr_cipher.init(opMode, j_key.get(), keyLen, j_iv.get());
+        } else {
+            JBinaryBlob j_iv(env, nullptr, iv);
+            aes_ctr_cipher.init(opMode, nullptr, keyLen, j_iv.get());
         }
 
         // update

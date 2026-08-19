@@ -875,4 +875,111 @@ public class AesCtrTest {
     assertArraysHexEquals(keyPair.getPrivate().getEncoded(), sunUnwrapped.getEncoded());
     assertArraysHexEquals(keyPair.getPrivate().getEncoded(), accpUnwrapped.getEncoded());
   }
+
+  // The three tests below exercise the native context reuse introduced alongside `saveContext`,
+  // whose behaviour depends on the process-wide
+  // `com.amazon.corretto.crypto.provider.nativeContextReleaseStrategy` property. That property is
+  // read once in AmazonCorrettoCryptoProvider's constructor, so it cannot be varied from inside a
+  // test against the already-constructed TestUtil.NATIVE_PROVIDER. Instead these tests run under
+  // whichever strategy the surrounding JVM was launched with, and AesCtrTest is registered with the
+  // `check-junit-AesLazy` and `check-junit-AesEager` CMake targets so that the full build covers
+  // all three: HYBRID from the default `check` run, plus LAZY and EAGER from those targets.
+
+  /**
+   * Re-{@code init()}-ing the same {@code Cipher} with the same {@code SecretKey} object must
+   * produce correct output. Under LAZY/HYBRID this is the path that reuses the saved native context
+   * and its existing key schedule rather than re-sending key bytes; under EAGER the context is
+   * released each time. Each cycle is checked against an independent ECB-based reference rather
+   * than against the other cycles, so the assertion holds regardless of which path was taken.
+   *
+   * <p>This is the test that covers the native key-schedule-wipe hazard, since it is the only one
+   * here that reaches the SPI's null-key reuse path: {@code EVP_CipherInit_ex} wipes the key
+   * schedule whenever a non-NULL cipher is supplied, and a NULL key then fails to rebuild it.
+   * Verified by mutation — commenting out the {@code key == nullptr} guard in {@code
+   * AesCtrCipher::init} makes this test crash the JVM with a SIGSEGV on a null function pointer
+   * under LAZY/HYBRID (and, correctly, changes nothing under EAGER).
+   */
+  @ParameterizedTest
+  @MethodSource("supportedKeySizes")
+  public void testKeyReuseAcrossInit(final int keySize) throws Exception {
+    final SecretKey key = new SecretKeySpec(getRandomBytes(keySize / 8), "AES");
+    final Cipher cipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
+
+    for (int cycle = 0; cycle < 3; cycle++) {
+      final byte[] iv = getRandomBytes(BLOCK_SIZE);
+      final byte[] plaintext = getRandomBytes(50 + cycle);
+      cipher.init(Cipher.ENCRYPT_MODE, key, new IvParameterSpec(iv));
+      assertArraysHexEquals(
+          referenceCtr(key, iv, plaintext),
+          cipher.doFinal(plaintext),
+          "cycle " + cycle + " diverged from reference");
+    }
+  }
+
+  /**
+   * Alternating between two distinct keys on the same {@code Cipher} object, with a saved context,
+   * must re-send the key bytes on every key change rather than reusing the previous key's schedule.
+   *
+   * <p>This is the converse of {@link #testKeyReuseAcrossInit}: it does not exercise the null-key
+   * path at all (a key change always sends real key bytes), so it is insensitive to the native
+   * guard. What it does catch is the Java-side bookkeeping. Verified by mutation — forcing {@code
+   * needsKeyInit = false} in {@code AesCtrSpi.init} fails this test for all three key sizes while
+   * leaving the other two here passing.
+   */
+  @ParameterizedTest
+  @MethodSource("supportedKeySizes")
+  public void testKeyChangeAcrossInit(final int keySize) throws Exception {
+    final SecretKey keyA = new SecretKeySpec(getRandomBytes(keySize / 8), "AES");
+    final SecretKey keyB = new SecretKeySpec(getRandomBytes(keySize / 8), "AES");
+    final Cipher cipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
+
+    for (int cycle = 0; cycle < 4; cycle++) {
+      final SecretKey key = (cycle % 2 == 0) ? keyA : keyB;
+      final byte[] iv = getRandomBytes(BLOCK_SIZE);
+      final byte[] plaintext = getRandomBytes(50 + cycle);
+      cipher.init(Cipher.ENCRYPT_MODE, key, new IvParameterSpec(iv));
+      assertArraysHexEquals(
+          referenceCtr(key, iv, plaintext),
+          cipher.doFinal(plaintext),
+          "cycle " + cycle + " diverged from reference");
+    }
+  }
+
+  /**
+   * Two distinct {@code SecretKeySpec} instances wrapping identical key bytes are treated as a key
+   * change by the SPI's identity comparison — safe, if conservative, since it merely forgoes the
+   * key-schedule reuse optimization. This confirms output correctness without asserting on which
+   * internal path was taken.
+   *
+   * <p>Documented limitation: this pins intent rather than guarding a failure mode. Because both
+   * candidate implementations (identity comparison, or a value comparison over the encoded bytes)
+   * yield correct output for equal key bytes, the test is insensitive to changing one into the
+   * other — confirmed by mutation, where it passed under both mutations that broke the two tests
+   * above. It is kept because it would catch a genuinely broken key-equality check, not because it
+   * discriminates between the two reasonable ones.
+   */
+  @ParameterizedTest
+  @MethodSource("supportedKeySizes")
+  public void testDifferentKeyObjectSameBytes(final int keySize) throws Exception {
+    final byte[] keyBytes = getRandomBytes(keySize / 8);
+    final SecretKey key1 = new SecretKeySpec(keyBytes.clone(), "AES");
+    final SecretKey key2 = new SecretKeySpec(keyBytes.clone(), "AES");
+    final Cipher cipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
+
+    final byte[] iv1 = getRandomBytes(BLOCK_SIZE);
+    final byte[] plaintext1 = getRandomBytes(64);
+    cipher.init(Cipher.ENCRYPT_MODE, key1, new IvParameterSpec(iv1));
+    assertArraysHexEquals(
+        referenceCtr(key1, iv1, plaintext1),
+        cipher.doFinal(plaintext1),
+        "first key object diverged from reference");
+
+    final byte[] iv2 = getRandomBytes(BLOCK_SIZE);
+    final byte[] plaintext2 = getRandomBytes(64);
+    cipher.init(Cipher.ENCRYPT_MODE, key2, new IvParameterSpec(iv2));
+    assertArraysHexEquals(
+        referenceCtr(key2, iv2, plaintext2),
+        cipher.doFinal(plaintext2),
+        "second key object (same bytes, different instance) diverged from reference");
+  }
 }

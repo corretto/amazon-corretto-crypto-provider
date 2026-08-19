@@ -17,6 +17,7 @@ import javax.crypto.Cipher;
 import javax.crypto.CipherSpi;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
+import javax.crypto.SecretKey;
 import javax.crypto.ShortBufferException;
 import javax.crypto.spec.IvParameterSpec;
 
@@ -30,24 +31,19 @@ class AesCtrSpi extends CipherSpi {
   private IvParameterSpec ivParamSpec = null; // gets populated on initialization
   private int opMode;
   private int keyLen;
-  private byte[] key = null;
+  private SecretKey key = null;
+  private boolean needsKeyInit = true;
+  private boolean needsNativeInit = true;
+
   private NativeEvpCipherCtx context = null;
   private final AmazonCorrettoCryptoProvider provider;
-  // TODO: saveContext is computed but not yet consumed. Wiring it into engineDoFinal's saveCtx
-  // arguments naively is unsafe: the one-shot path passes a null ctxContainer (would throw
-  // natively), and even once plumbed, the simple `context == null` state check can't distinguish
-  // "no context" from "unkeyed leftover context from a prior op," so a reused context could skip
-  // EVP_CipherInit_ex and silently continue with a stale key/IV/counter. Needs a design decision
-  // (extra state bit vs. narrowing scope to release-timing only) before enabling.
-  // We also need to consider explicitly not passing in key bytes when the key is unchanged to avoid
-  // the cost of the AES key-schedule.
   private final boolean saveContext;
 
   AesCtrSpi(final AmazonCorrettoCryptoProvider provider) {
     Loader.checkNativeLibraryAvailability();
     this.provider = provider;
     this.saveContext =
-        provider.getNativeContextReleaseStrategy() == Utils.NativeContextReleaseStrategy.LAZY;
+        provider.getNativeContextReleaseStrategy() != Utils.NativeContextReleaseStrategy.EAGER;
   }
 
   @Override
@@ -175,12 +171,14 @@ class AesCtrSpi extends CipherSpi {
       default:
         throw new InvalidAlgorithmParameterException("Invalid opmode: " + opmode);
     }
+    this.needsKeyInit = this.key != key; // Identity equality check
+    this.needsNativeInit = true;
     this.keyLen = keyBytes.length;
-    this.key = keyBytes;
+    this.key = (SecretKey) key; // Checked by checkAesKey
     this.ivParamSpec = ivParameterSpec;
 
     // Free any existing context
-    if (context != null) {
+    if (!saveContext && context != null) {
       context.release();
       context = null;
     }
@@ -245,40 +243,69 @@ class AesCtrSpi extends CipherSpi {
       final ByteBuffer outputDirect,
       final byte[] outputArray,
       final int outputOffset) {
-    if (context == null) {
-      // First update, need to initialize
-      final long[] ctxContainer = new long[] {0};
-      final int result =
-          nInitUpdate(
-              opMode,
-              key,
-              keyLen,
-              ivParamSpec.getIV(),
-              ctxContainer,
-              0,
-              inputDirect,
-              inputArray,
-              inputOffset,
-              inputLen,
-              outputDirect,
-              outputArray,
-              outputOffset);
-      context = new NativeEvpCipherCtx(ctxContainer[0]);
-      return result;
-    }
-    // Subsequent update
-    return context.use(
-        ctxPtr ->
-            nUpdate(
+    final int result;
+    if (needsNativeInit) {
+      // We need to re-initialize the EVP_CipherCtx object.
+      if (context == null) {
+        // No context, so create it
+        final long[] ctxContainer = new long[] {0};
+        result =
+            nInitUpdate(
                 opMode,
-                ctxPtr,
+                key.getEncoded(),
+                keyLen,
+                ivParamSpec.getIV(),
+                ctxContainer,
+                0,
                 inputDirect,
                 inputArray,
                 inputOffset,
                 inputLen,
                 outputDirect,
                 outputArray,
-                outputOffset));
+                outputOffset);
+        context = new NativeEvpCipherCtx(ctxContainer[0]);
+      } else {
+        // The context already exists and we can reuse it.
+        // Check to see if the key has changed and so needs to be reinitialized
+        final byte[] maybeKeyBytes = needsKeyInit ? key.getEncoded() : null;
+        result =
+            context.use(
+                ctxPtr ->
+                    nInitUpdate(
+                        opMode,
+                        maybeKeyBytes,
+                        keyLen,
+                        ivParamSpec.getIV(),
+                        null,
+                        ctxPtr,
+                        inputDirect,
+                        inputArray,
+                        inputOffset,
+                        inputLen,
+                        outputDirect,
+                        outputArray,
+                        outputOffset));
+      }
+    } else {
+      // Subsequent update
+      result =
+          context.use(
+              ctxPtr ->
+                  nUpdate(
+                      opMode,
+                      ctxPtr,
+                      inputDirect,
+                      inputArray,
+                      inputOffset,
+                      inputLen,
+                      outputDirect,
+                      outputArray,
+                      outputOffset));
+    }
+    needsKeyInit = false;
+    needsNativeInit = false;
+    return result;
   }
 
   @Override
@@ -345,24 +372,71 @@ class AesCtrSpi extends CipherSpi {
       final byte[] outputArray,
       final int outputOffset) {
     final int result;
-    if (context == null) {
+    if (needsNativeInit) {
       // One-shot operation
+      if (context != null) {
+        final byte[] maybeKeyBytes = needsKeyInit ? key.getEncoded() : null;
+        // Only reason we'd both need need a native init and have context != null is because we're
+        // saving the context
+        result =
+            context.use(
+                ctxPtr ->
+                    nInitUpdateFinal(
+                        opMode,
+                        maybeKeyBytes,
+                        keyLen,
+                        ivParamSpec.getIV(),
+                        null,
+                        ctxPtr,
+                        true,
+                        inputDirect,
+                        inputArray,
+                        inputOffset,
+                        inputLen,
+                        outputDirect,
+                        outputArray,
+                        outputOffset));
+        needsKeyInit = false;
+      } else {
+        // context doesn't exist but we might want to save it
+        final long[] maybeCtxContainer = saveContext ? new long[1] : null;
+        // One-shot operation
+        result =
+            nInitUpdateFinal(
+                opMode,
+                key.getEncoded(),
+                keyLen,
+                ivParamSpec.getIV(),
+                maybeCtxContainer,
+                0,
+                saveContext,
+                inputDirect,
+                inputArray,
+                inputOffset,
+                inputLen,
+                outputDirect,
+                outputArray,
+                outputOffset);
+        if (saveContext) {
+          context = new NativeEvpCipherCtx(maybeCtxContainer[0]);
+          needsKeyInit = false;
+        }
+      }
+    } else if (saveContext) {
       result =
-          nInitUpdateFinal(
-              opMode,
-              key,
-              keyLen,
-              ivParamSpec.getIV(),
-              null,
-              0,
-              false,
-              inputDirect,
-              inputArray,
-              inputOffset,
-              inputLen,
-              outputDirect,
-              outputArray,
-              outputOffset);
+          context.use(
+              ctxPtr ->
+                  nUpdateFinal(
+                      opMode,
+                      ctxPtr,
+                      /*saveCtx*/ true,
+                      inputDirect,
+                      inputArray,
+                      inputOffset,
+                      inputLen,
+                      outputDirect,
+                      outputArray,
+                      outputOffset));
     } else {
       // Final operation, take ownership of the context from Janitor
       final long ctxPtr = context.take();
@@ -379,7 +453,9 @@ class AesCtrSpi extends CipherSpi {
               outputArray,
               outputOffset);
       context = null; // nUpdateFinal releases the native context, so just null out our wrapper
+      needsKeyInit = true;
     }
+    needsNativeInit = true; // Have us reset on the next call
 
     return result;
   }
