@@ -256,14 +256,10 @@ public class MlKemTest {
 
   @Test
   public void testKeyFactorySelfConversion() throws Exception {
-    // ML-KEM private keys encode in seed format, which requires seed support in the
-    // underlying AWS-LC -- present only in non-FIPS / experimental-FIPS builds (matches the
-    // native #if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD) guard).
-    // TODO: remove this guard once AWS-LC-FIPS is bumped to v5.0.0, which provides
-    // FIPS-validated ML-KEM private-key (seed-format) parsing.
-    assumeTrue(
-        !NATIVE_PROVIDER.isFips() || NATIVE_PROVIDER.isExperimentalFips(),
-        "ML-KEM seed-format keys are unavailable in FIPS builds");
+    // Round-trips ACCP's own ML-KEM key pair through its KeyFactory. In regular FIPS the private
+    // key
+    // serializes in expanded format (seed format is unavailable there), so this exercises the
+    // expanded encode/decode; in other builds it exercises the seed format. Public keys use X.509.
     KeyPairGenerator keyGen = KeyPairGenerator.getInstance("ML-KEM", NATIVE_PROVIDER);
     KeyPair originalKeyPair = keyGen.generateKeyPair();
 
@@ -276,6 +272,51 @@ public class MlKemTest {
     byte[] privateKeyEncoded = originalKeyPair.getPrivate().getEncoded();
     PrivateKey privateKey = keyFactory.generatePrivate(new PKCS8EncodedKeySpec(privateKeyEncoded));
     assertArrayEquals(privateKeyEncoded, privateKey.getEncoded());
+  }
+
+  @ParameterizedTest
+  @MethodSource("mlKemParamSets")
+  public void testSeedFormatPrivateKeyParses(String paramSet) throws Exception {
+    // ACCP cannot *emit* seed-format ML-KEM private keys in regular FIPS (AWS-LC-FIPS 3.1.0 stores
+    // no
+    // keygen seed, so getEncoded emits the expanded form), but it can *parse* one: a seed-format
+    // PKCS#8 is expanded into a full key via EVP_PKEY_keygen_deterministic. This verifies that path
+    // by importing a BouncyCastle-produced key in both its seed and expanded encodings and
+    // confirming
+    // the two ACCP keys decapsulate a ciphertext to the same shared secret. The assertion is
+    // encoding-independent, so it runs in all builds (regular FIPS uses the hand-rolled seed
+    // expansion; other builds parse the seed via AWS-LC directly).
+    KeyPairGenerator bcKeyGen = KeyPairGenerator.getInstance("ML-KEM", TestUtil.BC_PROVIDER);
+    bcKeyGen.initialize(TestUtil.getMlKemParamSpec(paramSet));
+    KeyPair bcKeyPair = bcKeyGen.generateKeyPair();
+    MLKEMPrivateKey bcPriv = (MLKEMPrivateKey) bcKeyPair.getPrivate();
+
+    KeyFactory accpKf = KeyFactory.getInstance(paramSet, NATIVE_PROVIDER);
+    // getPrivateKey(true) yields the seed-format encoding; getPrivateKey(false) the expanded form.
+    PrivateKey fromSeed =
+        accpKf.generatePrivate(new PKCS8EncodedKeySpec(bcPriv.getPrivateKey(true).getEncoded()));
+    PrivateKey fromExpanded =
+        accpKf.generatePrivate(new PKCS8EncodedKeySpec(bcPriv.getPrivateKey(false).getEncoded()));
+    PublicKey accpPub =
+        accpKf.generatePublic(new X509EncodedKeySpec(bcKeyPair.getPublic().getEncoded()));
+
+    KEM kem = KEM.getInstance(paramSet, NATIVE_PROVIDER);
+    NamedParameterSpec paramSpec = new NamedParameterSpec(paramSet);
+    KEM.Encapsulated encapsulated = kem.newEncapsulator(accpPub, paramSpec, null).encapsulate();
+    byte[] ciphertext = encapsulated.encapsulation();
+
+    SecretKey secretFromSeed = kem.newDecapsulator(fromSeed, paramSpec).decapsulate(ciphertext);
+    SecretKey secretFromExpanded =
+        kem.newDecapsulator(fromExpanded, paramSpec).decapsulate(ciphertext);
+
+    assertArrayEquals(
+        encapsulated.key().getEncoded(),
+        secretFromSeed.getEncoded(),
+        paramSet + " seed-parsed private key must decapsulate to the encapsulated shared secret");
+    assertArrayEquals(
+        secretFromExpanded.getEncoded(),
+        secretFromSeed.getEncoded(),
+        paramSet + " seed-parsed and expanded-parsed keys must decapsulate identically");
   }
 
   @ParameterizedTest
@@ -587,14 +628,15 @@ public class MlKemTest {
   @ParameterizedTest
   @MethodSource("mlKemParamSets")
   public void testPrivateKeyEncodingIsSeedFormat(String paramSet) throws Exception {
-    // ML-KEM seed-format keys require seed support in the underlying AWS-LC,
-    // which is only present in non-FIPS / experimental-FIPS builds (matches the
-    // #if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD) guard in native code).
-    // TODO: remove this guard once AWS-LC-FIPS is bumped to v5.0.0, which provides
-    // FIPS-validated ML-KEM private-key (seed-format) parsing.
+    // ACCP cannot EMIT the seed encoding in regular FIPS: AWS-LC-FIPS 3.1.0 stores no keygen seed,
+    // so
+    // getEncoded() produces the expanded form instead. (Seed PARSING is supported -- see
+    // testSeedFormatPrivateKeyParses.) TODO: remove this guard once AWS-LC-FIPS is bumped to
+    // v5.0.0,
+    // which retains the seed and can re-emit it.
     assumeTrue(
         !NATIVE_PROVIDER.isFips() || NATIVE_PROVIDER.isExperimentalFips(),
-        "ML-KEM seed-format keys are unavailable in FIPS builds");
+        "ML-KEM seed-format encoding is unavailable in regular FIPS");
     // Seed format is 64 bytes (d || z) for all ML-KEM parameter sets.
     // PKCS#8 DER wrapping adds 22 bytes of ASN.1 overhead, totaling 86 bytes.
     // Expanded format would be 1632/2400/3168 bytes plus overhead.
@@ -612,14 +654,13 @@ public class MlKemTest {
   @ParameterizedTest
   @MethodSource("mlKemParamSets")
   public void testBouncyCastleInteroperability(String paramSet) throws Exception {
-    // Interop exchanges ML-KEM private keys in seed format, which requires seed support in
-    // the underlying AWS-LC -- present only in non-FIPS / experimental-FIPS builds (matches the
-    // native #if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD) guard).
-    // TODO: remove this guard once AWS-LC-FIPS is bumped to v5.0.0, which provides
-    // FIPS-validated ML-KEM private-key (seed-format) parsing.
+    // This interop compares seed-format private-key encodings across providers, which needs ACCP to
+    // EMIT seed format; ACCP emits the expanded form in regular FIPS (AWS-LC-FIPS 3.1.0 stores no
+    // seed). Seed PARSING is supported -- see testSeedFormatPrivateKeyParses for a FIPS-capable BC
+    // seed round-trip. TODO: remove this guard once AWS-LC-FIPS is bumped to v5.0.0.
     assumeTrue(
         !NATIVE_PROVIDER.isFips() || NATIVE_PROVIDER.isExperimentalFips(),
-        "ML-KEM seed-format keys are unavailable in FIPS builds");
+        "ML-KEM seed-format encoding is unavailable in regular FIPS");
 
     KeyPair accpKeyPair = KeyPairGenerator.getInstance(paramSet, NATIVE_PROVIDER).generateKeyPair();
 
@@ -699,13 +740,12 @@ public class MlKemTest {
   @ParameterizedTest
   @MethodSource("mlKemParamSets")
   public void testDecapsulationEquivalenceSeedAndExpanded(String paramSet) throws Exception {
-    // Seed-format ML-KEM is only available in non-FIPS / experimental-FIPS builds
-    // (matches the native #if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD) guard).
-    // TODO: remove this guard once AWS-LC-FIPS is bumped to v5.0.0, which provides
-    // FIPS-validated ML-KEM private-key (seed-format) parsing.
+    // This test expands via MlKemUtils.expandPrivateKey, whose native method
+    // (expandPrivateKeyInternal) is compiled only in non-FIPS / experimental-FIPS builds. Seed
+    // PARSING itself is supported in regular FIPS -- see testSeedFormatPrivateKeyParses.
     assumeTrue(
         !NATIVE_PROVIDER.isFips() || NATIVE_PROVIDER.isExperimentalFips(),
-        "ML-KEM seed-format keys are unavailable in FIPS builds");
+        "MlKemUtils.expandPrivateKey is unavailable in regular FIPS");
     KeyPairGenerator keyGen = KeyPairGenerator.getInstance(paramSet, NATIVE_PROVIDER);
     KeyPair keyPair = keyGen.generateKeyPair();
 
