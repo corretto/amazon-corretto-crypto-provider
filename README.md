@@ -94,7 +94,7 @@ KeyPairGenerator:
 * Ed25519 (also registered under the alias EdDSA)
 * X25519 (JDK 12+, also registered under the alias XDH)
 * ML-DSA, ML-DSA-44, ML-DSA-65, ML-DSA-87
-* ML-KEM, ML-KEM-512, ML-KEM-768, ML-KEM-1024 (JDK 17+ builds only, also see [ML-KEM Considerations](#ml-kem-considerations))
+* ML-KEM, ML-KEM-512, ML-KEM-768, ML-KEM-1024 (JDK 17+, also see [ML-KEM Considerations](#ml-kem-considerations))
 
 KeyGenerator:
 * AES
@@ -104,7 +104,7 @@ KeyAgreement:
 * X25519 (JDK 12+, also registered under the alias XDH)
 
 KEM algorithms:
-* ML-KEM, ML-KEM-512, ML-KEM-768, ML-KEM-1024 (JDK 17+ LTS, also see [ML-KEM Considerations](#ml-kem-considerations))
+* ML-KEM, ML-KEM-512, ML-KEM-768, ML-KEM-1024 (JDK 17+, also see [ML-KEM Considerations](#ml-kem-considerations))
 
 SecretKeyFactory:
 * HkdfWithHmacSHA1
@@ -134,7 +134,7 @@ KeyFactory:
 * Ed25519 (JDK 15+, opt-in; also registered under the alias EdDSA). Please refer to [system properties](https://github.com/corretto/amazon-corretto-crypto-provider#other-system-properties) for more information.
 * X25519 (JDK 12+, also registered under the alias XDH)
 * ML-DSA, ML-DSA-44, ML-DSA-65, ML-DSA-87
-* ML-KEM, ML-KEM-512, ML-KEM-768, ML-KEM-1024 (JDK 17+ builds only, also see [ML-KEM Considerations](#ml-kem-considerations))
+* ML-KEM, ML-KEM-512, ML-KEM-768, ML-KEM-1024 (JDK 17+, also see [ML-KEM Considerations](#ml-kem-considerations))
 
 AlgorithmParameters:
 * EC. Please refer to [system properties](https://github.com/corretto/amazon-corretto-crypto-provider#other-system-properties) for more information.
