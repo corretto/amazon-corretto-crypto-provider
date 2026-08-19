@@ -83,16 +83,6 @@ public class EvpKeyFactoryTest {
     for (Provider.Service service : NATIVE_PROVIDER.getServices()) {
       if ("KeyFactory".equals(service.getType())) {
         final String algorithm = service.getAlgorithm();
-        // AWS-LC-FIPS 3.1.0 cannot marshal/parse ML-KEM keys (no i2d_PUBKEY / d2i_PUBKEY for
-        // ML-KEM), so ML-KEM KeyFactory X509/PKCS8 round-trips fail in pure-FIPS builds. Skip
-        // ML-KEM here in pure FIPS; it is still exercised in non-FIPS and experimental-FIPS.
-        // TODO(#568): remove once ACCP hand-rolls ML-KEM SubjectPublicKeyInfo encode/decode for
-        // FIPS.
-        if (algorithm.toUpperCase().startsWith("ML-KEM")
-            && NATIVE_PROVIDER.isFips()
-            && !NATIVE_PROVIDER.isExperimentalFips()) {
-          continue;
-        }
         ALGORITHMS.add(algorithm);
       }
     }

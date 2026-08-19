@@ -38,8 +38,11 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpKey_enc
         EVP_PKEY* key = reinterpret_cast<EVP_PKEY*>(keyHandle);
         OPENSSL_buffer_auto der;
 
-        // This next line allocates memory
-        int derLen = i2d_PUBKEY(key, &der);
+        // This next line allocates memory. AWS-LC-FIPS 3.1.0 has no i2d_PUBKEY for ML-KEM, so
+        // hand-roll its SubjectPublicKeyInfo (byte-identical to i2d_PUBKEY in non-FIPS builds).
+        // TODO [AWS-LC-FIPS 4.x]: drop the encodeMLKEMPublicKey fallback once the FIPS module has i2d_PUBKEY.
+        int derLen = (EVP_PKEY_id(key) == EVP_PKEY_KEM) ? static_cast<int>(encodeMLKEMPublicKey(key, &der))
+                                                        : i2d_PUBKEY(key, &der);
         CHECK_OPENSSL(derLen > 0);
         if (!(result = env->NewByteArray(derLen))) {
             throw_java_ex(EX_OOM, "Unable to allocate DER array");
@@ -733,6 +736,56 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpMlDsaPr
     return result;
 }
 #endif // !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
+
+/*
+ * Class:     com_amazon_corretto_crypto_provider_EvpKemPrivateKey
+ * Method:    encodeMlKemPrivateKey
+ * Signature: (J)[B
+ */
+JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpKemPrivateKey_encodeMlKemPrivateKey(
+    JNIEnv* pEnv, jclass, jlong keyHandle)
+{
+    jbyteArray result = NULL;
+
+    try {
+        raii_env env(pEnv);
+
+        EVP_PKEY* key = reinterpret_cast<EVP_PKEY*>(keyHandle);
+        CHECK_OPENSSL(EVP_PKEY_id(key) == EVP_PKEY_KEM);
+
+        uint8_t* der;
+        size_t der_len;
+        CBB cbb;
+        CHECK_OPENSSL(CBB_init(&cbb, 0));
+        // Prefer the standard PKCS8 marshal, which yields the compact seed format in non-FIPS and
+        // experimental-FIPS builds. AWS-LC-FIPS 3.1.0 cannot marshal ML-KEM private keys (no
+        // priv_encode) and lacks seed support, so on failure fall back to hand-rolled expanded-format
+        // PKCS8 after clearing the error queue. Mirrors encodeMlDsaPrivateKey above.
+        // TODO [AWS-LC-FIPS 4.x]: drop the encodeExpandedMLKEMPrivateKey fallback once the FIPS module has priv_encode.
+        if (EVP_marshal_private_key(&cbb, key)) {
+            if (!CBB_finish(&cbb, &der, &der_len)) {
+                OPENSSL_free(der);
+                throw_java_ex(EX_RUNTIME_CRYPTO, "Error finalizing seed ML-KEM key");
+            }
+        } else {
+            ERR_clear_error();
+            der_len = encodeExpandedMLKEMPrivateKey(key, &der);
+        }
+        CBB_cleanup(&cbb);
+
+        if (!(result = env->NewByteArray(der_len))) {
+            OPENSSL_free(der);
+            throw_java_ex(EX_OOM, "Unable to allocate DER array");
+        }
+        // This may throw, if it does we'll just keep the exception state as we return.
+        env->SetByteArrayRegion(result, 0, der_len, (const jbyte*)der);
+        OPENSSL_free(der);
+    } catch (java_ex& ex) {
+        ex.throw_to_java(pEnv);
+    }
+
+    return result;
+}
 
 /*
  * Class:     com_amazon_corretto_crypto_provider_EvpKemKey
