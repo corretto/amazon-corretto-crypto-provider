@@ -19,6 +19,8 @@ import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
 import java.security.Provider;
 import java.security.PublicKey;
+import java.security.SecureRandom;
+import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.NamedParameterSpec;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
@@ -166,6 +168,59 @@ public class MlKemTest {
 
     assertEquals(paramSet, keyPair.getPrivate().getAlgorithm());
     assertEquals(paramSet, keyPair.getPublic().getAlgorithm());
+  }
+
+  @ParameterizedTest
+  @MethodSource("mlKemParamSets")
+  public void testKeyPairGeneratorInitializeAcceptsMatchingSpecIgnoringRandom(String paramSet)
+      throws Exception {
+    // Mirrors how a JSSE provider (e.g. BCJSSE) drives ACCP: initialize(NamedParameterSpec, random)
+    // with a NON-null SecureRandom, then generateKeyPair(). The random is accepted but ignored
+    // (AWS-LC always draws from its own DRBG); the produced key matches the requested parameter
+    // set.
+    KeyPairGenerator keyGen = KeyPairGenerator.getInstance(paramSet, NATIVE_PROVIDER);
+    keyGen.initialize(new NamedParameterSpec(paramSet), new SecureRandom());
+
+    KeyPair keyPair = keyGen.generateKeyPair();
+    assertNotNull(keyPair);
+    assertEquals(paramSet, keyPair.getPublic().getAlgorithm());
+    assertEquals(paramSet, keyPair.getPrivate().getAlgorithm());
+  }
+
+  @ParameterizedTest
+  @MethodSource("mlKemParamSets")
+  public void testKeyPairGeneratorGeneratesWithoutInitialize(String paramSet) throws Exception {
+    // Each ML-KEM KeyPairGenerator is bound to its parameter set at construction, so
+    // generateKeyPair
+    // works with no initialize() call at all -- the path a caller that never sets a spec takes.
+    KeyPair keyPair = KeyPairGenerator.getInstance(paramSet, NATIVE_PROVIDER).generateKeyPair();
+    assertEquals(paramSet, keyPair.getPublic().getAlgorithm());
+    assertEquals(paramSet, keyPair.getPrivate().getAlgorithm());
+  }
+
+  @Test
+  public void testKeyPairGeneratorInitializeRejectsInvalidSpecs() throws Exception {
+    KeyPairGenerator keyGen = KeyPairGenerator.getInstance("ML-KEM-768", NATIVE_PROVIDER);
+    final SecureRandom random = new SecureRandom();
+
+    // A null spec is rejected.
+    assertThrows(
+        InvalidAlgorithmParameterException.class,
+        () -> keyGen.initialize((AlgorithmParameterSpec) null, random));
+
+    // A NamedParameterSpec naming a different parameter set is rejected, so this generator never
+    // silently produces a key of the wrong parameter set.
+    assertThrows(
+        InvalidAlgorithmParameterException.class,
+        () -> keyGen.initialize(new NamedParameterSpec("ML-KEM-512"), random));
+
+    // A spec that is not a NamedParameterSpec is rejected.
+    final AlgorithmParameterSpec notNamed = new AlgorithmParameterSpec() {};
+    assertThrows(
+        InvalidAlgorithmParameterException.class, () -> keyGen.initialize(notNamed, random));
+
+    // Keysize-based initialization is unsupported for ML-KEM.
+    assertThrows(UnsupportedOperationException.class, () -> keyGen.initialize(768, random));
   }
 
   @Test
