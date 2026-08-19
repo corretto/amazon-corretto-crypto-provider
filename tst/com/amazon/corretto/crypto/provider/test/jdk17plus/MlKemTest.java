@@ -244,8 +244,8 @@ public class MlKemTest {
     // ML-KEM private keys encode in seed format, which requires seed support in the
     // underlying AWS-LC -- present only in non-FIPS / experimental-FIPS builds (matches the
     // native #if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD) guard).
-    // TODO: remove this guard once AWS-LC-FIPS is bumped to v4.0.0, which provides
-    // FIPS-validated ML-KEM seed-format support.
+    // TODO: remove this guard once AWS-LC-FIPS is bumped to v5.0.0, which provides
+    // FIPS-validated ML-KEM private-key (seed-format) parsing.
     assumeTrue(
         !NATIVE_PROVIDER.isFips() || NATIVE_PROVIDER.isExperimentalFips(),
         "ML-KEM seed-format keys are unavailable in FIPS builds");
@@ -361,8 +361,8 @@ public class MlKemTest {
     // ML-KEM seed-format keys require seed support in the underlying AWS-LC,
     // which is only present in non-FIPS / experimental-FIPS builds (matches the
     // #if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD) guard in native code).
-    // TODO: remove this guard once AWS-LC-FIPS is bumped to v4.0.0, which provides
-    // FIPS-validated ML-KEM seed-format support.
+    // TODO: remove this guard once AWS-LC-FIPS is bumped to v5.0.0, which provides
+    // FIPS-validated ML-KEM private-key (seed-format) parsing.
     assumeTrue(
         !NATIVE_PROVIDER.isFips() || NATIVE_PROVIDER.isExperimentalFips(),
         "ML-KEM seed-format keys are unavailable in FIPS builds");
@@ -386,8 +386,8 @@ public class MlKemTest {
     // Interop exchanges ML-KEM private keys in seed format, which requires seed support in
     // the underlying AWS-LC -- present only in non-FIPS / experimental-FIPS builds (matches the
     // native #if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD) guard).
-    // TODO: remove this guard once AWS-LC-FIPS is bumped to v4.0.0, which provides
-    // FIPS-validated ML-KEM seed-format support.
+    // TODO: remove this guard once AWS-LC-FIPS is bumped to v5.0.0, which provides
+    // FIPS-validated ML-KEM private-key (seed-format) parsing.
     assumeTrue(
         !NATIVE_PROVIDER.isFips() || NATIVE_PROVIDER.isExperimentalFips(),
         "ML-KEM seed-format keys are unavailable in FIPS builds");
@@ -472,8 +472,8 @@ public class MlKemTest {
   public void testDecapsulationEquivalenceSeedAndExpanded(String paramSet) throws Exception {
     // Seed-format ML-KEM is only available in non-FIPS / experimental-FIPS builds
     // (matches the native #if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD) guard).
-    // TODO: remove this guard once AWS-LC-FIPS is bumped to v4.0.0, which provides
-    // FIPS-validated ML-KEM seed-format support.
+    // TODO: remove this guard once AWS-LC-FIPS is bumped to v5.0.0, which provides
+    // FIPS-validated ML-KEM private-key (seed-format) parsing.
     assumeTrue(
         !NATIVE_PROVIDER.isFips() || NATIVE_PROVIDER.isExperimentalFips(),
         "ML-KEM seed-format keys are unavailable in FIPS builds");

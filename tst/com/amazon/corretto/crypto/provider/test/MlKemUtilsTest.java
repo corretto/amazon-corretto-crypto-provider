@@ -83,8 +83,8 @@ public class MlKemUtilsTest {
     // ML-KEM seed expansion (RFC 9935) requires seed support in the underlying
     // AWS-LC, present only in non-FIPS / experimental-FIPS builds (matches the
     // native #if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD) guard).
-    // TODO: remove this guard once AWS-LC-FIPS is bumped to v4.0.0, which provides
-    // FIPS-validated ML-KEM seed-format support.
+    // TODO: remove this guard once AWS-LC-FIPS is bumped to v5.0.0, which provides
+    // FIPS-validated ML-KEM private-key (seed-format) parsing.
     assumeTrue(
         !AmazonCorrettoCryptoProvider.INSTANCE.isFips()
             || AmazonCorrettoCryptoProvider.INSTANCE.isExperimentalFips(),
