@@ -89,6 +89,20 @@ if (NOT DEFINED TEST_JAVA_HOME)
   set(TEST_JAVA_MAJOR_VERSION ${Java_VERSION_MAJOR})
 else()
   set(TEST_JAVA_EXECUTABLE ${TEST_JAVA_HOME}/bin/java)
+  # Derive the test JDK's major version so the jdk17plus test gating below works when TEST_JAVA_HOME
+  # is set explicitly (as every CI path does). Without this, TEST_JAVA_MAJOR_VERSION is empty and the
+  # jdk17plus tests (ML-KEM) are silently excluded even on a KEM-capable 17+ test runtime.
+  execute_process(
+    COMMAND ${TEST_JAVA_EXECUTABLE} -version
+    ERROR_VARIABLE _ACCP_TEST_JAVA_VER
+    OUTPUT_VARIABLE _ACCP_TEST_JAVA_VER)
+  # Matches both legacy "1.8.0_x" and modern "17.0.x": group 1 is the leading number, group 2 the next.
+  string(REGEX MATCH "version \"([0-9]+)\\.([0-9]+)" _ACCP_TEST_JAVA_M "${_ACCP_TEST_JAVA_VER}")
+  if (CMAKE_MATCH_1 STREQUAL "1")
+    set(TEST_JAVA_MAJOR_VERSION ${CMAKE_MATCH_2})
+  else()
+    set(TEST_JAVA_MAJOR_VERSION ${CMAKE_MATCH_1})
+  endif()
 endif()
 
 # Translate from the java colon-delimited paths to cmake ';' delimited lists
