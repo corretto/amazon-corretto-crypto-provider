@@ -2,26 +2,38 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.amazon.corretto.crypto.provider.test;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.assertArraysHexEquals;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.assertArraysHexNotEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.nio.ByteBuffer;
+import java.security.AlgorithmParameters;
 import java.security.GeneralSecurityException;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
+import java.security.Key;
+import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.security.spec.InvalidParameterSpecException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
+import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.RC2ParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
@@ -30,6 +42,7 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 @Execution(ExecutionMode.CONCURRENT)
 @ExtendWith(TestResultLogger.class)
@@ -72,16 +85,16 @@ public class AesCtrTest {
     final byte[] ciphertext = cipher.doFinal(plaintext);
     cipher.init(Cipher.DECRYPT_MODE, key, ivSpec);
     final byte[] decrypted = cipher.doFinal(ciphertext);
-    assertArrayEquals(plaintext, decrypted);
+    assertArraysHexEquals(plaintext, decrypted);
 
     // Now do it in place
     cipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
     final byte[] buffer = Arrays.copyOf(plaintext, plaintext.length);
     cipher.doFinal(buffer, 0, buffer.length, buffer);
-    assertFalse(Arrays.equals(plaintext, buffer));
+    assertArraysHexNotEquals(plaintext, buffer);
     cipher.init(Cipher.DECRYPT_MODE, key, ivSpec);
     cipher.doFinal(buffer, 0, buffer.length, buffer);
-    assertArrayEquals(plaintext, buffer);
+    assertArraysHexEquals(plaintext, buffer);
   }
 
   @ParameterizedTest
@@ -117,7 +130,7 @@ public class AesCtrTest {
     System.arraycopy(firstDecrypted, 0, decrypted, 0, firstDecrypted.length);
     System.arraycopy(secondDecrypted, 0, decrypted, firstDecrypted.length, secondDecrypted.length);
 
-    assertArrayEquals(plaintext, decrypted);
+    assertArraysHexEquals(plaintext, decrypted);
   }
 
   @ParameterizedTest
@@ -132,21 +145,21 @@ public class AesCtrTest {
     // One-shot in same buffer
     cipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
     cipher.doFinal(buffer, 0, buffer.length, buffer);
-    assertFalse(Arrays.equals(plaintext, buffer));
+    assertArraysHexNotEquals(plaintext, buffer);
     cipher.init(Cipher.DECRYPT_MODE, key, ivSpec);
     cipher.doFinal(buffer, 0, buffer.length, buffer);
-    assertArrayEquals(plaintext, buffer);
+    assertArraysHexEquals(plaintext, buffer);
 
     // Multi-shot in same buffer
     cipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
     buffer = Arrays.copyOf(plaintext, plaintext.length);
     cipher.update(buffer, 0, buffer.length / 2, buffer, 0);
     cipher.update(buffer, buffer.length / 2, buffer.length / 2, buffer, buffer.length / 2);
-    assertFalse(Arrays.equals(plaintext, buffer));
+    assertArraysHexNotEquals(plaintext, buffer);
     cipher.init(Cipher.DECRYPT_MODE, key, ivSpec);
     cipher.update(buffer, 0, buffer.length / 2, buffer, 0);
     cipher.update(buffer, buffer.length / 2, buffer.length / 2, buffer, buffer.length / 2);
-    assertArrayEquals(plaintext, buffer);
+    assertArraysHexEquals(plaintext, buffer);
   }
 
   /**
@@ -176,9 +189,9 @@ public class AesCtrTest {
     final byte[] sunJceFirst = sunJceCipher.doFinal(plaintext);
     final byte[] sunJceSecond = sunJceCipher.doFinal(plaintext);
 
-    assertArrayEquals(sunJceFirst, accpFirst, "first doFinal call diverged from SunJCE");
-    assertArrayEquals(sunJceSecond, accpSecond, "second doFinal call diverged from SunJCE");
-    assertArrayEquals(
+    assertArraysHexEquals(sunJceFirst, accpFirst, "first doFinal call diverged from SunJCE");
+    assertArraysHexEquals(sunJceSecond, accpSecond, "second doFinal call diverged from SunJCE");
+    assertArraysHexEquals(
         accpFirst,
         accpSecond,
         "doFinal without an intervening init should reuse the initial counter, per the JCE"
@@ -224,7 +237,7 @@ public class AesCtrTest {
     final byte[] decrypted = new byte[decryptedBuffer.remaining()];
     decryptedBuffer.get(decrypted);
 
-    assertArrayEquals(plaintext, decrypted, "Decrypted text should match original plaintext");
+    assertArraysHexEquals(plaintext, decrypted, "Decrypted text should match original plaintext");
   }
 
   /** Exercises {@code Cipher.update(ByteBuffer, ByteBuffer)} followed by {@code doFinal}. */
@@ -274,7 +287,7 @@ public class AesCtrTest {
     final byte[] decrypted = new byte[decryptedBuffer.remaining()];
     decryptedBuffer.get(decrypted);
 
-    assertArrayEquals(plaintext, decrypted, "Decrypted text should match original plaintext");
+    assertArraysHexEquals(plaintext, decrypted, "Decrypted text should match original plaintext");
   }
 
   /**
@@ -344,7 +357,7 @@ public class AesCtrTest {
     final byte[] decrypted = new byte[ciphertext.length];
     readWindow(decryptedBuffer, outPrefix, decrypted);
 
-    assertArrayEquals(plaintext, decrypted, "Decrypted text should match original plaintext");
+    assertArraysHexEquals(plaintext, decrypted, "Decrypted text should match original plaintext");
   }
 
   private static Stream<Arguments> byteBufferOffsetParams() {
@@ -385,12 +398,12 @@ public class AesCtrTest {
     // Don't do this check on 1-byte plaintext, as it's equal to ciphertext w/ some
     // non-negligible probability when the keystream's single byte is 0.
     if (size > 1) {
-      assertFalse(Arrays.equals(plaintext, ciphertext));
+      assertArraysHexNotEquals(plaintext, ciphertext);
     }
     cipher.init(Cipher.DECRYPT_MODE, key, ivSpec);
     final byte[] decrypted = cipher.doFinal(ciphertext);
 
-    assertArrayEquals(plaintext, decrypted, "Decrypted text should match original plaintext");
+    assertArraysHexEquals(plaintext, decrypted, "Decrypted text should match original plaintext");
   }
 
   /** Lengths spanning empty-of-a-block, sub-block, exact-block, and block-plus-remainder cases. */
@@ -433,7 +446,7 @@ public class AesCtrTest {
     decryptCipher.init(Cipher.DECRYPT_MODE, key, ivSpec);
     final byte[] decrypted = decryptCipher.doFinal(ciphertext);
 
-    assertArrayEquals(plaintext, decrypted);
+    assertArraysHexEquals(plaintext, decrypted);
     assertEquals(encryptCipher.getAlgorithm(), decryptCipher.getAlgorithm());
   }
 
@@ -479,12 +492,14 @@ public class AesCtrTest {
 
     final Cipher cipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
     cipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
-    assertArrayEquals(expected, cipher.doFinal(plaintext), "encryption diverged from reference");
+    assertArraysHexEquals(
+        expected, cipher.doFinal(plaintext), "encryption diverged from reference");
 
     // CTR is its own inverse, so decrypting the plaintext must produce the same keystream. Checked
     // separately because DECRYPT_MODE takes a different path through the SPI.
     cipher.init(Cipher.DECRYPT_MODE, key, ivSpec);
-    assertArrayEquals(expected, cipher.doFinal(plaintext), "decryption diverged from reference");
+    assertArraysHexEquals(
+        expected, cipher.doFinal(plaintext), "decryption diverged from reference");
   }
 
   private static Stream<Arguments> referenceParams() {
@@ -523,14 +538,14 @@ public class AesCtrTest {
     cipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
     final byte[] ciphertext = cipher.doFinal(plaintext);
 
-    assertArrayEquals(
+    assertArraysHexEquals(
         referenceCtr(key, iv, plaintext), ciphertext, "ACCP diverged from the ECB reference");
 
     for (final Provider other :
         new Provider[] {Security.getProvider("SunJCE"), TestUtil.BC_PROVIDER}) {
       final Cipher otherCipher = Cipher.getInstance(ALGORITHM, other);
       otherCipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
-      assertArrayEquals(
+      assertArraysHexEquals(
           otherCipher.doFinal(plaintext), ciphertext, "ACCP diverged from " + other.getName());
     }
   }
@@ -672,5 +687,129 @@ public class AesCtrTest {
     final KeyGenerator keyGen = KeyGenerator.getInstance("AES", TestUtil.NATIVE_PROVIDER);
     keyGen.init(keySize);
     return keyGen.generateKey();
+  }
+
+  @Test
+  public void testInvalidParameters() throws Throwable {
+    final SecretKey key = generateKey(KEY_SIZE_128);
+    final byte[] iv = new byte[BLOCK_SIZE];
+    SECURE_RANDOM.nextBytes(iv);
+    final IvParameterSpec ivSpec = new IvParameterSpec(iv);
+    final Cipher cipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
+
+    // Test invalid IV size
+    final byte[] shortIv = new byte[BLOCK_SIZE - 1];
+    SECURE_RANDOM.nextBytes(shortIv);
+    final IvParameterSpec shortIvSpec = new IvParameterSpec(shortIv);
+    assertThrows(
+        InvalidAlgorithmParameterException.class,
+        () -> cipher.init(Cipher.ENCRYPT_MODE, key, shortIvSpec),
+        "Should throw exception for invalid IV size");
+
+    // Test invalid key size
+    final byte[] invalidKey = new byte[20]; // 160 bits is not supported
+    SECURE_RANDOM.nextBytes(invalidKey);
+    final SecretKeySpec invalidKeySpec = new SecretKeySpec(invalidKey, "AES");
+    assertThrows(
+        InvalidKeyException.class,
+        () -> cipher.init(Cipher.ENCRYPT_MODE, invalidKeySpec, ivSpec),
+        "Should throw exception for invalid key size");
+
+    // Test invalid padding
+    assertThrows(
+        NoSuchPaddingException.class,
+        () -> Cipher.getInstance("AES/Ctr/InvalidPadding", TestUtil.NATIVE_PROVIDER));
+
+    // Direct invocation via reflection
+    Object spi = TestUtil.sneakyConstruct(SPI_CLASS.getName(), TestUtil.NATIVE_PROVIDER);
+    assertThrows(
+        NoSuchPaddingException.class,
+        () -> TestUtil.sneakyInvoke(spi, "engineSetPadding", "FakePadding"));
+    assertThrows(
+        NoSuchAlgorithmException.class,
+        () -> TestUtil.sneakyInvoke(spi, "engineSetMode", "BadMode"));
+  }
+
+  @Test
+  public void testMiscellaneous() throws Throwable {
+    Object spi = TestUtil.sneakyConstruct(SPI_CLASS.getName(), TestUtil.NATIVE_PROVIDER);
+    TestUtil.sneakyInvoke(spi, "engineSetPadding", "NoPadding"); // valid, nothing happens
+    TestUtil.sneakyInvoke(spi, "engineSetMode", "CTR"); // valid, nothing happens
+
+    final Cipher cipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
+    assertEquals(BLOCK_SIZE, cipher.getBlockSize());
+
+    final SecretKey key = generateKey(KEY_SIZE_128);
+    final byte[] iv = new byte[BLOCK_SIZE];
+    SECURE_RANDOM.nextBytes(iv);
+    final IvParameterSpec ivSpec = new IvParameterSpec(iv);
+    cipher.init(Cipher.ENCRYPT_MODE, key, ivSpec);
+    assertArraysHexEquals(iv, cipher.getIV());
+    cipher.init(Cipher.ENCRYPT_MODE, key, SECURE_RANDOM);
+    assertArraysHexNotEquals(
+        iv, cipher.getIV()); // IV gen'd by SECURE_RANDOM should be different from |iv|
+    assertArraysHexEquals( // getIV() and getParameters() should return the same IV value.
+        cipher.getIV(), cipher.getParameters().getParameterSpec(IvParameterSpec.class).getIV());
+
+    // Same as last test case, but initialized with different signature
+    AlgorithmParameters parameters = AlgorithmParameters.getInstance("AES");
+    parameters.init(cipher.getParameters().getParameterSpec(IvParameterSpec.class));
+    cipher.init(Cipher.ENCRYPT_MODE, key, parameters, null);
+    assertArraysHexEquals(
+        cipher.getIV(), cipher.getParameters().getParameterSpec(IvParameterSpec.class).getIV());
+
+    // Only IvParameterSpec is supported
+    assertThrows(
+        InvalidAlgorithmParameterException.class,
+        () -> cipher.init(Cipher.ENCRYPT_MODE, key, new RC2ParameterSpec(16), SECURE_RANDOM));
+
+    // No null params
+    assertThrows(
+        InvalidAlgorithmParameterException.class,
+        () -> cipher.init(Cipher.ENCRYPT_MODE, key, (AlgorithmParameters) null, SECURE_RANDOM));
+
+    // Key must be an AES key
+    Key rsaKey = KeyPairGenerator.getInstance("RSA").generateKeyPair().getPrivate();
+    assertThrows(
+        InvalidKeyException.class,
+        () -> cipher.init(Cipher.ENCRYPT_MODE, rsaKey, ivSpec, SECURE_RANDOM));
+
+    // If cipher is left uninitialized, it should output a random IV
+    final Cipher uninitCipher = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
+    IvParameterSpec specOne = uninitCipher.getParameters().getParameterSpec(IvParameterSpec.class);
+    assertEquals(BLOCK_SIZE, specOne.getIV().length);
+    IvParameterSpec specTwo = uninitCipher.getParameters().getParameterSpec(IvParameterSpec.class);
+    assertArraysHexNotEquals(specOne.getIV(), specTwo.getIV());
+
+    // getIV(), however, should return null if cipher is not yet initialized
+    assertNull(uninitCipher.getIV());
+
+    // Uninitialized cipher can't be updated or finalized
+    assertThrows(IllegalStateException.class, () -> uninitCipher.update(new byte[16]));
+    assertThrows(IllegalStateException.class, () -> uninitCipher.doFinal(new byte[16]));
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {0, 1, 8, 15, 17, 32})
+  // Note that BouncyCastle, unlike both AWS-LC and SunJCE accepts 8 bytes IVs for CTR
+  public void testInvalidIvLengthRejected(final int ivLength) throws Throwable {
+    final Cipher c = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
+    final SecretKey key = generateKey(KEY_SIZE_128);
+    IvParameterSpec ivSpec = new IvParameterSpec(new byte[ivLength]);
+    assertThrows(
+        InvalidAlgorithmParameterException.class, () -> c.init(Cipher.ENCRYPT_MODE, key, ivSpec));
+
+    // Some IV sizes cannot be represented with AlgorithmParameters for AES so we skip them since it
+    // doesn't reach our code
+    AlgorithmParameters params = AlgorithmParameters.getInstance("AES");
+    try {
+      params.init(ivSpec);
+    } catch (final InvalidParameterSpecException ex) {
+      // Ignoring this exception and stopping test
+      return;
+    }
+
+    assertThrows(
+        InvalidAlgorithmParameterException.class, () -> c.init(Cipher.ENCRYPT_MODE, key, params));
   }
 }

@@ -187,6 +187,12 @@ public class TestUtil {
     assertEquals(expectedHex, actualHex);
   }
 
+  public static void assertArraysHexEquals(byte[] expected, byte[] actual, String message) {
+    final String expectedHex = Hex.encodeHexString(expected);
+    final String actualHex = Hex.encodeHexString(actual);
+    assertEquals(expectedHex, actualHex, message);
+  }
+
   public static void assertArraysHexNotEquals(byte[] expected, byte[] actual) {
     final String expectedHex = Hex.encodeHexString(expected);
     final String actualHex = Hex.encodeHexString(actual);
