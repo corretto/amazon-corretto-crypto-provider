@@ -149,11 +149,7 @@ Mac algorithms with precomputed key and associated secret key factories (expert 
 
 ### ML-KEM Considerations
 
-JDK's [KEM interface](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/javax/crypto/KEM.html) was backported to JDK17, but not to earlier JDK versions. ACCP JARs support all LTS JDK versions since JDK8, so **ACCP's default build configuration and maven artifacts** omit ML-KEM as it relies on the KEM interface. To enable ML-KEM in locally built JARs, you'll need to build with a JDK ≥17 and specify `TARGET_JDK_VERSION` ≥17 like so:
-
-```
-./gradlew -DTARGET_JDK_VERSION=17 build
-``` 
+JDK's [KEM interface](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/javax/crypto/KEM.html) was backported to JDK 17 and is GA in JDK 21+, but is absent from earlier JDK versions. ACCP always ships ML-KEM in its Multi-Release JAR (the `jdk17plus` overlay under `META-INF/versions/17`), so ML-KEM is available at runtime on any JDK 17+; on JDK 8-16 runtimes the base JAR loads without it. Because the overlay is always built, building ACCP requires a KEM-capable build JDK 17+ (see [Build it yourself](#build-it-yourself)). `TARGET_JDK_VERSION` only selects the base bytecode level (default 8) and no longer gates ML-KEM.
 
 For ML-KEM key generation (`KeyPairGenerator`) and KEM encapsulation (`KEM.newEncapsulator`), any
 caller-supplied `SecureRandom` is accepted but ignored: AWS-LC always draws ML-KEM randomness from
@@ -316,7 +312,10 @@ The JARs we publish via Maven and our official [releases](https://github.com/cor
 but yours will not be.*
 
 Building this provider requires a 64 bit Linux or MacOS build system with the following prerequisites installed:
-* OpenJDK 10 or newer
+* A JDK that exposes the `javax.crypto.KEM` API: JDK 21+, or a KEM-backported JDK 17 (for example
+  [Amazon Corretto 17](https://aws.amazon.com/corretto/)). Build JDKs older than 17 are no longer
+  supported -- ACCP always builds the ML-KEM Multi-Release overlay, so the build fails fast if the
+  build JDK lacks the KEM API. (The built provider still runs on JDK 8+.)
 * [cmake](https://cmake.org/) 3.8 or newer
 * C++ build chain
 * [lcov](http://ltp.sourceforge.net/coverage/lcov.php) for coverage metrics
