@@ -331,9 +331,13 @@ class AesCtrSpi extends CipherSpi {
       final byte[] output,
       final int outputOffset)
       throws ShortBufferException, IllegalBlockSizeException, BadPaddingException {
-    Utils.checkArrayLimits(input, inputOffset, inputLen);
+    // The no-argument Cipher.doFinal() reaches us with a null input array, meaning "nothing further
+    // to process"; treat it as empty rather than rejecting it. Only needed on this overload, since
+    // the byte[]-returning engineDoFinal above delegates here.
+    final byte[] inputNotNull = input == null ? Utils.EMPTY_ARRAY : input;
+    Utils.checkArrayLimits(inputNotNull, inputOffset, inputLen);
     Utils.checkArrayLimits(output, outputOffset, inputLen);
-    return doFinal(null, input, inputOffset, inputLen, null, output, outputOffset);
+    return doFinal(null, inputNotNull, inputOffset, inputLen, null, output, outputOffset);
   }
 
   @Override

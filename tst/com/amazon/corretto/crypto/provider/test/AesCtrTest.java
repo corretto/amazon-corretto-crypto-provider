@@ -450,7 +450,7 @@ public class AesCtrTest {
     final List<Arguments> result = new ArrayList<>();
     for (final int keySize : SUPPORTED_KEY_SIZES) {
       for (final Provider other : new Provider[] {sunJce, TestUtil.BC_PROVIDER}) {
-        for (final int size : new int[] {1, 15, 16, 17, 64, 100}) {
+        for (final int size : new int[] {0, 1, 15, 16, 17, 64, 100}) {
           result.add(Arguments.of(keySize, other, TestUtil.NATIVE_PROVIDER, size));
           result.add(Arguments.of(keySize, TestUtil.NATIVE_PROVIDER, other, size));
         }
@@ -787,6 +787,58 @@ public class AesCtrTest {
 
     assertThrows(
         InvalidAlgorithmParameterException.class, () -> c.init(Cipher.ENCRYPT_MODE, key, params));
+  }
+
+  /**
+   * The no-arg {@code Cipher.doFinal()} is the standard way to finish a multiple-part operation. It
+   * reaches the SPI as a {@code null} input array, which must be treated as empty rather than
+   * rejected. Checked as a one-shot (nothing buffered), after a run of {@code update()} calls, and
+   * when decrypting, with SunJCE as the parity reference throughout.
+   */
+  @ParameterizedTest
+  @MethodSource("supportedKeySizes")
+  public void testDoFinalWithNoArguments(final int keySize) throws Exception {
+    final SecretKey key = generateKey(keySize);
+    final byte[] iv = getRandomBytes(BLOCK_SIZE);
+    final IvParameterSpec ivSpec = new IvParameterSpec(iv);
+    final byte[] plaintext = getRandomBytes(3 * BLOCK_SIZE);
+
+    final Cipher accp = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
+    final Cipher sunJce = Cipher.getInstance(ALGORITHM, Security.getProvider("SunJCE"));
+
+    // One-shot: nothing has been buffered, so there is nothing to return.
+    accp.init(Cipher.ENCRYPT_MODE, key, ivSpec);
+    sunJce.init(Cipher.ENCRYPT_MODE, key, ivSpec);
+    final byte[] oneShot = accp.doFinal();
+    assertEquals(0, oneShot.length, "a one-shot no-arg doFinal must produce no output");
+    assertArraysHexEquals(
+        sunJce.doFinal(), oneShot, "one-shot no-arg doFinal diverged from SunJCE");
+
+    // Multiple-part: drive the whole plaintext through update(), then finish with no arguments.
+    accp.init(Cipher.ENCRYPT_MODE, key, ivSpec);
+    sunJce.init(Cipher.ENCRYPT_MODE, key, ivSpec);
+    final byte[] ciphertext = new byte[plaintext.length];
+    int written = 0;
+    for (int offset = 0; offset < plaintext.length; offset += BLOCK_SIZE) {
+      final byte[] chunk = accp.update(plaintext, offset, BLOCK_SIZE);
+      System.arraycopy(chunk, 0, ciphertext, written, chunk.length);
+      written += chunk.length;
+      sunJce.update(plaintext, offset, BLOCK_SIZE);
+    }
+    final byte[] accpTail = accp.doFinal();
+    assertArraysHexEquals(
+        sunJce.doFinal(), accpTail, "multiple-part no-arg doFinal diverged from SunJCE");
+    assertEquals(plaintext.length, written + accpTail.length, "unexpected total output length");
+    assertArraysHexEquals(
+        referenceCtr(key, iv, plaintext), ciphertext, "update()+doFinal() keystream was wrong");
+
+    // Decrypting must behave identically, since it is the same SPI method.
+    accp.init(Cipher.DECRYPT_MODE, key, ivSpec);
+    assertEquals(0, accp.doFinal().length, "a one-shot no-arg doFinal must produce no output");
+    accp.init(Cipher.DECRYPT_MODE, key, ivSpec);
+    final byte[] roundTripped = accp.update(ciphertext);
+    assertEquals(0, accp.doFinal().length, "no-arg doFinal after update must produce no output");
+    assertArraysHexEquals(plaintext, roundTripped, "decrypt round-trip failed");
   }
 
   /**
