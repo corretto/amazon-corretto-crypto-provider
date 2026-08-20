@@ -151,12 +151,6 @@ Mac algorithms with precomputed key and associated secret key factories (expert 
 
 JDK's [KEM interface](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/javax/crypto/KEM.html) was backported to JDK 17 and is GA in JDK 21+, but is absent from earlier JDK versions. ACCP always ships ML-KEM in its Multi-Release JAR (the `jdk17plus` overlay under `META-INF/versions/17`), so ML-KEM is available at runtime on any JDK 17+; on JDK 8-16 runtimes the base JAR loads without it. Because the overlay is always built, building ACCP requires a KEM-capable build JDK 17+ (see [Build it yourself](#build-it-yourself)). `TARGET_JDK_VERSION` only selects the base bytecode level (default 8) and no longer gates ML-KEM.
 
-In ACCP-FIPS (non-experimental), ML-KEM key generation, encapsulation, and decapsulation work, but
-key encoding does not: AWS-LC-FIPS 3.1.0 cannot marshal or parse ML-KEM keys, so
-`Key.getEncoded()` and `KeyFactory` X.509/PKCS#8 key conversions fail in pure-FIPS builds
-(see [#568](https://github.com/corretto/amazon-corretto-crypto-provider/pull/568)). This
-limitation does not apply to non-FIPS or experimental-FIPS builds.
-
 For ML-KEM key generation (`KeyPairGenerator`) and KEM encapsulation (`KEM.newEncapsulator`), any
 caller-supplied `SecureRandom` is accepted but ignored: AWS-LC always draws ML-KEM randomness from
 its own DRBG. Passing a custom `SecureRandom` (for example to force a specific entropy source) has
