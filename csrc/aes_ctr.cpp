@@ -22,8 +22,16 @@ class AesCtrCipher {
 
     static bool output_clobbers_input(uint8_t const* input, int input_len, uint8_t const* output)
     {
+        // We support exact aliasing.
+        if (input == output) {
+            return false;
+        }
         // If the output starts after the input ends, then we're not clobbering anything.
         if ((input + input_len) <= output) {
+            return false;
+        }
+        // If the input starts after the output ends, then we're not clobbering anything.
+        if ((output + input_len) <= input) {
             return false;
         }
 
@@ -73,24 +81,24 @@ public:
 
     void init(int op_mode, uint8_t const* key, int key_len, uint8_t const* iv)
     {
-        EVP_CIPHER const* cipher;
-        switch (key_len) {
-        case KEY_LEN_AES128:
-            cipher = EVP_aes_128_ctr();
-            break;
-        case KEY_LEN_AES192:
-            cipher = EVP_aes_192_ctr();
-            break;
-        case KEY_LEN_AES256:
-            cipher = EVP_aes_256_ctr();
-            break;
-        default:
-            // This should not happen since we enforce this in the Java layer.
-            throw java_ex(EX_ERROR, "THIS SHOULD NOT BE REACHABLE. Invalid AES key size.");
-        }
-        // If the key is null, then we also need the cipher to be null so as not to wipe the key schedule
-        if (key == nullptr) {
-            cipher = nullptr;
+        EVP_CIPHER const* cipher = nullptr;
+        // If the key is null, then we must be in an already initialized state and
+        // must pass in a null EVP_CIPHER to leave it unchanged.
+        if (key != nullptr) {
+            switch (key_len) {
+                case KEY_LEN_AES128:
+                    cipher = EVP_aes_128_ctr();
+                    break;
+                case KEY_LEN_AES192:
+                    cipher = EVP_aes_192_ctr();
+                    break;
+                case KEY_LEN_AES256:
+                    cipher = EVP_aes_256_ctr();
+                    break;
+                default:
+                    // This should not happen since we enforce this in the Java layer.
+                    throw java_ex(EX_ERROR, "THIS SHOULD NOT BE REACHABLE. Invalid AES key size.");
+            }
         }
 
         if (EVP_CipherInit_ex(ctx_, cipher, nullptr, key, iv, op_mode) != 1) {
