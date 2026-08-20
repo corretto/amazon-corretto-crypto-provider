@@ -94,7 +94,7 @@ KeyPairGenerator:
 * Ed25519 (also registered under the alias EdDSA)
 * X25519 (JDK 12+, also registered under the alias XDH)
 * ML-DSA, ML-DSA-44, ML-DSA-65, ML-DSA-87
-* ML-KEM, ML-KEM-512, ML-KEM-768, ML-KEM-1024 (JDK 17+, also see [ML-KEM Considerations](#ml-kem-considerations))
+* ML-KEM, ML-KEM-512, ML-KEM-768, ML-KEM-1024 (JDK 17 or 21+, also see [ML-KEM Considerations](#ml-kem-considerations))
 
 KeyGenerator:
 * AES
@@ -104,7 +104,7 @@ KeyAgreement:
 * X25519 (JDK 12+, also registered under the alias XDH)
 
 KEM algorithms:
-* ML-KEM, ML-KEM-512, ML-KEM-768, ML-KEM-1024 (JDK 17+, also see [ML-KEM Considerations](#ml-kem-considerations))
+* ML-KEM, ML-KEM-512, ML-KEM-768, ML-KEM-1024 (JDK 17 or 21+, also see [ML-KEM Considerations](#ml-kem-considerations))
 
 SecretKeyFactory:
 * HkdfWithHmacSHA1
@@ -134,7 +134,7 @@ KeyFactory:
 * Ed25519 (JDK 15+, opt-in; also registered under the alias EdDSA). Please refer to [system properties](https://github.com/corretto/amazon-corretto-crypto-provider#other-system-properties) for more information.
 * X25519 (JDK 12+, also registered under the alias XDH)
 * ML-DSA, ML-DSA-44, ML-DSA-65, ML-DSA-87
-* ML-KEM, ML-KEM-512, ML-KEM-768, ML-KEM-1024 (JDK 17+, also see [ML-KEM Considerations](#ml-kem-considerations))
+* ML-KEM, ML-KEM-512, ML-KEM-768, ML-KEM-1024 (JDK 17 or 21+, also see [ML-KEM Considerations](#ml-kem-considerations))
 
 AlgorithmParameters:
 * EC. Please refer to [system properties](https://github.com/corretto/amazon-corretto-crypto-provider#other-system-properties) for more information.
@@ -149,7 +149,7 @@ Mac algorithms with precomputed key and associated secret key factories (expert 
 
 ### ML-KEM Considerations
 
-JDK's [KEM interface](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/javax/crypto/KEM.html) was backported to JDK 17 and is GA in JDK 21+, but is absent from earlier JDK versions. ACCP always ships ML-KEM in its Multi-Release JAR (the `jdk17plus` overlay under `META-INF/versions/17`), so ML-KEM is available at runtime on any JDK 17+; on JDK 8-16 runtimes the base JAR loads without it. Because the overlay is always built, building ACCP requires a KEM-capable build JDK 17+ (see [Build it yourself](#build-it-yourself)). `TARGET_JDK_VERSION` only selects the base bytecode level (default 8) and no longer gates ML-KEM.
+JDK's [KEM interface](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/javax/crypto/KEM.html) was backported to JDK 17 and is GA in JDK 21+, but is absent from other versions (JDK 8-16 and the non-LTS 18-20). ACCP always ships ML-KEM in its Multi-Release JAR (the `jdk17plus` overlay under `META-INF/versions/17`), so ML-KEM is available at runtime on JDK 17 or 21+; on other runtimes the base JAR loads without it. Because the overlay is always built, building ACCP requires a KEM-capable build JDK -- JDK 17 or 21+ (see [Build it yourself](#build-it-yourself)). `TARGET_JDK_VERSION` only selects the base bytecode level (default 8) and no longer gates ML-KEM.
 
 For ML-KEM key generation (`KeyPairGenerator`) and KEM encapsulation (`KEM.newEncapsulator`), any
 caller-supplied `SecureRandom` is accepted but ignored: AWS-LC always draws ML-KEM randomness from

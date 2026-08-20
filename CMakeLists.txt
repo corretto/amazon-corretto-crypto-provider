@@ -87,6 +87,8 @@ endif()
 if (NOT DEFINED TEST_JAVA_HOME)
   set(TEST_JAVA_EXECUTABLE ${Java_JAVA_EXECUTABLE})
   set(TEST_JAVA_MAJOR_VERSION ${Java_VERSION_MAJOR})
+  # The test JVM is the build JDK, which the KEM probe above already required to be KEM-capable.
+  set(TEST_JAVA_HAS_KEM TRUE)
 else()
   set(TEST_JAVA_EXECUTABLE ${TEST_JAVA_HOME}/bin/java)
   # Derive the test JDK's major version so the jdk17plus test gating below works when TEST_JAVA_HOME
@@ -105,6 +107,37 @@ else()
       set(TEST_JAVA_MAJOR_VERSION ${CMAKE_MATCH_3})
     else()
       set(TEST_JAVA_MAJOR_VERSION ${CMAKE_MATCH_1})
+    endif()
+    # Fail loudly rather than silently dropping every jdk17plus test if the version can't be parsed.
+    if (NOT TEST_JAVA_MAJOR_VERSION)
+      message(FATAL_ERROR
+        "Could not determine the test JDK major version from '${TEST_JAVA_EXECUTABLE} -version'. "
+        "Pass -DTEST_JAVA_MAJOR_VERSION explicitly. Output was:\n${_ACCP_TEST_JAVA_VER}")
+    endif()
+  endif()
+  # Probe whether the test JVM actually exposes the KEM API. Version alone is insufficient: JDK 18-20
+  # lack javax.crypto.KEM, and a JDK 17 may or may not carry the backport. The jdk17plus tests
+  # reference javax.crypto.KEM and only load on a KEM-capable runtime, so gate their inclusion below
+  # on this probe rather than the major version.
+  if (EXISTS "${TEST_JAVA_HOME}/bin/javac")
+    set(_TEST_KEM_DIR "${CMAKE_CURRENT_BINARY_DIR}/test-kem-probe")
+    file(MAKE_DIRECTORY ${_TEST_KEM_DIR})
+    file(WRITE ${_TEST_KEM_DIR}/KemProbe.java "import javax.crypto.KEM; public final class KemProbe {}\n")
+    execute_process(
+      COMMAND ${TEST_JAVA_HOME}/bin/javac -d ${_TEST_KEM_DIR} ${_TEST_KEM_DIR}/KemProbe.java
+      RESULT_VARIABLE _TEST_KEM_RC OUTPUT_QUIET ERROR_QUIET)
+    if (_TEST_KEM_RC EQUAL 0)
+      set(TEST_JAVA_HAS_KEM TRUE)
+    else()
+      set(TEST_JAVA_HAS_KEM FALSE)
+    endif()
+  else()
+    # No javac in TEST_JAVA_HOME (e.g. a JRE): fall back to the version heuristic that
+    # Utils.isMlKemSupported() uses -- JDK 17 or 21+.
+    if (TEST_JAVA_MAJOR_VERSION EQUAL 17 OR TEST_JAVA_MAJOR_VERSION GREATER_EQUAL 21)
+      set(TEST_JAVA_HAS_KEM TRUE)
+    else()
+      set(TEST_JAVA_HAS_KEM FALSE)
     endif()
   endif()
 endif()
@@ -316,7 +349,10 @@ add_custom_command(
 )
 
 if (SIGNED_JAR)
-# Just copy the JAR in
+# Just copy the pre-signed JAR in as-is. The Multi-Release overlay (META-INF/versions/17, the ML-KEM
+# SPI) and the "Multi-Release: true" manifest entry are NOT appended here: a `jar uf` after signing
+# would invalidate the signature. So ${SIGNED_JAR} must already be the fully-assembled Multi-Release
+# jar -- i.e. produced by the else() branch below and then signed. The overlay append lives there.
     add_custom_command(
         OUTPUT ${ACCP_JAR}
         COMMAND ${CMAKE_COMMAND} -E copy ${SIGNED_JAR} ${ACCP_JAR}
@@ -735,15 +771,14 @@ if (${CMAKE_VERSION} VERSION_LESS "3.12.0")
 else()
     file(GLOB_RECURSE ACCP_TEST_SRC CONFIGURE_DEPENDS "tst/com/amazon/corretto/crypto/provider/*.java")
 endif()
-# The jdk17plus tests (e.g. MlKemTest) reference javax.crypto.KEM and only run on
-# a KEM-capable runtime. The test jar is NOT multi-release -- it is compiled in a
-# single pass and must load on the TEST JVM:
-#  - TEST JVM 17+: include the jdk17plus tests and compile the whole jar with
-#    -source/-target 17 (NOT --release, which would hide the backported KEM API).
-#  - TEST JVM < 17 (JDK 8/11): the versioned ML-KEM overlay is never loaded there,
-#    so exclude the jdk17plus tests and keep the target-level compile flags so
-#    every test class still loads on that JVM.
-if(TEST_JAVA_MAJOR_VERSION VERSION_GREATER_EQUAL 17)
+# The jdk17plus tests (e.g. MlKemTest) reference javax.crypto.KEM and only load on a KEM-capable
+# runtime (a JDK 17 with the backport, or 21+; NOT 18-20). The test jar is NOT multi-release -- it is
+# compiled in a single pass and must load on the TEST JVM:
+#  - KEM-capable TEST JVM: include the jdk17plus tests and compile the whole jar with -source/-target
+#    17 (NOT --release, which would hide the backported KEM API).
+#  - Non-KEM TEST JVM (JDK 8/11, 18-20, or a 17 without the backport): exclude the jdk17plus tests and
+#    keep the target-level compile flags so every remaining test class still loads on that JVM.
+if(TEST_JAVA_HAS_KEM)
     set(CMAKE_JAVA_COMPILE_FLAGS ${BASE_JAVA_COMPILE_FLAGS} -Xlint:-options -source 17 -target 17)
 else()
     list(FILTER ACCP_TEST_SRC EXCLUDE REGEX ".*/jdk17plus/.*")
