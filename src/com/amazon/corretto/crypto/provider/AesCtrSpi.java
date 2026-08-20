@@ -43,7 +43,7 @@ class AesCtrSpi extends CipherSpi {
     Loader.checkNativeLibraryAvailability();
     this.provider = provider;
     this.saveContext =
-        provider.getNativeContextReleaseStrategy() != Utils.NativeContextReleaseStrategy.EAGER;
+        provider.getNativeContextReleaseStrategy() == Utils.NativeContextReleaseStrategy.LAZY;
   }
 
   @Override
