@@ -92,16 +92,20 @@ else()
   # Derive the test JDK's major version so the jdk17plus test gating below works when TEST_JAVA_HOME
   # is set explicitly (as every CI path does). Without this, TEST_JAVA_MAJOR_VERSION is empty and the
   # jdk17plus tests (ML-KEM) are silently excluded even on a KEM-capable 17+ test runtime.
-  execute_process(
-    COMMAND ${TEST_JAVA_EXECUTABLE} -version
-    ERROR_VARIABLE _ACCP_TEST_JAVA_VER
-    OUTPUT_VARIABLE _ACCP_TEST_JAVA_VER)
-  # Matches both legacy "1.8.0_x" and modern "17.0.x": group 1 is the leading number, group 2 the next.
-  string(REGEX MATCH "version \"([0-9]+)\\.([0-9]+)" _ACCP_TEST_JAVA_M "${_ACCP_TEST_JAVA_VER}")
-  if (CMAKE_MATCH_1 STREQUAL "1")
-    set(TEST_JAVA_MAJOR_VERSION ${CMAKE_MATCH_2})
-  else()
-    set(TEST_JAVA_MAJOR_VERSION ${CMAKE_MATCH_1})
+  # An explicitly passed -DTEST_JAVA_MAJOR_VERSION always wins over the probe.
+  if (NOT DEFINED TEST_JAVA_MAJOR_VERSION)
+    execute_process(
+      COMMAND ${TEST_JAVA_EXECUTABLE} -version
+      ERROR_VARIABLE _ACCP_TEST_JAVA_VER
+      OUTPUT_VARIABLE _ACCP_TEST_JAVA_VER)
+    # Matches legacy "1.8.0_x", modern "17.0.x", and dot-less "25" / "26-ea":
+    # group 1 is the leading number, group 3 the (optional) next.
+    string(REGEX MATCH "version \"([0-9]+)(\\.([0-9]+))?" _ACCP_TEST_JAVA_M "${_ACCP_TEST_JAVA_VER}")
+    if (CMAKE_MATCH_1 STREQUAL "1")
+      set(TEST_JAVA_MAJOR_VERSION ${CMAKE_MATCH_3})
+    else()
+      set(TEST_JAVA_MAJOR_VERSION ${CMAKE_MATCH_1})
+    endif()
   endif()
 endif()
 
@@ -297,8 +301,9 @@ set(MR_STAMP "${CMAKE_CURRENT_BINARY_DIR}/mr.stamp")
 file(WRITE ${MR_MANIFEST} "Multi-Release: true\n")
 add_custom_command(
     OUTPUT ${MR_STAMP}
+    COMMAND ${CMAKE_COMMAND} -E remove_directory ${MR_V17_DIR}
     COMMAND ${CMAKE_COMMAND} -E make_directory ${MR_V17_DIR}
-    COMMAND ${Java_JAVAC_EXECUTABLE} -Xlint:-options -source 17 -target 17
+    COMMAND ${Java_JAVAC_EXECUTABLE} ${BASE_JAVA_COMPILE_FLAGS} -Xlint:-options -source 17 -target 17
             -classpath "$<TARGET_PROPERTY:code-only-jar,JAR_FILE>:${BUILD_CLASSPATH}"
             -d ${MR_V17_DIR} ${ACCP_JDK17PLUS_SRC}
     COMMAND ${CMAKE_COMMAND} -E touch ${MR_STAMP}
@@ -364,8 +369,9 @@ ADD_CUSTOM_COMMAND(
 # Note that we still build the code-only-jar even if we're using the signed jar; this is
 # primarily to generate java headers (generating headers via javah from binary classfiles is
 # deprecated starting in Java 9). We depend on tests-code-jar because that generates headers
-# we need for some test code.
-    DEPENDS code-only-jar tests-code-jar
+# we need for some test code. We depend on the jdk17plus overlay (MR_STAMP) so its header
+# (MlKemSpi) is deterministically included too.
+    DEPENDS code-only-jar tests-code-jar ${MR_STAMP}
     )
 
 ### Native library configuration
