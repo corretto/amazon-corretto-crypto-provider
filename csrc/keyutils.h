@@ -7,6 +7,7 @@
 #include "env.h"
 #include "util.h"
 #include <openssl/bn.h>
+#include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/x509.h>
 
@@ -14,6 +15,24 @@
 // Unlike util.h, this is intended to capture high-level logic with more internal dependencies.
 
 namespace AmazonCorrettoCryptoProvider {
+
+// Scope guard for discarding errors queued by an operation whose failure is expected and handled,
+// such as a marshaler that a fallover encoder retries. Prefer this over a bare ERR_clear_error():
+// it only discards what was queued inside the guarded scope (leaving anything queued earlier for
+// the caller to see), and it runs even when the guarded scope exits by throwing.
+//
+// Errors queued inside the scope remain visible until the guard goes out of scope, so throw_openssl
+// still reports them. Note that ERR_set_mark is a no-op on an empty queue, in which case
+// ERR_pop_to_mark clears the whole queue -- which is the desired behavior there anyway.
+class ErrorQueueMark {
+public:
+    ErrorQueueMark() { ERR_set_mark(); }
+    ~ErrorQueueMark() { ERR_pop_to_mark(); }
+
+private:
+    ErrorQueueMark(const ErrorQueueMark&) DELETE_IMPLICIT;
+    ErrorQueueMark& operator=(const ErrorQueueMark&) DELETE_IMPLICIT;
+};
 
 // This class should generally not be used for new development
 // as it has been replaced by the *_auto classes in auto_free.h

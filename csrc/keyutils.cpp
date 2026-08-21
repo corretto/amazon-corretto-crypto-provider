@@ -23,15 +23,15 @@ EVP_PKEY* der2EvpPrivateKey(const unsigned char* der,
 
     EVP_PKEY* result = d2i_PrivateKey(evpType, NULL, &der_mutable_ptr, derLen);
 
-    if (der + derLen != der_mutable_ptr) {
-        if (result) {
-            EVP_PKEY_free(result);
-        }
-        throw_openssl(javaExceptionClass, "Extra key information");
-    }
-
     if (!result) {
         throw_openssl(javaExceptionClass, "Unable to convert PKCS8_PRIV_KEY_INFO to EVP_PKEY");
+    }
+
+    // Only meaningful once a key came back: d2i_PrivateKey leaves |der_mutable_ptr| untouched when it
+    // fails, so checking it first reported every decode failure as "Extra key information".
+    if (der + derLen != der_mutable_ptr) {
+        EVP_PKEY_free(result);
+        throw_openssl(javaExceptionClass, "Extra key information");
     }
 
     if (isRsaKeyType(EVP_PKEY_base_id(result))) {
@@ -103,14 +103,15 @@ EVP_PKEY* der2EvpPublicKey(const unsigned char* der, const int derLen, const cha
     const unsigned char* der_mutable_ptr = der; // openssl modifies the input pointer
 
     EVP_PKEY* result = d2i_PUBKEY(NULL, &der_mutable_ptr, derLen);
-    if (der + derLen != der_mutable_ptr) {
-        if (result) {
-            EVP_PKEY_free(result);
-        }
-        throw_openssl(javaExceptionClass, "Extra key information");
-    }
     if (!result) {
         throw_openssl(javaExceptionClass, "Unable to parse key");
+    }
+
+    // Only meaningful once a key came back: d2i_PUBKEY leaves |der_mutable_ptr| untouched when it
+    // fails, so checking it first reported every decode failure as "Extra key information".
+    if (der + derLen != der_mutable_ptr) {
+        EVP_PKEY_free(result);
+        throw_openssl(javaExceptionClass, "Extra key information");
     }
 
     if (!checkKey(result)) {
@@ -209,9 +210,11 @@ size_t encodeExpandedMLDSAPrivateKey(const EVP_PKEY* key, uint8_t** out)
         throw_java_ex(EX_ILLEGAL_ARGUMENT, "Invalid ML-DSA signature size");
     }
     OPENSSL_buffer_auto raw_expanded(raw_len);
+    // OPENSSL_buffer_auto does not check its own allocation, and the next call memcpy's into it.
+    CHECK_OPENSSL(raw_expanded.buf != nullptr);
     CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(key, raw_expanded, &raw_len));
     CBB cbb, pkcs8, algorithm, priv, expanded;
-    CBB_init(&cbb, 0);
+    CHECK_OPENSSL(CBB_init(&cbb, 0));
     // Encoding below is based on expandedKey CHOICE member of PrivateKey ASN.1 structures in:
     // https://github.com/lamps-wg/dilithium-certificates/blob/main/X509-ML-DSA-2025.asn
     // spotless:off
@@ -222,12 +225,15 @@ size_t encodeExpandedMLDSAPrivateKey(const EVP_PKEY* key, uint8_t** out)
         !CBB_add_asn1(&pkcs8, &priv, CBS_ASN1_OCTETSTRING) ||
         !CBB_add_asn1(&priv, &expanded, CBS_ASN1_OCTETSTRING) ||
         !CBB_add_bytes(&expanded, raw_expanded, raw_len)) {
+        CBB_cleanup(&cbb);
         throw_java_ex(EX_RUNTIME_CRYPTO, "Error serializing expanded ML-DSA key");
     }
     // spotless:on
     size_t out_len;
+    // A failed CBB_finish leaves the CBB owning its buffer and does not write |*out|, so clean the CBB
+    // up and leave |*out| alone. A successful CBB_finish transfers the buffer to |*out| and cleans up.
     if (!CBB_finish(&cbb, out, &out_len)) {
-        OPENSSL_free(*out);
+        CBB_cleanup(&cbb);
         throw_java_ex(EX_RUNTIME_CRYPTO, "Error finalizing expanded ML-DSA key");
     }
     return out_len;
@@ -256,9 +262,11 @@ size_t encodeExpandedMLKEMPrivateKey(const EVP_PKEY* key, uint8_t** out)
         throw_java_ex(EX_ILLEGAL_ARGUMENT, "Invalid ML-KEM secret key size");
     }
     OPENSSL_buffer_auto raw_expanded(raw_len);
+    // OPENSSL_buffer_auto does not check its own allocation, and the next call memcpy's into it.
+    CHECK_OPENSSL(raw_expanded.buf != nullptr);
     CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(key, raw_expanded, &raw_len));
     CBB cbb, pkcs8, algorithm, priv, expanded;
-    CBB_init(&cbb, 0);
+    CHECK_OPENSSL(CBB_init(&cbb, 0));
     // Encoding below is based on expandedKey CHOICE member of PrivateKey ASN.1 structures in:
     // https://datatracker.ietf.org/doc/rfc9935/ section 6
     // spotless:off
@@ -269,12 +277,15 @@ size_t encodeExpandedMLKEMPrivateKey(const EVP_PKEY* key, uint8_t** out)
         !CBB_add_asn1(&pkcs8, &priv, CBS_ASN1_OCTETSTRING) ||
         !CBB_add_asn1(&priv, &expanded, CBS_ASN1_OCTETSTRING) ||
         !CBB_add_bytes(&expanded, raw_expanded, raw_len)) {
+        CBB_cleanup(&cbb);
         throw_java_ex(EX_RUNTIME_CRYPTO, "Error serializing expanded ML-KEM key");
     }
     // spotless:on
     size_t out_len;
+    // A failed CBB_finish leaves the CBB owning its buffer and does not write |*out|, so clean the CBB
+    // up and leave |*out| alone. A successful CBB_finish transfers the buffer to |*out| and cleans up.
     if (!CBB_finish(&cbb, out, &out_len)) {
-        OPENSSL_free(*out);
+        CBB_cleanup(&cbb);
         throw_java_ex(EX_RUNTIME_CRYPTO, "Error finalizing expanded ML-KEM key");
     }
     return out_len;
@@ -301,7 +312,7 @@ size_t encodeRfc5915EcPrivateKey(const EVP_PKEY* key, uint8_t** out)
     int oid_data_len = OBJ_length(oid_obj);
     const EC_KEY* ec_key = EVP_PKEY_get0_EC_KEY(key);
     CBB cbb, pkcs8, algorithm, oid, priv;
-    CBB_init(&cbb, 0);
+    CHECK_OPENSSL(CBB_init(&cbb, 0));
     // spotless:off
     if (!CBB_add_asn1(&cbb, &pkcs8, CBS_ASN1_SEQUENCE) ||
         !CBB_add_asn1_uint64(&pkcs8, 0 /* version */) ||
@@ -319,9 +330,10 @@ size_t encodeRfc5915EcPrivateKey(const EVP_PKEY* key, uint8_t** out)
     }
     // spotless:on
     size_t out_len;
+    // A failed CBB_finish leaves the CBB owning its buffer and does not write |*out|, so clean the CBB
+    // up and leave |*out| alone. A successful CBB_finish transfers the buffer to |*out| and cleans up.
     if (!CBB_finish(&cbb, out, &out_len)) {
         CBB_cleanup(&cbb);
-        OPENSSL_free(*out);
         throw_java_ex(EX_RUNTIME_CRYPTO, "Error finalizing expanded EC key");
     }
     return out_len;

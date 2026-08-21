@@ -699,30 +699,33 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpMlDsaPr
         EVP_PKEY* key = reinterpret_cast<EVP_PKEY*>(keyHandle);
         CHECK_OPENSSL(EVP_PKEY_id(key) == EVP_PKEY_PQDSA);
 
-        uint8_t* der;
-        size_t der_len;
+        OPENSSL_buffer_auto der;
+        size_t der_len = 0;
         CBB cbb;
         CHECK_OPENSSL(CBB_init(&cbb, 0));
-        // Failure below may just indicate that we don't have the seed, so retry with |encodeExpandedMLDSAPrivateKey|
-        // and encode in PKCS8 (RFC 5208) format after clearing the error queue.
+        // Failure below may just indicate that we don't have the seed, so retry with
+        // |encodeExpandedMLDSAPrivateKey| and encode in PKCS8 (RFC 5208) format. Scope away the errors
+        // that expected failure queues; the guard has to be set before the call, since ERR_set_mark
+        // marks the newest error rather than deleting it.
+        ErrorQueueMark error_mark;
         if (EVP_marshal_private_key(&cbb, key)) {
             if (!CBB_finish(&cbb, &der, &der_len)) {
-                OPENSSL_free(der);
+                // CBB_finish does not write |der| on failure, and the CBB still owns its buffer.
+                CBB_cleanup(&cbb);
                 throw_java_ex(EX_RUNTIME_CRYPTO, "Error finalizing seed ML-DSA key");
             }
+            // A successful CBB_finish hands the buffer to |der| and cleans the CBB up itself.
         } else {
-            ERR_clear_error();
+            // Clean the CBB up before calling a helper that throws on failure.
+            CBB_cleanup(&cbb);
             der_len = encodeExpandedMLDSAPrivateKey(key, &der);
         }
-        CBB_cleanup(&cbb);
 
         if (!(result = env->NewByteArray(der_len))) {
-            OPENSSL_free(der);
             throw_java_ex(EX_OOM, "Unable to allocate DER array");
         }
         // This may throw, if it does we'll just keep the exception state as we return.
-        env->SetByteArrayRegion(result, 0, der_len, (const jbyte*)der);
-        OPENSSL_free(der);
+        env->SetByteArrayRegion(result, 0, der_len, der);
     } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);
     }
