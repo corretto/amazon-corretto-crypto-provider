@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
@@ -21,17 +22,21 @@ import java.security.Provider;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.spec.InvalidKeySpecException;
 import java.security.spec.NamedParameterSpec;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import javax.crypto.KEM;
 import javax.crypto.SecretKey;
 import org.bouncycastle.asn1.ASN1Encodable;
 import org.bouncycastle.asn1.ASN1Integer;
+import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.ASN1Sequence;
 import org.bouncycastle.asn1.DERBitString;
+import org.bouncycastle.asn1.DEROctetString;
 import org.bouncycastle.asn1.DERSequence;
 import org.bouncycastle.asn1.DERSet;
 import org.bouncycastle.asn1.DERTaggedObject;
@@ -55,6 +60,8 @@ public class MlKemTest {
       AmazonCorrettoCryptoProvider.INSTANCE;
   private static final int SHARED_SECRET_SIZE = 32;
   private static final String[] ML_KEM_PARAM_SETS = {"ML-KEM-512", "ML-KEM-768", "ML-KEM-1024"};
+  // An OID under an unassigned private-enterprise arc, so no provider maps it to an algorithm.
+  private static final String UNASSIGNED_OID = "1.3.6.1.4.1.99999.1";
 
   private static String[] mlKemParamSets() {
     return ML_KEM_PARAM_SETS;
@@ -330,6 +337,158 @@ public class MlKemTest {
           encapsulated.key().getEncoded(),
           kem.newDecapsulator(parsed, paramSpec).decapsulate(ciphertext).getEncoded(),
           paramSet + " OneAsymmetricKey variant must decapsulate to the same shared secret");
+    }
+  }
+
+  @ParameterizedTest
+  @MethodSource("mlKemParamSets")
+  public void testMalformedPkcs8PrivateKeysRejected(String paramSet) throws Exception {
+    // Negative counterpart to testPkcs8OneAsymmetricKeyFieldsAccepted. Every variant below is
+    // outside
+    // the PKCS#8 grammar for ML-KEM and must be rejected both by AWS-LC's EVP_parse_private_key
+    // (the
+    // non-FIPS decoder) and by ACCP's hand-rolled regular-FIPS fallover parser.
+    ASN1Sequence pkcs8 =
+        ASN1Sequence.getInstance(
+            KeyPairGenerator.getInstance(paramSet, NATIVE_PROVIDER)
+                .generateKeyPair()
+                .getPrivate()
+                .getEncoded());
+    ASN1Encodable algorithm = pkcs8.getObjectAt(1);
+    ASN1Encodable privateKey = pkcs8.getObjectAt(2);
+    KeyFactory keyFactory = KeyFactory.getInstance(paramSet, NATIVE_PROVIDER);
+
+    assertPrivateKeyRejected(
+        keyFactory,
+        paramSet + " unrecognized algorithm OID",
+        new DERSequence(
+                new ASN1Encodable[] {
+                  new ASN1Integer(0),
+                  new DERSequence(new ASN1ObjectIdentifier(UNASSIGNED_OID)),
+                  privateKey
+                })
+            .getEncoded("DER"));
+
+    // version 2 is outside both RFC 5208 (version 0) and RFC 5958 (version 1).
+    assertPrivateKeyRejected(
+        keyFactory,
+        paramSet + " version 2",
+        new DERSequence(new ASN1Encodable[] {new ASN1Integer(2), algorithm, privateKey})
+            .getEncoded("DER"));
+
+    // An expandedKey CHOICE whose length matches no ML-KEM parameter set. Written explicitly rather
+    // than derived from the key above, because ACCP emits the seed CHOICE in non-FIPS builds.
+    assertPrivateKeyRejected(
+        keyFactory,
+        paramSet + " expandedKey of invalid length",
+        new DERSequence(
+                new ASN1Encodable[] {
+                  new ASN1Integer(0),
+                  algorithm,
+                  new DEROctetString(new DEROctetString(new byte[1631]).getEncoded("DER"))
+                })
+            .getEncoded("DER"));
+
+    // Trailing garbage after the PrivateKeyInfo SEQUENCE.
+    byte[] valid =
+        new DERSequence(new ASN1Encodable[] {new ASN1Integer(0), algorithm, privateKey})
+            .getEncoded("DER");
+    assertPrivateKeyRejected(
+        keyFactory, paramSet + " trailing byte", Arrays.copyOf(valid, valid.length + 1));
+  }
+
+  @ParameterizedTest
+  @MethodSource("mlKemParamSets")
+  public void testMalformedSpkiPublicKeysRejected(String paramSet) throws Exception {
+    // Every variant below is outside the X.509 SubjectPublicKeyInfo grammar for ML-KEM (RFC 9935
+    // Section 4) and must be rejected both by AWS-LC's EVP_parse_public_key (the non-FIPS decoder)
+    // and by ACCP's hand-rolled regular-FIPS fallover parser.
+    KeyPair keyPair = KeyPairGenerator.getInstance(paramSet, NATIVE_PROVIDER).generateKeyPair();
+    byte[] validSpki = keyPair.getPublic().getEncoded();
+    ASN1Encodable algorithm = ASN1Sequence.getInstance(validSpki).getObjectAt(0);
+    byte[] rawPublicKey = SubjectPublicKeyInfo.getInstance(validSpki).getPublicKeyData().getBytes();
+    KeyFactory keyFactory = KeyFactory.getInstance(paramSet, NATIVE_PROVIDER);
+
+    assertPublicKeyRejected(
+        keyFactory,
+        paramSet + " unrecognized algorithm OID",
+        new DERSequence(
+                new ASN1Encodable[] {
+                  new DERSequence(new ASN1ObjectIdentifier(UNASSIGNED_OID)),
+                  new DERBitString(rawPublicKey)
+                })
+            .getEncoded("DER"));
+
+    // An ML-KEM public key is a whole number of octets, so the unused-bit count must be zero. Clear
+    // the bit that padBits=1 declares unused so the BIT STRING itself stays well-formed DER.
+    byte[] maskedPublicKey = rawPublicKey.clone();
+    maskedPublicKey[maskedPublicKey.length - 1] &= (byte) 0xFE;
+    assertPublicKeyRejected(
+        keyFactory,
+        paramSet + " non-zero unused bit count",
+        new DERSequence(new ASN1Encodable[] {algorithm, new DERBitString(maskedPublicKey, 1)})
+            .getEncoded("DER"));
+
+    assertPublicKeyRejected(
+        keyFactory,
+        paramSet + " empty subjectPublicKey",
+        new DERSequence(new ASN1Encodable[] {algorithm, new DERBitString(new byte[0])})
+            .getEncoded("DER"));
+
+    assertPublicKeyRejected(
+        keyFactory,
+        paramSet + " truncated subjectPublicKey",
+        new DERSequence(
+                new ASN1Encodable[] {
+                  algorithm, new DERBitString(Arrays.copyOf(rawPublicKey, rawPublicKey.length - 1))
+                })
+            .getEncoded("DER"));
+
+    assertPublicKeyRejected(
+        keyFactory, paramSet + " trailing byte", Arrays.copyOf(validSpki, validSpki.length + 1));
+  }
+
+  @ParameterizedTest
+  @MethodSource("mlKemParamSets")
+  public void testPublicKeyEncodingMatchesBouncyCastle(String paramSet) throws Exception {
+    // ML-KEM SPKI is fully determined by (OID, rawPublicKey), so unlike the private-key encoding it
+    // has one canonical form in every build. That makes it a byte-for-byte check on ACCP's
+    // hand-rolled regular-FIPS SPKI encoder, which is why this test carries no FIPS guard.
+    KeyPair keyPair = KeyPairGenerator.getInstance(paramSet, NATIVE_PROVIDER).generateKeyPair();
+    byte[] accpSpki = keyPair.getPublic().getEncoded();
+
+    PublicKey bcPublicKey =
+        KeyFactory.getInstance("ML-KEM", TestUtil.BC_PROVIDER)
+            .generatePublic(new X509EncodedKeySpec(accpSpki));
+    assertArrayEquals(
+        accpSpki,
+        bcPublicKey.getEncoded(),
+        paramSet + " SPKI must round-trip byte-identically through BouncyCastle");
+
+    PublicKey reparsed =
+        KeyFactory.getInstance(paramSet, NATIVE_PROVIDER)
+            .generatePublic(new X509EncodedKeySpec(accpSpki));
+    assertArrayEquals(
+        accpSpki, reparsed.getEncoded(), paramSet + " SPKI must round-trip unchanged through ACCP");
+  }
+
+  private static void assertPrivateKeyRejected(KeyFactory keyFactory, String label, byte[] der)
+      throws Exception {
+    try {
+      keyFactory.generatePrivate(new PKCS8EncodedKeySpec(der));
+      fail("Expected InvalidKeySpecException for " + label);
+    } catch (InvalidKeySpecException expected) {
+      // Expected: the encoding is outside the grammar ACCP accepts.
+    }
+  }
+
+  private static void assertPublicKeyRejected(KeyFactory keyFactory, String label, byte[] der)
+      throws Exception {
+    try {
+      keyFactory.generatePublic(new X509EncodedKeySpec(der));
+      fail("Expected InvalidKeySpecException for " + label);
+    } catch (InvalidKeySpecException expected) {
+      // Expected: the encoding is outside the grammar ACCP accepts.
     }
   }
 

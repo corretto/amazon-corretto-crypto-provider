@@ -13,9 +13,10 @@
 
 namespace AmazonCorrettoCryptoProvider {
 
-// Parses an ML-KEM expanded-format PKCS8 private key via its raw secret key. Returns nullptr
-// (without setting an error) when |der| is not an expanded-format ML-KEM PKCS8. der2EvpPrivateKey
-// calls this as a fallover after d2i_PrivateKey fails. Defined below, next to parseMLKEMPublicKey.
+// Parses an ML-KEM expanded-format PKCS8 private key via its raw secret key. Returns nullptr for
+// inputs it does not handle; EVP_PKEY_kem_new_raw_secret_key may queue an OpenSSL error when it
+// rejects a well-formed but wrong-length key. der2EvpPrivateKey calls this as a fallover after
+// d2i_PrivateKey fails. Defined below, next to parseMLKEMPublicKey.
 static EVP_PKEY* parseMLKEMPrivateKey(const unsigned char* der, const int derLen);
 
 EVP_PKEY* der2EvpPrivateKey(const unsigned char* der,
@@ -26,6 +27,11 @@ EVP_PKEY* der2EvpPrivateKey(const unsigned char* der,
 {
     const unsigned char* der_mutable_ptr = der; // openssl modifies the input pointer
 
+    // Scope away the errors a failed d2i_PrivateKey queues. Its failure is expected for ML-KEM in
+    // regular FIPS (see the fallover below), and when nothing can parse |der| the errors are still
+    // in the queue for throw_openssl to report before this guard unwinds.
+    ErrorQueueMark error_mark;
+
     // Try the standard decoder first so non-ML-KEM keys (and, in non-FIPS builds, ML-KEM keys) incur
     // no ML-KEM parsing overhead.
     EVP_PKEY* result = d2i_PrivateKey(evpType, NULL, &der_mutable_ptr, derLen);
@@ -35,10 +41,9 @@ EVP_PKEY* der2EvpPrivateKey(const unsigned char* der,
     // we hand-roll the parse via the raw secret key. This matches the non-FIPS d2i expanded-decode
     // path exactly: both reconstruct the key by setting only the raw secret key
     // (KEM_KEY_set_raw_secret_key), leaving the public key unpopulated. parseMLKEMPrivateKey returns
-    // nullptr for inputs it cannot handle. Clear the error queue the failed d2i_PrivateKey left behind.
+    // nullptr for inputs it cannot handle.
     // TODO [AWS-LC-FIPS 4.x]: drop this raw-key decode path once the FIPS module supports d2i_PrivateKey for ML-KEM.
     if (result == nullptr && evpType == EVP_PKEY_KEM) {
-        ERR_clear_error();
         EVP_PKEY* mlkem = parseMLKEMPrivateKey(der, derLen);
         if (mlkem != nullptr) {
             if (shouldCheckPrivate && !checkKey(mlkem)) {
@@ -137,6 +142,9 @@ EVP_PKEY* der2EvpPrivateKey(const unsigned char* der,
 // i2d_PUBKEY produces in non-FIPS builds.
 // TODO [AWS-LC-FIPS 4.x]: drop this hand-rolled SPKI path once the FIPS module implements i2d/d2i_PUBKEY for ML-KEM.
 
+// True when |nid| identifies one of the three ML-KEM parameter sets.
+static bool isMLKEMNid(int nid) { return nid == NID_MLKEM512 || nid == NID_MLKEM768 || nid == NID_MLKEM1024; }
+
 // Maps an ML-KEM raw public-key length (FIPS 203, Table 3) to its NID, or NID_undef.
 //
 // NOTE: this mapping is only unambiguous for ML-KEM keys. AWS-LC registers legacy Kyber-R3 under the
@@ -190,20 +198,24 @@ size_t encodeMLKEMPublicKey(const EVP_PKEY* key, uint8_t** out)
         !CBB_add_asn1(&spki, &pub, CBS_ASN1_BITSTRING) ||
         !CBB_add_u8(&pub, 0) /* unused bits */ ||
         !CBB_add_bytes(&pub, raw_pub, raw_len)) {
+        CBB_cleanup(&cbb);
         throw_java_ex(EX_RUNTIME_CRYPTO, "Error serializing ML-KEM public key");
     }
     // spotless:on
     size_t out_len;
+    // A failed CBB_finish leaves the CBB owning its buffer and does not write |*out|, so clean the CBB
+    // up and leave |*out| alone. A successful CBB_finish transfers the buffer to |*out| and cleans up.
     if (!CBB_finish(&cbb, out, &out_len)) {
-        OPENSSL_free(*out);
+        CBB_cleanup(&cbb);
         throw_java_ex(EX_RUNTIME_CRYPTO, "Error finalizing ML-KEM public key");
     }
     return out_len;
 }
 
 // Parses an ML-KEM X.509 SubjectPublicKeyInfo into an EVP_PKEY via its raw public key. Returns
-// nullptr (without setting an error) when |der| is not an ML-KEM SPKI. der2EvpPublicKey calls this
-// as a fallover after d2i_PUBKEY fails.
+// nullptr when |der| is not an ML-KEM SPKI, or when the raw public key is the wrong length for the
+// OID's parameter set (in which case EVP_PKEY_kem_new_raw_public_key queues an error).
+// der2EvpPublicKey calls this as a fallover after d2i_PUBKEY fails.
 static EVP_PKEY* parseMLKEMPublicKey(const unsigned char* der, const int derLen)
 {
     CBS cbs, spki, algorithm, oid, bit_string;
@@ -216,7 +228,7 @@ static EVP_PKEY* parseMLKEMPublicKey(const unsigned char* der, const int derLen)
     }
     // spotless:on
     int nid = OBJ_cbs2nid(&oid);
-    if (nid != NID_MLKEM512 && nid != NID_MLKEM768 && nid != NID_MLKEM1024) {
+    if (!isMLKEMNid(nid)) {
         return nullptr;
     }
     // The ML-KEM AlgorithmIdentifier has no parameters; the subjectPublicKey BIT STRING follows.
@@ -275,7 +287,7 @@ static EVP_PKEY* parseMLKEMPrivateKey(const unsigned char* der, const int derLen
     }
     // spotless:on
     int nid = OBJ_cbs2nid(&oid);
-    if (nid != NID_MLKEM512 && nid != NID_MLKEM768 && nid != NID_MLKEM1024) {
+    if (!isMLKEMNid(nid)) {
         return nullptr;
     }
     // The ML-KEM AlgorithmIdentifier has no parameters. The PrivateKey OCTET STRING wraps the
@@ -315,6 +327,11 @@ static EVP_PKEY* parseMLKEMPrivateKey(const unsigned char* der, const int derLen
 
 EVP_PKEY* der2EvpPublicKey(const unsigned char* der, const int derLen, const char* javaExceptionClass)
 {
+    // Scope away the errors a failed d2i_PUBKEY queues. Its failure is expected for ML-KEM in regular
+    // FIPS (see the fallover below), and when nothing can parse |der| the errors are still in the queue
+    // for throw_openssl to report before this guard unwinds.
+    ErrorQueueMark error_mark;
+
     // Try the standard decoder first so non-ML-KEM keys (and, in non-FIPS builds, ML-KEM keys) incur
     // no ML-KEM parsing overhead.
     const unsigned char* der_mutable_ptr = der; // openssl modifies the input pointer
@@ -334,9 +351,8 @@ EVP_PKEY* der2EvpPublicKey(const unsigned char* der, const int derLen, const cha
     // d2i_PUBKEY could not parse |der|. In regular FIPS, AWS-LC-FIPS 3.1.0 has no pub_decode for
     // ML-KEM, so d2i_PUBKEY raises UNSUPPORTED_ALGORITHM on ML-KEM SPKI; fall over to the hand-rolled
     // parser. parseMLKEMPublicKey returns nullptr for non-ML-KEM inputs, so a genuinely unparseable
-    // key still throws below. Clear the error queue d2i_PUBKEY left behind so the fallover starts clean.
+    // key still throws below.
     // TODO [AWS-LC-FIPS 4.x]: drop this ML-KEM SPKI fallover once the FIPS module supports d2i_PUBKEY for ML-KEM.
-    ERR_clear_error();
     EVP_PKEY* mlkem = parseMLKEMPublicKey(der, derLen);
     if (mlkem == nullptr) {
         throw_openssl(javaExceptionClass, "Unable to parse key");

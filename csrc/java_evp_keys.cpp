@@ -38,6 +38,12 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpKey_enc
         EVP_PKEY* key = reinterpret_cast<EVP_PKEY*>(keyHandle);
         OPENSSL_buffer_auto der;
 
+        // Scope away the errors a failed i2d_PUBKEY queues: for ML-KEM in regular FIPS that failure is
+        // expected and handled below. The guard has to be set before the call, since ERR_set_mark marks
+        // the newest error rather than deleting it. CHECK_OPENSSL below still sees (and reports) the
+        // errors, because the guard does not unwind until this scope exits.
+        ErrorQueueMark error_mark;
+
         // This next line allocates memory. On failure i2d_PUBKEY leaves |der| untouched.
         int derLen = i2d_PUBKEY(key, &der);
         if (derLen <= 0 && EVP_PKEY_id(key) == EVP_PKEY_KEM) {
@@ -54,7 +60,6 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpKey_enc
             // exist (ACCP only ever generates ML-KEM, and the FIPS module has no pub_decode/
             // priv_decode at all, so the only decoders are ACCP's, which reject non-ML-KEM OIDs).
             // TODO [AWS-LC-FIPS 4.x]: drop the encodeMLKEMPublicKey fallback once the FIPS module has i2d_PUBKEY.
-            ERR_clear_error();
             derLen = static_cast<int>(encodeMLKEMPublicKey(key, &der));
         }
         CHECK_OPENSSL(derLen > 0);
@@ -774,11 +779,14 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpKemPriv
         // Prefer the standard PKCS8 marshal, which yields the compact seed format in non-FIPS and
         // experimental-FIPS builds. AWS-LC-FIPS 3.1.0 cannot marshal ML-KEM private keys (no
         // priv_encode) and lacks seed support, so on failure fall back to hand-rolled expanded-format
-        // PKCS8 after clearing the error queue. Preferring the library encoder also keeps every
-        // non-ML-KEM EVP_PKEY_KEM key off encodeExpandedMLKEMPrivateKey's length-based OID
-        // inference; see the equivalent note in encodePublicKey above. Mirrors
-        // encodeMlDsaPrivateKey above.
+        // PKCS8. Preferring the library encoder also keeps every non-ML-KEM EVP_PKEY_KEM key off
+        // encodeExpandedMLKEMPrivateKey's length-based OID inference; see the equivalent note in
+        // encodePublicKey above. Mirrors encodeMlDsaPrivateKey above.
         // TODO [AWS-LC-FIPS 4.x]: drop the encodeExpandedMLKEMPrivateKey fallback once the FIPS module has priv_encode.
+        //
+        // Scope away the errors the expected marshal failure queues; the guard has to be set before the
+        // call, since ERR_set_mark marks the newest error rather than deleting it.
+        ErrorQueueMark error_mark;
         if (EVP_marshal_private_key(&cbb, key)) {
             if (!CBB_finish(&cbb, &der, &der_len)) {
                 // CBB_finish does not write |der| on failure, and the CBB still owns its buffer.
@@ -787,7 +795,6 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpKemPriv
             }
             // A successful CBB_finish hands the buffer to |der| and cleans the CBB up itself.
         } else {
-            ERR_clear_error();
             // Clean the CBB up before calling a helper that throws on failure.
             CBB_cleanup(&cbb);
             der_len = encodeExpandedMLKEMPrivateKey(key, &der);

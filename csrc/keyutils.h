@@ -17,7 +17,7 @@
 namespace AmazonCorrettoCryptoProvider {
 
 // Scope guard for discarding errors queued by an operation whose failure is expected and handled,
-// such as a marshaler that a fallover encoder retries. Prefer this over a bare ERR_clear_error():
+// such as a d2i_* call that a fallover decoder retries. Prefer this over a bare ERR_clear_error():
 // it only discards what was queued inside the guarded scope (leaving anything queued earlier for
 // the caller to see), and it runs even when the guarded scope exits by throwing.
 //
