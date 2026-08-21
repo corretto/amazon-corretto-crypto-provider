@@ -174,13 +174,15 @@ size_t encodeMLKEMPublicKey(const EVP_PKEY* key, uint8_t** out)
         throw_java_ex(EX_ILLEGAL_ARGUMENT, "Invalid ML-KEM public key size");
     }
     OPENSSL_buffer_auto raw_pub(raw_len);
+    // OPENSSL_buffer_auto does not check its own allocation, and the next call memcpy's into it.
+    CHECK_OPENSSL(raw_pub.buf != nullptr);
     CHECK_OPENSSL(EVP_PKEY_get_raw_public_key(key, raw_pub, &raw_len));
     // SubjectPublicKeyInfo ::= SEQUENCE { algorithm SEQUENCE { OID }, subjectPublicKey BIT STRING }.
     // The ML-KEM AlgorithmIdentifier carries no parameters; the BIT STRING is the raw public key.
     // See RFC 9935 Section 4 (Subject Public Key Fields):
     // https://datatracker.ietf.org/doc/html/rfc9935#section-4
     CBB cbb, spki, algorithm, pub;
-    CBB_init(&cbb, 0);
+    CHECK_OPENSSL(CBB_init(&cbb, 0));
     // spotless:off
     if (!CBB_add_asn1(&cbb, &spki, CBS_ASN1_SEQUENCE) ||
         !CBB_add_asn1(&spki, &algorithm, CBS_ASN1_SEQUENCE) ||
@@ -229,6 +231,24 @@ static EVP_PKEY* parseMLKEMPublicKey(const unsigned char* der, const int derLen)
     return EVP_PKEY_kem_new_raw_public_key(nid, CBS_data(&bit_string), CBS_len(&bit_string));
 }
 
+// Skips an optional context-specific field numbered |tag_number| from |cbs|, accepting both the
+// constructed and the primitive encoding of the tag. Returns false only when a matching tag is
+// present but its element is malformed; a missing field is not an error.
+static bool skipOptionalContextSpecificField(CBS* cbs, unsigned tag_number)
+{
+    const unsigned constructed = CBS_ASN1_CONTEXT_SPECIFIC | CBS_ASN1_CONSTRUCTED | tag_number;
+    if (CBS_peek_asn1_tag(cbs, constructed)) {
+        return CBS_get_asn1(cbs, nullptr, constructed) == 1;
+    }
+    // AWS-LC's EVP_parse_private_key looks for the primitive form of these tags, so accept it too
+    // rather than rejecting keys the non-FIPS d2i_PrivateKey path would have accepted.
+    const unsigned primitive = CBS_ASN1_CONTEXT_SPECIFIC | tag_number;
+    if (CBS_peek_asn1_tag(cbs, primitive)) {
+        return CBS_get_asn1(cbs, nullptr, primitive) == 1;
+    }
+    return true;
+}
+
 // See forward declaration above der2EvpPrivateKey. Parses an expanded-format ML-KEM PKCS8 private
 // key via EVP_PKEY_kem_new_raw_secret_key. The expandedKey CHOICE is specified in RFC 9935
 // Section 6 (Private Key Format), with the formal ASN.1 module in Appendix A:
@@ -241,9 +261,14 @@ static EVP_PKEY* parseMLKEMPrivateKey(const unsigned char* der, const int derLen
     CBS cbs, pkcs8, algorithm, oid, priv, expanded;
     uint64_t version = 0;
     CBS_init(&cbs, der, derLen);
+    // The outer structure is a PrivateKeyInfo (RFC 5208, version 0) or a OneAsymmetricKey (RFC 5958,
+    // version 1). Accept both versions, matching EVP_parse_private_key, so this regular-FIPS fallover
+    // parses everything the non-FIPS d2i_PrivateKey path parses. Rejecting version 1 here would make
+    // ACCP refuse OneAsymmetricKey encodings that other providers (and ACCP's own non-FIPS builds)
+    // emit and accept.
     // spotless:off
     if (!CBS_get_asn1(&cbs, &pkcs8, CBS_ASN1_SEQUENCE) || CBS_len(&cbs) != 0 ||
-        !CBS_get_asn1_uint64(&pkcs8, &version) || version != 0 ||
+        !CBS_get_asn1_uint64(&pkcs8, &version) || version > 1 ||
         !CBS_get_asn1(&pkcs8, &algorithm, CBS_ASN1_SEQUENCE) ||
         !CBS_get_asn1(&algorithm, &oid, CBS_ASN1_OBJECT)) {
         return nullptr;
@@ -258,8 +283,28 @@ static EVP_PKEY* parseMLKEMPrivateKey(const unsigned char* der, const int derLen
     // fails the inner OCTET STRING parse below, so this returns nullptr for them.
     // spotless:off
     if (CBS_len(&algorithm) != 0 ||
-        !CBS_get_asn1(&pkcs8, &priv, CBS_ASN1_OCTETSTRING) || CBS_len(&pkcs8) != 0 ||
-        !CBS_get_asn1(&priv, &expanded, CBS_ASN1_OCTETSTRING) || CBS_len(&priv) != 0) {
+        !CBS_get_asn1(&pkcs8, &priv, CBS_ASN1_OCTETSTRING)) {
+        return nullptr;
+    }
+    // spotless:on
+    // attributes [0] Attributes OPTIONAL. Ignored, exactly as EVP_parse_private_key ignores it.
+    if (!skipOptionalContextSpecificField(&pkcs8, 0)) {
+        return nullptr;
+    }
+    // publicKey [1] BIT STRING OPTIONAL, permitted only in a version-1 OneAsymmetricKey. Ignored: the
+    // non-FIPS d2i expanded path also reconstructs ML-KEM keys from the secret key alone, so honoring
+    // the public key here would make the two paths disagree.
+    const bool has_public_key = CBS_peek_asn1_tag(&pkcs8, CBS_ASN1_CONTEXT_SPECIFIC | CBS_ASN1_CONSTRUCTED | 1)
+        || CBS_peek_asn1_tag(&pkcs8, CBS_ASN1_CONTEXT_SPECIFIC | 1);
+    if (has_public_key && (version != 1 || !skipOptionalContextSpecificField(&pkcs8, 1))) {
+        return nullptr;
+    }
+    // Anything left over is not part of the grammar, so fail obviously rather than ignore it.
+    if (CBS_len(&pkcs8) != 0) {
+        return nullptr;
+    }
+    // spotless:off
+    if (!CBS_get_asn1(&priv, &expanded, CBS_ASN1_OCTETSTRING) || CBS_len(&priv) != 0) {
         return nullptr;
     }
     // spotless:on

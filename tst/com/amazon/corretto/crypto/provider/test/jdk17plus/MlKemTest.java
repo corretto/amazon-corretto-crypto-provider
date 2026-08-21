@@ -28,6 +28,14 @@ import java.util.ArrayList;
 import java.util.List;
 import javax.crypto.KEM;
 import javax.crypto.SecretKey;
+import org.bouncycastle.asn1.ASN1Encodable;
+import org.bouncycastle.asn1.ASN1Integer;
+import org.bouncycastle.asn1.ASN1Sequence;
+import org.bouncycastle.asn1.DERBitString;
+import org.bouncycastle.asn1.DERSequence;
+import org.bouncycastle.asn1.DERSet;
+import org.bouncycastle.asn1.DERTaggedObject;
+import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
 import org.bouncycastle.jcajce.interfaces.MLKEMPrivateKey;
 import org.bouncycastle.jcajce.spec.KTSParameterSpec;
 import org.junit.jupiter.api.Test;
@@ -261,6 +269,68 @@ public class MlKemTest {
     byte[] privateKeyEncoded = originalKeyPair.getPrivate().getEncoded();
     PrivateKey privateKey = keyFactory.generatePrivate(new PKCS8EncodedKeySpec(privateKeyEncoded));
     assertArrayEquals(privateKeyEncoded, privateKey.getEncoded());
+  }
+
+  @ParameterizedTest
+  @MethodSource("mlKemParamSets")
+  public void testPkcs8OneAsymmetricKeyFieldsAccepted(String paramSet) throws Exception {
+    // A PKCS#8 ML-KEM private key may arrive as an RFC 5208 PrivateKeyInfo (version 0) or an
+    // RFC 5958 OneAsymmetricKey (version 1, which also permits a [1] publicKey); both versions
+    // permit an optional [0] attributes field. AWS-LC's EVP_parse_private_key accepts all of these,
+    // and in regular FIPS builds ACCP's hand-rolled fallover parser is what has to accept them
+    // instead, so exercise each shape. The assertion is encoding-independent: every variant carries
+    // the same key material, so each must decapsulate to the same shared secret.
+    KeyPairGenerator keyGen = KeyPairGenerator.getInstance(paramSet, NATIVE_PROVIDER);
+    KeyPair keyPair = keyGen.generateKeyPair();
+    KeyFactory keyFactory = KeyFactory.getInstance(paramSet, NATIVE_PROVIDER);
+
+    ASN1Sequence pkcs8 = ASN1Sequence.getInstance(keyPair.getPrivate().getEncoded());
+    ASN1Encodable algorithm = pkcs8.getObjectAt(1);
+    ASN1Encodable privateKey = pkcs8.getObjectAt(2);
+    byte[] rawPublicKey =
+        SubjectPublicKeyInfo.getInstance(keyPair.getPublic().getEncoded())
+            .getPublicKeyData()
+            .getBytes();
+
+    List<byte[]> variants = new ArrayList<>();
+    // version 1 (OneAsymmetricKey) with no optional fields.
+    variants.add(
+        new DERSequence(new ASN1Encodable[] {new ASN1Integer(1), algorithm, privateKey})
+            .getEncoded("DER"));
+    // version 0 with an (empty) [0] attributes SET, which is encoded constructed.
+    variants.add(
+        new DERSequence(
+                new ASN1Encodable[] {
+                  new ASN1Integer(0),
+                  algorithm,
+                  privateKey,
+                  new DERTaggedObject(false, 0, new DERSet())
+                })
+            .getEncoded("DER"));
+    // version 1 with a [1] publicKey BIT STRING, which is encoded primitive.
+    variants.add(
+        new DERSequence(
+                new ASN1Encodable[] {
+                  new ASN1Integer(1),
+                  algorithm,
+                  privateKey,
+                  new DERTaggedObject(false, 1, new DERBitString(rawPublicKey))
+                })
+            .getEncoded("DER"));
+
+    KEM kem = KEM.getInstance(paramSet, NATIVE_PROVIDER);
+    NamedParameterSpec paramSpec = new NamedParameterSpec(paramSet);
+    KEM.Encapsulated encapsulated =
+        kem.newEncapsulator(keyPair.getPublic(), paramSpec, null).encapsulate();
+    byte[] ciphertext = encapsulated.encapsulation();
+
+    for (byte[] variant : variants) {
+      PrivateKey parsed = keyFactory.generatePrivate(new PKCS8EncodedKeySpec(variant));
+      assertArrayEquals(
+          encapsulated.key().getEncoded(),
+          kem.newDecapsulator(parsed, paramSpec).decapsulate(ciphertext).getEncoded(),
+          paramSet + " OneAsymmetricKey variant must decapsulate to the same shared secret");
+    }
   }
 
   @ParameterizedTest
