@@ -83,16 +83,6 @@ public class EvpKeyFactoryTest {
     for (Provider.Service service : NATIVE_PROVIDER.getServices()) {
       if ("KeyFactory".equals(service.getType())) {
         final String algorithm = service.getAlgorithm();
-        // AWS-LC-FIPS 3.1.0 cannot marshal/parse ML-KEM keys (no i2d_PUBKEY / d2i_PUBKEY for
-        // ML-KEM), so ML-KEM KeyFactory X509/PKCS8 round-trips fail in pure-FIPS builds. Skip
-        // ML-KEM here in pure FIPS; it is still exercised in non-FIPS and experimental-FIPS.
-        // TODO(#568): remove once ACCP hand-rolls ML-KEM SubjectPublicKeyInfo encode/decode for
-        // FIPS.
-        if (algorithm.toUpperCase().startsWith("ML-KEM")
-            && NATIVE_PROVIDER.isFips()
-            && !NATIVE_PROVIDER.isExperimentalFips()) {
-          continue;
-        }
         ALGORITHMS.add(algorithm);
       }
     }
@@ -342,9 +332,23 @@ public class EvpKeyFactoryTest {
 
     final PKCS8EncodedKeySpec nativeSpec =
         nativeFactory.getKeySpec(privKey, PKCS8EncodedKeySpec.class);
-    final PKCS8EncodedKeySpec jceSpec = jceFactory.getKeySpec(privKey, PKCS8EncodedKeySpec.class);
 
-    assertArrayEquals(jceSpec.getEncoded(), nativeSpec.getEncoded(), "PKCS #8 encodings match");
+    if (isMlKemWithExpandedOnlyEncoding(algorithm)) {
+      // In regular FIPS builds ACCP always emits the RFC 9935 expandedKey form for ML-KEM private
+      // keys, because AWS-LC-FIPS 3.1.0 retains no keygen seed. Other providers may emit the seed
+      // form for the same key, so the two encodings need not be byte-identical. Assert that ACCP's
+      // own encoding round-trips unchanged instead of comparing against another provider's bytes.
+      // TODO: compare against the alternate provider once AWS-LC-FIPS supports seed-format ML-KEM
+      // private keys.
+      final PrivateKey reparsed = nativeFactory.generatePrivate(nativeSpec);
+      assertArrayEquals(
+          nativeSpec.getEncoded(),
+          nativeFactory.getKeySpec(reparsed, PKCS8EncodedKeySpec.class).getEncoded(),
+          "ACCP PKCS #8 encoding round-trips unchanged");
+    } else {
+      final PKCS8EncodedKeySpec jceSpec = jceFactory.getKeySpec(privKey, PKCS8EncodedKeySpec.class);
+      assertArrayEquals(jceSpec.getEncoded(), nativeSpec.getEncoded(), "PKCS #8 encodings match");
+    }
 
     // Get a spec with extra data
     final byte[] validSpec = nativeSpec.getEncoded();
@@ -751,6 +755,15 @@ public class EvpKeyFactoryTest {
       this.nativeSample = nativeSample;
       this.jceSample = jceSample;
     }
+  }
+
+  // True when |algorithm| is ML-KEM and this is a regular (non-experimental) FIPS build, where ACCP
+  // can only emit the expanded-key PKCS#8 encoding. Other providers may emit the seed encoding for
+  // the same key, so cross-provider PKCS#8 byte comparisons are not meaningful in that combination.
+  private static boolean isMlKemWithExpandedOnlyEncoding(final String algorithm) {
+    return algorithm.toUpperCase().startsWith("ML-KEM")
+        && NATIVE_PROVIDER.isFips()
+        && !NATIVE_PROVIDER.isExperimentalFips();
   }
 
   // This method is used to determine whether tests should use an alternate provider for a given
