@@ -310,6 +310,27 @@ public class AesCfbTest {
   }
 
   @Test
+  public void testNoArgDoFinal() throws Exception {
+    // Regression test for https://github.com/corretto/amazon-corretto-crypto-provider/issues/570:
+    // a no-arg doFinal() passes a null input array, which used to be rejected outright.
+    final SecretKey key = generateKey(KEY_SIZE_128);
+    final byte[] iv = new byte[BLOCK_SIZE];
+    SECURE_RANDOM.nextBytes(iv);
+    final IvParameterSpec ivSpec = new IvParameterSpec(iv);
+
+    final Cipher accp = Cipher.getInstance(ALGORITHM, TestUtil.NATIVE_PROVIDER);
+    final Cipher sun = Cipher.getInstance(ALGORITHM, "SunJCE");
+
+    accp.init(Cipher.ENCRYPT_MODE, key, ivSpec);
+    sun.init(Cipher.ENCRYPT_MODE, key, ivSpec);
+    assertArrayEquals(sun.doFinal(), accp.doFinal());
+
+    accp.init(Cipher.DECRYPT_MODE, key, ivSpec);
+    sun.init(Cipher.DECRYPT_MODE, key, ivSpec);
+    assertArrayEquals(sun.doFinal(), accp.doFinal());
+  }
+
+  @Test
   public void testInvalidParameters() throws Throwable {
     final SecretKey key = generateKey(KEY_SIZE_128);
     final byte[] iv = new byte[BLOCK_SIZE];
