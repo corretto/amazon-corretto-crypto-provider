@@ -138,6 +138,16 @@ EVP_PKEY* der2EvpPrivateKey(const unsigned char* der,
 // TODO [AWS-LC-FIPS 4.x]: drop this hand-rolled SPKI path once the FIPS module implements i2d/d2i_PUBKEY for ML-KEM.
 
 // Maps an ML-KEM raw public-key length (FIPS 203, Table 3) to its NID, or NID_undef.
+//
+// NOTE: this mapping is only unambiguous for ML-KEM keys. AWS-LC registers legacy Kyber-R3 under the
+// same EVP_PKEY_KEM type (see KEM_find_kem_by_nid), and Kyber-512/768/1024-R3 have byte-for-byte the
+// same public- and secret-key lengths as ML-KEM-512/768/1024, so a length alone cannot tell the two
+// families apart. Callers must therefore only reach this helper for keys the library itself could not
+// encode: Java_..._EvpKey_encodePublicKey tries i2d_PUBKEY first, and encodeExpandedMLKEMPrivateKey is
+// only reached after EVP_marshal_private_key fails. Both of those only fail for EVP_PKEY_KEM in
+// regular FIPS, where AWS-LC-FIPS 3.1.0 supplies no pub_encode/pub_decode/priv_encode/priv_decode at
+// all -- so the only ML-KEM codecs in play are the ones in this file, which key off the OID and reject
+// every non-ML-KEM OID, and ACCP itself never generates anything but ML-KEM.
 static int mlkemNidForPublicKeyLen(size_t raw_len)
 {
     switch (raw_len) {
@@ -425,7 +435,10 @@ size_t encodeExpandedMLKEMPrivateKey(const EVP_PKEY* key, uint8_t** out)
     size_t raw_len = 0;
     CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(key, nullptr, &raw_len));
     int nid = NID_undef;
-    // See FIPS 203, Table 3: secret_key_len per parameter set
+    // See FIPS 203, Table 3: secret_key_len per parameter set. As with mlkemNidForPublicKeyLen above,
+    // these lengths are shared with legacy Kyber-R3, so this switch is only sound because the caller
+    // reaches it exclusively after EVP_marshal_private_key has failed -- which for EVP_PKEY_KEM only
+    // happens in regular FIPS, where no non-ML-KEM KEM key can exist.
     switch (raw_len) {
     case 1632:
         nid = NID_MLKEM512;

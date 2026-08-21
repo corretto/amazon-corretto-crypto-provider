@@ -38,11 +38,25 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpKey_enc
         EVP_PKEY* key = reinterpret_cast<EVP_PKEY*>(keyHandle);
         OPENSSL_buffer_auto der;
 
-        // This next line allocates memory. AWS-LC-FIPS 3.1.0 has no i2d_PUBKEY for ML-KEM, so
-        // hand-roll its SubjectPublicKeyInfo (byte-identical to i2d_PUBKEY in non-FIPS builds).
-        // TODO [AWS-LC-FIPS 4.x]: drop the encodeMLKEMPublicKey fallback once the FIPS module has i2d_PUBKEY.
-        int derLen = (EVP_PKEY_id(key) == EVP_PKEY_KEM) ? static_cast<int>(encodeMLKEMPublicKey(key, &der))
-                                                        : i2d_PUBKEY(key, &der);
+        // This next line allocates memory. On failure i2d_PUBKEY leaves |der| untouched.
+        int derLen = i2d_PUBKEY(key, &der);
+        if (derLen <= 0 && EVP_PKEY_id(key) == EVP_PKEY_KEM) {
+            // AWS-LC-FIPS 3.1.0 has no pub_encode for ML-KEM, so i2d_PUBKEY raises
+            // UNSUPPORTED_ALGORITHM there; hand-roll the SubjectPublicKeyInfo instead. The
+            // hand-rolled encoding is byte-identical to what i2d_PUBKEY produces in non-FIPS builds.
+            //
+            // Preferring i2d_PUBKEY over an unconditional divert is what keeps this correct: unlike
+            // the library, encodeMLKEMPublicKey has to infer the algorithm OID from the raw
+            // public-key length, and AWS-LC registers legacy Kyber-R3 under the same EVP_PKEY_KEM
+            // type with the exact same key lengths (see mlkemNidForPublicKeyLen). Whenever the
+            // library can encode the key itself it does, using the key's real OID; the length-based
+            // inference is only reached in regular FIPS, where no non-ML-KEM EVP_PKEY_KEM key can
+            // exist (ACCP only ever generates ML-KEM, and the FIPS module has no pub_decode/
+            // priv_decode at all, so the only decoders are ACCP's, which reject non-ML-KEM OIDs).
+            // TODO [AWS-LC-FIPS 4.x]: drop the encodeMLKEMPublicKey fallback once the FIPS module has i2d_PUBKEY.
+            ERR_clear_error();
+            derLen = static_cast<int>(encodeMLKEMPublicKey(key, &der));
+        }
         CHECK_OPENSSL(derLen > 0);
         if (!(result = env->NewByteArray(derLen))) {
             throw_java_ex(EX_OOM, "Unable to allocate DER array");
@@ -753,33 +767,37 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpKemPriv
         EVP_PKEY* key = reinterpret_cast<EVP_PKEY*>(keyHandle);
         CHECK_OPENSSL(EVP_PKEY_id(key) == EVP_PKEY_KEM);
 
-        uint8_t* der;
-        size_t der_len;
+        OPENSSL_buffer_auto der;
+        size_t der_len = 0;
         CBB cbb;
         CHECK_OPENSSL(CBB_init(&cbb, 0));
         // Prefer the standard PKCS8 marshal, which yields the compact seed format in non-FIPS and
         // experimental-FIPS builds. AWS-LC-FIPS 3.1.0 cannot marshal ML-KEM private keys (no
         // priv_encode) and lacks seed support, so on failure fall back to hand-rolled expanded-format
-        // PKCS8 after clearing the error queue. Mirrors encodeMlDsaPrivateKey above.
+        // PKCS8 after clearing the error queue. Preferring the library encoder also keeps every
+        // non-ML-KEM EVP_PKEY_KEM key off encodeExpandedMLKEMPrivateKey's length-based OID
+        // inference; see the equivalent note in encodePublicKey above. Mirrors
+        // encodeMlDsaPrivateKey above.
         // TODO [AWS-LC-FIPS 4.x]: drop the encodeExpandedMLKEMPrivateKey fallback once the FIPS module has priv_encode.
         if (EVP_marshal_private_key(&cbb, key)) {
             if (!CBB_finish(&cbb, &der, &der_len)) {
-                OPENSSL_free(der);
+                // CBB_finish does not write |der| on failure, and the CBB still owns its buffer.
+                CBB_cleanup(&cbb);
                 throw_java_ex(EX_RUNTIME_CRYPTO, "Error finalizing seed ML-KEM key");
             }
+            // A successful CBB_finish hands the buffer to |der| and cleans the CBB up itself.
         } else {
             ERR_clear_error();
+            // Clean the CBB up before calling a helper that throws on failure.
+            CBB_cleanup(&cbb);
             der_len = encodeExpandedMLKEMPrivateKey(key, &der);
         }
-        CBB_cleanup(&cbb);
 
         if (!(result = env->NewByteArray(der_len))) {
-            OPENSSL_free(der);
             throw_java_ex(EX_OOM, "Unable to allocate DER array");
         }
         // This may throw, if it does we'll just keep the exception state as we return.
-        env->SetByteArrayRegion(result, 0, der_len, (const jbyte*)der);
-        OPENSSL_free(der);
+        env->SetByteArrayRegion(result, 0, der_len, der);
     } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);
     }
