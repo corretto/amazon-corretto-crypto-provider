@@ -637,11 +637,14 @@ final class Utils {
 
     if (javaVersion == 17 || javaVersion >= 21) {
       try {
-        // Check KEM availability for both Java 17 and 21+
+        // ML-KEM plugs into the JDK's KEM API (backported to some JDK 17 builds, GA in JDK 21+).
+        // Probe the JDK's own KEM classes rather than ACCP's bundled MlKemSpi: the
+        // always-Multi-Release
+        // JAR ships MlKemSpi unconditionally, so its presence says nothing about runtime KEM
+        // support,
+        // and loading it on a non-KEM runtime would raise NoClassDefFoundError (it extends KEMSpi).
         Class.forName("javax.crypto.KEM");
-
-        // Check ACCP implementation was compiled for both versions
-        Class.forName("com.amazon.corretto.crypto.provider.MlKemSpi");
+        Class.forName("javax.crypto.KEMSpi");
         return true;
       } catch (ClassNotFoundException e) {
         return false;

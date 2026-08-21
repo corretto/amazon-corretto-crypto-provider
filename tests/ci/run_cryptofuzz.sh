@@ -14,6 +14,11 @@ mkdir -p "$BUILD_ROOT"
 
 # Build ACCP, but skip the tests since that's covered by all the other CI
 cd ${SRC_ROOT}
+# ACCP requires a KEM-capable build JDK (JDK 21+ or a KEM-backported JDK 17) to
+# compile the ML-KEM Multi-Release overlay; point JAVA_HOME at one if the current
+# JDK lacks it (JDK_PATH below then links against that same KEM-capable JDK).
+source tests/ci/select_build_jdk.sh
+select_kem_capable_java_home
 ./gradlew -x check build
 AWSLC_INSTALL_PATH=`realpath build/awslc/bin/`
 export AWSLC_INCLUDE_PATH="${AWSLC_INSTALL_PATH}/include/"
