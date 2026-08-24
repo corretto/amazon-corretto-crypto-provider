@@ -213,8 +213,8 @@ public class MlKemTest {
   @MethodSource("mlKemParamSets")
   public void testKeyPairGeneratorGeneratesWithoutInitialize(String paramSet) throws Exception {
     // Each ML-KEM KeyPairGenerator is bound to its parameter set at construction, so
-    // generateKeyPair
-    // works with no initialize() call at all -- the path a caller that never sets a spec takes.
+    // generateKeyPair works with no initialize() call at all -- the path a caller that never sets
+    // a spec takes.
     KeyPair keyPair = KeyPairGenerator.getInstance(paramSet, NATIVE_PROVIDER).generateKeyPair();
     assertEquals(paramSet, keyPair.getPublic().getAlgorithm());
     assertEquals(paramSet, keyPair.getPrivate().getAlgorithm());
@@ -493,10 +493,11 @@ public class MlKemTest {
   @MethodSource("mlKemParamSets")
   public void testMalformedPkcs8PrivateKeysRejected(String paramSet) throws Exception {
     // Negative counterpart to testPkcs8OneAsymmetricKeyFieldsAccepted. Every variant below is
-    // outside
-    // the PKCS#8 grammar for ML-KEM and must be rejected both by AWS-LC's EVP_parse_private_key
-    // (the
-    // non-FIPS decoder) and by ACCP's hand-rolled regular-FIPS fallover parser.
+    // outside the PKCS#8 grammar for ML-KEM, and each is rejected by both decoders that can see
+    // it: AWS-LC's EVP_parse_private_key in non-FIPS and experimental-FIPS builds, and ACCP's
+    // hand-rolled fallover parser in regular FIPS. There is exactly one input class the two
+    // disagree on under the currently pinned AWS-LC; it is asserted build-conditionally and
+    // explained where it appears.
     ASN1Sequence pkcs8 =
         ASN1Sequence.getInstance(
             KeyPairGenerator.getInstance(paramSet, NATIVE_PROVIDER)
@@ -550,11 +551,15 @@ public class MlKemTest {
               algorithm, new DERTaggedObject(false, 0, new DEROctetString(new byte[seedLen]))));
     }
 
-    // Wrong encoding form for each of the two optional trailing fields. AWS-LC's
-    // EVP_parse_private_key recognizes attributes only as a constructed [0] (kAttributesTag) and
-    // publicKey only as a primitive [1] (kPublicKeyTag), so the other form of either tag goes
-    // unrecognized and trips its check for trailing data inside the SEQUENCE. ACCP's fallover
-    // parser spells both tags the same way, which is what these two cases pin.
+    // Wrong encoding form for each of the two optional trailing fields. ACCP's fallover parser
+    // recognizes attributes only as a constructed [0] and publicKey only as a primitive [1], the
+    // way AWS-LC v5.0.0 spells kAttributesTag and kPublicKeyTag, so it treats the other form of
+    // either tag as unrecognized trailing data inside the SEQUENCE and rejects the key.
+    //
+    // A primitive [0] where attributes belong is rejected everywhere, though the pinned non-FIPS
+    // AWS-LC v1.72.0 gets there by another route: its kAttributesTag is the primitive form, so it
+    // matches, but it then tries to consume the field from the outer CBS it has already advanced
+    // past the SEQUENCE, and fails.
     assertPrivateKeyRejected(
         keyFactory,
         paramSet + " primitive [0] attributes",
@@ -567,9 +572,15 @@ public class MlKemTest {
                 })
             .getEncoded("DER"));
 
-    assertPrivateKeyRejected(
-        keyFactory,
-        paramSet + " constructed [1] publicKey",
+    // A constructed [1] where a primitive [1] publicKey belongs is the one input class the builds
+    // disagree on, and the disagreement is entirely on AWS-LC's side of it. ACCP's parser rejects
+    // it, so regular FIPS -- where that parser is the whole ML-KEM decoder -- rejects it. AWS-LC
+    // v1.72.0 matches neither of its tags against 0xA1 and never checks for trailing data inside
+    // the SEQUENCE, so it accepts the key and silently ignores the field; in non-FIPS and
+    // experimental-FIPS builds d2i_PrivateKey therefore succeeds before the fallover is consulted.
+    // v5.0.0 rejects it, so this collapses to an unconditional rejection once the pinned mainline
+    // tag reaches v5.x, at which point the else branch below should be deleted.
+    byte[] constructedPublicKey =
         new DERSequence(
                 new ASN1Encodable[] {
                   new ASN1Integer(1),
@@ -577,7 +588,20 @@ public class MlKemTest {
                   privateKey,
                   new DERTaggedObject(true, 1, new DERBitString(new byte[32]))
                 })
-            .getEncoded("DER"));
+            .getEncoded("DER");
+    if (NATIVE_PROVIDER.isFips() && !NATIVE_PROVIDER.isExperimentalFips()) {
+      assertPrivateKeyRejected(
+          keyFactory, paramSet + " constructed [1] publicKey", constructedPublicKey);
+    } else {
+      // Pin that AWS-LC ignores the field rather than absorbing any of it into the key: the result
+      // must re-encode to exactly the key the bogus field was grafted onto.
+      PrivateKey ignored =
+          keyFactory.generatePrivate(new PKCS8EncodedKeySpec(constructedPublicKey));
+      assertArrayEquals(
+          pkcs8.getEncoded("DER"),
+          ignored.getEncoded(),
+          paramSet + " AWS-LC v1.72.0 must ignore a constructed [1] publicKey, not absorb it");
+    }
 
     // A publicKey field is permitted only in a version 1 OneAsymmetricKey.
     assertPrivateKeyRejected(

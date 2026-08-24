@@ -46,7 +46,8 @@ EVP_PKEY* der2EvpPrivateKey(const unsigned char* der,
     // Fallover for ML-KEM PKCS8: AWS-LC-FIPS 3.1.0 has no priv_decode for ML-KEM, so d2i_PrivateKey
     // fails on every ML-KEM private key there. Only when the caller asked for a KEM key and
     // d2i_PrivateKey produced nothing do we hand-roll the parse via the raw APIs. Each CHOICE
-    // reconstructs the key exactly the way mainline AWS-LC's decoder does, so the two agree per CHOICE:
+    // reconstructs the key exactly the way AWS-LC's decoder does (identically in v1.72.0 and v5.0.0),
+    // so the two agree per CHOICE:
     //   - expandedKey sets only the raw secret key (KEM_KEY_set_raw_secret_key), leaving the public key
     //     unpopulated, so getPublicKey().getEncoded() fails for such a key in every build;
     //   - seed derives the whole key pair from the seed, public key included.
@@ -283,9 +284,11 @@ static EVP_PKEY* mlkemKeyFromSeed(int nid, const uint8_t* seed, size_t seed_len)
 }
 
 // Tags of the two optional PrivateKeyInfo / OneAsymmetricKey trailing fields, spelled exactly as
-// mainline AWS-LC's EVP_parse_private_key spells them (kAttributesTag and kPublicKeyTag in
+// AWS-LC v5.0.0's EVP_parse_private_key spells them (kAttributesTag and kPublicKeyTag in
 // evp_asn1.c): attributes is recognized only in its constructed form and publicKey only in its
-// primitive form. Deliberately not lenient about the other form of either tag -- see
+// primitive form. That asymmetry is what DER requires of each, not an inconsistency: attributes is
+// a SET, which is always constructed, while publicKey is an IMPLICIT-tagged BIT STRING, which is
+// primitive. Deliberately not lenient about the other form of either tag -- see
 // parseMLKEMPrivateKey.
 static const unsigned MLKEM_PKCS8_ATTRIBUTES_TAG = CBS_ASN1_CONTEXT_SPECIFIC | CBS_ASN1_CONSTRUCTED | 0;
 static const unsigned MLKEM_PKCS8_PUBLIC_KEY_TAG = CBS_ASN1_CONTEXT_SPECIFIC | 1;
@@ -306,23 +309,38 @@ static bool skipOptionalField(CBS* cbs, unsigned tag)
 // https://datatracker.ietf.org/doc/html/rfc9935#section-6
 // https://datatracker.ietf.org/doc/html/rfc9935#appendix-A
 //
-// This is a stand-in for mainline AWS-LC's decoder, not an improvement on it: it deliberately mirrors
+// This is a stand-in for AWS-LC's decoder, not an improvement on it: it deliberately mirrors
 // EVP_parse_private_key (crypto/evp_extra/evp_asn1.c) plus kem_priv_decode
 // (crypto/evp_extra/p_kem_asn1.c) accept-for-accept and reject-for-reject, so that deleting this
 // function once AWS-LC-FIPS decodes ML-KEM natively is a behavioral no-op. Two consequences worth
 // spelling out, both matching AWS-LC:
 //   - the "both" CHOICE (SEQUENCE { seed, expandedKey }) is rejected, even though it is well-formed
 //     RFC 9935 and is what BouncyCastle's ML-KEM getEncoded() emits by default. AWS-LC has not
-//     implemented it in any flavor, mainline included ("Case 3 ... not implemented yet"), so
-//     accepting it here would make ACCP quietly lose the ability on the FIPS bump;
+//     implemented it in any flavor ("Case 3 ... not implemented yet"), so accepting it here would
+//     make ACCP quietly lose the ability on the FIPS bump;
 //   - trailing bytes after the CHOICE inside the privateKey OCTET STRING are ignored rather than
 //     rejected, because kem_priv_decode does not check CBS_len(key) after extracting the CHOICE.
-// The reference is the AWS-LC that non-FIPS and experimental-FIPS builds link, v5.0.0, whose
-// EVP_parse_private_key and kem_priv_decode are the two functions cited above. AWS-LC-FIPS 3.1.0 has
-// no ML-KEM ASN.1 method at all, so in regular FIPS this function is the entire decoder.
-// Returns nullptr for non-ML-KEM inputs. der2EvpPrivateKey calls this as a fallover after
-// d2i_PrivateKey fails, so in non-FIPS / experimental-FIPS builds only inputs AWS-LC itself rejected
-// reach it, and it rejects those too.
+//
+// The version mirrored is AWS-LC v5.0.0, the decoder this function is destined to be replaced by,
+// and NOT the v1.72.0 that build.gradle pins for non-FIPS and experimental-FIPS builds. v1.72.0's
+// EVP_parse_private_key is laxer about the two optional trailing fields: it spells kAttributesTag
+// without CBS_ASN1_CONSTRUCTED, consumes the attributes field from the wrong CBS, and never checks
+// for trailing data inside the PrivateKeyInfo SEQUENCE, so it silently ignores encodings this parser
+// rejects (a constructed [1] where a primitive [1] publicKey belongs, for instance). Mirroring where
+// ACCP is going rather than where it is pinned is the point; do not relax these checks to match
+// v1.72.0.
+//
+// The resulting divergence is bounded and one-directional: everything this function accepts,
+// v1.72.0 accepts too, so it is strictly the stricter of the two and the fallover can never widen
+// what a non-FIPS build accepts. It only ever shows up as regular FIPS rejecting a malformed
+// encoding that the other builds ignore, and it disappears once the pinned mainline tag reaches
+// v5.x. The one intended behavioral difference between the builds is serialization, not parsing:
+// see the seed CHOICE below.
+//
+// AWS-LC-FIPS 3.1.0 has no ML-KEM ASN.1 method at all, so in regular FIPS this function is the
+// entire decoder. Returns nullptr for non-ML-KEM inputs. der2EvpPrivateKey calls this as a fallover
+// after d2i_PrivateKey fails, so in non-FIPS / experimental-FIPS builds only inputs AWS-LC itself
+// rejected reach it, and it rejects those too.
 static EVP_PKEY* parseMLKEMPrivateKey(const unsigned char* der, const int derLen)
 {
     CBS cbs, pkcs8, algorithm, oid, priv;
@@ -370,9 +388,13 @@ static EVP_PKEY* parseMLKEMPrivateKey(const unsigned char* der, const int derLen
     }
     if (CBS_peek_asn1_tag(&priv, CBS_ASN1_CONTEXT_SPECIFIC | 0)) {
         // seed CHOICE ([0] IMPLICIT OCTET STRING, the raw d || z keygen seed). AWS-LC-FIPS 3.1.0 cannot
-        // d2i a seed-format ML-KEM key, so expand the seed into a full key. The seed itself is dropped:
-        // AWS-LC-FIPS 3.1.0's KEM_KEY has no seed field (v5.0.0 added one), so nothing can hold it and
-        // getEncoded() emits the expanded CHOICE in regular FIPS.
+        // d2i a seed-format ML-KEM key, so expand the seed into a full key. The seed itself is then
+        // dropped, and this is the one intended FIPS-vs-non-FIPS behavioral difference in ML-KEM key
+        // handling: mainline AWS-LC's KEM_KEY carries a seed field (v1.72.0 included) and re-emits the
+        // seed CHOICE from it, while AWS-LC-FIPS 3.1.0's KEM_KEY has no such field, so nothing can hold
+        // the seed and getEncoded() emits the expanded CHOICE in regular FIPS. Parsing is unaffected --
+        // both CHOICEs are accepted in every build. Documented in README.md under "Notable differences
+        // between ACCP and ACCP-FIPS".
         // TODO [AWS-LC-FIPS 4.x]: drop this seed branch once the FIPS module can d2i seed-format ML-KEM keys.
         CBS seed;
         if (!CBS_get_asn1(&priv, &seed, CBS_ASN1_CONTEXT_SPECIFIC | 0)) {
