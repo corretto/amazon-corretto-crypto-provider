@@ -250,17 +250,6 @@ public class BouncyCastleJsseMlKemIntegrationTest {
    * ACCP itself has ML-KEM (its shipped Maven artifacts do not). Missing any one of these skips.
    */
   private static void assumeMlKemDelegationReachable() {
-    // ACCP can generate ML-KEM keypairs in pure FIPS, but AWS-LC-FIPS 3.1.0 cannot marshal ML-KEM
-    // keys (getEncoded -> i2d_PUBKEY raises UNSUPPORTED_ALGORITHM), so BCJSSE cannot encode the
-    // ephemeral ML-KEM public key into the TLS key_share. The KEM-over-TLS path is therefore
-    // unusable in pure FIPS; it works in non-FIPS and experimental-FIPS builds (non-FIPS AWS-LC).
-    // TODO(#568): remove once ACCP hand-rolls ML-KEM SubjectPublicKeyInfo encode/decode for FIPS.
-    assumeTrue(
-        !AmazonCorrettoCryptoProvider.INSTANCE.isFips()
-            || AmazonCorrettoCryptoProvider.INSTANCE.isExperimentalFips(),
-        "ML-KEM key encoding is unavailable in pure-FIPS AWS-LC; BCJSSE cannot source ML-KEM TLS"
-            + " from ACCP there");
-
     assumeTrue(
         classPresent("javax.crypto.KEMSpi"),
         "javax.crypto.KEMSpi absent -- need JDK 21+ or KEM-backported JDK 17");
