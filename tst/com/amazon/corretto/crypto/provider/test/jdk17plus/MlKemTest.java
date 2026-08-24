@@ -263,9 +263,6 @@ public class MlKemTest {
 
   @Test
   public void testKeyFactorySelfConversion() throws Exception {
-    // Round-trips ACCP's own ML-KEM key pair through its KeyFactory. In regular FIPS the private
-    // key serializes in expanded format (seed format is unavailable there), so this exercises the
-    // expanded encode/decode; in other builds it exercises the seed format. Public keys use X.509.
     KeyPairGenerator keyGen = KeyPairGenerator.getInstance("ML-KEM", NATIVE_PROVIDER);
     KeyPair originalKeyPair = keyGen.generateKeyPair();
 
@@ -553,13 +550,11 @@ public class MlKemTest {
               algorithm, new DERTaggedObject(false, 0, new DEROctetString(new byte[seedLen]))));
     }
 
-    // Wrong encoding form for the attributes field: mainline AWS-LC's EVP_parse_private_key
-    // recognizes attributes only as a constructed [0] (kAttributesTag), so a primitive [0] is
-    // unrecognized and trips its trailing-data check. ACCP's fallover parser spells the same tag,
-    // which is what this pins. There is deliberately no matching case for a constructed [1] where
-    // a primitive [1] publicKey belongs: mainline rejects that as trailing data too, but the
-    // AWS-LC v1.72.0 the non-FIPS build links predates the trailing-data check and accepts it, so
-    // asserting on it would pin the AWS-LC version rather than the ML-KEM grammar.
+    // Wrong encoding form for each of the two optional trailing fields. AWS-LC's
+    // EVP_parse_private_key recognizes attributes only as a constructed [0] (kAttributesTag) and
+    // publicKey only as a primitive [1] (kPublicKeyTag), so the other form of either tag goes
+    // unrecognized and trips its check for trailing data inside the SEQUENCE. ACCP's fallover
+    // parser spells both tags the same way, which is what these two cases pin.
     assertPrivateKeyRejected(
         keyFactory,
         paramSet + " primitive [0] attributes",
@@ -569,6 +564,18 @@ public class MlKemTest {
                   algorithm,
                   privateKey,
                   new DERTaggedObject(false, 0, new DEROctetString(new byte[0]))
+                })
+            .getEncoded("DER"));
+
+    assertPrivateKeyRejected(
+        keyFactory,
+        paramSet + " constructed [1] publicKey",
+        new DERSequence(
+                new ASN1Encodable[] {
+                  new ASN1Integer(1),
+                  algorithm,
+                  privateKey,
+                  new DERTaggedObject(true, 1, new DERBitString(new byte[32]))
                 })
             .getEncoded("DER"));
 
@@ -835,13 +842,6 @@ public class MlKemTest {
   @ParameterizedTest
   @MethodSource("mlKemParamSets")
   public void testBouncyCastleInteroperability(String paramSet) throws Exception {
-    // Runs in every build. Nothing here depends on WHICH private-key CHOICE ACCP emits: the
-    // assertions only require that BouncyCastle preserve whatever ACCP hands it, and BC
-    // round-trips the seed and expandedKey encodings alike byte for byte. So this covers the seed
-    // encoding in non-FIPS and experimental-FIPS builds and the expanded encoding in regular FIPS,
-    // where AWS-LC-FIPS 3.1.0 retains no keygen seed. testPrivateKeyChoicesParse covers the other
-    // direction, ACCP parsing BouncyCastle's seed and expandedKey encodings, and
-    // testBothChoiceRejected covers BouncyCastle's default both encoding.
     KeyPair accpKeyPair = KeyPairGenerator.getInstance(paramSet, NATIVE_PROVIDER).generateKeyPair();
 
     // Test BouncyCastle can import ACCP keys
@@ -935,10 +935,6 @@ public class MlKemTest {
   @ParameterizedTest
   @MethodSource("mlKemParamSets")
   public void testDecapsulationEquivalenceSeedAndExpanded(String paramSet) throws Exception {
-    // Runs in every build: expandPrivateKeyInternal is compiled unconditionally and parses through
-    // der2EvpPrivateKey, which accepts the seed and expandedKey CHOICEs of RFC 9935 everywhere. In
-    // regular FIPS the generated key already reports the expanded encoding, so the expansion is a
-    // no-op there and this degenerates into an expanded-to-expanded check, still worth running.
     KeyPairGenerator keyGen = KeyPairGenerator.getInstance(paramSet, NATIVE_PROVIDER);
     KeyPair keyPair = keyGen.generateKeyPair();
 

@@ -79,11 +79,6 @@ public class MlKemUtilsTest {
   @ValueSource(strings = {"ML-KEM-512", "ML-KEM-768", "ML-KEM-1024"})
   @DisabledIf("mlKemDisabled")
   public void testExpandSeedKey(String algorithm) throws Exception {
-    // Runs in every build: expandPrivateKeyInternal parses through der2EvpPrivateKey, which
-    // handles the seed and expandedKey CHOICEs of RFC 9935 everywhere, and re-encodes with the
-    // unguarded encodeExpandedMLKEMPrivateKey. In regular FIPS the KeyFactory-imported seed key
-    // already reports the expanded encoding (AWS-LC-FIPS 3.1.0 retains no seed), so the expansion
-    // is a no-op there.
     KeyFactory kf = KeyFactory.getInstance("ML-KEM", NATIVE_PROVIDER);
     byte[] seedDer = Base64.getDecoder().decode(seedPem(algorithm));
 

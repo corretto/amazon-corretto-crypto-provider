@@ -317,11 +317,9 @@ static bool skipOptionalField(CBS* cbs, unsigned tag)
 //     accepting it here would make ACCP quietly lose the ability on the FIPS bump;
 //   - trailing bytes after the CHOICE inside the privateKey OCTET STRING are ignored rather than
 //     rejected, because kem_priv_decode does not check CBS_len(key) after extracting the CHOICE.
-// "Mainline" means AWS-LC main, the version whose decoder this is destined to be replaced by. Older
-// AWS-LC releases are laxer about the two optional trailing fields: the non-FIPS build's v1.72.0
-// spells kAttributesTag without CBS_ASN1_CONSTRUCTED and has no trailing-data check inside the
-// PrivateKeyInfo SEQUENCE, so it accepts a few encodings this parser rejects. Following main rather
-// than the pinned release is the point; do not relax these checks to match v1.72.0.
+// The reference is the AWS-LC that non-FIPS and experimental-FIPS builds link, v5.0.0, whose
+// EVP_parse_private_key and kem_priv_decode are the two functions cited above. AWS-LC-FIPS 3.1.0 has
+// no ML-KEM ASN.1 method at all, so in regular FIPS this function is the entire decoder.
 // Returns nullptr for non-ML-KEM inputs. der2EvpPrivateKey calls this as a fallover after
 // d2i_PrivateKey fails, so in non-FIPS / experimental-FIPS builds only inputs AWS-LC itself rejected
 // reach it, and it rejects those too.
@@ -372,8 +370,9 @@ static EVP_PKEY* parseMLKEMPrivateKey(const unsigned char* der, const int derLen
     }
     if (CBS_peek_asn1_tag(&priv, CBS_ASN1_CONTEXT_SPECIFIC | 0)) {
         // seed CHOICE ([0] IMPLICIT OCTET STRING, the raw d || z keygen seed). AWS-LC-FIPS 3.1.0 cannot
-        // d2i a seed-format ML-KEM key, so expand the seed into a full key. (Serializing back to seed is
-        // still impossible in regular FIPS -- getEncoded() emits the expanded form.)
+        // d2i a seed-format ML-KEM key, so expand the seed into a full key. The seed itself is dropped:
+        // AWS-LC-FIPS 3.1.0's KEM_KEY has no seed field (v5.0.0 added one), so nothing can hold it and
+        // getEncoded() emits the expanded CHOICE in regular FIPS.
         // TODO [AWS-LC-FIPS 4.x]: drop this seed branch once the FIPS module can d2i seed-format ML-KEM keys.
         CBS seed;
         if (!CBS_get_asn1(&priv, &seed, CBS_ASN1_CONTEXT_SPECIFIC | 0)) {
