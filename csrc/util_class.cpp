@@ -136,7 +136,58 @@ Java_com_amazon_corretto_crypto_utils_MlDsaUtils_expandPrivateKeyInternal(JNIEnv
     }
     return result;
 }
+#endif // !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
 
+/*
+ * Class:     com_amazon_corretto_crypto_utils_MlKemUtils
+ * Method:    expandPrivateKeyInternal
+ * Signature: ([B)[B
+ *
+ * Deliberately outside the guard that brackets the ML-DSA helpers on either side of it:
+ * der2EvpPrivateKey accepts the seed and expandedKey CHOICEs of RFC 9935 Section 6 in every build
+ * -- in regular FIPS through the hand-rolled fallover parser in keyutils.cpp -- and
+ * encodeExpandedMLKEMPrivateKey is likewise available everywhere. Re-encoding a key that was
+ * already expanded reproduces its DER byte for byte, so this is idempotent rather than
+ * special-cased on the input length.
+ */
+JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_utils_MlKemUtils_expandPrivateKeyInternal(
+    JNIEnv* pEnv, jclass, jbyteArray keyBytes)
+{
+    jbyteArray result = NULL;
+    try {
+        raii_env env(pEnv);
+        jsize key_der_len = env->GetArrayLength(keyBytes);
+        uint8_t* key_der = (uint8_t*)env->GetByteArrayElements(keyBytes, nullptr);
+        CHECK_OPENSSL(key_der);
+
+        EVP_PKEY_auto key;
+        try {
+            key.set(der2EvpPrivateKey(
+                key_der, key_der_len, EVP_PKEY_KEM, /*shouldCheckPrivate*/ false, EX_INVALID_KEY_SPEC));
+        } catch (...) {
+            env->ReleaseByteArrayElements(keyBytes, (jbyte*)key_der, JNI_ABORT);
+            throw;
+        }
+        env->ReleaseByteArrayElements(keyBytes, (jbyte*)key_der, JNI_ABORT);
+        CHECK_OPENSSL(key.isInitialized());
+
+        // Encode as expanded-format PKCS8
+        OPENSSL_buffer_auto new_der;
+        int new_der_len = encodeExpandedMLKEMPrivateKey(key, &new_der);
+        CHECK_OPENSSL(new_der_len > 0);
+
+        if (!(result = env->NewByteArray(new_der_len))) {
+            throw_java_ex(EX_OOM, "Unable to allocate DER array");
+        }
+        env->SetByteArrayRegion(result, 0, new_der_len, (const jbyte*)new_der);
+    } catch (java_ex& ex) {
+        ex.throw_to_java(pEnv);
+        return 0;
+    }
+    return result;
+}
+
+#if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
 /*
  * Class:     com_amazon_corretto_crypto_utils_MlDsaUtils
  * Method:    computeMuInternal
@@ -203,54 +254,6 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_utils_MlDsaUtils_co
     }
 }
 #endif // !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
-
-/*
- * Class:     com_amazon_corretto_crypto_utils_MlKemUtils
- * Method:    expandPrivateKeyInternal
- * Signature: ([B)[B
- *
- * Unguarded (unlike the ML-DSA helpers above): der2EvpPrivateKey accepts the seed and expandedKey
- * CHOICEs of RFC 9935 Section 6 in every build -- in regular FIPS through the hand-rolled fallover
- * parser in keyutils.cpp -- and encodeExpandedMLKEMPrivateKey is likewise available everywhere.
- * Re-encoding a key that was already expanded reproduces its DER byte for byte, so this is
- * idempotent rather than special-cased on the input length.
- */
-JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_utils_MlKemUtils_expandPrivateKeyInternal(
-    JNIEnv* pEnv, jclass, jbyteArray keyBytes)
-{
-    jbyteArray result = NULL;
-    try {
-        raii_env env(pEnv);
-        jsize key_der_len = env->GetArrayLength(keyBytes);
-        uint8_t* key_der = (uint8_t*)env->GetByteArrayElements(keyBytes, nullptr);
-        CHECK_OPENSSL(key_der);
-
-        EVP_PKEY_auto key;
-        try {
-            key.set(der2EvpPrivateKey(
-                key_der, key_der_len, EVP_PKEY_KEM, /*shouldCheckPrivate*/ false, EX_INVALID_KEY_SPEC));
-        } catch (...) {
-            env->ReleaseByteArrayElements(keyBytes, (jbyte*)key_der, JNI_ABORT);
-            throw;
-        }
-        env->ReleaseByteArrayElements(keyBytes, (jbyte*)key_der, JNI_ABORT);
-        CHECK_OPENSSL(key.isInitialized());
-
-        // Encode as expanded-format PKCS8
-        OPENSSL_buffer_auto new_der;
-        int new_der_len = encodeExpandedMLKEMPrivateKey(key, &new_der);
-        CHECK_OPENSSL(new_der_len > 0);
-
-        if (!(result = env->NewByteArray(new_der_len))) {
-            throw_java_ex(EX_OOM, "Unable to allocate DER array");
-        }
-        env->SetByteArrayRegion(result, 0, new_der_len, (const jbyte*)new_der);
-    } catch (java_ex& ex) {
-        ex.throw_to_java(pEnv);
-        return 0;
-    }
-    return result;
-}
 
 /*
  * Class:     com_amazon_corretto_crypto_utils_DigestUtils
