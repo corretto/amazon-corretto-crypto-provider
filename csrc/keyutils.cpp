@@ -24,6 +24,7 @@ namespace AmazonCorrettoCryptoProvider {
 // delegates to may queue an OpenSSL error when they reject a well-formed but invalid key.
 // der2EvpPrivateKey calls this as a fallover after d2i_PrivateKey fails. Defined below, next to
 // parseMLKEMPublicKey.
+// TODO [AWS-LC-FIPS 4.x]: drop this fallover parser once the FIPS module implements priv_decode for ML-KEM.
 static EVP_PKEY* parseMLKEMPrivateKey(const unsigned char* der, const int derLen);
 
 EVP_PKEY* der2EvpPrivateKey(const unsigned char* der,
@@ -282,6 +283,11 @@ static EVP_PKEY* mlkemKeyFromSeed(int nid, const uint8_t* seed, size_t seed_len)
     }
     return pkey;
 }
+
+// Hand-rolled PKCS8 private-key path for ML-KEM. The tag constants and skipOptionalField below exist
+// only to serve parseMLKEMPrivateKey, so all three are deleted together, along with the seed branch
+// and mlkemKeyFromSeed above it.
+// TODO [AWS-LC-FIPS 4.x]: drop this hand-rolled PKCS8 path once the FIPS module implements priv_decode for ML-KEM.
 
 // Tags of the two optional PrivateKeyInfo / OneAsymmetricKey trailing fields, spelled exactly as
 // AWS-LC v5.0.0's EVP_parse_private_key spells them (kAttributesTag and kPublicKeyTag in

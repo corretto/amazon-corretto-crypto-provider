@@ -581,6 +581,10 @@ public class MlKemTest {
     // before the fallover is consulted. ACCP is built against both the pinned tag and AWS-LC HEAD,
     // so pin neither answer: require only that the field is never absorbed into the key, which
     // leaves rejecting it and ignoring it equally acceptable.
+    //
+    // TODO [AWS-LC-FIPS 4.x]: collapse this to the tolerant branch alone once the FIPS module
+    // implements priv_decode for ML-KEM. parseMLKEMPrivateKey goes away with it, and regular FIPS
+    // then answers with AWS-LC-FIPS's decoder rather than ACCP's own.
     byte[] constructedPublicKey =
         new DERSequence(
                 new ASN1Encodable[] {
