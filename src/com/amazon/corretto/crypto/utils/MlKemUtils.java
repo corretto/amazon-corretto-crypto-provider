@@ -21,8 +21,18 @@ public final class MlKemUtils {
    *
    * <p>See <a href="https://datatracker.ietf.org/doc/rfc9935/">RFC 9935</a>
    *
+   * <p>The returned encoding is always the canonical minimal form: a version 0 {@code
+   * PrivateKeyInfo} wrapping the {@code expandedKey} CHOICE, with no {@code attributes} and no
+   * {@code publicKey}. Those optional {@code OneAsymmetricKey} fields are accepted on input but are
+   * not carried over, so this method is idempotent on its own output rather than byte-preserving on
+   * arbitrary input. Only the {@code seed} and {@code expandedKey} CHOICEs of RFC 9935 Section 6
+   * are accepted; the {@code both} CHOICE is rejected.
+   *
    * @param key an ML-KEM private key
    * @return a byte[] containing the PKCS8-encoded expanded private key
+   * @throws IllegalArgumentException if {@code key} is null or is not an ML-KEM key
+   * @throws com.amazon.corretto.crypto.provider.RuntimeCryptoException if {@code key.getEncoded()}
+   *     is not a PKCS8 ML-KEM private key ACCP can parse
    */
   public static byte[] expandPrivateKey(PrivateKey key) {
     if (key == null || !key.getAlgorithm().startsWith("ML-KEM")) {

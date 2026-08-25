@@ -393,6 +393,13 @@ public class MlKemTest {
             new PKCS8EncodedKeySpec(
                 pkcs8WithPrivateKeyChoice(algorithm, new DEROctetString(expanded)))),
         paramSet + " the expandedKey half alone must be accepted");
+
+    // MlKemUtils.expandPrivateKey parses through the same grammar, so it rejects the both CHOICE
+    // too rather than handing the input back unchanged. Note that this is reachable with a stock
+    // BouncyCastle key: getAlgorithm() on one is the parameter-set name, so the ML-KEM check in
+    // expandPrivateKey passes and the both-encoded getEncoded() reaches the native parser. The
+    // rejection is unchecked because expandPrivateKey declares no checked exceptions.
+    assertThrows(RuntimeCryptoException.class, () -> MlKemUtils.expandPrivateKey(bcPriv));
   }
 
   @ParameterizedTest
@@ -631,6 +638,88 @@ public class MlKemTest {
             .getEncoded("DER");
     assertPrivateKeyRejected(
         keyFactory, paramSet + " trailing byte", Arrays.copyOf(valid, valid.length + 1));
+
+    // Trailing garbage after the CHOICE but still inside the privateKey OCTET STRING. ACCP's parser
+    // rejects this, which is deliberately stricter than kem_priv_decode: that function extracts the
+    // CHOICE and never looks at what follows it, in every AWS-LC version. Ignoring the bytes would
+    // let unbounded caller-controlled data ride along inside an encoding ACCP declares well-formed,
+    // and would make two distinct DER encodings decode to the same key so that getEncoded() no
+    // longer round-trips. Nothing any AWS-LC encoder emits has such trailing bytes, so the extra
+    // strictness cannot refuse a key the library itself produced. As with the constructed [1]
+    // publicKey above, only regular FIPS -- where ACCP's parser is the whole ML-KEM decoder -- can
+    // be held to the stricter answer; elsewhere d2i_PrivateKey is consulted first and all that can
+    // be required is that the trailing byte is not absorbed into the key.
+    byte[] choice = ASN1OctetString.getInstance(privateKey).getOctets();
+    byte[] trailingInsideChoice =
+        new DERSequence(
+                new ASN1Encodable[] {
+                  new ASN1Integer(0),
+                  algorithm,
+                  new DEROctetString(Arrays.copyOf(choice, choice.length + 1))
+                })
+            .getEncoded("DER");
+    if (NATIVE_PROVIDER.isFips() && !NATIVE_PROVIDER.isExperimentalFips()) {
+      assertPrivateKeyRejected(
+          keyFactory,
+          paramSet + " trailing byte inside the privateKey OCTET STRING",
+          trailingInsideChoice);
+    } else {
+      try {
+        PrivateKey ignored =
+            keyFactory.generatePrivate(new PKCS8EncodedKeySpec(trailingInsideChoice));
+        assertArrayEquals(
+            pkcs8.getEncoded("DER"),
+            ignored.getEncoded(),
+            paramSet + " a trailing byte inside the privateKey OCTET STRING must be ignored");
+      } catch (InvalidKeySpecException expected) {
+        // Rejecting it outright is the stricter of the two acceptable answers.
+      }
+    }
+  }
+
+  @ParameterizedTest
+  @MethodSource("mlKemParamSets")
+  public void testExpandPrivateKeyNormalizesEncoding(String paramSet) throws Exception {
+    // MlKemUtils.expandPrivateKey parses and re-encodes every input rather than short-circuiting on
+    // the input length the way its ML-DSA counterpart does, so its output is always the canonical
+    // minimal expandedKey PKCS#8: version 0, no attributes, no publicKey. The optional
+    // OneAsymmetricKey fields are accepted on input but are not carried over, so the method is
+    // idempotent on its own output rather than byte-preserving on arbitrary input.
+    KeyPair keyPair = KeyPairGenerator.getInstance(paramSet, NATIVE_PROVIDER).generateKeyPair();
+    byte[] canonical = MlKemUtils.expandPrivateKey(keyPair.getPrivate());
+    assertEquals(
+        CHOICE_TAG_EXPANDED,
+        privateKeyChoiceTag(canonical),
+        paramSet + " expandPrivateKey must emit the expandedKey CHOICE");
+    ASN1Sequence canonicalSeq = ASN1Sequence.getInstance(canonical);
+    assertEquals(
+        3, canonicalSeq.size(), paramSet + " expandPrivateKey must emit no optional fields");
+    assertEquals(
+        0,
+        ASN1Integer.getInstance(canonicalSeq.getObjectAt(0)).intValueExact(),
+        paramSet + " expandPrivateKey must emit a version 0 PrivateKeyInfo");
+    assertArrayEquals(
+        canonical,
+        MlKemUtils.expandPrivateKey(rawPrivateKey(paramSet, canonical)),
+        paramSet + " expandPrivateKey must be idempotent on its own output");
+
+    // Decorate that canonical encoding with both optional fields a version 1 OneAsymmetricKey may
+    // carry: a constructed [0] attributes SET and a primitive [1] publicKey BIT STRING. Both are
+    // accepted, and both are dropped rather than reflected in the output.
+    byte[] decorated =
+        new DERSequence(
+                new ASN1Encodable[] {
+                  new ASN1Integer(1),
+                  canonicalSeq.getObjectAt(1),
+                  canonicalSeq.getObjectAt(2),
+                  new DERTaggedObject(false, 0, new DERSet()),
+                  new DERTaggedObject(false, 1, new DERBitString(new byte[32]))
+                })
+            .getEncoded("DER");
+    assertArrayEquals(
+        canonical,
+        MlKemUtils.expandPrivateKey(rawPrivateKey(paramSet, decorated)),
+        paramSet + " expandPrivateKey must drop attributes and publicKey");
   }
 
   @ParameterizedTest
@@ -738,6 +827,30 @@ public class MlKemTest {
               new DEROctetString(choice.toASN1Primitive().getEncoded("DER"))
             })
         .getEncoded("DER");
+  }
+
+  // MlKemUtils.expandPrivateKey takes a PrivateKey and forwards key.getEncoded(), so exercising it
+  // on a hand-built encoding needs a key that hands those bytes back verbatim. Routing them through
+  // a KeyFactory first would re-encode the key and discard the very fields under test.
+  private static PrivateKey rawPrivateKey(String paramSet, byte[] der) {
+    return new PrivateKey() {
+      private static final long serialVersionUID = 1L;
+
+      @Override
+      public String getAlgorithm() {
+        return paramSet;
+      }
+
+      @Override
+      public String getFormat() {
+        return "PKCS#8";
+      }
+
+      @Override
+      public byte[] getEncoded() {
+        return der.clone();
+      }
+    };
   }
 
   private static ASN1Encodable bothChoice(byte[] seed, byte[] expanded) {

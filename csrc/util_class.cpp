@@ -145,10 +145,16 @@ Java_com_amazon_corretto_crypto_utils_MlDsaUtils_expandPrivateKeyInternal(JNIEnv
  *
  * Deliberately outside the guard that brackets the ML-DSA helpers on either side of it:
  * der2EvpPrivateKey accepts the seed and expandedKey CHOICEs of RFC 9935 Section 6 in every build
- * -- in regular FIPS through the hand-rolled fallover parser in keyutils.cpp -- and
- * encodeExpandedMLKEMPrivateKey is likewise available everywhere. Re-encoding a key that was
- * already expanded reproduces its DER byte for byte, so this is idempotent rather than
- * special-cased on the input length.
+ * -- in regular FIPS through the fallover parser in keyutils.cpp -- and encodeExpandedMLKEMPrivateKey
+ * is likewise available everywhere.
+ *
+ * Every input is parsed and re-encoded, rather than short-circuiting on the input length the way the
+ * ML-DSA helper above still does. So the output is always the canonical minimal expandedKey PKCS8
+ * (version 0, no attributes, no publicKey), making this idempotent on that form rather than
+ * byte-preserving in general, and an input der2EvpPrivateKey will not accept is rejected instead of
+ * handed back unchanged. EX_RUNTIME_CRYPTO is passed down rather than the EX_INVALID_KEY_SPEC the
+ * KeyFactory callers use: InvalidKeySpecException is checked, and MlKemUtils.expandPrivateKey does
+ * not declare it.
  */
 JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_utils_MlKemUtils_expandPrivateKeyInternal(
     JNIEnv* pEnv, jclass, jbyteArray keyBytes)
@@ -163,13 +169,13 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_utils_MlKemUtils_ex
         EVP_PKEY_auto key;
         try {
             key.set(der2EvpPrivateKey(
-                key_der, key_der_len, EVP_PKEY_KEM, /*shouldCheckPrivate*/ false, EX_INVALID_KEY_SPEC));
+                key_der, key_der_len, EVP_PKEY_KEM, /*shouldCheckPrivate*/ false, EX_RUNTIME_CRYPTO));
         } catch (...) {
             env->ReleaseByteArrayElements(keyBytes, (jbyte*)key_der, JNI_ABORT);
             throw;
         }
         env->ReleaseByteArrayElements(keyBytes, (jbyte*)key_der, JNI_ABORT);
-        CHECK_OPENSSL(key.isInitialized());
+        // No null check: der2EvpPrivateKey either returns a key or throws.
 
         // Encode as expanded-format PKCS8
         OPENSSL_buffer_auto new_der;
