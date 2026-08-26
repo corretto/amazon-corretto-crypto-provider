@@ -152,14 +152,8 @@ EVP_PKEY* der2EvpPrivateKey(const unsigned char* der,
 // True when |nid| identifies one of the three ML-KEM parameter sets.
 static bool isMLKEMNid(int nid) { return nid == NID_MLKEM512 || nid == NID_MLKEM768 || nid == NID_MLKEM1024; }
 
-// Maps an ML-KEM raw public-key length (FIPS 203, Table 3) to its NID, or NID_undef.
-//
-// NOTE: this mapping is only unambiguous for ML-KEM keys. AWS-LC registers legacy Kyber-R3 under the
-// same EVP_PKEY_KEM type with byte-for-byte identical key lengths, so a length alone cannot tell the
-// two families apart. Java_..._EvpKey_encodePublicKey tries i2d_PUBKEY first and only falls back to
-// encodeMLKEMPublicKey when the library cannot encode the key at all, which for EVP_PKEY_KEM only
-// happens in regular FIPS, where no non-ML-KEM KEM codec exists. encodeExpandedMLKEMPrivateKey has no
-// such caller-side guarantee and cross-checks against mlkemNidForSecretKeyLen instead.
+// Maps an ML-KEM raw public-key length (FIPS 203, Table 3) to its NID, or NID_undef. Kyber keys
+// share the same key lengths, but are not considered as Kyber is fully deprecated.
 static int mlkemNidForPublicKeyLen(size_t raw_len)
 {
     switch (raw_len) {
@@ -587,12 +581,6 @@ size_t encodeExpandedMLKEMPrivateKey(const EVP_PKEY* key, uint8_t** out)
     CHECK_OPENSSL(out);
     size_t raw_len = 0;
     CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(key, nullptr, &raw_len));
-    // Neither length identifies an ML-KEM parameter set on its own (see mlkemNidForPublicKeyLen), and
-    // unlike encodeMLKEMPublicKey this has no caller-side guarantee that the key is ML-KEM at all:
-    // MlKemUtils.expandPrivateKey reaches it in every build. Requiring both lengths to name the same
-    // parameter set refuses a KEM key of another family rather than relabeling it with an ML-KEM OID.
-    // Querying the public-key length is safe even for keys holding no public key, since
-    // kem_get_pub_raw reports the parameter set's length before it looks at the key's own public key.
     size_t pub_len = 0;
     CHECK_OPENSSL(EVP_PKEY_get_raw_public_key(key, nullptr, &pub_len));
     int nid = mlkemNidForSecretKeyLen(raw_len);
