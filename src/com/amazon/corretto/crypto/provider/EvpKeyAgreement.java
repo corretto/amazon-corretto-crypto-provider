@@ -88,6 +88,9 @@ class EvpKeyAgreement extends KeyAgreementSpi {
     if (algorithm.equalsIgnoreCase("TlsPremasterSecret")) {
       return new SecretKeySpec(secret, "TlsPremasterSecret");
     }
+    if (algorithm.equalsIgnoreCase("Generic")) {
+      return new SecretKeySpec(secret, "Generic");
+    }
     ;
     final Matcher matcher = ALGORITHM_WITH_EXPLICIT_KEYSIZE.matcher(algorithm);
     if (matcher.matches()) {
