@@ -58,6 +58,21 @@ enum MlKemParameter {
     return getAlgorithmName().equalsIgnoreCase(name);
   }
 
+  /**
+   * Case-insensitive lookup of the parameter set whose JCA standard algorithm name is {@code name},
+   * or null if {@code name} does not name a supported parameter set. Unlike {@link
+   * #fromKemName(String)} this is case-insensitive and returns null rather than throwing, which
+   * suits an SPI deciding whether to accept a caller-supplied {@code NamedParameterSpec} name.
+   */
+  public static MlKemParameter fromAlgorithmName(final String name) {
+    for (final MlKemParameter candidate : values()) {
+      if (candidate.matchesAlgorithmName(name)) {
+        return candidate;
+      }
+    }
+    return null;
+  }
+
   public static MlKemParameter fromKeySize(int keySize) {
     if (keySize == MLKEM_512.publicKeySize || keySize == MLKEM_512.secretKeySize) {
       return MLKEM_512;

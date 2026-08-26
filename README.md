@@ -156,6 +156,14 @@ caller-supplied `SecureRandom` is accepted but ignored: AWS-LC always draws ML-K
 its own DRBG. Passing a custom `SecureRandom` (for example to force a specific entropy source) has
 no effect on these operations.
 
+The parameter-set-agnostic `ML-KEM` service name lets a `NamedParameterSpec` choose the parameter
+set, mirroring how SunEC's generic `XDH` service accepts either `X25519` or `X448`:
+`KeyPairGenerator.getInstance("ML-KEM")` generates ML-KEM-768 when left uninitialized, and generates
+the named parameter set after `initialize(new NamedParameterSpec("ML-KEM-512"))`. The
+parameter-set-specific `ML-KEM-512`/`ML-KEM-768`/`ML-KEM-1024` generators stay bound to their own
+parameter set and reject a spec naming a different one, so the JCA fails over to another provider
+rather than this one silently returning a key of the wrong parameter set.
+
 # Notes on ACCP-FIPS
 ACCP-FIPS is a variation of ACCP which uses AWS-LC-FIPS 2.x as its cryptographic module. This version of AWS-LC-FIPS has FIPS certificate [4816](https://csrc.nist.gov/projects/cryptographic-module-validation-program/certificate/4816).
 

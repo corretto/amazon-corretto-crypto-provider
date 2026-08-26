@@ -70,8 +70,23 @@ public class MlKemTest {
   private static final int CHOICE_TAG_EXPANDED = 0x04; // OCTET STRING
   private static final int CHOICE_TAG_BOTH = 0x30; // SEQUENCE { seed, expandedKey }
 
+  private static final String BC_KEM_UNAVAILABLE =
+      "BouncyCastle does not register the KEM API on JDK versions older than 21. Please try"
+          + " building with JDK 21 or above.";
+
   private static String[] mlKemParamSets() {
     return ML_KEM_PARAM_SETS;
+  }
+
+  // BouncyCastle does not register the KEM API for ML-KEM on JDK versions older than 21, so tests
+  // that cross the KEM API have to check the runtime environment and skip rather than fail there.
+  private static boolean bcRegistersKemService() {
+    try {
+      KEM.getInstance("ML-KEM", TestUtil.BC_PROVIDER);
+      return true;
+    } catch (final java.security.NoSuchAlgorithmException e) {
+      return false;
+    }
   }
 
   private static int getCiphertextSizeForParamSet(String paramSet) throws Throwable {
@@ -259,6 +274,61 @@ public class MlKemTest {
     assertThrows(
         InvalidAlgorithmParameterException.class,
         () -> kem512.newDecapsulator(pair768.getPrivate(), wrongSpec));
+  }
+
+  /**
+   * The parameter-set-agnostic "ML-KEM" KeyPairGenerator lets a NamedParameterSpec choose the
+   * parameter set, mirroring how SunEC's generic "XDH" service accepts either X25519 or X448.
+   */
+  @ParameterizedTest
+  @MethodSource("mlKemParamSets")
+  public void testGenericKeyPairGeneratorIsParameterSetSelectable(String paramSet)
+      throws Exception {
+    final KeyPairGenerator keyGen = KeyPairGenerator.getInstance("ML-KEM", NATIVE_PROVIDER);
+    keyGen.initialize(new NamedParameterSpec(paramSet));
+    final KeyPair keyPair = keyGen.generateKeyPair();
+
+    assertEquals(paramSet, keyPair.getPublic().getAlgorithm());
+    assertEquals(paramSet, keyPair.getPrivate().getAlgorithm());
+  }
+
+  /** Without initialization the generic service keeps its historical ML-KEM-768 default. */
+  @Test
+  public void testGenericKeyPairGeneratorDefaultsTo768() throws Exception {
+    final KeyPair keyPair =
+        KeyPairGenerator.getInstance("ML-KEM", NATIVE_PROVIDER).generateKeyPair();
+
+    assertEquals("ML-KEM-768", keyPair.getPublic().getAlgorithm());
+  }
+
+  /** A spec naming something that is not an ML-KEM parameter set is still rejected. */
+  @Test
+  public void testGenericKeyPairGeneratorRejectsUnknownParameterSet() throws Exception {
+    final KeyPairGenerator keyGen = KeyPairGenerator.getInstance("ML-KEM", NATIVE_PROVIDER);
+
+    assertThrows(
+        InvalidAlgorithmParameterException.class,
+        () -> keyGen.initialize(new NamedParameterSpec("ML-KEM-4096")));
+    assertThrows(
+        InvalidAlgorithmParameterException.class,
+        () -> keyGen.initialize(NamedParameterSpec.X25519));
+  }
+
+  /**
+   * The parameter-set-specific services stay strict: they accept a spec naming their own parameter
+   * set and reject any other, so the JCA can fail over rather than silently produce the wrong key.
+   */
+  @Test
+  public void testSpecificKeyPairGeneratorsRemainStrict() throws Exception {
+    final KeyPairGenerator keyGen768 = KeyPairGenerator.getInstance("ML-KEM-768", NATIVE_PROVIDER);
+    keyGen768.initialize(new NamedParameterSpec("ML-KEM-768"));
+    assertEquals("ML-KEM-768", keyGen768.generateKeyPair().getPublic().getAlgorithm());
+
+    assertThrows(
+        InvalidAlgorithmParameterException.class,
+        () ->
+            KeyPairGenerator.getInstance("ML-KEM-768", NATIVE_PROVIDER)
+                .initialize(new NamedParameterSpec("ML-KEM-512")));
   }
 
   @Test
@@ -1050,21 +1120,8 @@ public class MlKemTest {
     KEM.Encapsulated encapsulated =
         accpKem.newEncapsulator(accpKeyPair.getPublic(), accpParamSpec, null).encapsulate();
 
-    // BouncyCastle does not register the KEM API for ML-KEM on JDK versions older than JDK 21
-    // We need to check the runtime environment supports BouncyCastle's KEM API
-    boolean bcHasKemProvider = false;
-    try {
-      KEM.getInstance("ML-KEM", TestUtil.BC_PROVIDER);
-      bcHasKemProvider = true;
-    } catch (java.security.NoSuchAlgorithmException e) {
-
-      bcHasKemProvider = false;
-    }
-    // Skip the test if BouncyCastle doesn't support KEM API
-    assumeTrue(
-        bcHasKemProvider,
-        "BouncyCastle does not register the KEM API on JDK versions older than 21. Please try"
-            + " building with JDK 21 or above.");
+    // Skip the rest of the test if BouncyCastle doesn't support the KEM API
+    assumeTrue(bcRegistersKemService(), BC_KEM_UNAVAILABLE);
 
     KEM bcKem = KEM.getInstance("ML-KEM", TestUtil.BC_PROVIDER); // BC uses Generic ML-KEM
 
@@ -1076,6 +1133,82 @@ public class MlKemTest {
         encapsulated.key().getEncoded(),
         bcSecret.getEncoded(),
         "ACCP and BouncyCastle should produce identical shared secrets for " + paramSet);
+  }
+
+  /**
+   * Interop driven entirely through the parameter-set-agnostic service names, which is the shape a
+   * JSSE stack or a provider-agnostic application uses: {@code KeyPairGenerator}, {@code
+   * KeyFactory} and {@code KEM} named "ML-KEM", with a {@code NamedParameterSpec} choosing the
+   * parameter set. BouncyCastle's generic ML-KEM KeyPairGenerator has always accepted such a spec;
+   * before ACCP's generic generator became selectable this path only reached ML-KEM-768, and threw
+   * {@code InvalidAlgorithmParameterException} for 512 and 1024. {@link
+   * #testBouncyCastleInteroperability(String)} covers the same interop through the service names
+   * that name a parameter set.
+   */
+  @ParameterizedTest
+  @MethodSource("mlKemParamSets")
+  public void testGenericServiceNameInteropWithBouncyCastle(String paramSet) throws Exception {
+    final NamedParameterSpec paramSpec = new NamedParameterSpec(paramSet);
+
+    final KeyPairGenerator accpKeyGen = KeyPairGenerator.getInstance("ML-KEM", NATIVE_PROVIDER);
+    accpKeyGen.initialize(paramSpec);
+    final KeyPair accpKeyPair = accpKeyGen.generateKeyPair();
+    assertEquals(paramSet, accpKeyPair.getPublic().getAlgorithm());
+    assertEquals(paramSet, accpKeyPair.getPrivate().getAlgorithm());
+
+    final KeyPairGenerator bcKeyGen = KeyPairGenerator.getInstance("ML-KEM", TestUtil.BC_PROVIDER);
+    bcKeyGen.initialize(paramSpec);
+    final KeyPair bcKeyPair = bcKeyGen.generateKeyPair();
+    assertEquals(paramSet, bcKeyPair.getPublic().getAlgorithm());
+
+    // Each side's generic KeyFactory imports the other side's key pair. ACCP rejects the both
+    // CHOICE that BouncyCastle's getEncoded() emits by default, so ask BC for the expandedKey
+    // CHOICE; testPrivateKeyChoicesParse covers which CHOICEs ACCP accepts.
+    final KeyFactory accpKf = KeyFactory.getInstance("ML-KEM", NATIVE_PROVIDER);
+    final KeyFactory bcKf = KeyFactory.getInstance("ML-KEM", TestUtil.BC_PROVIDER);
+    final PrivateKey bcImportedPriv =
+        bcKf.generatePrivate(new PKCS8EncodedKeySpec(accpKeyPair.getPrivate().getEncoded()));
+    final PublicKey accpImportedPub =
+        accpKf.generatePublic(new X509EncodedKeySpec(bcKeyPair.getPublic().getEncoded()));
+    final PrivateKey accpImportedPriv =
+        accpKf.generatePrivate(
+            new PKCS8EncodedKeySpec(
+                ((MLKEMPrivateKey) bcKeyPair.getPrivate()).getPrivateKey(false).getEncoded()));
+    assertArrayEquals(
+        bcKeyPair.getPublic().getEncoded(),
+        accpImportedPub.getEncoded(),
+        paramSet + " ACCP must preserve a BouncyCastle SPKI imported through the generic name");
+    assertEquals(paramSet, accpImportedPriv.getAlgorithm());
+
+    assumeTrue(bcRegistersKemService(), BC_KEM_UNAVAILABLE);
+
+    final KEM accpKem = KEM.getInstance("ML-KEM", NATIVE_PROVIDER);
+    final KEM bcKem = KEM.getInstance("ML-KEM", TestUtil.BC_PROVIDER);
+    // Configure BC to not apply KDF processing so both sides report the raw ML-KEM shared secret.
+    final KTSParameterSpec bcKtsSpec =
+        new KTSParameterSpec.Builder("Generic", 256).withNoKdf().build();
+
+    // ACCP encapsulates, BouncyCastle decapsulates.
+    final KEM.Encapsulated accpEncapsulated =
+        accpKem.newEncapsulator(accpKeyPair.getPublic(), paramSpec, null).encapsulate();
+    assertArrayEquals(
+        accpEncapsulated.key().getEncoded(),
+        bcKem
+            .newDecapsulator(bcImportedPriv, bcKtsSpec)
+            .decapsulate(accpEncapsulated.encapsulation())
+            .getEncoded(),
+        paramSet + " BouncyCastle must recover the secret ACCP encapsulated");
+
+    // BouncyCastle encapsulates, ACCP decapsulates.
+    final KEM.Encapsulated bcEncapsulated =
+        bcKem.newEncapsulator(bcKeyPair.getPublic(), bcKtsSpec, null).encapsulate();
+    assertArrayEquals(
+        bcEncapsulated.key().getEncoded(),
+        accpKem
+            .newDecapsulator(accpImportedPriv, paramSpec)
+            .decapsulate(bcEncapsulated.encapsulation())
+            .getEncoded(),
+        paramSet + " ACCP must recover the secret BouncyCastle encapsulated");
   }
 
   @ParameterizedTest

@@ -41,13 +41,26 @@ class MlKemGen extends KeyPairGeneratorSpi {
 
   private MlKemParameter parameterSet = null;
 
+  /**
+   * True for the parameter-set-agnostic "ML-KEM" service, whose parameter set may be chosen by
+   * {@link #initialize(AlgorithmParameterSpec, SecureRandom)}. False for the parameter-set-specific
+   * services (ML-KEM-512/768/1024), which are bound at construction and reject any spec naming a
+   * different parameter set.
+   */
+  private final boolean parameterSetSelectable;
+
   /** Generates a new ML-KEM key and returns a pointer to it. */
   private static native long generateEvpMlKemKey(int parameterSet);
 
   private MlKemGen(MlKemParameter parameterSet) {
+    this(parameterSet, false);
+  }
+
+  private MlKemGen(MlKemParameter parameterSet, boolean parameterSetSelectable) {
     Loader.checkNativeLibraryAvailability();
     Utils.requireNonNull(parameterSet, "MlKemParameter can not be null");
     this.parameterSet = parameterSet;
+    this.parameterSetSelectable = parameterSetSelectable;
   }
 
   @Override
@@ -58,10 +71,20 @@ class MlKemGen extends KeyPairGeneratorSpi {
   /**
    * Accepts the standard {@code NamedParameterSpec} initialization that JSSE providers (e.g.
    * BouncyCastle's TLS 1.3 stack) and application code perform before {@code generateKeyPair()}.
-   * Each {@code MlKemGen} instance is bound to a single parameter set at construction, so any spec
-   * naming that same parameter set (case-insensitively) is a no-op; any other spec is rejected with
-   * {@code InvalidAlgorithmParameterException} so this generator never silently produces a key of
-   * the wrong parameter set.
+   *
+   * <p>Behavior depends on which service this instance came from, mirroring how SunEC treats its
+   * generic {@code XDH} service versus its curve-specific {@code X25519}/{@code X448} services:
+   *
+   * <ul>
+   *   <li>the parameter-set-agnostic {@code ML-KEM} service is <em>selectable</em> -- any spec
+   *       naming a supported ML-KEM parameter set (case-insensitively) chooses that parameter set
+   *       for subsequent {@code generateKeyPair()} calls;
+   *   <li>the parameter-set-specific {@code ML-KEM-512/768/1024} services are bound at
+   *       construction, so a spec naming that same parameter set is a no-op and any other spec is
+   *       rejected with {@code InvalidAlgorithmParameterException}, letting the JCA fail over to a
+   *       provider that supports it rather than this one silently producing a key of the wrong
+   *       parameter set.
+   * </ul>
    *
    * <p>{@code NamedParameterSpec} was introduced in JDK 11, but ACCP's main sources are compiled
    * for an older bytecode target, so the spec's name is read reflectively rather than by importing
@@ -79,6 +102,17 @@ class MlKemGen extends KeyPairGeneratorSpi {
     if (name == null) {
       throw new InvalidAlgorithmParameterException(
           "Unsupported AlgorithmParameterSpec: " + params.getClass().getName());
+    }
+    if (parameterSetSelectable) {
+      final MlKemParameter selected = MlKemParameter.fromAlgorithmName(name);
+      if (selected == null) {
+        throw new InvalidAlgorithmParameterException(
+            "Unsupported ML-KEM parameter set: "
+                + name
+                + ". Supported parameter sets are ML-KEM-512, ML-KEM-768, and ML-KEM-1024.");
+      }
+      parameterSet = selected;
+      return;
     }
     if (!parameterSet.matchesAlgorithmName(name)) {
       throw new InvalidAlgorithmParameterException(
@@ -114,6 +148,18 @@ class MlKemGen extends KeyPairGeneratorSpi {
     final EvpKemPrivateKey privateKey = new EvpKemPrivateKey(pkey_ptr);
     final EvpKemPublicKey publicKey = privateKey.getPublicKey();
     return new KeyPair(publicKey, privateKey);
+  }
+
+  /**
+   * Backs the parameter-set-agnostic {@code KeyPairGenerator.ML-KEM} service. Defaults to
+   * ML-KEM-768 when used without initialization (preserving the historical behavior of this
+   * service), but a {@code NamedParameterSpec} passed to {@code initialize} selects any supported
+   * parameter set.
+   */
+  public static final class MlKemGenGeneric extends MlKemGen {
+    public MlKemGenGeneric(AmazonCorrettoCryptoProvider provider) {
+      super(MlKemParameter.MLKEM_768, true);
+    }
   }
 
   public static final class MlKemGen512 extends MlKemGen {
