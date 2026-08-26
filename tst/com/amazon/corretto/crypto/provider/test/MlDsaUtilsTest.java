@@ -102,4 +102,61 @@ public class MlDsaUtilsTest {
     signature.update(message);
     assertTrue(signature.verify(signatureBytes));
   }
+
+  // A Key is permitted to return null from getEncoded() when it does not support encoding, as a key
+  // held in hardware would. The algorithm check alone does not catch that, and the null must be
+  // refused in Java rather than passed to JNI, where GetArrayLength would dereference it.
+  @Test
+  @DisabledIf("mlDsaDisabled")
+  public void testUnencodableKeysAreRejected() {
+    final PublicKey unencodablePub =
+        new PublicKey() {
+          static final long serialVersionUID = 1L;
+
+          @Override
+          public String getAlgorithm() {
+            return "ML-DSA-44";
+          }
+
+          @Override
+          public String getFormat() {
+            return null;
+          }
+
+          @Override
+          public byte[] getEncoded() {
+            return null;
+          }
+        };
+    final PrivateKey unencodablePriv =
+        new PrivateKey() {
+          static final long serialVersionUID = 1L;
+
+          @Override
+          public String getAlgorithm() {
+            return "ML-DSA-44";
+          }
+
+          @Override
+          public String getFormat() {
+            return null;
+          }
+
+          @Override
+          public byte[] getEncoded() {
+            return null;
+          }
+        };
+
+    final byte[] message = new byte[256];
+    Arrays.fill(message, (byte) 0x41);
+
+    TestUtil.assertThrows(
+        IllegalArgumentException.class, () -> MlDsaUtils.computeMu(null, message));
+    TestUtil.assertThrows(
+        IllegalArgumentException.class, () -> MlDsaUtils.computeMu(unencodablePub, message));
+    TestUtil.assertThrows(IllegalArgumentException.class, () -> MlDsaUtils.expandPrivateKey(null));
+    TestUtil.assertThrows(
+        IllegalArgumentException.class, () -> MlDsaUtils.expandPrivateKey(unencodablePriv));
+  }
 }

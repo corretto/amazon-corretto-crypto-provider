@@ -21,12 +21,21 @@ public final class MlDsaUtils {
    * @param publicKey ML-DSA public key
    * @param message byte array of the message over which to compute mu
    * @return a byte[] of length 64 containing mu
+   * @throws IllegalArgumentException if {@code publicKey} is null, is not an ML-DSA key, or returns
+   *     null from {@code getEncoded()} because it does not support encoding, or if {@code message}
+   *     is null
    */
   public static byte[] computeMu(PublicKey publicKey, byte[] message) {
     if (publicKey == null || !publicKey.getAlgorithm().startsWith("ML-DSA") || message == null) {
       throw new IllegalArgumentException();
     }
-    return computeMuInternal(publicKey.getEncoded(), message);
+    // Key.getEncoded() is specified to return null for a key that does not support encoding, so it
+    // has to be checked here rather than in JNI, where it would reach GetArrayLength(nullptr).
+    final byte[] encoded = publicKey.getEncoded();
+    if (encoded == null) {
+      throw new IllegalArgumentException();
+    }
+    return computeMuInternal(encoded, message);
   }
 
   /**
@@ -35,11 +44,19 @@ public final class MlDsaUtils {
    *
    * @param key an ML-DSA private key
    * @return a byte[] containing the PKCS8-encoded seed private key
+   * @throws IllegalArgumentException if {@code key} is null, is not an ML-DSA key, or returns null
+   *     from {@code getEncoded()} because it does not support encoding
    */
   public static byte[] expandPrivateKey(PrivateKey key) {
     if (key == null || !key.getAlgorithm().startsWith("ML-DSA")) {
       throw new IllegalArgumentException();
     }
-    return expandPrivateKeyInternal(key.getEncoded());
+    // Key.getEncoded() is specified to return null for a key that does not support encoding, so it
+    // has to be checked here rather than in JNI, where it would reach GetArrayLength(nullptr).
+    final byte[] encoded = key.getEncoded();
+    if (encoded == null) {
+      throw new IllegalArgumentException();
+    }
+    return expandPrivateKeyInternal(encoded);
   }
 }
