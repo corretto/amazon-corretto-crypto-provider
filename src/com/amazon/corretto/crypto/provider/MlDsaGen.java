@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.amazon.corretto.crypto.provider;
 
+import java.security.InvalidAlgorithmParameterException;
 import java.security.KeyPair;
 import java.security.KeyPairGeneratorSpi;
 import java.security.SecureRandom;
@@ -29,8 +30,18 @@ class MlDsaGen extends KeyPairGeneratorSpi {
     this(provider, null);
   }
 
-  public void initialize(AlgorithmParameterSpec params, final SecureRandom random) {
-    throw new UnsupportedOperationException();
+  /**
+   * Rejects every spec, since each of these generators is bound to its parameter set at
+   * construction. {@code InvalidAlgorithmParameterException} rather than {@code
+   * UnsupportedOperationException} because the checked exception is what {@code
+   * KeyPairGenerator.Delegate} expects, so the JCA can fail over instead of propagating.
+   */
+  @Override
+  public void initialize(AlgorithmParameterSpec params, final SecureRandom random)
+      throws InvalidAlgorithmParameterException {
+    throw new InvalidAlgorithmParameterException(
+        "ACCP's ML-DSA KeyPairGenerator cannot be initialized with an AlgorithmParameterSpec. Use"
+            + " the ML-DSA-44, ML-DSA-65, or ML-DSA-87 service name to select a parameter set.");
   }
 
   public void initialize(final int keysize, final SecureRandom random) {

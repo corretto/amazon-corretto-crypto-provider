@@ -39,7 +39,9 @@ class MlKemGen extends KeyPairGeneratorSpi {
     NAMED_PARAMETER_SPEC_GET_NAME = getName;
   }
 
-  private MlKemParameter parameterSet = null;
+  // Volatile because MlKemGenGeneric writes it from initialize() while generateKeyPair() reads it;
+  // a generator shared between threads could otherwise read a stale parameter set.
+  private volatile MlKemParameter parameterSet;
 
   /** Generates a new ML-KEM key and returns a pointer to it. */
   private static native long generateEvpMlKemKey(int parameterSet);
@@ -50,6 +52,12 @@ class MlKemGen extends KeyPairGeneratorSpi {
     this.parameterSet = parameterSet;
   }
 
+  // Sole writer of |parameterSet| after construction. Package-private rather than private because a
+  // private member of this class is not inherited by the nested MlKemGenGeneric subclass.
+  final void setParameterSet(final MlKemParameter selected) {
+    this.parameterSet = selected;
+  }
+
   @Override
   public void initialize(int keysize, SecureRandom random) {
     throw new UnsupportedOperationException();
@@ -58,10 +66,13 @@ class MlKemGen extends KeyPairGeneratorSpi {
   /**
    * Accepts the standard {@code NamedParameterSpec} initialization that JSSE providers (e.g.
    * BouncyCastle's TLS 1.3 stack) and application code perform before {@code generateKeyPair()}.
-   * Each {@code MlKemGen} instance is bound to a single parameter set at construction, so any spec
-   * naming that same parameter set (case-insensitively) is a no-op; any other spec is rejected with
-   * {@code InvalidAlgorithmParameterException} so this generator never silently produces a key of
-   * the wrong parameter set.
+   *
+   * <p>This parameter-set-specific implementation is bound to its own parameter set at
+   * construction, so a spec naming that same parameter set is a no-op and any other spec is
+   * rejected with {@code InvalidAlgorithmParameterException}, letting the JCA fail over rather than
+   * this one silently producing a key of the wrong parameter set. {@link MlKemGenGeneric} overrides
+   * this to make the generic {@code ML-KEM} service selectable instead, mirroring how SunEC treats
+   * {@code XDH} versus {@code X25519}/{@code X448}.
    *
    * <p>{@code NamedParameterSpec} was introduced in JDK 11, but ACCP's main sources are compiled
    * for an older bytecode target, so the spec's name is read reflectively rather than by importing
@@ -72,14 +83,7 @@ class MlKemGen extends KeyPairGeneratorSpi {
   @Override
   public void initialize(AlgorithmParameterSpec params, SecureRandom random)
       throws InvalidAlgorithmParameterException {
-    if (params == null) {
-      throw new InvalidAlgorithmParameterException("params must not be null");
-    }
-    final String name = getNamedParameter(params);
-    if (name == null) {
-      throw new InvalidAlgorithmParameterException(
-          "Unsupported AlgorithmParameterSpec: " + params.getClass().getName());
-    }
+    final String name = requireParameterSetName(params);
     if (!parameterSet.matchesAlgorithmName(name)) {
       throw new InvalidAlgorithmParameterException(
           "Unsupported ML-KEM parameter set: "
@@ -91,19 +95,52 @@ class MlKemGen extends KeyPairGeneratorSpi {
     // Nothing else to configure: generateKeyPair() always produces a |parameterSet| key pair.
   }
 
-  // Returns the parameter set name if |params| is a java.security.spec.NamedParameterSpec (or a
-  // subclass, matching SunJCE's instanceof semantics -- NamedParameterSpec is not final), else
-  // null.
-  private static String getNamedParameter(final AlgorithmParameterSpec params) {
-    if (NAMED_PARAMETER_SPEC_CLASS == null || !NAMED_PARAMETER_SPEC_CLASS.isInstance(params)) {
-      return null;
+  // Extracts the parameter set name |params| designates, rejecting a spec that designates none.
+  // Shared with MlKemGenGeneric so both agree on which specs are well-formed.
+  private static String requireParameterSetName(final AlgorithmParameterSpec params)
+      throws InvalidAlgorithmParameterException {
+    if (params == null) {
+      throw new InvalidAlgorithmParameterException("params must not be null");
     }
+    final String name = getNamedParameter(params);
+    if (name == null) {
+      throw new InvalidAlgorithmParameterException(
+          "Unsupported AlgorithmParameterSpec: " + params.getClass().getName());
+    }
+    return name;
+  }
+
+  // Returns the parameter set name |params| carries, else null. A NamedParameterSpec (or subclass,
+  // per SunJCE's instanceof semantics) is read through the accessor resolved at class load.
+  private static String getNamedParameter(final AlgorithmParameterSpec params) {
+    if (NAMED_PARAMETER_SPEC_CLASS != null && NAMED_PARAMETER_SPEC_CLASS.isInstance(params)) {
+      try {
+        return (String) NAMED_PARAMETER_SPEC_GET_NAME.invoke(params);
+      } catch (final ReflectiveOperationException e) {
+        // getName() is a public method on a public JDK type resolved successfully at class load, so
+        // a failure here signals a broken runtime rather than an unsupported spec -- fail fast.
+        throw new AssertionError("Failed to invoke NamedParameterSpec.getName()", e);
+      }
+    }
+    return getNameFromForeignSpec(params);
+  }
+
+  // Some providers name a parameter set with their own spec type, exposing it through the same
+  // public getName() accessor. BouncyCastle's MLKEMParameterSpec is the one that matters: its TLS
+  // stack initializes KeyPairGenerator.getInstance("ML-KEM") with one, and BC's own generic ML-KEM
+  // generator accepts either shape there (see BC's SpecUtil.getNameFrom).
+  //
+  // Returns null when the name is not readable. Unlike NamedParameterSpec, that means "unsupported
+  // spec" rather than a broken runtime, since any spec reaching here belongs to another provider.
+  private static String getNameFromForeignSpec(final AlgorithmParameterSpec params) {
     try {
-      return (String) NAMED_PARAMETER_SPEC_GET_NAME.invoke(params);
+      final Method getName = params.getClass().getMethod("getName");
+      if (!String.class.equals(getName.getReturnType())) {
+        return null;
+      }
+      return (String) getName.invoke(params);
     } catch (final ReflectiveOperationException e) {
-      // getName() is a public method on a public JDK type resolved successfully at class load, so a
-      // failure here signals a broken runtime rather than an unsupported spec -- fail fast.
-      throw new AssertionError("Failed to invoke NamedParameterSpec.getName()", e);
+      return null;
     }
   }
 
@@ -114,6 +151,37 @@ class MlKemGen extends KeyPairGeneratorSpi {
     final EvpKemPrivateKey privateKey = new EvpKemPrivateKey(pkey_ptr);
     final EvpKemPublicKey publicKey = privateKey.getPublicKey();
     return new KeyPair(publicKey, privateKey);
+  }
+
+  /**
+   * Backs the parameter-set-agnostic {@code KeyPairGenerator.ML-KEM} service. Defaults to
+   * ML-KEM-768 when used without initialization (preserving the historical behavior of this
+   * service), but a spec passed to {@code initialize} selects any supported parameter set.
+   */
+  public static final class MlKemGenGeneric extends MlKemGen {
+    public MlKemGenGeneric(AmazonCorrettoCryptoProvider provider) {
+      super(MlKemParameter.MLKEM_768);
+    }
+
+    /**
+     * Selects the parameter set named by {@code params} (case-insensitively) for subsequent {@code
+     * generateKeyPair()} calls, rather than requiring a spec naming ML-KEM-768.
+     */
+    @Override
+    public void initialize(final AlgorithmParameterSpec params, final SecureRandom random)
+        throws InvalidAlgorithmParameterException {
+      final String name = requireParameterSetName(params);
+      final MlKemParameter selected = MlKemParameter.fromAlgorithmName(name);
+      if (selected == null) {
+        throw new InvalidAlgorithmParameterException(
+            "Unsupported ML-KEM parameter set: "
+                + name
+                + ". Supported parameter sets are "
+                + MlKemParameter.supportedAlgorithmNames()
+                + ".");
+      }
+      setParameterSet(selected);
+    }
   }
 
   public static final class MlKemGen512 extends MlKemGen {

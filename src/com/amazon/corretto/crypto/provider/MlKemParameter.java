@@ -23,17 +23,17 @@ enum MlKemParameter {
     this.ciphertextSize = ciphertextSize;
   }
 
+  /**
+   * As {@link #fromAlgorithmName(String)}, but throws rather than returning null. Delegates so the
+   * name-to-parameter-set mapping lives in one place; matching is therefore case-insensitive.
+   */
   public static MlKemParameter fromKemName(String name) {
-    switch (name) {
-      case "ML-KEM-512":
-        return MLKEM_512;
-      case "ML-KEM-768":
-        return MLKEM_768;
-      case "ML-KEM-1024":
-        return MLKEM_1024;
-      default:
-        throw new IllegalArgumentException("Invalid ML-KEM name: " + name);
+    final MlKemParameter result = fromAlgorithmName(name);
+    if (result == null) {
+      throw new IllegalArgumentException(
+          "Invalid ML-KEM name: " + name + ". Supported names are " + supportedAlgorithmNames());
     }
+    return result;
   }
 
   public int getCiphertextSize() {
@@ -56,6 +56,36 @@ enum MlKemParameter {
    */
   public boolean matchesAlgorithmName(final String name) {
     return getAlgorithmName().equalsIgnoreCase(name);
+  }
+
+  /**
+   * Case-insensitive lookup of the parameter set whose JCA standard algorithm name is {@code name},
+   * or null if {@code name} does not name a supported parameter set. Unlike {@link
+   * #fromKemName(String)} this is case-insensitive and returns null rather than throwing, which
+   * suits an SPI deciding whether to accept a caller-supplied {@code NamedParameterSpec} name.
+   */
+  public static MlKemParameter fromAlgorithmName(final String name) {
+    for (final MlKemParameter candidate : values()) {
+      if (candidate.matchesAlgorithmName(name)) {
+        return candidate;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * The supported algorithm names, comma-separated, for error messages that would otherwise
+   * hardcode (and go stale against) the enum constants.
+   */
+  public static String supportedAlgorithmNames() {
+    final StringBuilder names = new StringBuilder();
+    for (final MlKemParameter candidate : values()) {
+      if (names.length() > 0) {
+        names.append(", ");
+      }
+      names.append(candidate.getAlgorithmName());
+    }
+    return names.toString();
   }
 
   public static MlKemParameter fromKeySize(int keySize) {
