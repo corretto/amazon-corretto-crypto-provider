@@ -52,8 +52,10 @@ class MlKemGen extends KeyPairGeneratorSpi {
     this.parameterSet = parameterSet;
   }
 
-  // Sole writer of |parameterSet| after construction. Package-private rather than private because a
-  // private member of this class is not inherited by the nested MlKemGenGeneric subclass.
+  // Sole writer of |parameterSet| after construction, so the volatile field can stay private. A
+  // private member is accessible anywhere in this file but is not inherited, so the nested
+  // MlKemGenGeneric subclass could only reach the field as |super.parameterSet|, not
+  // |this.parameterSet|.
   final void setParameterSet(final MlKemParameter selected) {
     this.parameterSet = selected;
   }
@@ -66,6 +68,8 @@ class MlKemGen extends KeyPairGeneratorSpi {
   /**
    * Accepts the standard {@code NamedParameterSpec} initialization that JSSE providers (e.g.
    * BouncyCastle's TLS 1.3 stack) and application code perform before {@code generateKeyPair()}.
+   * Another provider's spec is accepted too when it names its parameter set through a public {@code
+   * String getName()}, which is how BouncyCastle's {@code MLKEMParameterSpec} is honored.
    *
    * <p>This parameter-set-specific implementation is bound to its own parameter set at
    * construction, so a spec naming that same parameter set is a no-op and any other spec is

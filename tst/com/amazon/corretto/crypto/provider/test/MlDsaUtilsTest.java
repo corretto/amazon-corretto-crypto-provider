@@ -171,4 +171,24 @@ public class MlDsaUtilsTest {
     TestUtil.assertThrows(
         IllegalArgumentException.class, () -> MlDsaUtils.expandPrivateKey(wrongAlgorithm));
   }
+
+  // A key claiming ML-DSA whose encoding is a well-formed SPKI for another algorithm passes every
+  // Java-side check, so only the parsed key's type tells the two apart. Unlike the cases above this
+  // one does reach JNI, hence the mlDsaDisabled() gate.
+  @Test
+  @DisabledIf("mlDsaDisabled")
+  public void testNonMlDsaSpkiIsRejected() throws Exception {
+    final KeyPairGenerator ecGen = KeyPairGenerator.getInstance("EC");
+    ecGen.initialize(256);
+    final TestKey ecKeyClaimingMlDsa =
+        new TestKey("ML-DSA-44", ecGen.generateKeyPair().getPublic().getEncoded());
+
+    final byte[] message = new byte[256];
+    Arrays.fill(message, (byte) 0x41);
+
+    TestUtil.assertThrows(
+        IllegalArgumentException.class,
+        "Not an ML-DSA public key",
+        () -> MlDsaUtils.computeMu(ecKeyClaimingMlDsa, message));
+  }
 }
