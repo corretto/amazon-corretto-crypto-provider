@@ -103,50 +103,51 @@ public class MlDsaUtilsTest {
     assertTrue(signature.verify(signatureBytes));
   }
 
-  // A Key is permitted to return null from getEncoded() when it does not support encoding, as a key
-  // held in hardware would. The algorithm check alone does not catch that, and the null must be
-  // refused in Java rather than passed to JNI, where GetArrayLength would dereference it.
+  /**
+   * Reports whatever algorithm and encoding a test needs, including the nulls the interface
+   * permits. Implements both key interfaces so one instance drives both entry points.
+   */
+  private static final class TestKey implements PublicKey, PrivateKey {
+    private static final long serialVersionUID = 1L;
+
+    private final String algorithm;
+    private final byte[] encoded;
+
+    private TestKey(final String algorithm, final byte[] encoded) {
+      this.algorithm = algorithm;
+      this.encoded = encoded;
+    }
+
+    @Override
+    public String getAlgorithm() {
+      return algorithm;
+    }
+
+    @Override
+    public String getFormat() {
+      return null;
+    }
+
+    @Override
+    public byte[] getEncoded() {
+      return encoded;
+    }
+  }
+
+  // A Key may return null from getEncoded() when it does not support encoding, as a key held in
+  // hardware would, and getAlgorithm() is not specified to be non-null either. Both nulls must be
+  // refused in Java: one reaches GetArrayLength(nullptr) in JNI, the other is dereferenced by the
+  // algorithm check itself.
+  //
+  // Not gated on mlDsaDisabled(): every case is rejected before JNI, so this must also run in the
+  // FIPS builds where computeMuInternal is not compiled at all.
   @Test
-  @DisabledIf("mlDsaDisabled")
-  public void testUnencodableKeysAreRejected() {
-    final PublicKey unencodablePub =
-        new PublicKey() {
-          static final long serialVersionUID = 1L;
-
-          @Override
-          public String getAlgorithm() {
-            return "ML-DSA-44";
-          }
-
-          @Override
-          public String getFormat() {
-            return null;
-          }
-
-          @Override
-          public byte[] getEncoded() {
-            return null;
-          }
-        };
-    final PrivateKey unencodablePriv =
-        new PrivateKey() {
-          static final long serialVersionUID = 1L;
-
-          @Override
-          public String getAlgorithm() {
-            return "ML-DSA-44";
-          }
-
-          @Override
-          public String getFormat() {
-            return null;
-          }
-
-          @Override
-          public byte[] getEncoded() {
-            return null;
-          }
-        };
+  public void testUnusableKeysAreRejected() {
+    final TestKey unencodable = new TestKey("ML-DSA-44", null);
+    final TestKey nullAlgorithm = new TestKey(null, new byte[32]);
+    final TestKey wrongAlgorithm = new TestKey("RSA", new byte[32]);
+    // Passes every key check, so it reaches the message check without reaching JNI.
+    final TestKey encodable = new TestKey("ML-DSA-44", new byte[32]);
 
     final byte[] message = new byte[256];
     Arrays.fill(message, (byte) 0x41);
@@ -154,9 +155,20 @@ public class MlDsaUtilsTest {
     TestUtil.assertThrows(
         IllegalArgumentException.class, () -> MlDsaUtils.computeMu(null, message));
     TestUtil.assertThrows(
-        IllegalArgumentException.class, () -> MlDsaUtils.computeMu(unencodablePub, message));
+        IllegalArgumentException.class, () -> MlDsaUtils.computeMu(unencodable, message));
+    TestUtil.assertThrows(
+        IllegalArgumentException.class, () -> MlDsaUtils.computeMu(nullAlgorithm, message));
+    TestUtil.assertThrows(
+        IllegalArgumentException.class, () -> MlDsaUtils.computeMu(wrongAlgorithm, message));
+    TestUtil.assertThrows(
+        IllegalArgumentException.class, () -> MlDsaUtils.computeMu(encodable, null));
+
     TestUtil.assertThrows(IllegalArgumentException.class, () -> MlDsaUtils.expandPrivateKey(null));
     TestUtil.assertThrows(
-        IllegalArgumentException.class, () -> MlDsaUtils.expandPrivateKey(unencodablePriv));
+        IllegalArgumentException.class, () -> MlDsaUtils.expandPrivateKey(unencodable));
+    TestUtil.assertThrows(
+        IllegalArgumentException.class, () -> MlDsaUtils.expandPrivateKey(nullAlgorithm));
+    TestUtil.assertThrows(
+        IllegalArgumentException.class, () -> MlDsaUtils.expandPrivateKey(wrongAlgorithm));
   }
 }

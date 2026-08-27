@@ -331,6 +331,34 @@ public class MlKemTest {
                 .initialize(new NamedParameterSpec("ML-KEM-512")));
   }
 
+  /**
+   * A parameter set may be named by a spec that is not a {@code NamedParameterSpec}. BouncyCastle's
+   * {@code MLKEMParameterSpec} is the case that matters: BC's TLS stack hands its KeyPairGenerator
+   * that spec, which a generator understanding only {@code NamedParameterSpec} would reject. The
+   * name is still matched against the supported parameter sets, so a foreign spec cannot select an
+   * unsupported one or bypass the strict services' check.
+   */
+  @ParameterizedTest
+  @MethodSource("mlKemParamSets")
+  public void testKeyPairGeneratorAcceptsForeignNamedSpec(String paramSet) throws Exception {
+    final AlgorithmParameterSpec bcSpec = TestUtil.getMlKemParamSpec(paramSet);
+
+    final KeyPairGenerator generic = KeyPairGenerator.getInstance("ML-KEM", NATIVE_PROVIDER);
+    generic.initialize(bcSpec);
+    assertEquals(paramSet, generic.generateKeyPair().getPublic().getAlgorithm());
+
+    final KeyPairGenerator specific = KeyPairGenerator.getInstance(paramSet, NATIVE_PROVIDER);
+    specific.initialize(bcSpec);
+    assertEquals(paramSet, specific.generateKeyPair().getPublic().getAlgorithm());
+
+    // The strict services still reject a foreign spec naming a different parameter set.
+    assertThrows(
+        InvalidAlgorithmParameterException.class,
+        () ->
+            KeyPairGenerator.getInstance("ML-KEM-768", NATIVE_PROVIDER)
+                .initialize(TestUtil.getMlKemParamSpec("ML-KEM-512")));
+  }
+
   @Test
   public void testKeyFactorySelfConversion() throws Exception {
     KeyPairGenerator keyGen = KeyPairGenerator.getInstance("ML-KEM", NATIVE_PROVIDER);
@@ -1058,131 +1086,103 @@ public class MlKemTest {
   @ParameterizedTest
   @MethodSource("mlKemParamSets")
   public void testBouncyCastleInteroperability(String paramSet) throws Exception {
-    KeyPair accpKeyPair = KeyPairGenerator.getInstance(paramSet, NATIVE_PROVIDER).generateKeyPair();
-
-    // Test BouncyCastle can import ACCP keys
-    KeyFactory bcKf = KeyFactory.getInstance("ML-KEM", TestUtil.BC_PROVIDER);
-    PublicKey bcPub =
-        bcKf.generatePublic(new X509EncodedKeySpec(accpKeyPair.getPublic().getEncoded()));
-    PrivateKey bcPriv =
-        bcKf.generatePrivate(new PKCS8EncodedKeySpec(accpKeyPair.getPrivate().getEncoded()));
-
-    assertNotNull(bcPub, "BouncyCastle should import ACCP public key");
-    assertNotNull(bcPriv, "BouncyCastle should import ACCP private key");
-    assertArrayEquals(
-        accpKeyPair.getPublic().getEncoded(),
-        bcPub.getEncoded(),
-        "Public key encoding should be preserved");
-    assertArrayEquals(
-        accpKeyPair.getPrivate().getEncoded(),
-        bcPriv.getEncoded(),
-        "Private key encoding should be preserved");
-
-    // The expanded encoding is ACCP's other private-key output, and MlKemUtils.expandPrivateKey is
-    // the only way to obtain it in builds whose getEncoded() emits the seed. Feeding it to BC too
-    // means every private-key encoding ACCP can produce is checked against BC in this test.
-    byte[] accpExpanded = MlKemUtils.expandPrivateKey(accpKeyPair.getPrivate());
-    PrivateKey bcPrivFromExpanded = bcKf.generatePrivate(new PKCS8EncodedKeySpec(accpExpanded));
-    assertArrayEquals(
-        accpExpanded,
-        bcPrivFromExpanded.getEncoded(),
-        "Expanded private key encoding should be preserved");
-    assertArrayEquals(
-        ((MLKEMPrivateKey) bcPriv).getPrivateKey(false).getEncoded(),
-        accpExpanded,
-        "BouncyCastle and ACCP should agree on the expanded encoding of the same key");
-
-    // Test BC keys and convert to ACCP using ACCP's key factory, test if they're equal
-    KeyPairGenerator bcKeyGen = KeyPairGenerator.getInstance("ML-KEM", TestUtil.BC_PROVIDER);
-    bcKeyGen.initialize(TestUtil.getMlKemParamSpec(paramSet));
-    KeyPair bcKeyPair = bcKeyGen.generateKeyPair();
-
-    // Ask BC for the expandedKey CHOICE specifically, per RFC 9935 Section 6, so this stays a
-    // like-for-like comparison of re-encodings: an expandedKey-imported ACCP key has no seed to
-    // emit, so it round-trips to the expanded form in every build. testPrivateKeyChoicesParse
-    // covers the seed CHOICE.
-    // https://github.com/bcgit/bc-java/blob/b41f23936724284a20f10dff13c76896a846031b/prov/src/main/java/org/bouncycastle/jcajce/interfaces/MLKEMPrivateKey.java#L35
-    MLKEMPrivateKey bcPrivateKeyExpanded =
-        ((MLKEMPrivateKey) bcKeyPair.getPrivate()).getPrivateKey(false);
-
-    KeyFactory accpKeyFactory =
-        KeyFactory.getInstance(bcKeyPair.getPrivate().getAlgorithm(), NATIVE_PROVIDER);
-    PublicKey accpPublicKey =
-        accpKeyFactory.generatePublic(new X509EncodedKeySpec(bcKeyPair.getPublic().getEncoded()));
-    PrivateKey accpPrivateKey =
-        accpKeyFactory.generatePrivate(new PKCS8EncodedKeySpec(bcPrivateKeyExpanded.getEncoded()));
-    assertArrayEquals(accpPublicKey.getEncoded(), bcKeyPair.getPublic().getEncoded());
-    assertArrayEquals(accpPrivateKey.getEncoded(), bcPrivateKeyExpanded.getEncoded());
-
-    // Test ACCP's encapsulation can be decapsulated by BouncyCastle
-    KEM accpKem = KEM.getInstance(paramSet, NATIVE_PROVIDER);
-    NamedParameterSpec accpParamSpec = new NamedParameterSpec(paramSet);
-    KEM.Encapsulated encapsulated =
-        accpKem.newEncapsulator(accpKeyPair.getPublic(), accpParamSpec, null).encapsulate();
-
-    // Skip the rest of the test if BouncyCastle doesn't support the KEM API
-    assumeTrue(bcRegistersKemService(), BC_KEM_UNAVAILABLE);
-
-    KEM bcKem = KEM.getInstance("ML-KEM", TestUtil.BC_PROVIDER); // BC uses Generic ML-KEM
-
-    // Configure BC to not apply KDF processing to get raw shared secret
-    KTSParameterSpec bcParamSpec = new KTSParameterSpec.Builder("Generic", 256).withNoKdf().build();
-    SecretKey bcSecret =
-        bcKem.newDecapsulator(bcPriv, bcParamSpec).decapsulate(encapsulated.encapsulation());
-    assertArrayEquals(
-        encapsulated.key().getEncoded(),
-        bcSecret.getEncoded(),
-        "ACCP and BouncyCastle should produce identical shared secrets for " + paramSet);
+    assertBouncyCastleInterop(paramSet, paramSet);
   }
 
   /**
-   * Interop driven entirely through the parameter-set-agnostic service names, which is the shape a
-   * JSSE stack or a provider-agnostic application uses: {@code KeyPairGenerator}, {@code
-   * KeyFactory} and {@code KEM} named "ML-KEM", with a {@code NamedParameterSpec} choosing the
-   * parameter set. BouncyCastle's generic ML-KEM KeyPairGenerator has always accepted such a spec;
-   * before ACCP's generic generator became selectable this path only reached ML-KEM-768, and threw
-   * {@code InvalidAlgorithmParameterException} for 512 and 1024. {@link
-   * #testBouncyCastleInteroperability(String)} covers the same interop through the service names
-   * that name a parameter set.
+   * The interop of {@link #testBouncyCastleInteroperability(String)} driven entirely through the
+   * parameter-set-agnostic service name, which is the shape a provider-agnostic application (or a
+   * JSSE stack) uses: {@code KeyPairGenerator}, {@code KeyFactory} and {@code KEM} named "ML-KEM",
+   * with the parameter set chosen by a spec. Before ACCP's generic generator became selectable this
+   * path reached only ML-KEM-768 and threw {@code InvalidAlgorithmParameterException} for 512 and
+   * 1024.
    */
   @ParameterizedTest
   @MethodSource("mlKemParamSets")
   public void testGenericServiceNameInteropWithBouncyCastle(String paramSet) throws Exception {
+    assertBouncyCastleInterop("ML-KEM", paramSet);
+  }
+
+  /**
+   * Cross-provider interop: generate on both sides, import each side's key pair with the other's
+   * KeyFactory, and -- where the runtime provides BouncyCastle's KEM API -- run a KEM round trip in
+   * both directions.
+   *
+   * <p>{@code accpServiceName} is the only difference between the callers: ACCP's spec
+   * initialization is a strict no-op on the parameter-set-specific services and a selection on the
+   * generic one, and the two must interoperate identically. BouncyCastle is always looked up under
+   * its generic name, the only one it registers here.
+   */
+  private static void assertBouncyCastleInterop(final String accpServiceName, final String paramSet)
+      throws Exception {
     final NamedParameterSpec paramSpec = new NamedParameterSpec(paramSet);
 
-    final KeyPairGenerator accpKeyGen = KeyPairGenerator.getInstance("ML-KEM", NATIVE_PROVIDER);
+    final KeyPairGenerator accpKeyGen =
+        KeyPairGenerator.getInstance(accpServiceName, NATIVE_PROVIDER);
     accpKeyGen.initialize(paramSpec);
     final KeyPair accpKeyPair = accpKeyGen.generateKeyPair();
     assertEquals(paramSet, accpKeyPair.getPublic().getAlgorithm());
     assertEquals(paramSet, accpKeyPair.getPrivate().getAlgorithm());
 
+    // BouncyCastle imports ACCP's keys. Both of ACCP's private-key encodings are covered: whichever
+    // getEncoded() emits in this build, and the expanded encoding that MlKemUtils.expandPrivateKey
+    // is the only way to obtain in builds whose getEncoded() emits the seed.
+    final KeyFactory bcKf = KeyFactory.getInstance("ML-KEM", TestUtil.BC_PROVIDER);
+    final PublicKey bcImportedPub =
+        bcKf.generatePublic(new X509EncodedKeySpec(accpKeyPair.getPublic().getEncoded()));
+    final PrivateKey bcImportedPriv =
+        bcKf.generatePrivate(new PKCS8EncodedKeySpec(accpKeyPair.getPrivate().getEncoded()));
+    assertArrayEquals(
+        accpKeyPair.getPublic().getEncoded(),
+        bcImportedPub.getEncoded(),
+        paramSet + " BouncyCastle must preserve ACCP's public key encoding");
+    assertArrayEquals(
+        accpKeyPair.getPrivate().getEncoded(),
+        bcImportedPriv.getEncoded(),
+        paramSet + " BouncyCastle must preserve ACCP's private key encoding");
+
+    final byte[] accpExpanded = MlKemUtils.expandPrivateKey(accpKeyPair.getPrivate());
+    assertArrayEquals(
+        accpExpanded,
+        bcKf.generatePrivate(new PKCS8EncodedKeySpec(accpExpanded)).getEncoded(),
+        paramSet + " BouncyCastle must preserve ACCP's expanded private key encoding");
+    assertArrayEquals(
+        ((MLKEMPrivateKey) bcImportedPriv).getPrivateKey(false).getEncoded(),
+        accpExpanded,
+        paramSet + " BouncyCastle and ACCP must agree on the expanded encoding of the same key");
+
+    // ACCP imports BouncyCastle's keys. Ask BC for the expandedKey CHOICE of RFC 9935 Section 6
+    // specifically, so this stays a like-for-like comparison of re-encodings: ACCP rejects the both
+    // CHOICE that BC's getEncoded() emits by default, and an expandedKey-imported ACCP key has no
+    // seed to emit, so it round-trips to the expanded form in every build. The seed CHOICE is
+    // covered by testPrivateKeyChoicesParse.
+    // https://github.com/bcgit/bc-java/blob/b41f23936724284a20f10dff13c76896a846031b/prov/src/main/java/org/bouncycastle/jcajce/interfaces/MLKEMPrivateKey.java#L35
     final KeyPairGenerator bcKeyGen = KeyPairGenerator.getInstance("ML-KEM", TestUtil.BC_PROVIDER);
-    bcKeyGen.initialize(paramSpec);
+    bcKeyGen.initialize(TestUtil.getMlKemParamSpec(paramSet));
     final KeyPair bcKeyPair = bcKeyGen.generateKeyPair();
     assertEquals(paramSet, bcKeyPair.getPublic().getAlgorithm());
 
-    // Each side's generic KeyFactory imports the other side's key pair. ACCP rejects the both
-    // CHOICE that BouncyCastle's getEncoded() emits by default, so ask BC for the expandedKey
-    // CHOICE; testPrivateKeyChoicesParse covers which CHOICEs ACCP accepts.
-    final KeyFactory accpKf = KeyFactory.getInstance("ML-KEM", NATIVE_PROVIDER);
-    final KeyFactory bcKf = KeyFactory.getInstance("ML-KEM", TestUtil.BC_PROVIDER);
-    final PrivateKey bcImportedPriv =
-        bcKf.generatePrivate(new PKCS8EncodedKeySpec(accpKeyPair.getPrivate().getEncoded()));
+    final byte[] bcExpandedPriv =
+        ((MLKEMPrivateKey) bcKeyPair.getPrivate()).getPrivateKey(false).getEncoded();
+    final KeyFactory accpKf = KeyFactory.getInstance(accpServiceName, NATIVE_PROVIDER);
     final PublicKey accpImportedPub =
         accpKf.generatePublic(new X509EncodedKeySpec(bcKeyPair.getPublic().getEncoded()));
     final PrivateKey accpImportedPriv =
-        accpKf.generatePrivate(
-            new PKCS8EncodedKeySpec(
-                ((MLKEMPrivateKey) bcKeyPair.getPrivate()).getPrivateKey(false).getEncoded()));
+        accpKf.generatePrivate(new PKCS8EncodedKeySpec(bcExpandedPriv));
     assertArrayEquals(
         bcKeyPair.getPublic().getEncoded(),
         accpImportedPub.getEncoded(),
-        paramSet + " ACCP must preserve a BouncyCastle SPKI imported through the generic name");
+        paramSet + " ACCP must preserve BouncyCastle's public key encoding");
+    assertArrayEquals(
+        bcExpandedPriv,
+        accpImportedPriv.getEncoded(),
+        paramSet + " ACCP must preserve BouncyCastle's expanded private key encoding");
     assertEquals(paramSet, accpImportedPriv.getAlgorithm());
 
+    // Skip the rest if BouncyCastle does not register the KEM API on this runtime.
     assumeTrue(bcRegistersKemService(), BC_KEM_UNAVAILABLE);
 
-    final KEM accpKem = KEM.getInstance("ML-KEM", NATIVE_PROVIDER);
+    final KEM accpKem = KEM.getInstance(accpServiceName, NATIVE_PROVIDER);
     final KEM bcKem = KEM.getInstance("ML-KEM", TestUtil.BC_PROVIDER);
     // Configure BC to not apply KDF processing so both sides report the raw ML-KEM shared secret.
     final KTSParameterSpec bcKtsSpec =

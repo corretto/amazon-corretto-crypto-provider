@@ -31,19 +31,24 @@ public final class MlKemUtils {
    * @param key an ML-KEM private key
    * @return a byte[] containing the PKCS8-encoded expanded private key
    * @throws IllegalArgumentException if {@code key} is null, is not an ML-KEM key, or returns null
-   *     from {@code getEncoded()} because it does not support encoding
+   *     from {@code getAlgorithm()} or {@code getEncoded()}
    * @throws com.amazon.corretto.crypto.provider.RuntimeCryptoException if {@code key.getEncoded()}
    *     is not a PKCS8 ML-KEM private key ACCP can parse
    */
   public static byte[] expandPrivateKey(PrivateKey key) {
-    if (key == null || !key.getAlgorithm().startsWith("ML-KEM")) {
-      throw new IllegalArgumentException();
+    if (key == null) {
+      throw new IllegalArgumentException("key must not be null");
+    }
+    // Key.getAlgorithm() is not specified to be non-null, so it cannot be dereferenced directly.
+    final String algorithm = key.getAlgorithm();
+    if (algorithm == null || !algorithm.startsWith("ML-KEM")) {
+      throw new IllegalArgumentException("Not an ML-KEM key: " + algorithm);
     }
     // Key.getEncoded() is specified to return null for a key that does not support encoding, so it
     // has to be checked here rather than in JNI, where it would reach GetArrayLength(nullptr).
     final byte[] encoded = key.getEncoded();
     if (encoded == null) {
-      throw new IllegalArgumentException();
+      throw new IllegalArgumentException("Key does not support encoding");
     }
     return expandPrivateKeyInternal(encoded);
   }

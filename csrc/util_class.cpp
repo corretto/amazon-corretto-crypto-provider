@@ -92,6 +92,13 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_Utils_getDigestL
  * Class:     com_amazon_corretto_crypto_utils_MlDsaUtils
  * Method:    expandPrivateKeyInternal
  * Signature: ([B)[B
+ *
+ * Every input is parsed and re-encoded, as in the ML-KEM helper below, so the output is always the
+ * canonical minimal expandedKey PKCS8. Deliberately not short-circuiting on the input length: that
+ * echoed any encoding longer than a 54-byte seed key back to the caller unvalidated.
+ *
+ * EX_RUNTIME_CRYPTO rather than EX_INVALID_KEY_SPEC because InvalidKeySpecException is checked and
+ * MlDsaUtils.expandPrivateKey does not declare it.
  */
 JNIEXPORT jbyteArray JNICALL
 Java_com_amazon_corretto_crypto_utils_MlDsaUtils_expandPrivateKeyInternal(JNIEnv* pEnv, jclass, jbyteArray keyBytes)
@@ -100,36 +107,29 @@ Java_com_amazon_corretto_crypto_utils_MlDsaUtils_expandPrivateKeyInternal(JNIEnv
     try {
         raii_env env(pEnv);
         jsize key_der_len = env->GetArrayLength(keyBytes);
-
-        if (key_der_len > 54) { // If they key is already expanded, return it
-            return keyBytes;
-        }
-        CHECK_OPENSSL(key_der_len == 54); // seed-only keys are always 54 bytes when PKCS8-encoded
         uint8_t* key_der = (uint8_t*)env->GetByteArrayElements(keyBytes, nullptr);
         CHECK_OPENSSL(key_der);
 
+        EVP_PKEY_auto key;
         try {
-            // Parse the seed key
-            BIO* key_bio = BIO_new_mem_buf(key_der, key_der_len);
-            CHECK_OPENSSL(key_bio);
-            PKCS8_PRIV_KEY_INFO_auto pkcs8
-                = PKCS8_PRIV_KEY_INFO_auto::from(d2i_PKCS8_PRIV_KEY_INFO_bio(key_bio, nullptr));
-            CHECK_OPENSSL(pkcs8.isInitialized());
-            EVP_PKEY_auto key = EVP_PKEY_auto::from(EVP_PKCS82PKEY(pkcs8));
-
-            // Expand the seed key and encode it before returning
-            OPENSSL_buffer_auto new_der;
-            int new_der_len = encodeExpandedMLDSAPrivateKey(key, &new_der);
-            CHECK_OPENSSL(new_der_len > 0);
-            if (!(result = env->NewByteArray(new_der_len))) {
-                throw_java_ex(EX_OOM, "Unable to allocate DER array");
-            }
-            env->SetByteArrayRegion(result, 0, new_der_len, (const jbyte*)new_der);
+            key.set(der2EvpPrivateKey(
+                key_der, key_der_len, EVP_PKEY_PQDSA, /*shouldCheckPrivate*/ false, EX_RUNTIME_CRYPTO));
         } catch (...) {
             env->ReleaseByteArrayElements(keyBytes, (jbyte*)key_der, JNI_ABORT);
             throw;
         }
         env->ReleaseByteArrayElements(keyBytes, (jbyte*)key_der, JNI_ABORT);
+
+        // Expand the key and encode it before returning. key.get() rather than an implicit
+        // conversion, which aborts the process on a null pointer.
+        OPENSSL_buffer_auto new_der;
+        int new_der_len = encodeExpandedMLDSAPrivateKey(key.get(), &new_der);
+        CHECK_OPENSSL(new_der_len > 0);
+
+        if (!(result = env->NewByteArray(new_der_len))) {
+            throw_java_ex(EX_OOM, "Unable to allocate DER array");
+        }
+        env->SetByteArrayRegion(result, 0, new_der_len, (const jbyte*)new_der);
     } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);
         return 0;
@@ -148,13 +148,12 @@ Java_com_amazon_corretto_crypto_utils_MlDsaUtils_expandPrivateKeyInternal(JNIEnv
  * -- in regular FIPS through the fallover parser in keyutils.cpp -- and encodeExpandedMLKEMPrivateKey
  * is likewise available everywhere.
  *
- * Every input is parsed and re-encoded, rather than short-circuiting on the input length the way the
- * ML-DSA helper above still does. So the output is always the canonical minimal expandedKey PKCS8
- * (version 0, no attributes, no publicKey), making this idempotent on that form rather than
- * byte-preserving in general, and an input der2EvpPrivateKey will not accept is rejected instead of
- * handed back unchanged. EX_RUNTIME_CRYPTO is passed down rather than the EX_INVALID_KEY_SPEC the
- * KeyFactory callers use: InvalidKeySpecException is checked, and MlKemUtils.expandPrivateKey does
- * not declare it.
+ * Every input is parsed and re-encoded, as in the ML-DSA helper above. So the output is always the
+ * canonical minimal expandedKey PKCS8 (version 0, no attributes, no publicKey), making this
+ * idempotent on that form rather than byte-preserving in general, and an input der2EvpPrivateKey will
+ * not accept is rejected instead of handed back unchanged. EX_RUNTIME_CRYPTO is passed down rather
+ * than the EX_INVALID_KEY_SPEC the KeyFactory callers use: InvalidKeySpecException is checked, and
+ * MlKemUtils.expandPrivateKey does not declare it.
  */
 JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_utils_MlKemUtils_expandPrivateKeyInternal(
     JNIEnv* pEnv, jclass, jbyteArray keyBytes)
@@ -215,8 +214,13 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_utils_MlDsaUtils_co
 
             CBS cbs;
             CBS_init(&cbs, pub_key_der, pub_key_der_len);
-            EVP_PKEY_auto pkey = EVP_PKEY_auto::from((EVP_parse_public_key(&cbs)));
-            EVP_PKEY_CTX_auto ctx = EVP_PKEY_CTX_auto::from(EVP_PKEY_CTX_new(pkey.get(), nullptr));
+            EVP_PKEY_auto pkey = EVP_PKEY_auto::from(EVP_parse_public_key(&cbs));
+            CHECK_OPENSSL(pkey.isInitialized());
+            // A well-formed SPKI for another algorithm parses fine, so without this check mu could
+            // be computed over a non-ML-DSA public key.
+            if (EVP_PKEY_id(pkey.get()) != EVP_PKEY_PQDSA) {
+                throw_java_ex(EX_ILLEGAL_ARGUMENT, "Not an ML-DSA public key");
+            }
             EVP_MD_CTX_auto md_ctx_mu = EVP_MD_CTX_auto::from(EVP_MD_CTX_new());
             EVP_MD_CTX_auto md_ctx_pk = EVP_MD_CTX_auto::from(EVP_MD_CTX_new());
 
