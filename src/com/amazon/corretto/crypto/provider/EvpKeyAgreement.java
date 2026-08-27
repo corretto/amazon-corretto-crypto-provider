@@ -88,10 +88,16 @@ class EvpKeyAgreement extends KeyAgreementSpi {
     if (algorithm.equalsIgnoreCase("TlsPremasterSecret")) {
       return new SecretKeySpec(secret, "TlsPremasterSecret");
     }
+    // Both "com/sun/crypto/provider/DHKEM.java" (backing HPKE and the "DHKEM"
+    // KEM) and "sun/security/ssl/DHasKEM.java" (the classical half of TLS 1.3
+    // hybrid key exchange, e.g. X25519MLKEM768) obtain the raw agreed secret via
+    // generateSecret("Generic"), "Generic" being the default output algorithm of
+    // the javax.crypto.KEM API. Neither pins a provider when requesting
+    // ECDH/XDH, so ACCP wins the service and must accept "Generic" or it breaks
+    // HPKE and TLS handshakes for anyone who installs it.
     if (algorithm.equalsIgnoreCase("Generic")) {
       return new SecretKeySpec(secret, "Generic");
     }
-    ;
     final Matcher matcher = ALGORITHM_WITH_EXPLICIT_KEYSIZE.matcher(algorithm);
     if (matcher.matches()) {
       switch (matcher.group(1)) {
