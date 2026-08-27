@@ -12,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
+import com.amazon.corretto.crypto.provider.RuntimeCryptoException;
 import com.amazon.corretto.crypto.utils.MlKemUtils;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.KeyFactory;
@@ -34,6 +35,7 @@ import javax.crypto.SecretKey;
 import org.bouncycastle.asn1.ASN1Encodable;
 import org.bouncycastle.asn1.ASN1Integer;
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
+import org.bouncycastle.asn1.ASN1OctetString;
 import org.bouncycastle.asn1.ASN1Sequence;
 import org.bouncycastle.asn1.DERBitString;
 import org.bouncycastle.asn1.DEROctetString;
@@ -62,6 +64,11 @@ public class MlKemTest {
   private static final String[] ML_KEM_PARAM_SETS = {"ML-KEM-512", "ML-KEM-768", "ML-KEM-1024"};
   // An OID under an unassigned private-enterprise arc, so no provider maps it to an algorithm.
   private static final String UNASSIGNED_OID = "1.3.6.1.4.1.99999.1";
+  // Identifying tag bytes of the three ML-KEM private-key CHOICEs of RFC 9935 Section 6, as they
+  // appear at the start of the privateKey OCTET STRING's contents.
+  private static final int CHOICE_TAG_SEED = 0x80; // [0] IMPLICIT OCTET STRING, primitive
+  private static final int CHOICE_TAG_EXPANDED = 0x04; // OCTET STRING
+  private static final int CHOICE_TAG_BOTH = 0x30; // SEQUENCE { seed, expandedKey }
 
   private static String[] mlKemParamSets() {
     return ML_KEM_PARAM_SETS;
@@ -206,8 +213,8 @@ public class MlKemTest {
   @MethodSource("mlKemParamSets")
   public void testKeyPairGeneratorGeneratesWithoutInitialize(String paramSet) throws Exception {
     // Each ML-KEM KeyPairGenerator is bound to its parameter set at construction, so
-    // generateKeyPair
-    // works with no initialize() call at all -- the path a caller that never sets a spec takes.
+    // generateKeyPair works with no initialize() call at all -- the path a caller that never sets
+    // a spec takes.
     KeyPair keyPair = KeyPairGenerator.getInstance(paramSet, NATIVE_PROVIDER).generateKeyPair();
     assertEquals(paramSet, keyPair.getPublic().getAlgorithm());
     assertEquals(paramSet, keyPair.getPrivate().getAlgorithm());
@@ -256,14 +263,6 @@ public class MlKemTest {
 
   @Test
   public void testKeyFactorySelfConversion() throws Exception {
-    // ML-KEM private keys encode in seed format, which requires seed support in the
-    // underlying AWS-LC -- present only in non-FIPS / experimental-FIPS builds (matches the
-    // native #if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD) guard).
-    // TODO: remove this guard once AWS-LC-FIPS is bumped to v5.0.0, which provides
-    // FIPS-validated ML-KEM private-key (seed-format) parsing.
-    assumeTrue(
-        !NATIVE_PROVIDER.isFips() || NATIVE_PROVIDER.isExperimentalFips(),
-        "ML-KEM seed-format keys are unavailable in FIPS builds");
     KeyPairGenerator keyGen = KeyPairGenerator.getInstance("ML-KEM", NATIVE_PROVIDER);
     KeyPair originalKeyPair = keyGen.generateKeyPair();
 
@@ -276,6 +275,163 @@ public class MlKemTest {
     byte[] privateKeyEncoded = originalKeyPair.getPrivate().getEncoded();
     PrivateKey privateKey = keyFactory.generatePrivate(new PKCS8EncodedKeySpec(privateKeyEncoded));
     assertArrayEquals(privateKeyEncoded, privateKey.getEncoded());
+  }
+
+  @ParameterizedTest
+  @MethodSource("mlKemParamSets")
+  public void testPrivateKeyChoicesParse(String paramSet) throws Exception {
+    // ACCP parses the seed and expandedKey CHOICEs of RFC 9935 Section 6 in every build. Those
+    // are the two mainline AWS-LC implements, and ACCP's regular-FIPS fallover parser exists to
+    // stand in for that decoder, so it accepts exactly them and no more (see the both CHOICE in
+    // testBothChoiceRejected). AWS-LC-FIPS 3.1.0 decodes neither, so in regular FIPS the fallover
+    // parser is what accepts both encodings here. Every assertion is encoding-independent: the
+    // two encodings carry the same key material, so each must decapsulate a given ciphertext to
+    // the same shared secret.
+    KeyPairGenerator bcKeyGen = KeyPairGenerator.getInstance("ML-KEM", TestUtil.BC_PROVIDER);
+    bcKeyGen.initialize(TestUtil.getMlKemParamSpec(paramSet));
+    KeyPair bcKeyPair = bcKeyGen.generateKeyPair();
+    MLKEMPrivateKey bcPriv = (MLKEMPrivateKey) bcKeyPair.getPrivate();
+
+    byte[] seedForm = bcPriv.getPrivateKey(true).getEncoded();
+    byte[] expandedForm = bcPriv.getPrivateKey(false).getEncoded();
+    // Guard the premise of the test: these really are the two distinct CHOICEs, so a change in what
+    // BouncyCastle emits cannot quietly turn this into two copies of the same coverage.
+    assertEquals(
+        CHOICE_TAG_SEED,
+        privateKeyChoiceTag(seedForm),
+        paramSet + " getPrivateKey(true) is the seed");
+    assertEquals(
+        CHOICE_TAG_EXPANDED,
+        privateKeyChoiceTag(expandedForm),
+        paramSet + " getPrivateKey(false) is the expandedKey");
+
+    KeyFactory accpKf = KeyFactory.getInstance(paramSet, NATIVE_PROVIDER);
+    PublicKey accpPub =
+        accpKf.generatePublic(new X509EncodedKeySpec(bcKeyPair.getPublic().getEncoded()));
+
+    KEM kem = KEM.getInstance(paramSet, NATIVE_PROVIDER);
+    NamedParameterSpec paramSpec = new NamedParameterSpec(paramSet);
+    KEM.Encapsulated encapsulated = kem.newEncapsulator(accpPub, paramSpec, null).encapsulate();
+    byte[] ciphertext = encapsulated.encapsulation();
+
+    for (byte[] encoding : new byte[][] {seedForm, expandedForm}) {
+      PrivateKey parsed = accpKf.generatePrivate(new PKCS8EncodedKeySpec(encoding));
+      assertArrayEquals(
+          encapsulated.key().getEncoded(),
+          kem.newDecapsulator(parsed, paramSpec).decapsulate(ciphertext).getEncoded(),
+          paramSet
+              + " private key parsed from CHOICE tag 0x"
+              + Integer.toHexString(privateKeyChoiceTag(encoding))
+              + " must decapsulate to the encapsulated shared secret");
+    }
+
+    // Re-encoding a seed-imported key is where the builds diverge, so pin both sides of it:
+    // regular FIPS silently widens the seed to the expanded form because AWS-LC-FIPS 3.1.0
+    // retains no keygen seed, while every other flavor gives the seed encoding back unchanged.
+    // TODO [AWS-LC-FIPS 5.0]: regular FIPS should re-emit the seed once the module retains it.
+    byte[] reEncodedSeed = accpKf.generatePrivate(new PKCS8EncodedKeySpec(seedForm)).getEncoded();
+    if (NATIVE_PROVIDER.isFips() && !NATIVE_PROVIDER.isExperimentalFips()) {
+      assertEquals(
+          CHOICE_TAG_EXPANDED,
+          privateKeyChoiceTag(reEncodedSeed),
+          paramSet + " regular FIPS re-emits a seed-imported private key in expanded form");
+      assertArrayEquals(
+          expandedForm,
+          reEncodedSeed,
+          paramSet + " the widened encoding must match BouncyCastle's expandedKey encoding");
+    } else {
+      assertArrayEquals(
+          seedForm, reEncodedSeed, paramSet + " the seed encoding must round-trip unchanged");
+    }
+  }
+
+  @ParameterizedTest
+  @MethodSource("mlKemParamSets")
+  public void testBothChoiceRejected(String paramSet) throws Exception {
+    // The both CHOICE (SEQUENCE { seed, expandedKey }) is well-formed RFC 9935 Section 6 and is
+    // what BouncyCastle's ML-KEM getEncoded() emits by default, but no AWS-LC flavor decodes it,
+    // mainline included: kem_priv_decode there still says "Case 3 ... not implemented yet".
+    // ACCP's regular-FIPS fallover parser deliberately matches that rejection instead of filling
+    // the gap, so that deleting the parser once AWS-LC-FIPS decodes ML-KEM natively cannot
+    // silently withdraw support ACCP had advertised. This test pins the rejection so that support
+    // can only ever be added on purpose, together with AWS-LC.
+    KeyPairGenerator bcKeyGen = KeyPairGenerator.getInstance("ML-KEM", TestUtil.BC_PROVIDER);
+    bcKeyGen.initialize(TestUtil.getMlKemParamSpec(paramSet));
+    MLKEMPrivateKey bcPriv = (MLKEMPrivateKey) bcKeyGen.generateKeyPair().getPrivate();
+    byte[] bothForm = bcPriv.getEncoded();
+    assertEquals(
+        CHOICE_TAG_BOTH,
+        privateKeyChoiceTag(bothForm),
+        paramSet + " BouncyCastle getEncoded() is the both SEQUENCE");
+
+    KeyFactory keyFactory = KeyFactory.getInstance(paramSet, NATIVE_PROVIDER);
+    assertPrivateKeyRejected(
+        keyFactory, paramSet + " BouncyCastle's default both encoding", bothForm);
+
+    // Also reject it when nothing else about the encoding is unusual: same algorithm, same version
+    // 0 PrivateKeyInfo shell as the seed and expandedKey encodings ACCP does accept, and a seed and
+    // expandedKey that agree with each other. The CHOICE alone is the reason for the rejection.
+    ASN1Encodable algorithm = ASN1Sequence.getInstance(bothForm).getObjectAt(1);
+    ASN1Sequence both = ASN1Sequence.getInstance(privateKeyChoiceBytes(bothForm));
+    byte[] seed = ASN1OctetString.getInstance(both.getObjectAt(0)).getOctets();
+    byte[] expanded = ASN1OctetString.getInstance(both.getObjectAt(1)).getOctets();
+    assertPrivateKeyRejected(
+        keyFactory,
+        paramSet + " a self-consistent both CHOICE in a version 0 PrivateKeyInfo",
+        pkcs8WithPrivateKeyChoice(algorithm, bothChoice(seed, expanded)));
+
+    // The halves on their own are accepted, so the rejections above are attributable to the CHOICE
+    // rather than to this test having mangled the key material or the shell.
+    assertNotNull(
+        keyFactory.generatePrivate(
+            new PKCS8EncodedKeySpec(
+                pkcs8WithPrivateKeyChoice(
+                    algorithm, new DERTaggedObject(false, 0, new DEROctetString(seed))))),
+        paramSet + " the seed half alone must be accepted");
+    assertNotNull(
+        keyFactory.generatePrivate(
+            new PKCS8EncodedKeySpec(
+                pkcs8WithPrivateKeyChoice(algorithm, new DEROctetString(expanded)))),
+        paramSet + " the expandedKey half alone must be accepted");
+
+    // MlKemUtils.expandPrivateKey parses through the same grammar, so it rejects the both CHOICE
+    // too rather than handing the input back unchanged. Note that this is reachable with a stock
+    // BouncyCastle key: getAlgorithm() on one is the parameter-set name, so the ML-KEM check in
+    // expandPrivateKey passes and the both-encoded getEncoded() reaches the native parser. The
+    // rejection is unchecked because expandPrivateKey declares no checked exceptions.
+    assertThrows(RuntimeCryptoException.class, () -> MlKemUtils.expandPrivateKey(bcPriv));
+  }
+
+  @ParameterizedTest
+  @MethodSource("mlKemParamSets")
+  public void testImportedPrivateKeyPublicKeyAvailability(String paramSet) throws Throwable {
+    // ACCP reconstructs an imported ML-KEM private key the same way mainline AWS-LC's decoder
+    // does, one CHOICE at a time, so the two agree per CHOICE in every build: seed derives the
+    // whole key pair, while expandedKey sets only the raw secret key (KEM_KEY_set_raw_secret_key)
+    // and leaves the public key unpopulated. Encoding the public key of an expandedKey-imported
+    // private key therefore fails instead of returning its SPKI. Pinned here so the asymmetry
+    // cannot change silently in either direction: closing it in ACCP alone would be a divergence
+    // from AWS-LC.
+    KeyPairGenerator bcKeyGen = KeyPairGenerator.getInstance("ML-KEM", TestUtil.BC_PROVIDER);
+    bcKeyGen.initialize(TestUtil.getMlKemParamSpec(paramSet));
+    KeyPair bcKeyPair = bcKeyGen.generateKeyPair();
+    MLKEMPrivateKey bcPriv = (MLKEMPrivateKey) bcKeyPair.getPrivate();
+    byte[] spki = bcKeyPair.getPublic().getEncoded();
+    KeyFactory accpKf = KeyFactory.getInstance(paramSet, NATIVE_PROVIDER);
+
+    PrivateKey fromSeed =
+        accpKf.generatePrivate(new PKCS8EncodedKeySpec(bcPriv.getPrivateKey(true).getEncoded()));
+    PublicKey pubFromSeed = TestUtil.sneakyInvoke(fromSeed, "getPublicKey");
+    assertArrayEquals(
+        spki,
+        pubFromSeed.getEncoded(),
+        paramSet + " a seed-derived private key must carry the matching public key");
+
+    PrivateKey fromExpanded =
+        accpKf.generatePrivate(new PKCS8EncodedKeySpec(bcPriv.getPrivateKey(false).getEncoded()));
+    PublicKey pubFromExpanded = TestUtil.sneakyInvoke(fromExpanded, "getPublicKey");
+    // An expandedKey-imported private key carries no public key, so encoding it fails.
+    assertThrows(RuntimeCryptoException.class, pubFromExpanded::getEncoded);
   }
 
   @ParameterizedTest
@@ -344,10 +500,11 @@ public class MlKemTest {
   @MethodSource("mlKemParamSets")
   public void testMalformedPkcs8PrivateKeysRejected(String paramSet) throws Exception {
     // Negative counterpart to testPkcs8OneAsymmetricKeyFieldsAccepted. Every variant below is
-    // outside
-    // the PKCS#8 grammar for ML-KEM and must be rejected both by AWS-LC's EVP_parse_private_key
-    // (the
-    // non-FIPS decoder) and by ACCP's hand-rolled regular-FIPS fallover parser.
+    // outside the PKCS#8 grammar for ML-KEM, and each is rejected by both decoders that can see
+    // it: AWS-LC's EVP_parse_private_key in non-FIPS and experimental-FIPS builds, and ACCP's
+    // hand-rolled fallover parser in regular FIPS. There is exactly one input class the decoders
+    // disagree on, both across builds and across AWS-LC versions; it is handled separately and
+    // explained where it appears.
     ASN1Sequence pkcs8 =
         ASN1Sequence.getInstance(
             KeyPairGenerator.getInstance(paramSet, NATIVE_PROVIDER)
@@ -389,12 +546,180 @@ public class MlKemTest {
                 })
             .getEncoded("DER"));
 
+    // Seed CHOICEs of the wrong size. Every ML-KEM parameter set uses a 64-byte keygen seed
+    // (d || z), so each of these must be rejected outright rather than truncated, zero-padded, or
+    // handed to EVP_PKEY_keygen_deterministic to validate. 0 exercises the empty OCTET STRING, 63
+    // and 65 the off-by-one boundaries, and 128 a plausible-looking multiple of 64.
+    for (int seedLen : new int[] {0, 63, 65, 128}) {
+      assertPrivateKeyRejected(
+          keyFactory,
+          paramSet + " seed of " + seedLen + " bytes",
+          pkcs8WithPrivateKeyChoice(
+              algorithm, new DERTaggedObject(false, 0, new DEROctetString(new byte[seedLen]))));
+    }
+
+    // Wrong encoding form for each of the two optional trailing fields. ACCP's fallover parser
+    // recognizes attributes only as a constructed [0] and publicKey only as a primitive [1], the
+    // way AWS-LC v5.0.0 spells kAttributesTag and kPublicKeyTag, so it treats the other form of
+    // either tag as unrecognized trailing data inside the SEQUENCE and rejects the key.
+    //
+    // A primitive [0] where attributes belong is rejected everywhere, though the pinned non-FIPS
+    // AWS-LC v1.72.0 gets there by another route: its kAttributesTag is the primitive form, so it
+    // matches, but it then tries to consume the field from the outer CBS it has already advanced
+    // past the SEQUENCE, and fails.
+    assertPrivateKeyRejected(
+        keyFactory,
+        paramSet + " primitive [0] attributes",
+        new DERSequence(
+                new ASN1Encodable[] {
+                  new ASN1Integer(0),
+                  algorithm,
+                  privateKey,
+                  new DERTaggedObject(false, 0, new DEROctetString(new byte[0]))
+                })
+            .getEncoded("DER"));
+
+    // A constructed [1] where a primitive [1] publicKey belongs is the one input class the decoders
+    // disagree on, and the disagreement is entirely on AWS-LC's side of it. ACCP's parser rejects
+    // it, so regular FIPS -- where that parser is the whole ML-KEM decoder -- rejects it, and so
+    // does AWS-LC v5.0.0 and later. The pinned v1.72.0 matches neither of its tags against 0xA1 and
+    // never checks for trailing data inside the SEQUENCE, so it accepts the key and silently
+    // ignores the field; in non-FIPS and experimental-FIPS builds d2i_PrivateKey therefore succeeds
+    // before the fallover is consulted. ACCP is built against both the pinned tag and AWS-LC HEAD,
+    // so pin neither answer: require only that the field is never absorbed into the key, which
+    // leaves rejecting it and ignoring it equally acceptable.
+    //
+    // TODO [AWS-LC-FIPS 4.x]: collapse this to the tolerant branch alone once the FIPS module
+    // implements priv_decode for ML-KEM. parseMLKEMPrivateKey goes away with it, and regular FIPS
+    // then answers with AWS-LC-FIPS's decoder rather than ACCP's own.
+    byte[] constructedPublicKey =
+        new DERSequence(
+                new ASN1Encodable[] {
+                  new ASN1Integer(1),
+                  algorithm,
+                  privateKey,
+                  new DERTaggedObject(true, 1, new DERBitString(new byte[32]))
+                })
+            .getEncoded("DER");
+    if (NATIVE_PROVIDER.isFips() && !NATIVE_PROVIDER.isExperimentalFips()) {
+      assertPrivateKeyRejected(
+          keyFactory, paramSet + " constructed [1] publicKey", constructedPublicKey);
+    } else {
+      try {
+        // If AWS-LC accepts the key, it must have ignored the field rather than absorbed any of it:
+        // the result has to re-encode to exactly the key the bogus field was grafted onto.
+        PrivateKey ignored =
+            keyFactory.generatePrivate(new PKCS8EncodedKeySpec(constructedPublicKey));
+        assertArrayEquals(
+            pkcs8.getEncoded("DER"),
+            ignored.getEncoded(),
+            paramSet + " a constructed [1] publicKey must be ignored, not absorbed");
+      } catch (InvalidKeySpecException expected) {
+        // AWS-LC v5.0.0 and later reject it outright, which is the stricter of the two answers.
+      }
+    }
+
+    // A publicKey field is permitted only in a version 1 OneAsymmetricKey.
+    assertPrivateKeyRejected(
+        keyFactory,
+        paramSet + " version 0 with a publicKey",
+        new DERSequence(
+                new ASN1Encodable[] {
+                  new ASN1Integer(0),
+                  algorithm,
+                  privateKey,
+                  new DERTaggedObject(false, 1, new DERBitString(new byte[32]))
+                })
+            .getEncoded("DER"));
+
     // Trailing garbage after the PrivateKeyInfo SEQUENCE.
     byte[] valid =
         new DERSequence(new ASN1Encodable[] {new ASN1Integer(0), algorithm, privateKey})
             .getEncoded("DER");
     assertPrivateKeyRejected(
         keyFactory, paramSet + " trailing byte", Arrays.copyOf(valid, valid.length + 1));
+
+    // Trailing garbage after the CHOICE but still inside the privateKey OCTET STRING. ACCP's parser
+    // rejects this, which is deliberately stricter than kem_priv_decode: that function extracts the
+    // CHOICE and never looks at what follows it, in every AWS-LC version. Ignoring the bytes would
+    // let unbounded caller-controlled data ride along inside an encoding ACCP declares well-formed,
+    // and would make two distinct DER encodings decode to the same key so that getEncoded() no
+    // longer round-trips. Nothing any AWS-LC encoder emits has such trailing bytes, so the extra
+    // strictness cannot refuse a key the library itself produced. As with the constructed [1]
+    // publicKey above, only regular FIPS -- where ACCP's parser is the whole ML-KEM decoder -- can
+    // be held to the stricter answer; elsewhere d2i_PrivateKey is consulted first and all that can
+    // be required is that the trailing byte is not absorbed into the key.
+    byte[] choice = ASN1OctetString.getInstance(privateKey).getOctets();
+    byte[] trailingInsideChoice =
+        new DERSequence(
+                new ASN1Encodable[] {
+                  new ASN1Integer(0),
+                  algorithm,
+                  new DEROctetString(Arrays.copyOf(choice, choice.length + 1))
+                })
+            .getEncoded("DER");
+    if (NATIVE_PROVIDER.isFips() && !NATIVE_PROVIDER.isExperimentalFips()) {
+      assertPrivateKeyRejected(
+          keyFactory,
+          paramSet + " trailing byte inside the privateKey OCTET STRING",
+          trailingInsideChoice);
+    } else {
+      try {
+        PrivateKey ignored =
+            keyFactory.generatePrivate(new PKCS8EncodedKeySpec(trailingInsideChoice));
+        assertArrayEquals(
+            pkcs8.getEncoded("DER"),
+            ignored.getEncoded(),
+            paramSet + " a trailing byte inside the privateKey OCTET STRING must be ignored");
+      } catch (InvalidKeySpecException expected) {
+        // Rejecting it outright is the stricter of the two acceptable answers.
+      }
+    }
+  }
+
+  @ParameterizedTest
+  @MethodSource("mlKemParamSets")
+  public void testExpandPrivateKeyNormalizesEncoding(String paramSet) throws Exception {
+    // MlKemUtils.expandPrivateKey parses and re-encodes every input rather than short-circuiting on
+    // the input length the way its ML-DSA counterpart does, so its output is always the canonical
+    // minimal expandedKey PKCS#8: version 0, no attributes, no publicKey. The optional
+    // OneAsymmetricKey fields are accepted on input but are not carried over, so the method is
+    // idempotent on its own output rather than byte-preserving on arbitrary input.
+    KeyPair keyPair = KeyPairGenerator.getInstance(paramSet, NATIVE_PROVIDER).generateKeyPair();
+    byte[] canonical = MlKemUtils.expandPrivateKey(keyPair.getPrivate());
+    assertEquals(
+        CHOICE_TAG_EXPANDED,
+        privateKeyChoiceTag(canonical),
+        paramSet + " expandPrivateKey must emit the expandedKey CHOICE");
+    ASN1Sequence canonicalSeq = ASN1Sequence.getInstance(canonical);
+    assertEquals(
+        3, canonicalSeq.size(), paramSet + " expandPrivateKey must emit no optional fields");
+    assertEquals(
+        0,
+        ASN1Integer.getInstance(canonicalSeq.getObjectAt(0)).intValueExact(),
+        paramSet + " expandPrivateKey must emit a version 0 PrivateKeyInfo");
+    assertArrayEquals(
+        canonical,
+        MlKemUtils.expandPrivateKey(rawPrivateKey(paramSet, canonical)),
+        paramSet + " expandPrivateKey must be idempotent on its own output");
+
+    // Decorate that canonical encoding with both optional fields a version 1 OneAsymmetricKey may
+    // carry: a constructed [0] attributes SET and a primitive [1] publicKey BIT STRING. Both are
+    // accepted, and both are dropped rather than reflected in the output.
+    byte[] decorated =
+        new DERSequence(
+                new ASN1Encodable[] {
+                  new ASN1Integer(1),
+                  canonicalSeq.getObjectAt(1),
+                  canonicalSeq.getObjectAt(2),
+                  new DERTaggedObject(false, 0, new DERSet()),
+                  new DERTaggedObject(false, 1, new DERBitString(new byte[32]))
+                })
+            .getEncoded("DER");
+    assertArrayEquals(
+        canonical,
+        MlKemUtils.expandPrivateKey(rawPrivateKey(paramSet, decorated)),
+        paramSet + " expandPrivateKey must drop attributes and publicKey");
   }
 
   @ParameterizedTest
@@ -480,6 +805,57 @@ public class MlKemTest {
     } catch (InvalidKeySpecException expected) {
       // Expected: the encoding is outside the grammar ACCP accepts.
     }
+  }
+
+  // Contents of the privateKey OCTET STRING of a PKCS#8 ML-KEM private key, i.e. the DER of
+  // whichever CHOICE of RFC 9935 Section 6 the encoding carries.
+  private static byte[] privateKeyChoiceBytes(byte[] pkcs8) {
+    return ASN1OctetString.getInstance(ASN1Sequence.getInstance(pkcs8).getObjectAt(2)).getOctets();
+  }
+
+  private static int privateKeyChoiceTag(byte[] pkcs8) {
+    return privateKeyChoiceBytes(pkcs8)[0] & 0xFF;
+  }
+
+  // Wraps a private-key CHOICE, well-formed or not, in an otherwise valid version 0 PrivateKeyInfo.
+  private static byte[] pkcs8WithPrivateKeyChoice(ASN1Encodable algorithm, ASN1Encodable choice)
+      throws Exception {
+    return new DERSequence(
+            new ASN1Encodable[] {
+              new ASN1Integer(0),
+              algorithm,
+              new DEROctetString(choice.toASN1Primitive().getEncoded("DER"))
+            })
+        .getEncoded("DER");
+  }
+
+  // MlKemUtils.expandPrivateKey takes a PrivateKey and forwards key.getEncoded(), so exercising it
+  // on a hand-built encoding needs a key that hands those bytes back verbatim. Routing them through
+  // a KeyFactory first would re-encode the key and discard the very fields under test.
+  private static PrivateKey rawPrivateKey(String paramSet, byte[] der) {
+    return new PrivateKey() {
+      private static final long serialVersionUID = 1L;
+
+      @Override
+      public String getAlgorithm() {
+        return paramSet;
+      }
+
+      @Override
+      public String getFormat() {
+        return "PKCS#8";
+      }
+
+      @Override
+      public byte[] getEncoded() {
+        return der.clone();
+      }
+    };
+  }
+
+  private static ASN1Encodable bothChoice(byte[] seed, byte[] expanded) {
+    return new DERSequence(
+        new ASN1Encodable[] {new DEROctetString(seed), new DEROctetString(expanded)});
   }
 
   private static void assertPublicKeyRejected(KeyFactory keyFactory, String label, byte[] der)
@@ -587,14 +963,14 @@ public class MlKemTest {
   @ParameterizedTest
   @MethodSource("mlKemParamSets")
   public void testPrivateKeyEncodingIsSeedFormat(String paramSet) throws Exception {
-    // ML-KEM seed-format keys require seed support in the underlying AWS-LC,
-    // which is only present in non-FIPS / experimental-FIPS builds (matches the
-    // #if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD) guard in native code).
-    // TODO: remove this guard once AWS-LC-FIPS is bumped to v5.0.0, which provides
-    // FIPS-validated ML-KEM private-key (seed-format) parsing.
+    // ACCP cannot EMIT the seed encoding in regular FIPS: AWS-LC-FIPS 3.1.0 stores no keygen
+    // seed, so getEncoded() produces the expanded form instead. (Seed PARSING is supported
+    // everywhere; see testPrivateKeyChoicesParse, which also pins the expanded form regular FIPS
+    // emits here.)
+    // TODO [AWS-LC-FIPS 5.0]: drop this guard once the module retains the seed and can re-emit it.
     assumeTrue(
         !NATIVE_PROVIDER.isFips() || NATIVE_PROVIDER.isExperimentalFips(),
-        "ML-KEM seed-format keys are unavailable in FIPS builds");
+        "ML-KEM seed-format encoding is unavailable in regular FIPS");
     // Seed format is 64 bytes (d || z) for all ML-KEM parameter sets.
     // PKCS#8 DER wrapping adds 22 bytes of ASN.1 overhead, totaling 86 bytes.
     // Expanded format would be 1632/2400/3168 bytes plus overhead.
@@ -612,15 +988,6 @@ public class MlKemTest {
   @ParameterizedTest
   @MethodSource("mlKemParamSets")
   public void testBouncyCastleInteroperability(String paramSet) throws Exception {
-    // Interop exchanges ML-KEM private keys in seed format, which requires seed support in
-    // the underlying AWS-LC -- present only in non-FIPS / experimental-FIPS builds (matches the
-    // native #if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD) guard).
-    // TODO: remove this guard once AWS-LC-FIPS is bumped to v5.0.0, which provides
-    // FIPS-validated ML-KEM private-key (seed-format) parsing.
-    assumeTrue(
-        !NATIVE_PROVIDER.isFips() || NATIVE_PROVIDER.isExperimentalFips(),
-        "ML-KEM seed-format keys are unavailable in FIPS builds");
-
     KeyPair accpKeyPair = KeyPairGenerator.getInstance(paramSet, NATIVE_PROVIDER).generateKeyPair();
 
     // Test BouncyCastle can import ACCP keys
@@ -641,14 +1008,29 @@ public class MlKemTest {
         bcPriv.getEncoded(),
         "Private key encoding should be preserved");
 
+    // The expanded encoding is ACCP's other private-key output, and MlKemUtils.expandPrivateKey is
+    // the only way to obtain it in builds whose getEncoded() emits the seed. Feeding it to BC too
+    // means every private-key encoding ACCP can produce is checked against BC in this test.
+    byte[] accpExpanded = MlKemUtils.expandPrivateKey(accpKeyPair.getPrivate());
+    PrivateKey bcPrivFromExpanded = bcKf.generatePrivate(new PKCS8EncodedKeySpec(accpExpanded));
+    assertArrayEquals(
+        accpExpanded,
+        bcPrivFromExpanded.getEncoded(),
+        "Expanded private key encoding should be preserved");
+    assertArrayEquals(
+        ((MLKEMPrivateKey) bcPriv).getPrivateKey(false).getEncoded(),
+        accpExpanded,
+        "BouncyCastle and ACCP should agree on the expanded encoding of the same key");
+
     // Test BC keys and convert to ACCP using ACCP's key factory, test if they're equal
     KeyPairGenerator bcKeyGen = KeyPairGenerator.getInstance("ML-KEM", TestUtil.BC_PROVIDER);
     bcKeyGen.initialize(TestUtil.getMlKemParamSpec(paramSet));
     KeyPair bcKeyPair = bcKeyGen.generateKeyPair();
 
-    // set BC's private key to be encoded in expandedKey format, not seed, by passing false to
-    // getPrivateKey(), per https://datatracker.ietf.org/doc/draft-ietf-lamps-kyber-certificates/
-    // This is due to AWS-LC currently only supporting expandedKey format for encode/decode
+    // Ask BC for the expandedKey CHOICE specifically, per RFC 9935 Section 6, so this stays a
+    // like-for-like comparison of re-encodings: an expandedKey-imported ACCP key has no seed to
+    // emit, so it round-trips to the expanded form in every build. testPrivateKeyChoicesParse
+    // covers the seed CHOICE.
     // https://github.com/bcgit/bc-java/blob/b41f23936724284a20f10dff13c76896a846031b/prov/src/main/java/org/bouncycastle/jcajce/interfaces/MLKEMPrivateKey.java#L35
     MLKEMPrivateKey bcPrivateKeyExpanded =
         ((MLKEMPrivateKey) bcKeyPair.getPrivate()).getPrivateKey(false);
@@ -699,13 +1081,6 @@ public class MlKemTest {
   @ParameterizedTest
   @MethodSource("mlKemParamSets")
   public void testDecapsulationEquivalenceSeedAndExpanded(String paramSet) throws Exception {
-    // Seed-format ML-KEM is only available in non-FIPS / experimental-FIPS builds
-    // (matches the native #if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD) guard).
-    // TODO: remove this guard once AWS-LC-FIPS is bumped to v5.0.0, which provides
-    // FIPS-validated ML-KEM private-key (seed-format) parsing.
-    assumeTrue(
-        !NATIVE_PROVIDER.isFips() || NATIVE_PROVIDER.isExperimentalFips(),
-        "ML-KEM seed-format keys are unavailable in FIPS builds");
     KeyPairGenerator keyGen = KeyPairGenerator.getInstance(paramSet, NATIVE_PROVIDER);
     KeyPair keyPair = keyGen.generateKeyPair();
 

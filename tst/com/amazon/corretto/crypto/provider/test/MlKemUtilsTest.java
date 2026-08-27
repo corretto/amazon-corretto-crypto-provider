@@ -4,7 +4,6 @@ package com.amazon.corretto.crypto.provider.test;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import com.amazon.corretto.crypto.utils.MlKemUtils;
@@ -80,15 +79,6 @@ public class MlKemUtilsTest {
   @ValueSource(strings = {"ML-KEM-512", "ML-KEM-768", "ML-KEM-1024"})
   @DisabledIf("mlKemDisabled")
   public void testExpandSeedKey(String algorithm) throws Exception {
-    // ML-KEM seed expansion (RFC 9935) requires seed support in the underlying
-    // AWS-LC, present only in non-FIPS / experimental-FIPS builds (matches the
-    // native #if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD) guard).
-    // TODO: remove this guard once AWS-LC-FIPS is bumped to v5.0.0, which provides
-    // FIPS-validated ML-KEM private-key (seed-format) parsing.
-    assumeTrue(
-        !AmazonCorrettoCryptoProvider.INSTANCE.isFips()
-            || AmazonCorrettoCryptoProvider.INSTANCE.isExperimentalFips(),
-        "ML-KEM seed-format keys are unavailable in FIPS builds");
     KeyFactory kf = KeyFactory.getInstance("ML-KEM", NATIVE_PROVIDER);
     byte[] seedDer = Base64.getDecoder().decode(seedPem(algorithm));
 
@@ -110,5 +100,30 @@ public class MlKemUtilsTest {
   @DisabledIf("mlKemDisabled")
   public void testExpandPrivateKeyInvalidArgs() {
     TestUtil.assertThrows(IllegalArgumentException.class, () -> MlKemUtils.expandPrivateKey(null));
+
+    // A PrivateKey is permitted to return null from getEncoded() when it does not support encoding,
+    // as a key held in hardware would. The algorithm check alone does not catch that, and the null
+    // must be refused here rather than passed to JNI, where GetArrayLength would dereference it.
+    final PrivateKey unencodable =
+        new PrivateKey() {
+          static final long serialVersionUID = 1L;
+
+          @Override
+          public String getAlgorithm() {
+            return "ML-KEM-768";
+          }
+
+          @Override
+          public String getFormat() {
+            return null;
+          }
+
+          @Override
+          public byte[] getEncoded() {
+            return null;
+          }
+        };
+    TestUtil.assertThrows(
+        IllegalArgumentException.class, () -> MlKemUtils.expandPrivateKey(unencodable));
   }
 }

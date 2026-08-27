@@ -136,42 +136,46 @@ Java_com_amazon_corretto_crypto_utils_MlDsaUtils_expandPrivateKeyInternal(JNIEnv
     }
     return result;
 }
+#endif // !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
 
 /*
  * Class:     com_amazon_corretto_crypto_utils_MlKemUtils
  * Method:    expandPrivateKeyInternal
  * Signature: ([B)[B
  *
- * AWS-LC's kem_priv_decode automatically expands seed-format keys
- * via KEM_KEY_set_raw_keypair_from_seed. We then use encodeExpandedMLKEMPrivateKey
- * to manually build expanded-format PKCS8.
+ * Deliberately outside the guard that brackets the ML-DSA helpers on either side of it:
+ * der2EvpPrivateKey accepts the seed and expandedKey CHOICEs of RFC 9935 Section 6 in every build
+ * -- in regular FIPS through the fallover parser in keyutils.cpp -- and encodeExpandedMLKEMPrivateKey
+ * is likewise available everywhere.
+ *
+ * Every input is parsed and re-encoded, rather than short-circuiting on the input length the way the
+ * ML-DSA helper above still does. So the output is always the canonical minimal expandedKey PKCS8
+ * (version 0, no attributes, no publicKey), making this idempotent on that form rather than
+ * byte-preserving in general, and an input der2EvpPrivateKey will not accept is rejected instead of
+ * handed back unchanged. EX_RUNTIME_CRYPTO is passed down rather than the EX_INVALID_KEY_SPEC the
+ * KeyFactory callers use: InvalidKeySpecException is checked, and MlKemUtils.expandPrivateKey does
+ * not declare it.
  */
-JNIEXPORT jbyteArray JNICALL
-Java_com_amazon_corretto_crypto_utils_MlKemUtils_expandPrivateKeyInternal(JNIEnv* pEnv, jclass, jbyteArray keyBytes)
+JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_utils_MlKemUtils_expandPrivateKeyInternal(
+    JNIEnv* pEnv, jclass, jbyteArray keyBytes)
 {
     jbyteArray result = NULL;
     try {
         raii_env env(pEnv);
         jsize key_der_len = env->GetArrayLength(keyBytes);
-
-        // ML-KEM seed-format PKCS8 is 86 bytes for all parameter sets (64-byte seed + ASN.1 overhead).
-        // If the key is already expanded, return it as-is.
-        if (key_der_len > 86) {
-            return keyBytes;
-        }
-        CHECK_OPENSSL(key_der_len == 86); // seed-only keys are always 86 bytes when PKCS8-encoded
         uint8_t* key_der = (uint8_t*)env->GetByteArrayElements(keyBytes, nullptr);
         CHECK_OPENSSL(key_der);
 
-        // Parse the seed key — AWS-LC expands it during parsing
-        BIO* key_bio = BIO_new_mem_buf(key_der, key_der_len);
-        CHECK_OPENSSL(key_bio);
-        PKCS8_PRIV_KEY_INFO_auto pkcs8 = PKCS8_PRIV_KEY_INFO_auto::from(d2i_PKCS8_PRIV_KEY_INFO_bio(key_bio, nullptr));
-        BIO_free(key_bio);
+        EVP_PKEY_auto key;
+        try {
+            key.set(der2EvpPrivateKey(
+                key_der, key_der_len, EVP_PKEY_KEM, /*shouldCheckPrivate*/ false, EX_RUNTIME_CRYPTO));
+        } catch (...) {
+            env->ReleaseByteArrayElements(keyBytes, (jbyte*)key_der, JNI_ABORT);
+            throw;
+        }
         env->ReleaseByteArrayElements(keyBytes, (jbyte*)key_der, JNI_ABORT);
-        CHECK_OPENSSL(pkcs8.isInitialized());
-        EVP_PKEY_auto key = EVP_PKEY_auto::from(EVP_PKCS82PKEY(pkcs8));
-        CHECK_OPENSSL(key.isInitialized());
+        // No null check: der2EvpPrivateKey either returns a key or throws.
 
         // Encode as expanded-format PKCS8
         OPENSSL_buffer_auto new_der;
@@ -189,6 +193,7 @@ Java_com_amazon_corretto_crypto_utils_MlKemUtils_expandPrivateKeyInternal(JNIEnv
     return result;
 }
 
+#if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
 /*
  * Class:     com_amazon_corretto_crypto_utils_MlDsaUtils
  * Method:    computeMuInternal

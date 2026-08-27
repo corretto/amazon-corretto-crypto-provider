@@ -779,10 +779,9 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpKemPriv
         // Prefer the standard PKCS8 marshal, which yields the compact seed format in non-FIPS and
         // experimental-FIPS builds. AWS-LC-FIPS 3.1.0 cannot marshal ML-KEM private keys (no
         // priv_encode) and lacks seed support, so on failure fall back to hand-rolled expanded-format
-        // PKCS8. Preferring the library encoder also keeps every non-ML-KEM EVP_PKEY_KEM key off
-        // encodeExpandedMLKEMPrivateKey's length-based OID inference; see the equivalent note in
-        // encodePublicKey above. Mirrors encodeMlDsaPrivateKey above.
+        // PKCS8. Regular FIPS therefore always emits the expanded form. Mirrors encodeMlDsaPrivateKey.
         // TODO [AWS-LC-FIPS 4.x]: drop the encodeExpandedMLKEMPrivateKey fallback once the FIPS module has priv_encode.
+        // TODO [AWS-LC-FIPS 5.0]: emit seed-format PKCS8 in regular FIPS once the module retains the keygen seed.
         //
         // Scope away the errors the expected marshal failure queues; the guard has to be set before the
         // call, since ERR_set_mark marks the newest error rather than deleting it.
