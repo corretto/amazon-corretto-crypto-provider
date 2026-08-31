@@ -22,7 +22,9 @@ don't.
 ```
 tests/jca-conformance/
   README.md            -- this file
-  run-jtreg.sh         -- driver: fetch jtreg, run the JCA subset against ACCP
+  run-jtreg.sh         -- driver: build jtreg, fetch tests, run against ACCP
+  jdk-tags.txt         -- per-JDK pin: repo + GA tag for the test content
+  jtreg-version.txt    -- pinned openjdk/jtreg tag to build the harness from
   jtreg-test-roots.txt -- which test/jdk subtrees to run (JCA-relevant only)
   exclusions/
     common.txt         -- tests excluded on all JDKs
@@ -32,27 +34,52 @@ tests/jca-conformance/
 
 ## Harness model
 
-`run-jtreg.sh`:
+`run-jtreg.sh --full`:
 
-1. Resolves the running JDK's major version and locates the matching pinned
-   OpenJDK source tag (jtreg tests live in the JDK source tree, not in a JDK
-   install).
-2. Downloads the `jtreg` harness binary (pinned version).
-3. Builds ACCP (or consumes a prebuilt `AmazonCorrettoCryptoProvider.jar`) and
-   puts it on the bootclasspath / classpath so `AmazonCorrettoCryptoProvider`
-   can be installed ahead of the default providers via a security-properties
-   override.
-4. Runs jtreg over the roots listed in `jtreg-test-roots.txt`, minus the
-   tests named in the applicable `exclusions/*.txt` files.
-5. Emits a JTReport and a machine-readable summary.
+1. Resolves the JDK under test (`TEST_JAVA_HOME`) and its major version.
+2. Builds `jtreg` from source at the tag pinned in `jtreg-version.txt`
+   (`openjdk/jtreg`). No third-party prebuilt binaries.
+3. Sparse-checks-out the OpenJDK test content for this JDK major from the repo
+   and GA tag pinned in `jdk-tags.txt` (e.g. `openjdk/jdk17u @ jdk-17.0.13-ga`),
+   using a partial (`--filter=blob:none`) + sparse + shallow clone so only the
+   crypto test subtrees and the jtreg support dirs (`test/lib`,
+   `test/jtreg-ext`) are pulled — not the whole JDK source tree. The test set
+   genuinely differs per JDK version, which is why each major is pinned
+   separately.
+4. Builds ACCP (or consumes a prebuilt `AmazonCorrettoCryptoProvider.jar`) and
+   installs it at provider priority 1 (see below).
+5. Runs jtreg over the roots in `jtreg-test-roots.txt`, minus the tests named in
+   the applicable `exclusions/*.txt`, and exits nonzero if any non-excluded test
+   fails.
+
+`run-jtreg.sh --smoke` (the default) validates the wiring without the OpenJDK
+checkout: it confirms ACCP installs as provider #1 under the JDK under test and
+that the config files parse.
+
+### Adding / updating
+
+- **Update test content for a version:** bump its tag in `jdk-tags.txt`.
+- **Add a JDK version:** add a line to `jdk-tags.txt` AND a matrix entry in
+  `.github/workflows/jca-conformance.yml`.
+- **Update the harness:** bump the tag in `jtreg-version.txt`.
 
 ### Provider installation
 
-ACCP is installed as the highest-priority provider by appending a
-`-Djava.security.properties=` override (see `run-jtreg.sh`). The native library
-is self-extracted from `AmazonCorrettoCryptoProvider.jar` by ACCP's `Loader`, so
-only the jar needs to be on the classpath — no separate `java.library.path` is
-required.
+ACCP is installed at provider priority 1 via a generated `java.security`
+override passed to every test JVM with `-Djava.security.properties=`.
+
+Important subtlety: a bare `security.provider.1=<ACCP>` does **not** prepend —
+it *overwrites* slot 1 (the `SUN` provider on a stock JDK), evicting it. That
+breaks JDK-internal `SecureRandom` bootstrap, which needs SUN's legacy `SHA`
+(a.k.a. `SHA1`) `MessageDigest` alias that ACCP does not register, surfacing as
+`InternalError: SHA-1 not available` on nearly every test. The harness therefore
+discovers the JDK's default provider order at runtime and emits a renumbered
+list: ACCP at 1, the JDK defaults shifted to 2..N+1, so nothing is evicted and
+legacy aliases fall through to SUN.
+
+The native library is self-extracted from `AmazonCorrettoCryptoProvider.jar` by
+ACCP's `Loader`, so only the jar needs to be on the (boot)classpath — no
+separate `java.library.path` is required.
 
 ## Exclusions
 
@@ -93,11 +120,17 @@ form jtreg uses in its reports.
 ## Running locally
 
 ```bash
-# Uses the JDK on PATH (must be 17+). Builds ACCP if no jar is supplied.
+# Smoke (default): validate wiring only. Fast; uses the JDK on PATH (17+).
 ./tests/jca-conformance/run-jtreg.sh
 
-# Against a specific prebuilt jar:
-ACCP_JAR=/path/to/AmazonCorrettoCryptoProvider.jar ./tests/jca-conformance/run-jtreg.sh
+# Full: build jtreg, fetch the pinned test content, run the suite against ACCP.
+# Builds ACCP if no jar is supplied. First run is slow (jtreg build + checkout).
+ACCP_JAR=/path/to/AmazonCorrettoCryptoProvider.jar \
+  TEST_JAVA_HOME=/path/to/jdk21 \
+  ./tests/jca-conformance/run-jtreg.sh --full
+
+# Enumerate failures without failing (used when seeding exclusion lists):
+KEEP_GOING=true ./tests/jca-conformance/run-jtreg.sh --full
 ```
 
 ## JCK
