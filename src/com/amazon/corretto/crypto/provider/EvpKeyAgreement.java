@@ -68,15 +68,23 @@ class EvpKeyAgreement extends KeyAgreementSpi {
     }
   }
 
-  @Override
-  protected byte[] engineGenerateSecret() throws IllegalStateException {
+  // The agreed secret, still owned by this object. The overloads that must inspect it before they
+  // can tell whether they can satisfy the request take it from here and reset() only once the
+  // answer is yes; routing them through engineGenerateSecret() instead would reset() before they
+  // get to reject anything, destroying a secret the caller could still have used.
+  private byte[] pendingSecret() throws IllegalStateException {
     if (privKey == null) {
       throw new IllegalStateException("KeyAgreement has not been initialized");
     }
     if (secret == null) {
       throw new IllegalStateException("KeyAgreement has not been completed");
     }
-    final byte[] result = secret;
+    return secret;
+  }
+
+  @Override
+  protected byte[] engineGenerateSecret() throws IllegalStateException {
+    final byte[] result = pendingSecret();
     reset();
     return result;
   }
@@ -84,10 +92,14 @@ class EvpKeyAgreement extends KeyAgreementSpi {
   @Override
   protected SecretKey engineGenerateSecret(final String algorithm)
       throws IllegalStateException, NoSuchAlgorithmException, InvalidKeyException {
-    // The requested algorithm is resolved before the agreed secret is consumed: the no-arg
-    // engineGenerateSecret() calls reset(), so rejecting a name afterwards would destroy the secret
-    // too, breaking both the reuse documented in DIFFERENCES.md and any caller that tries one
-    // output algorithm name and falls back to another. SunEC validates first for the same reason.
+    // Every rejection below happens before the agreed secret is consumed: the no-arg
+    // engineGenerateSecret() calls reset(), so rejecting a request afterwards would destroy the
+    // secret too, leaving nothing for a caller that tries one output algorithm name (or key size)
+    // and falls back to another. SunEC and SunJCE both validate first for the same reason.
+    //
+    // Consequence of resolving the name first: an unusable name on an agreement that was never
+    // initialized or completed surfaces as NoSuchAlgorithmException rather than the
+    // IllegalStateException a well-formed request gets there. SunEC orders the two the same way.
     if (algorithm == null) {
       throw new NoSuchAlgorithmException("Algorithm must not be null");
     }
@@ -112,9 +124,12 @@ class EvpKeyAgreement extends KeyAgreementSpi {
     if (!matcher.matches()) {
       throw new NoSuchAlgorithmException("Unrecognized algorithm: " + algorithm);
     }
-    if (!"AES".equals(matcher.group(1))) {
+    // equalsIgnoreCase, as JCA algorithm names are case-insensitive and SunJCE's DH accepts "aes".
+    if (!"AES".equalsIgnoreCase(matcher.group(1))) {
       throw new NoSuchAlgorithmException("Unsupported algorithm: " + matcher.group(1));
     }
+    // The bracketed size is a number of BYTES, unlike BouncyCastle's identical-looking syntax,
+    // which reads it as bits. See DIFFERENCES.md.
     final String keySizeString = matcher.group(2);
     int keyLength = 0;
     if (keySizeString != null) {
@@ -128,19 +143,17 @@ class EvpKeyAgreement extends KeyAgreementSpi {
         throw new InvalidKeyException("Invalid key length");
       }
     }
-    final byte[] secret = engineGenerateSecret();
+    // pendingSecret() rather than engineGenerateSecret(): the latter resets, so sizing the key
+    // against its return value would destroy the secret before the rejection below, which is
+    // exactly the "agreed secret is not long enough" case DIFFERENCES.md documents.
+    final int secretLength = pendingSecret().length;
     if (keySizeString == null) {
-      // Largest AES key the agreed secret can supply.
-      for (final int aesLength : AES_KEYSIZES_BYTES) {
-        if (aesLength <= secret.length) {
-          keyLength = aesLength;
-        }
-      }
+      keyLength = largestAesKeySizeAtMost(secretLength);
     }
-    if (keyLength == 0 || keyLength > secret.length) {
+    if (keyLength == 0 || keyLength > secretLength) {
       throw new InvalidKeyException("Invalid key length");
     }
-    return new SecretKeySpec(secret, 0, keyLength, "AES");
+    return new SecretKeySpec(engineGenerateSecret(), 0, keyLength, "AES");
   }
 
   private static boolean isAesKeySize(final int lengthBytes) {
@@ -152,16 +165,41 @@ class EvpKeyAgreement extends KeyAgreementSpi {
     return false;
   }
 
+  // The longest AES key |availableBytes| of agreed secret can supply, or 0 if it cannot supply even
+  // the shortest. Tracks the maximum rather than the last match so it does not quietly depend on
+  // AES_KEYSIZES_BYTES being sorted ascending.
+  private static int largestAesKeySizeAtMost(final int availableBytes) {
+    int largest = 0;
+    for (final int aesLength : AES_KEYSIZES_BYTES) {
+      if (aesLength <= availableBytes && aesLength > largest) {
+        largest = aesLength;
+      }
+    }
+    return largest;
+  }
+
   @Override
   protected int engineGenerateSecret(final byte[] sharedSecret, final int offset)
       throws IllegalStateException, ShortBufferException {
-    final byte[] tmp = engineGenerateSecret();
-    if (sharedSecret.length - offset < tmp.length) {
+    // Same rule as the String overload: the secret is placed first and consumed only afterwards,
+    // so a caller that catches ShortBufferException can retry with a larger buffer. Deriving it
+    // through engineGenerateSecret() would reset() the agreement before the buffer was ever
+    // checked, leaving the retry with an IllegalStateException instead. SunJCE's DH is explicit
+    // about the ordering: "Reset the key agreement after checking for ShortBufferException above,
+    // so user can recover w/o losing internal state." A null buffer is likewise a
+    // ShortBufferException there rather than an NPE.
+    final byte[] agreedSecret = pendingSecret();
+    if (sharedSecret == null) {
+      throw new ShortBufferException("No buffer provided for shared secret");
+    }
+    if (sharedSecret.length - offset < agreedSecret.length) {
       throw new ShortBufferException();
     }
-    System.arraycopy(tmp, 0, sharedSecret, offset, tmp.length);
+    // Copied before the reset so an out-of-range offset, which arraycopy reports as an unchecked
+    // IndexOutOfBoundsException just as the JDK's providers do, does not consume the secret either.
+    System.arraycopy(agreedSecret, 0, sharedSecret, offset, agreedSecret.length);
     reset();
-    return tmp.length;
+    return agreedSecret.length;
   }
 
   @Override

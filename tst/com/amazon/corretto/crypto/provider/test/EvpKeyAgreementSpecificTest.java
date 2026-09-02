@@ -122,6 +122,26 @@ public class EvpKeyAgreementSpecificTest {
     assertThrows(InvalidKeyException.class, () -> accpAgreement.init(x448KeyPair.getPrivate()));
   }
 
+  // An AES size that is valid in the abstract but larger than the agreed secret must be rejected
+  // before the secret is consumed, so a caller can fall back to a shorter key. Reaching that case
+  // needs an agreement shorter than 32 bytes, which every parameter set in EvpKeyAgreementTest
+  // exceeds; P-224 agrees on 28.
+  @Test
+  public void oversizedAesKeyLeavesSecretIntact() throws Exception {
+    final KeyPairGenerator gen = KeyPairGenerator.getInstance("EC", NATIVE_PROVIDER);
+    gen.initialize(new ECGenParameterSpec("secp224r1"));
+    final KeyPair alice = gen.generateKeyPair();
+    final KeyPair bob = gen.generateKeyPair();
+
+    final KeyAgreement agreement = KeyAgreement.getInstance("ECDH", NATIVE_PROVIDER);
+    agreement.init(alice.getPrivate());
+    agreement.doPhase(bob.getPublic(), true);
+
+    assertThrows(InvalidKeyException.class, () -> agreement.generateSecret("AES[32]"));
+    // Still usable: 28 bytes of secret supplies AES-192 but not AES-256.
+    assertEquals(24, agreement.generateSecret("AES").getEncoded().length);
+  }
+
   @Test
   public void evilEcKeys() {
     final Key privKey = EC_KEYPAIR.getPrivate();

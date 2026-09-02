@@ -7,7 +7,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
+import com.amazon.corretto.crypto.provider.RuntimeCryptoException;
 import com.amazon.corretto.crypto.utils.MlDsaUtils;
+import java.security.GeneralSecurityException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -178,10 +180,8 @@ public class MlDsaUtilsTest {
   @Test
   @DisabledIf("mlDsaDisabled")
   public void testNonMlDsaSpkiIsRejected() throws Exception {
-    final KeyPairGenerator ecGen = KeyPairGenerator.getInstance("EC");
-    ecGen.initialize(256);
     final TestKey ecKeyClaimingMlDsa =
-        new TestKey("ML-DSA-44", ecGen.generateKeyPair().getPublic().getEncoded());
+        new TestKey("ML-DSA-44", generateEcKeyPair().getPublic().getEncoded());
 
     final byte[] message = new byte[256];
     Arrays.fill(message, (byte) 0x41);
@@ -190,5 +190,25 @@ public class MlDsaUtilsTest {
         IllegalArgumentException.class,
         "Not an ML-DSA public key",
         () -> MlDsaUtils.computeMu(ecKeyClaimingMlDsa, message));
+  }
+
+  // The private-key half of the same discrimination: a well-formed PKCS8 for another algorithm gets
+  // past every Java-side check and is refused by der2EvpPrivateKey's EVP_PKEY_PQDSA check. The
+  // exception type differs from computeMu's above, as the two javadocs document: this path reports
+  // an unusable encoding as RuntimeCryptoException.
+  @Test
+  @DisabledIf("mlDsaDisabled")
+  public void testNonMlDsaPkcs8IsRejected() throws Exception {
+    final TestKey ecKeyClaimingMlDsa =
+        new TestKey("ML-DSA-44", generateEcKeyPair().getPrivate().getEncoded());
+
+    TestUtil.assertThrows(
+        RuntimeCryptoException.class, () -> MlDsaUtils.expandPrivateKey(ecKeyClaimingMlDsa));
+  }
+
+  private static KeyPair generateEcKeyPair() throws GeneralSecurityException {
+    final KeyPairGenerator ecGen = KeyPairGenerator.getInstance("EC");
+    ecGen.initialize(256);
+    return ecGen.generateKeyPair();
   }
 }

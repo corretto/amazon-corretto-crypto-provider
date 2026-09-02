@@ -406,12 +406,20 @@ public class EvpKeyAgreementTest {
   @ParameterizedTest
   @MethodSource("params")
   public void secretInShortArray(TestParams params) throws GeneralSecurityException {
+    final byte[] rawSecret = params.rawSecrets[0][1];
     params.nativeAgreement.init(params.pairs[0].getPrivate());
     assertNull(params.nativeAgreement.doPhase(params.pairs[1].getPublic(), true));
-    final byte[] largeArray = new byte[params.rawSecrets[0][1].length + 3];
+    final byte[] largeArray = new byte[rawSecret.length + 3];
 
     assertThrows(
         ShortBufferException.class, () -> params.nativeAgreement.generateSecret(largeArray, 5));
+    // A missing buffer is a ShortBufferException rather than a NullPointerException, matching
+    // SunJCE's DH.
+    assertThrows(ShortBufferException.class, () -> params.nativeAgreement.generateSecret(null, 0));
+
+    // Neither rejection consumed the agreed secret, so the caller can retry with enough room.
+    assertEquals(rawSecret.length, params.nativeAgreement.generateSecret(largeArray, 0));
+    assertArrayEquals(rawSecret, Arrays.copyOf(largeArray, rawSecret.length));
   }
 
   @ParameterizedTest
