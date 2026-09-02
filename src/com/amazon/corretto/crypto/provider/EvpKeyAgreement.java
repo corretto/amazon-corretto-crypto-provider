@@ -18,7 +18,7 @@ import javax.crypto.spec.SecretKeySpec;
 class EvpKeyAgreement extends KeyAgreementSpi {
   private static final int[] AES_KEYSIZES_BYTES = new int[] {16, 24, 32};
   private static final Pattern ALGORITHM_WITH_EXPLICIT_KEYSIZE =
-      Pattern.compile("(\\S+?)(?:\\[(\\d+)\\])?");
+      Pattern.compile("(\\S+?)(?:\\[([^\\]]*)\\])?");
 
   private final AmazonCorrettoCryptoProvider provider_;
   private final EvpKeyType keyType_;
@@ -131,29 +131,61 @@ class EvpKeyAgreement extends KeyAgreementSpi {
     // The bracketed size is a number of BYTES, unlike BouncyCastle's identical-looking syntax,
     // which reads it as bits. See DIFFERENCES.md.
     final String keySizeString = matcher.group(2);
-    int keyLength = 0;
-    if (keySizeString != null) {
+    // pendingSecret() rather than engineGenerateSecret(): the latter resets, so sizing the key
+    // against its return value would destroy the secret before the rejections below, which is
+    // exactly the "agreed secret is not long enough" case DIFFERENCES.md documents. Reading it
+    // before the size is validated also keeps an incomplete agreement an IllegalStateException
+    // whatever size was requested, rather than letting a bad size outrank the missing state.
+    final int secretLength = pendingSecret().length;
+    final int keyLength;
+    if (keySizeString == null) {
+      keyLength = largestAesKeySizeAtMost(secretLength);
+      if (keyLength == 0) {
+        throw new InvalidKeyException(
+            "Agreed secret is " + secretLength + " bytes, too short for any AES key");
+      }
+    } else {
+      // Digits only. The bracket group admits anything but a ']' so that a malformed size is an
+      // invalid length rather than falling wholesale into group(1) and being reported as an
+      // algorithm name that does not exist; Integer.parseInt alone would also accept a '+' sign.
+      if (!isAllDigits(keySizeString)) {
+        throw new InvalidKeyException("Invalid key length");
+      }
+      final int requested;
       try {
-        keyLength = Integer.parseInt(keySizeString);
+        requested = Integer.parseInt(keySizeString);
       } catch (final NumberFormatException e) {
         // The pattern admits digit strings too long for an int.
         throw new InvalidKeyException("Invalid key length", e);
       }
-      if (!isAesKeySize(keyLength)) {
+      if (!isAesKeySize(requested)) {
         throw new InvalidKeyException("Invalid key length");
       }
-    }
-    // pendingSecret() rather than engineGenerateSecret(): the latter resets, so sizing the key
-    // against its return value would destroy the secret before the rejection below, which is
-    // exactly the "agreed secret is not long enough" case DIFFERENCES.md documents.
-    final int secretLength = pendingSecret().length;
-    if (keySizeString == null) {
-      keyLength = largestAesKeySizeAtMost(secretLength);
-    }
-    if (keyLength == 0 || keyLength > secretLength) {
-      throw new InvalidKeyException("Invalid key length");
+      if (requested > secretLength) {
+        // Distinct from "Invalid key length": this is the one case DIFFERENCES.md tells callers
+        // they can recover from by asking for a shorter key.
+        throw new InvalidKeyException(
+            "Agreed secret is "
+                + secretLength
+                + " bytes, too short for a "
+                + requested
+                + "-byte AES key");
+      }
+      keyLength = requested;
     }
     return new SecretKeySpec(engineGenerateSecret(), 0, keyLength, "AES");
+  }
+
+  private static boolean isAllDigits(final String value) {
+    if (value.isEmpty()) {
+      return false;
+    }
+    for (int i = 0; i < value.length(); i++) {
+      if (value.charAt(i) < '0' || value.charAt(i) > '9') {
+        return false;
+      }
+    }
+    return true;
   }
 
   private static boolean isAesKeySize(final int lengthBytes) {

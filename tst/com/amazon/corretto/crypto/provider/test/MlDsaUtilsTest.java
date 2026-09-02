@@ -203,7 +203,9 @@ public class MlDsaUtilsTest {
         new TestKey("ML-DSA-44", generateEcKeyPair().getPrivate().getEncoded());
 
     TestUtil.assertThrows(
-        RuntimeCryptoException.class, () -> MlDsaUtils.expandPrivateKey(ecKeyClaimingMlDsa));
+        RuntimeCryptoException.class,
+        "Unable to convert PKCS8_PRIV_KEY_INFO to EVP_PKEY",
+        () -> MlDsaUtils.expandPrivateKey(ecKeyClaimingMlDsa));
   }
 
   private static KeyPair generateEcKeyPair() throws GeneralSecurityException {

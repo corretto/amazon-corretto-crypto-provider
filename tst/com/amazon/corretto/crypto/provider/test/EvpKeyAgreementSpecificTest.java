@@ -19,6 +19,7 @@ import java.security.SecureRandom;
 import java.security.Security;
 import java.security.interfaces.ECPublicKey;
 import java.security.spec.ECGenParameterSpec;
+import java.util.Arrays;
 import javax.crypto.KeyAgreement;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -137,9 +138,16 @@ public class EvpKeyAgreementSpecificTest {
     agreement.init(alice.getPrivate());
     agreement.doPhase(bob.getPublic(), true);
 
+    // The peer side of the same agreement, so the expected bytes are known independently.
+    final KeyAgreement peer = KeyAgreement.getInstance("ECDH", NATIVE_PROVIDER);
+    peer.init(bob.getPrivate());
+    peer.doPhase(alice.getPublic(), true);
+    final byte[] agreedSecret = peer.generateSecret();
+
     assertThrows(InvalidKeyException.class, () -> agreement.generateSecret("AES[32]"));
-    // Still usable: 28 bytes of secret supplies AES-192 but not AES-256.
-    assertEquals(24, agreement.generateSecret("AES").getEncoded().length);
+    // Still usable, and still the same agreement: 28 bytes supplies AES-192 but not AES-256.
+    assertArrayEquals(
+        Arrays.copyOf(agreedSecret, 24), agreement.generateSecret("AES").getEncoded());
   }
 
   @Test

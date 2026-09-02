@@ -315,6 +315,12 @@ public class EvpKeyAgreementTest {
     assertEquals("AES", aesKey.getAlgorithm());
     assertEquals("RAW", aesKey.getFormat());
     assertArrayEquals(Arrays.copyOf(rawSecret, expectedKeyLength), aesKey.getEncoded());
+
+    // JCA algorithm names are case-insensitive, and SunJCE's DH accepts "aes".
+    params.nativeAgreement.init(params.pairs[0].getPrivate());
+    assertNull(params.nativeAgreement.doPhase(params.pairs[1].getPublic(), true));
+    assertArrayEquals(
+        aesKey.getEncoded(), params.nativeAgreement.generateSecret("aes").getEncoded());
   }
 
   @ParameterizedTest
