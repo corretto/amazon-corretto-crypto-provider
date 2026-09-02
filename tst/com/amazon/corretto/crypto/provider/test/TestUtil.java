@@ -17,6 +17,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.security.GeneralSecurityException;
+import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
 import java.security.SecureRandom;
@@ -37,6 +38,8 @@ import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import org.apache.commons.codec.binary.Hex;
+import org.bouncycastle.asn1.ASN1OctetString;
+import org.bouncycastle.asn1.ASN1Sequence;
 import org.bouncycastle.crypto.Digest;
 import org.bouncycastle.crypto.digests.SHA1Digest;
 import org.bouncycastle.crypto.digests.SHA224Digest;
@@ -103,6 +106,53 @@ public class TestUtil {
 
   public static boolean isExperimentalFips() {
     return NATIVE_PROVIDER.isExperimentalFips();
+  }
+
+  // Memoizes mlKemEmitsSeedEncoding(). Guarded by TestUtil.class, since ACCP's tests run
+  // concurrently.
+  private static Boolean mlKemSeedEncodingEmitted;
+
+  /**
+   * Whether the AWS-LC this build links retains the ML-KEM keygen seed, so that {@code
+   * getEncoded()} on an ACCP ML-KEM private key re-emits the RFC 9935 Section 6 seed CHOICE instead
+   * of widening it to expandedKey.
+   *
+   * <p>This is a property of the linked libcrypto, not of the build flavor. Mainline AWS-LC and the
+   * mainline-derived FIPS module retain the seed; the AWS-LC-FIPS release branches do not. Asking
+   * {@code isFips() && !isExperimentalFips()} instead answers correctly only because build.gradle
+   * happens to pin mainline for non-FIPS and experimental FIPS and a release branch for regular
+   * FIPS. It stops answering the moment either pin moves, or a consumer links a different
+   * AWS-LC-FIPS, or ACCP is built against the tip of AWS-LC main -- which AWS-LC's own CI does on
+   * every pull request. So probe for the capability rather than inferring it.
+   *
+   * <p>Computed on first use rather than in a static initializer: ACCP registers ML-KEM only on JDK
+   * 17 and above, and the question is meaningless where it does not.
+   *
+   * <p>TODO [AWS-LC-FIPS 5.0]: drop this probe once every AWS-LC-FIPS ACCP can link retains the
+   * seed.
+   */
+  public static synchronized boolean mlKemEmitsSeedEncoding() {
+    if (mlKemSeedEncodingEmitted == null) {
+      try {
+        final byte[] pkcs8 =
+            KeyPairGenerator.getInstance("ML-KEM-512", NATIVE_PROVIDER)
+                .generateKeyPair()
+                .getPrivate()
+                .getEncoded();
+        // privateKey is the third field of the PrivateKeyInfo SEQUENCE, and the CHOICE inside it is
+        // tagged [0] IMPLICIT OCTET STRING (0x80) for the seed and OCTET STRING (0x04) for
+        // expandedKey.
+        final byte[] choice =
+            ASN1OctetString.getInstance(ASN1Sequence.getInstance(pkcs8).getObjectAt(2)).getOctets();
+        mlKemSeedEncodingEmitted = choice.length > 0 && (choice[0] & 0xFF) == 0x80;
+      } catch (final GeneralSecurityException | RuntimeException e) {
+        // Deliberately not defaulting to false. A probe that answers "no seed" when ML-KEM key
+        // generation is merely broken would silently select the weaker of two assertions in every
+        // caller, so the coverage would vanish rather than the build going red.
+        throw new AssertionError("could not probe ACCP's ML-KEM private key encoding", e);
+      }
+    }
+    return mlKemSeedEncodingEmitted;
   }
 
   public static byte[] intArrayToByteArray(final int[] array) {

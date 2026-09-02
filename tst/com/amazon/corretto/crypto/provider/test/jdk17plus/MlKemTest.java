@@ -423,16 +423,19 @@ public class MlKemTest {
               + " must decapsulate to the encapsulated shared secret");
     }
 
-    // Re-encoding a seed-imported key is where the builds diverge, so pin both sides of it:
-    // regular FIPS silently widens the seed to the expanded form because AWS-LC-FIPS 3.1.0
-    // retains no keygen seed, while every other flavor gives the seed encoding back unchanged.
-    // TODO [AWS-LC-FIPS 5.0]: regular FIPS should re-emit the seed once the module retains it.
+    // Re-encoding a seed-imported key is where the builds diverge, so pin both sides of it: an
+    // AWS-LC that retains no keygen seed silently widens the seed to the expanded form, while one
+    // that retains it gives the seed encoding back unchanged. See TestUtil.mlKemEmitsSeedEncoding
+    // for why that is keyed on the linked AWS-LC rather than on the FIPS build flavor.
+    // TODO [AWS-LC-FIPS 5.0]: every FIPS build should re-emit the seed once the module retains it.
     byte[] reEncodedSeed = accpKf.generatePrivate(new PKCS8EncodedKeySpec(seedForm)).getEncoded();
-    if (NATIVE_PROVIDER.isFips() && !NATIVE_PROVIDER.isExperimentalFips()) {
+    if (!TestUtil.mlKemEmitsSeedEncoding()) {
       assertEquals(
           CHOICE_TAG_EXPANDED,
           privateKeyChoiceTag(reEncodedSeed),
-          paramSet + " regular FIPS re-emits a seed-imported private key in expanded form");
+          paramSet
+              + " an AWS-LC that retains no keygen seed re-emits a seed-imported private key in"
+              + " expanded form");
       assertArrayEquals(
           expandedForm,
           reEncodedSeed,
@@ -678,18 +681,22 @@ public class MlKemTest {
             .getEncoded("DER"));
 
     // A constructed [1] where a primitive [1] publicKey belongs is the one input class the decoders
-    // disagree on, and the disagreement is entirely on AWS-LC's side of it. ACCP's parser rejects
-    // it, so regular FIPS -- where that parser is the whole ML-KEM decoder -- rejects it, and so
-    // does AWS-LC v5.0.0 and later. The pinned v1.72.0 matches neither of its tags against 0xA1 and
-    // never checks for trailing data inside the SEQUENCE, so it accepts the key and silently
-    // ignores the field; in non-FIPS and experimental-FIPS builds d2i_PrivateKey therefore succeeds
-    // before the fallover is consulted. ACCP is built against both the pinned tag and AWS-LC HEAD,
-    // so pin neither answer: require only that the field is never absorbed into the key, which
-    // leaves rejecting it and ignoring it equally acceptable.
+    // disagree on, and the disagreement is entirely on AWS-LC's side of it. ACCP's fallover parser
+    // rejects it, and so does AWS-LC v5.0.0 and later. The pinned v1.72.0 matches neither of its
+    // tags against 0xA1 and never checks for trailing data inside the SEQUENCE, so it accepts the
+    // key and silently ignores the field.
     //
-    // TODO [AWS-LC-FIPS 4.x]: collapse this to the tolerant branch alone once the FIPS module
-    // implements priv_decode for ML-KEM. parseMLKEMPrivateKey goes away with it, and regular FIPS
-    // then answers with AWS-LC-FIPS's decoder rather than ACCP's own.
+    // Which answer a build gives therefore turns on two properties of the AWS-LC it links, neither
+    // of them inferable from the build flavor: whether that AWS-LC implements priv_decode for
+    // ML-KEM at all -- if it does, d2i_PrivateKey settles the question before the fallover is
+    // consulted -- and, if so, which version's answer it gives. Unlike the seed capability (see
+    // TestUtil.mlKemEmitsSeedEncoding) there is nothing this test could probe those with except the
+    // inputs it is already asserting on. So pin neither answer: require only that the field is
+    // never absorbed into the key, which leaves rejecting it and ignoring it equally acceptable.
+    //
+    // TODO [AWS-LC-FIPS 4.x]: drop the tolerance once every AWS-LC a FIPS build can link implements
+    // priv_decode for ML-KEM and rejects this. parseMLKEMPrivateKey goes away with it, and every
+    // build then answers with AWS-LC's decoder rather than ACCP's own.
     byte[] constructedPublicKey =
         new DERSequence(
                 new ASN1Encodable[] {
@@ -699,22 +706,18 @@ public class MlKemTest {
                   new DERTaggedObject(true, 1, new DERBitString(new byte[32]))
                 })
             .getEncoded("DER");
-    if (NATIVE_PROVIDER.isFips() && !NATIVE_PROVIDER.isExperimentalFips()) {
-      assertPrivateKeyRejected(
-          keyFactory, paramSet + " constructed [1] publicKey", constructedPublicKey);
-    } else {
-      try {
-        // If AWS-LC accepts the key, it must have ignored the field rather than absorbed any of it:
-        // the result has to re-encode to exactly the key the bogus field was grafted onto.
-        PrivateKey ignored =
-            keyFactory.generatePrivate(new PKCS8EncodedKeySpec(constructedPublicKey));
-        assertArrayEquals(
-            pkcs8.getEncoded("DER"),
-            ignored.getEncoded(),
-            paramSet + " a constructed [1] publicKey must be ignored, not absorbed");
-      } catch (InvalidKeySpecException expected) {
-        // AWS-LC v5.0.0 and later reject it outright, which is the stricter of the two answers.
-      }
+    try {
+      // If the key is accepted, the field must have been ignored rather than absorbed: the result
+      // has to re-encode to exactly the key the bogus field was grafted onto.
+      PrivateKey ignored =
+          keyFactory.generatePrivate(new PKCS8EncodedKeySpec(constructedPublicKey));
+      assertArrayEquals(
+          pkcs8.getEncoded("DER"),
+          ignored.getEncoded(),
+          paramSet + " a constructed [1] publicKey must be ignored, not absorbed");
+    } catch (InvalidKeySpecException expected) {
+      // ACCP's fallover parser, and AWS-LC v5.0.0 and later, reject it outright, which is the
+      // stricter of the two acceptable answers.
     }
 
     // A publicKey field is permitted only in a version 1 OneAsymmetricKey.
@@ -743,10 +746,14 @@ public class MlKemTest {
     // let unbounded caller-controlled data ride along inside an encoding ACCP declares well-formed,
     // and would make two distinct DER encodings decode to the same key so that getEncoded() no
     // longer round-trips. Nothing any AWS-LC encoder emits has such trailing bytes, so the extra
-    // strictness cannot refuse a key the library itself produced. As with the constructed [1]
-    // publicKey above, only regular FIPS -- where ACCP's parser is the whole ML-KEM decoder -- can
-    // be held to the stricter answer; elsewhere d2i_PrivateKey is consulted first and all that can
-    // be required is that the trailing byte is not absorbed into the key.
+    // strictness cannot refuse a key the library itself produced.
+    //
+    // As with the constructed [1] publicKey above, though, ACCP's parser only gets to answer when
+    // the linked AWS-LC has no ML-KEM priv_decode of its own; where it has one, d2i_PrivateKey
+    // accepts the encoding first and the fallover never sees it. That is a property of the linked
+    // AWS-LC, not of the build flavor, and this input is the only thing that could probe it --
+    // which would make the assertion below a tautology. So require only that the trailing byte is
+    // not absorbed into the key, and leave outright rejection equally acceptable.
     byte[] choice = ASN1OctetString.getInstance(privateKey).getOctets();
     byte[] trailingInsideChoice =
         new DERSequence(
@@ -756,22 +763,15 @@ public class MlKemTest {
                   new DEROctetString(Arrays.copyOf(choice, choice.length + 1))
                 })
             .getEncoded("DER");
-    if (NATIVE_PROVIDER.isFips() && !NATIVE_PROVIDER.isExperimentalFips()) {
-      assertPrivateKeyRejected(
-          keyFactory,
-          paramSet + " trailing byte inside the privateKey OCTET STRING",
-          trailingInsideChoice);
-    } else {
-      try {
-        PrivateKey ignored =
-            keyFactory.generatePrivate(new PKCS8EncodedKeySpec(trailingInsideChoice));
-        assertArrayEquals(
-            pkcs8.getEncoded("DER"),
-            ignored.getEncoded(),
-            paramSet + " a trailing byte inside the privateKey OCTET STRING must be ignored");
-      } catch (InvalidKeySpecException expected) {
-        // Rejecting it outright is the stricter of the two acceptable answers.
-      }
+    try {
+      PrivateKey ignored =
+          keyFactory.generatePrivate(new PKCS8EncodedKeySpec(trailingInsideChoice));
+      assertArrayEquals(
+          pkcs8.getEncoded("DER"),
+          ignored.getEncoded(),
+          paramSet + " a trailing byte inside the privateKey OCTET STRING must be ignored");
+    } catch (InvalidKeySpecException expected) {
+      // Rejecting it outright is the stricter of the two acceptable answers.
     }
   }
 
@@ -1061,14 +1061,17 @@ public class MlKemTest {
   @ParameterizedTest
   @MethodSource("mlKemParamSets")
   public void testPrivateKeyEncodingIsSeedFormat(String paramSet) throws Exception {
-    // ACCP cannot EMIT the seed encoding in regular FIPS: AWS-LC-FIPS 3.1.0 stores no keygen
-    // seed, so getEncoded() produces the expanded form instead. (Seed PARSING is supported
-    // everywhere; see testPrivateKeyChoicesParse, which also pins the expanded form regular FIPS
-    // emits here.)
-    // TODO [AWS-LC-FIPS 5.0]: drop this guard once the module retains the seed and can re-emit it.
+    // ACCP cannot EMIT the seed encoding against an AWS-LC that stores no keygen seed, such as the
+    // AWS-LC-FIPS 3.1.0 that regular FIPS pins: getEncoded() produces the expanded form instead.
+    // (Seed PARSING is supported everywhere; see testPrivateKeyChoicesParse, which also pins the
+    // expanded form those builds emit here.) Keyed on the linked AWS-LC rather than on the FIPS
+    // build flavor, so that this skips only where the capability is genuinely absent -- see
+    // TestUtil.mlKemEmitsSeedEncoding.
+    // TODO [AWS-LC-FIPS 5.0]: drop this guard once every AWS-LC-FIPS ACCP can link retains the seed
+    //      and can re-emit it.
     assumeTrue(
-        !NATIVE_PROVIDER.isFips() || NATIVE_PROVIDER.isExperimentalFips(),
-        "ML-KEM seed-format encoding is unavailable in regular FIPS");
+        TestUtil.mlKemEmitsSeedEncoding(),
+        "ML-KEM seed-format encoding is unavailable in the AWS-LC this build links");
     // Seed format is 64 bytes (d || z) for all ML-KEM parameter sets.
     // PKCS#8 DER wrapping adds 22 bytes of ASN.1 overhead, totaling 86 bytes.
     // Expanded format would be 1632/2400/3168 bytes plus overhead.
