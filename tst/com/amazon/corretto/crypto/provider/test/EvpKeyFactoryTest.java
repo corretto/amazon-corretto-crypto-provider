@@ -334,12 +334,13 @@ public class EvpKeyFactoryTest {
         nativeFactory.getKeySpec(privKey, PKCS8EncodedKeySpec.class);
 
     if (isMlKemWithExpandedOnlyEncoding(algorithm)) {
-      // In regular FIPS builds ACCP always emits the RFC 9935 expandedKey form for ML-KEM private
-      // keys, because AWS-LC-FIPS 3.1.0 retains no keygen seed. Other providers may emit the seed
-      // form for the same key, so the two encodings need not be byte-identical. Assert that ACCP's
-      // own encoding round-trips unchanged instead of comparing against another provider's bytes.
-      // TODO: compare against the alternate provider once AWS-LC-FIPS supports seed-format ML-KEM
-      // private keys.
+      // Against an AWS-LC that retains no keygen seed, such as the AWS-LC-FIPS 3.1.0 regular FIPS
+      // pins, ACCP always emits the RFC 9935 expandedKey form for ML-KEM private keys. Other
+      // providers may emit the seed form for the same key, so the two encodings need not be
+      // byte-identical. Assert that ACCP's own encoding round-trips unchanged instead of comparing
+      // against another provider's bytes.
+      // TODO: compare against the alternate provider once every AWS-LC-FIPS ACCP can link supports
+      // seed-format ML-KEM private keys.
       final PrivateKey reparsed = nativeFactory.generatePrivate(nativeSpec);
       assertArrayEquals(
           nativeSpec.getEncoded(),
@@ -757,13 +758,14 @@ public class EvpKeyFactoryTest {
     }
   }
 
-  // True when |algorithm| is ML-KEM and this is a regular (non-experimental) FIPS build, where ACCP
+  // True when |algorithm| is ML-KEM and the AWS-LC this build links retains no keygen seed, so ACCP
   // can only emit the expanded-key PKCS#8 encoding. Other providers may emit the seed encoding for
   // the same key, so cross-provider PKCS#8 byte comparisons are not meaningful in that combination.
+  // Probed rather than inferred from the FIPS build flavor, which would silently withdraw this
+  // coverage from any FIPS build whose AWS-LC does retain the seed; see
+  // TestUtil.mlKemEmitsSeedEncoding.
   private static boolean isMlKemWithExpandedOnlyEncoding(final String algorithm) {
-    return algorithm.toUpperCase().startsWith("ML-KEM")
-        && NATIVE_PROVIDER.isFips()
-        && !NATIVE_PROVIDER.isExperimentalFips();
+    return algorithm.toUpperCase().startsWith("ML-KEM") && !TestUtil.mlKemEmitsSeedEncoding();
   }
 
   // This method is used to determine whether tests should use an alternate provider for a given
