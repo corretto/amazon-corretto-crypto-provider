@@ -4,6 +4,7 @@ package com.amazon.corretto.crypto.provider.test;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
@@ -202,10 +203,14 @@ public class MlDsaUtilsTest {
     final TestKey ecKeyClaimingMlDsa =
         new TestKey("ML-DSA-44", generateEcKeyPair().getPrivate().getEncoded());
 
-    TestUtil.assertThrows(
-        RuntimeCryptoException.class,
-        "Unable to convert PKCS8_PRIV_KEY_INFO to EVP_PKEY",
-        () -> MlDsaUtils.expandPrivateKey(ecKeyClaimingMlDsa));
+    final RuntimeCryptoException e =
+        assertThrows(
+            RuntimeCryptoException.class, () -> MlDsaUtils.expandPrivateKey(ecKeyClaimingMlDsa));
+    // throw_openssl reports the error AWS-LC queued and uses the string at the throw site only as a
+    // default for an empty queue, so what is pinned here is the reason d2i_PrivateKey records for a
+    // type mismatch, not "Unable to convert PKCS8_PRIV_KEY_INFO to EVP_PKEY". The mnemonic alone:
+    // the packed error code preceding it is an AWS-LC internal.
+    assertTrue(e.getMessage().contains("DIFFERENT_KEY_TYPES"), e.getMessage());
   }
 
   private static KeyPair generateEcKeyPair() throws GeneralSecurityException {
