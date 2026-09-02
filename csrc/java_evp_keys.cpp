@@ -776,12 +776,13 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpKemPriv
         size_t der_len = 0;
         CBB cbb;
         CHECK_OPENSSL(CBB_init(&cbb, 0));
-        // Prefer the standard PKCS8 marshal, which yields the compact seed format in non-FIPS and
-        // experimental-FIPS builds. AWS-LC-FIPS 3.1.0 cannot marshal ML-KEM private keys (no
-        // priv_encode) and lacks seed support, so on failure fall back to hand-rolled expanded-format
-        // PKCS8. Regular FIPS therefore always emits the expanded form. Mirrors encodeMlDsaPrivateKey.
+        // Prefer the standard PKCS8 marshal, which yields the compact seed format whenever the linked
+        // AWS-LC retains the ML-KEM keygen seed. AWS-LC-FIPS 3.1.0 cannot marshal ML-KEM private keys
+        // (no priv_encode) and retains no seed, so on failure fall back to hand-rolled expanded-format
+        // PKCS8. Which of the two forms a build emits thus follows the library it links rather than its
+        // FIPS flavor, and a FIPS module that starts retaining the seed starts emitting it here with no
+        // change to this code. Mirrors encodeMlDsaPrivateKey.
         // TODO [AWS-LC-FIPS 4.x]: drop the encodeExpandedMLKEMPrivateKey fallback once the FIPS module has priv_encode.
-        // TODO [AWS-LC-FIPS 5.0]: emit seed-format PKCS8 in regular FIPS once the module retains the keygen seed.
         //
         // Scope away the errors the expected marshal failure queues; the guard has to be set before the
         // call, since ERR_set_mark marks the newest error rather than deleting it.

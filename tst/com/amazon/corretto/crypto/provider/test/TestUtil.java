@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Spliterator;
 import java.util.Spliterators;
@@ -108,6 +109,70 @@ public class TestUtil {
     return NATIVE_PROVIDER.isExperimentalFips();
   }
 
+  // The AWS-LC git version ids build.gradle pins: awsLcMainTag for non-FIPS and experimental-FIPS
+  // builds, awsLcFipsTag for regular FIPS, the latter matched as a release-branch family. Keep both
+  // in sync with build.gradle: a stale value fails nothing, it just stops matching and downgrades
+  // every assertion below to its tolerant branch.
+  //
+  // CMake prefixes the configured id with "AWS-LC " on its way into version.properties, so match
+  // these as substrings rather than anchoring either end.
+  private static final String AWSLC_MAIN_PIN = "v1.72.0";
+  private static final String AWSLC_FIPS_RELEASE_BRANCH = "AWS-LC-FIPS-3.";
+
+  private static String awsLcVersionStr() {
+    final String version = NATIVE_PROVIDER.getAwsLcVersionStr();
+    // A build whose version.properties carries no AWS-LC version matches no pin, which leaves every
+    // oracle below unanswered rather than asserting against a version nobody reported.
+    return version == null ? "" : version;
+  }
+
+  /**
+   * Whether the AWS-LC this build links has no {@code priv_decode} for ML-KEM, so that {@code
+   * d2i_PrivateKey} always fails and ACCP's fallover parser in {@code keyutils.cpp} is the whole
+   * ML-KEM PKCS#8 decoder. Where AWS-LC has one, it answers first and the fallover is never
+   * consulted, and the two disagree on inputs no ML-KEM encoder emits.
+   *
+   * <p>Like {@link #mlKemEmitsSeedEncoding} this is a property of the linked libcrypto rather than
+   * of the build flavor. Unlike the seed capability it cannot be probed, since the only inputs that
+   * distinguish the two decoders are the malformed encodings the callers are asserting on -- so key
+   * it on the reported version instead. Every AWS-LC-FIPS 3.x release branch spells {@code
+   * kem_asn1_meth}'s {@code priv_decode} and {@code priv_encode} slots NULL. Everything else --
+   * mainline, AWS-LC-FIPS 4.x and later, and any {@code -DAWSLC_GITVERSION} override -- is taken to
+   * decode ML-KEM itself, which is the tolerant answer.
+   *
+   * <p>TODO [AWS-LC-FIPS 4.x]: delete along with parseMLKEMPrivateKey once the FIPS module
+   * implements priv_decode for ML-KEM.
+   */
+  public static boolean linkedAwsLcLacksMlKemPrivDecode() {
+    return awsLcVersionStr().contains(AWSLC_FIPS_RELEASE_BRANCH);
+  }
+
+  /**
+   * What {@link #mlKemEmitsSeedEncoding} has to answer for the AWS-LC versions build.gradle pins,
+   * or empty for any other AWS-LC.
+   *
+   * <p>The probe measures ACCP's output, which is also what the assertions it guards measure, so on
+   * its own it cannot tell an AWS-LC that keeps no seed from a regression that stopped emitting
+   * one: either way its callers quietly take their weaker branch. This is the independent answer
+   * they are checked against, from the one input that is not ACCP's own output. It is deliberately
+   * limited to the pinned versions: a build linking anything else, including the tip of AWS-LC main
+   * that AWS-LC's own CI builds ACCP against, has nothing to check the probe against and gets no
+   * answer here.
+   *
+   * <p>TODO [AWS-LC-FIPS 5.0]: collapse to a constant true once the FIPS module retains the ML-KEM
+   * keygen seed.
+   */
+  public static Optional<Boolean> pinnedAwsLcRetainsMlKemSeed() {
+    final String version = awsLcVersionStr();
+    if (version.contains(AWSLC_MAIN_PIN)) {
+      return Optional.of(Boolean.TRUE);
+    }
+    if (version.contains(AWSLC_FIPS_RELEASE_BRANCH)) {
+      return Optional.of(Boolean.FALSE);
+    }
+    return Optional.empty();
+  }
+
   // Memoizes mlKemEmitsSeedEncoding(). Guarded by TestUtil.class, since ACCP's tests run
   // concurrently.
   private static Boolean mlKemSeedEncodingEmitted;
@@ -128,8 +193,16 @@ public class TestUtil {
    * <p>Computed on first use rather than in a static initializer: ACCP registers ML-KEM only on JDK
    * 17 and above, and the question is meaningless where it does not.
    *
-   * <p>TODO [AWS-LC-FIPS 5.0]: drop this probe once every AWS-LC-FIPS ACCP can link retains the
-   * seed.
+   * <p>The probe observes freshly generated keys. Callers also use it to predict the re-encoding of
+   * a seed-imported key; those coincide because KEM_KEY_set_raw_keypair_from_seed retains the seed
+   * exactly as keygen does, in every AWS-LC that retains it at all.
+   *
+   * <p>A probe of ACCP's own output cannot distinguish an AWS-LC that keeps no seed from a
+   * regression that stopped emitting one, so this answer is not trusted on its own: {@code
+   * MlKemTest.testPrivateKeyEncodingMatchesLinkedAwsLc} pins it against {@link
+   * #pinnedAwsLcRetainsMlKemSeed} wherever the linked AWS-LC is one build.gradle pins.
+   *
+   * <p>TODO [AWS-LC-FIPS 5.0]: drop this probe once the FIPS module retains the ML-KEM keygen seed.
    */
   public static synchronized boolean mlKemEmitsSeedEncoding() {
     if (mlKemSeedEncodingEmitted == null) {
