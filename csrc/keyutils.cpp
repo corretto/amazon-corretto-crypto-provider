@@ -7,10 +7,14 @@
 #include <openssl/ec.h>
 #include <openssl/err.h>
 #include <openssl/evp.h>
-#if defined(FIPS_BUILD) && !defined(EXPERIMENTAL_FIPS_BUILD)
+#if defined(FIPS_BUILD)
 // EVP_PKEY_keygen_deterministic lives in this experimental header, which carries no API-stability
-// guarantee. Only regular FIPS needs it, so keep it out of the builds that cannot reach it.
-// TODO [AWS-LC-FIPS 4.x]: drop this experimental include once the FIPS module can d2i seed-format ML-KEM keys.
+// guarantee, so pull it in only where it is needed: every FIPS build. Whether d2i_PrivateKey can
+// decode the RFC 9935 seed CHOICE is a property of the linked AWS-LC rather than of the build flavor,
+// and the AWS-LC-FIPS release branches have no ML-KEM priv_decode at all. Non-FIPS builds always
+// link mainline AWS-LC, which does decode the seed, and get the stub below instead.
+// TODO [AWS-LC-FIPS 4.x]: drop this experimental include once the FIPS module can d2i seed-format
+//      ML-KEM keys.
 #include <openssl/experimental/kem_deterministic_api.h>
 #endif
 #include <openssl/obj.h>
@@ -261,10 +265,14 @@ static EVP_PKEY* parseMLKEMPublicKey(const unsigned char* der, const int derLen)
 // AWS-LC's KEM_KEY_set_raw_keypair_from_seed does. Returns nullptr on failure, which surfaces out of
 // der2EvpPrivateKey as a decode failure.
 //
-// Only regular FIPS has any use for this; every other flavor decodes the seed CHOICE inside
-// d2i_PrivateKey and never consults the fallover for a seed, so those builds get the stub below.
-// TODO [AWS-LC-FIPS 4.x]: drop this seed-expansion helper once the FIPS module can d2i seed-format ML-KEM keys.
-#if defined(FIPS_BUILD) && !defined(EXPERIMENTAL_FIPS_BUILD)
+// Compiled for every FIPS build rather than only regular FIPS. Whether d2i_PrivateKey decodes the
+// seed CHOICE is a property of the linked AWS-LC, not of the build flavor, and compiling this where
+// AWS-LC already decodes the seed costs nothing: d2i_PrivateKey runs first in der2EvpPrivateKey, so
+// the fallover only ever sees inputs it rejected. Non-FIPS builds always link mainline AWS-LC and get
+// the stub below, keeping the experimental header out of them.
+// TODO [AWS-LC-FIPS 4.x]: drop this seed-expansion helper once the FIPS module can d2i seed-format
+//      ML-KEM keys.
+#if defined(FIPS_BUILD)
 // Every ML-KEM parameter set uses the same 64-byte keygen seed, d || z (FIPS 203, Algorithm 16).
 static const size_t MLKEM_SEED_LEN = 64;
 
@@ -286,8 +294,9 @@ static EVP_PKEY* mlkemKeyFromSeed(int nid, const uint8_t* seed, size_t seed_len)
     return pkey;
 }
 #else
-// Unreachable here: d2i_PrivateKey decodes the seed CHOICE itself in this build, so the fallover only
-// ever sees inputs AWS-LC already rejected.
+// Unreachable here: non-FIPS builds link a mainline AWS-LC, whose d2i_PrivateKey decodes the seed
+// CHOICE itself, so the fallover only ever sees inputs AWS-LC already rejected. This is a flavor
+// inference, kept deliberately so the experimental header stays out of non-FIPS builds.
 static EVP_PKEY* mlkemKeyFromSeed(int, const uint8_t*, size_t) { return nullptr; }
 #endif
 
