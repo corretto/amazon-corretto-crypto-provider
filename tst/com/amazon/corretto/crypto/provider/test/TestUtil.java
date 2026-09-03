@@ -116,7 +116,7 @@ public class TestUtil {
   //
   // CMake prefixes the configured id with "AWS-LC " on its way into version.properties, so match
   // these as substrings rather than anchoring either end.
-  private static final String AWSLC_MAIN_PIN = "v1.72.0";
+  private static final String AWSLC_MAIN_PIN = "v5.8.0";
   private static final String AWSLC_FIPS_RELEASE_BRANCH = "AWS-LC-FIPS-3.";
 
   private static String awsLcVersionStr() {
