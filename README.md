@@ -67,6 +67,10 @@ Signature algorithms:
 * SHA256withRSA
 * SHA384withRSA
 * SHA512withRSA
+* SHA3-224withRSA
+* SHA3-256withRSA
+* SHA3-384withRSA
+* SHA3-512withRSA
 * NONEwithECDSA
 * SHA1withECDSA
 * SHA1withECDSAinP1363Format
@@ -81,33 +85,39 @@ Signature algorithms:
 * RSASSA-PSS
 * NONEwithRSASSA-PSS
 * NONEwithRSA
-* ED25519
-* ED25519ph
-* NONEwithED25519ph
-* ML-DSA
-* ML-DSA-ExtMu
+* Ed25519 (also registered under the alias EdDSA)
+* Ed25519ph
+* NONEwithEd25519ph
+* ML-DSA, ML-DSA-ExtMu
 
 KeyPairGenerator:
 * EC
 * RSA
-* ED25519
-* X25519 (JDK 12+)
+* Ed25519 (also registered under the alias EdDSA)
+* X25519 (JDK 12+, also registered under the alias XDH)
+* ML-DSA, ML-DSA-44, ML-DSA-65, ML-DSA-87
+* ML-KEM, ML-KEM-512, ML-KEM-768, ML-KEM-1024 (JDK 17 or 21+, also see [ML-KEM Considerations](#ml-kem-considerations))
 
 KeyGenerator:
 * AES
 
 KeyAgreement:
 * ECDH
-* X25519 (JDK 12+)
+* X25519 (JDK 12+, also registered under the alias XDH)
 
 KEM algorithms:
-* ML-KEM (JDK 17+ LTS, also see [ML-KEM Considerations](#ml-kem-considerations))
+* ML-KEM, ML-KEM-512, ML-KEM-768, ML-KEM-1024 (JDK 17 or 21+, also see [ML-KEM Considerations](#ml-kem-considerations))
 
 SecretKeyFactory:
 * HkdfWithHmacSHA1
 * HkdfWithHmacSHA256
 * HkdfWithHmacSHA384
 * HkdfWithHmacSHA512
+* PBKDF2WithHmacSHA1
+* PBKDF2WithHmacSHA224
+* PBKDF2WithHmacSHA256
+* PBKDF2WithHmacSHA384
+* PBKDF2WithHmacSHA512
 * ConcatenationKdfWithSHA256
 * ConcatenationKdfWithSHA384
 * ConcatenationKdfWithSHA512
@@ -123,8 +133,10 @@ SecureRandom:
 KeyFactory:
 * EC
 * RSA
-* ED25519 (JDK 15+). Please refer to [system properties](https://github.com/corretto/amazon-corretto-crypto-provider#other-system-properties) for more information.
-* X25519 (JDK 12+)
+* Ed25519 (JDK 15+, opt-in; also registered under the alias EdDSA). Please refer to [system properties](https://github.com/corretto/amazon-corretto-crypto-provider#other-system-properties) for more information.
+* X25519 (JDK 12+, also registered under the alias XDH)
+* ML-DSA, ML-DSA-44, ML-DSA-65, ML-DSA-87
+* ML-KEM, ML-KEM-512, ML-KEM-768, ML-KEM-1024 (JDK 17 or 21+, also see [ML-KEM Considerations](#ml-kem-considerations))
 
 AlgorithmParameters:
 * EC. Please refer to [system properties](https://github.com/corretto/amazon-corretto-crypto-provider#other-system-properties) for more information.
@@ -139,11 +151,24 @@ Mac algorithms with precomputed key and associated secret key factories (expert 
 
 ### ML-KEM Considerations
 
-JDK's [KEM interface](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/javax/crypto/KEM.html) was backported to JDK17, but not to earlier JDK versions. ACCP JARs support all LTS JDK versions since JDK8, so **ACCP's default build configuration and maven artifacts** omit ML-KEM as it relies on the KEM interface. To enable ML-KEM in locally built JARs, you'll need to build with a JDK ≥17 and specify `TARGET_JDK_VERSION` ≥17 like so:
+JDK's [KEM interface](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/javax/crypto/KEM.html) was backported to JDK 17 and is GA in JDK 21+, but is absent from other versions (JDK 8-16 and the non-LTS 18-20). ACCP always ships ML-KEM in its Multi-Release JAR (the `jdk17plus` overlay under `META-INF/versions/17`), so ML-KEM is available at runtime on JDK 17 or 21+; on other runtimes the base JAR loads without it. Because the overlay is always built, building ACCP requires a KEM-capable build JDK -- JDK 17 or 21+ (see [Build it yourself](#build-it-yourself)). `TARGET_JDK_VERSION` only selects the base bytecode level (default 8) and no longer gates ML-KEM.
 
-```
-./gradlew -DTARGET_JDK_VERSION=17 build
-``` 
+For ML-KEM key generation (`KeyPairGenerator`) and KEM encapsulation (`KEM.newEncapsulator`), any
+caller-supplied `SecureRandom` is accepted but ignored: AWS-LC always draws ML-KEM randomness from
+its own DRBG. Passing a custom `SecureRandom` (for example to force a specific entropy source) has
+no effect on these operations.
+
+The parameter-set-agnostic `ML-KEM` service name lets a `NamedParameterSpec` choose the parameter
+set, mirroring how SunEC's generic `XDH` service accepts either `X25519` or `X448`:
+`KeyPairGenerator.getInstance("ML-KEM")` generates ML-KEM-768 when left uninitialized, and generates
+the named parameter set after `initialize(new NamedParameterSpec("ML-KEM-512"))`. The
+parameter-set-specific `ML-KEM-512`/`ML-KEM-768`/`ML-KEM-1024` generators stay bound to their own
+parameter set and reject a spec naming a different one with `InvalidAlgorithmParameterException`,
+rather than silently returning a key of the wrong parameter set. When the caller obtained the
+generator without naming a provider (`KeyPairGenerator.getInstance("ML-KEM-768")`), that rejection is
+what lets the JCA fail over to another provider; a caller that named ACCP explicitly
+(`KeyPairGenerator.getInstance("ML-KEM-768", accp)`) sees the exception instead, since the JCA has no
+other provider to try.
 
 # Notes on ACCP-FIPS
 ACCP-FIPS is a variation of ACCP which uses AWS-LC-FIPS 2.x as its cryptographic module. This version of AWS-LC-FIPS has FIPS certificate [4816](https://csrc.nist.gov/projects/cryptographic-module-validation-program/certificate/4816).
@@ -176,6 +201,7 @@ Notable differences between ACCP and ACCP-FIPS:
 * In FIPS-mode, RSA keys are limited to 2048, 3072, or 4096 bits in size with public exponent F4.
 * Due to the fact that an older branch of AWS-LC is used in FIPS-mode, there will be performance differences between ACCP and ACCP-FIPS. We highly recommend performing detailed performance testing of your application if you choose to experiment with ACCP-FIPS.
 * Between versions 2.1.0 and 2.3.3 (inclusive), ACCP-FIPS does not register SecureRandom by default due to the performance of AWS-LC’s entropy source in FIPS-mode, with older versions of AWS-LC. Since version 2.4.0, ACCP-FIPS behaves as ACCP: it registers SecureRandom from AWS-LC by default. [A system property](https://github.com/corretto/amazon-corretto-crypto-provider#other-system-properties) is available to change the default behavior.
+* ACCP-FIPS cannot *serialize* an ML-KEM private key in the seed format of [RFC 9935](https://datatracker.ietf.org/doc/html/rfc9935#section-6): the `KEM_KEY` of AWS-LC-FIPS 3.1.0 has no field in which to retain the keygen seed, so `PrivateKey.getEncoded()` emits the `expandedKey` CHOICE where ACCP emits `seed`. Both CHOICEs are still *parsed* in every build, so a seed-format key imported through `KeyFactory` works everywhere; it simply re-encodes to the expanded form under FIPS. For well-formed keys this is the only intended behavioral difference in ML-KEM key handling between the FIPS and non-FIPS builds, and it goes away when ACCP-FIPS moves to an AWS-LC-FIPS branch whose `KEM_KEY` retains the seed. Builds configured with `-DEXPERIMENTAL_FIPS=1` track the non-FIPS AWS-LC branch and so are unaffected.
 
 ACCP-FIPS is only supported on the following platforms:
 
@@ -301,7 +327,10 @@ The JARs we publish via Maven and our official [releases](https://github.com/cor
 but yours will not be.*
 
 Building this provider requires a 64 bit Linux or MacOS build system with the following prerequisites installed:
-* OpenJDK 10 or newer
+* A JDK that exposes the `javax.crypto.KEM` API: JDK 21+, or a KEM-backported JDK 17 (for example
+  [Amazon Corretto 17](https://aws.amazon.com/corretto/)). Build JDKs older than 17 are no longer
+  supported -- ACCP always builds the ML-KEM Multi-Release overlay, so the build fails fast if the
+  build JDK lacks the KEM API. (The built provider still runs on JDK 8+.)
 * [cmake](https://cmake.org/) 3.8 or newer
 * C++ build chain
 * [lcov](http://ltp.sourceforge.net/coverage/lcov.php) for coverage metrics

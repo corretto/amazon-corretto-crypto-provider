@@ -245,7 +245,8 @@ class AesCfbSpi extends CipherSpi {
       final byte[] output,
       final int outputOffset)
       throws ShortBufferException, IllegalBlockSizeException, BadPaddingException {
-    Utils.checkArrayLimits(input, inputOffset, inputLen);
+    final byte[] inputNotNull = input == null ? Utils.EMPTY_ARRAY : input;
+    Utils.checkArrayLimits(inputNotNull, inputOffset, inputLen);
     Utils.checkArrayLimits(output, outputOffset, inputLen);
 
     int result;
@@ -260,7 +261,7 @@ class AesCfbSpi extends CipherSpi {
               null,
               0,
               false,
-              input,
+              inputNotNull,
               inputOffset,
               inputLen,
               output,
@@ -273,7 +274,7 @@ class AesCfbSpi extends CipherSpi {
               opMode,
               ctxPtr,
               /*saveCtx*/ false, // then free the context at end of operation
-              input,
+              inputNotNull,
               inputOffset,
               inputLen,
               output,

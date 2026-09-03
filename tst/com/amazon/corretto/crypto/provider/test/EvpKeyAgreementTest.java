@@ -279,6 +279,20 @@ public class EvpKeyAgreementTest {
         });
   }
 
+  @ParameterizedTest
+  @MethodSource("params")
+  public void genericSecret(TestParams params) throws GeneralSecurityException {
+    // For TLS 1.3 hybrid key exchange we must support the "Generic" algorithm
+    final byte[] rawSecret = params.rawSecrets[0][1];
+    params.nativeAgreement.init(params.pairs[0].getPrivate());
+    assertNull(params.nativeAgreement.doPhase(params.pairs[1].getPublic(), true));
+
+    final SecretKey genericKey = params.nativeAgreement.generateSecret("Generic");
+    assertEquals("Generic", genericKey.getAlgorithm());
+    assertEquals("RAW", genericKey.getFormat());
+    assertArrayEquals(rawSecret, genericKey.getEncoded());
+  }
+
   private static Stream<TestParams> aesKeysParams() {
     return params().stream()
         .filter(

@@ -7,11 +7,29 @@
 #include <openssl/ec.h>
 #include <openssl/err.h>
 #include <openssl/evp.h>
+#if defined(FIPS_BUILD)
+// EVP_PKEY_keygen_deterministic lives in this experimental header, which carries no API-stability
+// guarantee, so pull it in only where it is needed: every FIPS build. Whether d2i_PrivateKey can
+// decode the RFC 9935 seed CHOICE is a property of the linked AWS-LC rather than of the build flavor,
+// and the AWS-LC-FIPS release branches have no ML-KEM priv_decode at all. Non-FIPS builds always
+// link mainline AWS-LC, which does decode the seed, and get the stub below instead.
+// TODO [AWS-LC-FIPS 4.x]: drop this experimental include once the FIPS module can d2i seed-format
+//      ML-KEM keys.
+#include <openssl/experimental/kem_deterministic_api.h>
+#endif
 #include <openssl/obj.h>
 #include <openssl/pkcs8.h>
 #include <openssl/rsa.h>
 
 namespace AmazonCorrettoCryptoProvider {
+
+// Parses a PKCS8 ML-KEM private key via the raw APIs (bypassing the ASN.1 method absent from
+// AWS-LC-FIPS 3.1.0). Returns nullptr for inputs it does not handle; the key-construction helpers it
+// delegates to may queue an OpenSSL error when they reject a well-formed but invalid key.
+// der2EvpPrivateKey calls this as a fallover after d2i_PrivateKey fails. Defined below, next to
+// parseMLKEMPublicKey.
+// TODO [AWS-LC-FIPS 4.x]: drop this fallover parser once the FIPS module implements priv_decode for ML-KEM.
+static EVP_PKEY* parseMLKEMPrivateKey(const unsigned char* der, const int derLen);
 
 EVP_PKEY* der2EvpPrivateKey(const unsigned char* der,
     const int derLen,
@@ -21,17 +39,41 @@ EVP_PKEY* der2EvpPrivateKey(const unsigned char* der,
 {
     const unsigned char* der_mutable_ptr = der; // openssl modifies the input pointer
 
+    // Scope away the errors a failed d2i_PrivateKey queues. Its failure is expected for ML-KEM in
+    // regular FIPS (see the fallover below), and when nothing can parse |der| the errors are still
+    // in the queue for throw_openssl to report before this guard unwinds.
+    ErrorQueueMark error_mark;
+
+    // Try the standard decoder first so non-ML-KEM keys (and, in non-FIPS builds, ML-KEM keys) incur
+    // no ML-KEM parsing overhead.
     EVP_PKEY* result = d2i_PrivateKey(evpType, NULL, &der_mutable_ptr, derLen);
 
-    if (der + derLen != der_mutable_ptr) {
-        if (result) {
-            EVP_PKEY_free(result);
+    // Fallover for ML-KEM PKCS8: AWS-LC-FIPS 3.1.0 has no priv_decode for ML-KEM, so d2i_PrivateKey
+    // fails on every ML-KEM private key there. Each CHOICE reconstructs the key the way AWS-LC's own
+    // decoder does: expandedKey sets only the raw secret key and leaves the public key unpopulated,
+    // while seed derives the whole key pair. parseMLKEMPrivateKey returns nullptr for anything it
+    // cannot handle.
+    // TODO [AWS-LC-FIPS 4.x]: drop this raw-key decode path once the FIPS module supports d2i_PrivateKey for ML-KEM.
+    if (result == nullptr && evpType == EVP_PKEY_KEM) {
+        EVP_PKEY* mlkem = parseMLKEMPrivateKey(der, derLen);
+        if (mlkem != nullptr) {
+            if (shouldCheckPrivate && !checkKey(mlkem)) {
+                EVP_PKEY_free(mlkem);
+                throw_openssl(javaExceptionClass, "Key fails check");
+            }
+            return mlkem;
         }
-        throw_openssl(javaExceptionClass, "Extra key information");
     }
 
     if (!result) {
         throw_openssl(javaExceptionClass, "Unable to convert PKCS8_PRIV_KEY_INFO to EVP_PKEY");
+    }
+
+    // Only meaningful once a key came back: d2i_PrivateKey leaves |der_mutable_ptr| untouched when it
+    // fails, so checking it first reported every decode failure as "Extra key information".
+    if (der + derLen != der_mutable_ptr) {
+        EVP_PKEY_free(result);
+        throw_openssl(javaExceptionClass, "Extra key information");
     }
 
     if (isRsaKeyType(EVP_PKEY_base_id(result))) {
@@ -98,26 +140,323 @@ EVP_PKEY* der2EvpPrivateKey(const unsigned char* der,
     return result;
 }
 
+// ML-KEM public-key SubjectPublicKeyInfo (SPKI) encode/decode.
+//
+// AWS-LC-FIPS 3.1.0 does not implement i2d_PUBKEY / d2i_PUBKEY for ML-KEM (the ML-KEM
+// EVP_PKEY_ASN1_METHOD has no pub_encode/pub_decode in the FIPS module), so those calls raise
+// UNSUPPORTED_ALGORITHM. We hand-roll the X.509 SubjectPublicKeyInfo from the raw public key so
+// ML-KEM key serialization works in regular FIPS. The SubjectPublicKeyInfo format is specified in
+// RFC 9935 Section 4 (Subject Public Key Fields), with the formal ASN.1 module in Appendix A:
+// https://datatracker.ietf.org/doc/html/rfc9935#section-4
+// https://datatracker.ietf.org/doc/html/rfc9935#appendix-A
+// ML-KEM SPKI is fully determined by (OID, rawPublicKey), so this is byte-identical to what
+// i2d_PUBKEY produces in non-FIPS builds.
+// TODO [AWS-LC-FIPS 4.x]: drop this hand-rolled SPKI path once the FIPS module implements i2d/d2i_PUBKEY for ML-KEM.
+
+// True when |nid| identifies one of the three ML-KEM parameter sets.
+static bool isMLKEMNid(int nid) { return nid == NID_MLKEM512 || nid == NID_MLKEM768 || nid == NID_MLKEM1024; }
+
+// Maps an ML-KEM raw public-key length (FIPS 203, Table 3) to its NID, or NID_undef. Kyber keys
+// share the same key lengths, but are not considered as Kyber is fully deprecated.
+static int mlkemNidForPublicKeyLen(size_t raw_len)
+{
+    switch (raw_len) {
+    case 800:
+        return NID_MLKEM512;
+    case 1184:
+        return NID_MLKEM768;
+    case 1568:
+        return NID_MLKEM1024;
+    default:
+        return NID_undef;
+    }
+}
+
+// Maps an ML-KEM raw secret-key length (FIPS 203, Table 3) to its NID, or NID_undef. Same ambiguity
+// caveat as mlkemNidForPublicKeyLen above; the two are only conclusive together.
+static int mlkemNidForSecretKeyLen(size_t raw_len)
+{
+    switch (raw_len) {
+    case 1632:
+        return NID_MLKEM512;
+    case 2400:
+        return NID_MLKEM768;
+    case 3168:
+        return NID_MLKEM1024;
+    default:
+        return NID_undef;
+    }
+}
+
+size_t encodeMLKEMPublicKey(const EVP_PKEY* key, uint8_t** out)
+{
+    CHECK_OPENSSL(key);
+    CHECK_OPENSSL(EVP_PKEY_id(key) == EVP_PKEY_KEM);
+    CHECK_OPENSSL(out);
+    size_t raw_len = 0;
+    CHECK_OPENSSL(EVP_PKEY_get_raw_public_key(key, nullptr, &raw_len));
+    int nid = mlkemNidForPublicKeyLen(raw_len);
+    if (nid == NID_undef) {
+        throw_java_ex(EX_ILLEGAL_ARGUMENT, "Invalid ML-KEM public key size");
+    }
+    OPENSSL_buffer_auto raw_pub(raw_len);
+    // OPENSSL_buffer_auto does not check its own allocation, and the next call memcpy's into it.
+    CHECK_OPENSSL(raw_pub.buf != nullptr);
+    CHECK_OPENSSL(EVP_PKEY_get_raw_public_key(key, raw_pub, &raw_len));
+    // SubjectPublicKeyInfo ::= SEQUENCE { algorithm SEQUENCE { OID }, subjectPublicKey BIT STRING }.
+    // The ML-KEM AlgorithmIdentifier carries no parameters; the BIT STRING is the raw public key.
+    // See RFC 9935 Section 4 (Subject Public Key Fields):
+    // https://datatracker.ietf.org/doc/html/rfc9935#section-4
+    CBB cbb, spki, algorithm, pub;
+    CHECK_OPENSSL(CBB_init(&cbb, 0));
+    // spotless:off
+    if (!CBB_add_asn1(&cbb, &spki, CBS_ASN1_SEQUENCE) ||
+        !CBB_add_asn1(&spki, &algorithm, CBS_ASN1_SEQUENCE) ||
+        !OBJ_nid2cbb(&algorithm, nid) ||
+        !CBB_add_asn1(&spki, &pub, CBS_ASN1_BITSTRING) ||
+        !CBB_add_u8(&pub, 0) /* unused bits */ ||
+        !CBB_add_bytes(&pub, raw_pub, raw_len)) {
+        CBB_cleanup(&cbb);
+        throw_java_ex(EX_RUNTIME_CRYPTO, "Error serializing ML-KEM public key");
+    }
+    // spotless:on
+    size_t out_len;
+    // A failed CBB_finish leaves the CBB owning its buffer and does not write |*out|, so clean the CBB
+    // up and leave |*out| alone. A successful CBB_finish transfers the buffer to |*out| and cleans up.
+    if (!CBB_finish(&cbb, out, &out_len)) {
+        CBB_cleanup(&cbb);
+        throw_java_ex(EX_RUNTIME_CRYPTO, "Error finalizing ML-KEM public key");
+    }
+    return out_len;
+}
+
+// Parses an ML-KEM X.509 SubjectPublicKeyInfo into an EVP_PKEY via its raw public key. Returns
+// nullptr when |der| is not an ML-KEM SPKI, or when the raw public key is the wrong length for the
+// OID's parameter set (in which case EVP_PKEY_kem_new_raw_public_key queues an error).
+// der2EvpPublicKey calls this as a fallover after d2i_PUBKEY fails.
+static EVP_PKEY* parseMLKEMPublicKey(const unsigned char* der, const int derLen)
+{
+    CBS cbs, spki, algorithm, oid, bit_string;
+    CBS_init(&cbs, der, derLen);
+    // spotless:off
+    if (!CBS_get_asn1(&cbs, &spki, CBS_ASN1_SEQUENCE) || CBS_len(&cbs) != 0 ||
+        !CBS_get_asn1(&spki, &algorithm, CBS_ASN1_SEQUENCE) ||
+        !CBS_get_asn1(&algorithm, &oid, CBS_ASN1_OBJECT)) {
+        return nullptr;
+    }
+    // spotless:on
+    int nid = OBJ_cbs2nid(&oid);
+    if (!isMLKEMNid(nid)) {
+        return nullptr;
+    }
+    // The ML-KEM AlgorithmIdentifier has no parameters; the subjectPublicKey BIT STRING follows.
+    uint8_t unused_bits = 0;
+    // spotless:off
+    if (CBS_len(&algorithm) != 0 ||
+        !CBS_get_asn1(&spki, &bit_string, CBS_ASN1_BITSTRING) || CBS_len(&spki) != 0 ||
+        !CBS_get_u8(&bit_string, &unused_bits) || unused_bits != 0) {
+        return nullptr;
+    }
+    // spotless:on
+    return EVP_PKEY_kem_new_raw_public_key(nid, CBS_data(&bit_string), CBS_len(&bit_string));
+}
+
+// Expands a raw ML-KEM keygen seed (d || z) into a full EVP_PKEY, public key included, the same way
+// AWS-LC's KEM_KEY_set_raw_keypair_from_seed does. Returns nullptr on failure, which surfaces out of
+// der2EvpPrivateKey as a decode failure.
+//
+// Compiled for every FIPS build rather than only regular FIPS. Whether d2i_PrivateKey decodes the
+// seed CHOICE is a property of the linked AWS-LC, not of the build flavor, and compiling this where
+// AWS-LC already decodes the seed costs nothing: d2i_PrivateKey runs first in der2EvpPrivateKey, so
+// the fallover only ever sees inputs it rejected. Non-FIPS builds always link mainline AWS-LC and get
+// the stub below, keeping the experimental header out of them.
+// TODO [AWS-LC-FIPS 4.x]: drop this seed-expansion helper once the FIPS module can d2i seed-format
+//      ML-KEM keys.
+#if defined(FIPS_BUILD)
+// Every ML-KEM parameter set uses the same 64-byte keygen seed, d || z (FIPS 203, Algorithm 16).
+static const size_t MLKEM_SEED_LEN = 64;
+
+static EVP_PKEY* mlkemKeyFromSeed(int nid, const uint8_t* seed, size_t seed_len)
+{
+    // Length-check the seed here rather than relying on the experimental keygen API to do it.
+    if (seed_len != MLKEM_SEED_LEN) {
+        return nullptr;
+    }
+    EVP_PKEY_CTX_auto ctx = EVP_PKEY_CTX_auto::from(EVP_PKEY_CTX_new_id(EVP_PKEY_KEM, nullptr));
+    if (!ctx.isInitialized() || EVP_PKEY_CTX_kem_set_params(ctx, nid) != 1 || EVP_PKEY_keygen_init(ctx) != 1) {
+        return nullptr;
+    }
+    EVP_PKEY* pkey = nullptr;
+    size_t len = seed_len;
+    if (!EVP_PKEY_keygen_deterministic(ctx, &pkey, seed, &len)) {
+        return nullptr;
+    }
+    return pkey;
+}
+#else
+// Unreachable here: non-FIPS builds link a mainline AWS-LC, whose d2i_PrivateKey decodes the seed
+// CHOICE itself, so the fallover only ever sees inputs AWS-LC already rejected. This is a flavor
+// inference, kept deliberately so the experimental header stays out of non-FIPS builds.
+static EVP_PKEY* mlkemKeyFromSeed(int, const uint8_t*, size_t) { return nullptr; }
+#endif
+
+// Hand-rolled PKCS8 private-key path for ML-KEM. The tag constants and skipOptionalField below exist
+// only to serve parseMLKEMPrivateKey, so all three are deleted together, along with the seed branch
+// and mlkemKeyFromSeed above it.
+// TODO [AWS-LC-FIPS 4.x]: drop this hand-rolled PKCS8 path once the FIPS module implements priv_decode for ML-KEM.
+
+// Tags of the two optional PrivateKeyInfo / OneAsymmetricKey trailing fields, spelled as AWS-LC
+// v5.0.0's EVP_parse_private_key spells them (kAttributesTag and kPublicKeyTag in evp_asn1.c).
+// attributes is recognized only constructed and publicKey only primitive, which is what DER requires
+// of a SET and of an IMPLICIT-tagged BIT STRING respectively; the other form of either tag is
+// deliberately not tolerated.
+static const unsigned MLKEM_PKCS8_ATTRIBUTES_TAG = CBS_ASN1_CONTEXT_SPECIFIC | CBS_ASN1_CONSTRUCTED | 0;
+static const unsigned MLKEM_PKCS8_PUBLIC_KEY_TAG = CBS_ASN1_CONTEXT_SPECIFIC | 1;
+
+// Skips the optional field tagged |tag| from |cbs| if present. Returns false only when the tag is
+// present but its element is malformed; a missing field is not an error.
+static bool skipOptionalField(CBS* cbs, unsigned tag)
+{
+    if (!CBS_peek_asn1_tag(cbs, tag)) {
+        return true;
+    }
+    return CBS_get_asn1(cbs, nullptr, tag) == 1;
+}
+
+// See forward declaration above der2EvpPrivateKey. Parses a PKCS8 ML-KEM private key via the raw
+// APIs, bypassing the ASN.1 method that AWS-LC-FIPS 3.1.0 lacks. The private-key CHOICEs are
+// specified in RFC 9935 Section 6 (Private Key Format), with the formal ASN.1 module in Appendix A:
+// https://datatracker.ietf.org/doc/html/rfc9935#section-6
+// https://datatracker.ietf.org/doc/html/rfc9935#appendix-A
+//
+// A stand-in for AWS-LC's decoder, tracking EVP_parse_private_key (crypto/evp_extra/evp_asn1.c) and
+// kem_priv_decode (crypto/evp_extra/p_kem_asn1.c) closely so that deleting this function once
+// AWS-LC-FIPS decodes ML-KEM natively is as close to a no-op as possible. The version tracked is
+// AWS-LC v5.0.0, the decoder this is destined to be replaced by, NOT the v1.72.0 that build.gradle
+// pins for non-FIPS and experimental-FIPS builds, which spells the optional-field tags differently.
+// Do not relax these checks to match v1.72.0.
+//
+// Two deliberate departures from AWS-LC: the "both" CHOICE is rejected, since AWS-LC has not
+// implemented it in any flavor and accepting it here would mean quietly withdrawing support on the
+// FIPS bump; and trailing bytes after the CHOICE inside the privateKey OCTET STRING are rejected,
+// where kem_priv_decode ignores them. Ignoring them would let caller-controlled data ride along
+// inside an encoding the provider calls well-formed, and would stop getEncoded() round-tripping.
+//
+// Neither this grammar nor v1.72.0's contains the other, so the flavors are not strictly ordered.
+// That is safe because of the fallover structure in der2EvpPrivateKey: outside regular FIPS a key is
+// accepted if either decoder accepts it, so this can only widen what those builds accept, while in
+// regular FIPS it is the only decoder. The divergence disappears once the pinned mainline tag reaches
+// v5.x. The one intended behavioral difference between builds is serialization, not parsing: see the
+// seed CHOICE below.
+static EVP_PKEY* parseMLKEMPrivateKey(const unsigned char* der, const int derLen)
+{
+    CBS cbs, pkcs8, algorithm, oid, priv;
+    uint64_t version = 0;
+    CBS_init(&cbs, der, derLen);
+    // The outer structure is a PrivateKeyInfo (RFC 5208, version 0) or a OneAsymmetricKey (RFC 5958,
+    // version 1). Both are accepted, matching EVP_parse_private_key, so this regular-FIPS fallover
+    // parses everything the d2i_PrivateKey path parses elsewhere.
+    // spotless:off
+    if (!CBS_get_asn1(&cbs, &pkcs8, CBS_ASN1_SEQUENCE) || CBS_len(&cbs) != 0 ||
+        !CBS_get_asn1_uint64(&pkcs8, &version) || version > 1 ||
+        !CBS_get_asn1(&pkcs8, &algorithm, CBS_ASN1_SEQUENCE) ||
+        !CBS_get_asn1(&algorithm, &oid, CBS_ASN1_OBJECT)) {
+        return nullptr;
+    }
+    // spotless:on
+    int nid = OBJ_cbs2nid(&oid);
+    if (!isMLKEMNid(nid)) {
+        return nullptr;
+    }
+    // The ML-KEM AlgorithmIdentifier has no parameters. The PrivateKey OCTET STRING wraps one of the
+    // CHOICE alternatives, dispatched on its tag below.
+    // spotless:off
+    if (CBS_len(&algorithm) != 0 ||
+        !CBS_get_asn1(&pkcs8, &priv, CBS_ASN1_OCTETSTRING)) {
+        return nullptr;
+    }
+    // spotless:on
+    // attributes [0] Attributes OPTIONAL. Ignored, exactly as EVP_parse_private_key ignores it.
+    if (!skipOptionalField(&pkcs8, MLKEM_PKCS8_ATTRIBUTES_TAG)) {
+        return nullptr;
+    }
+    // publicKey [1] BIT STRING OPTIONAL, permitted only in a version-1 OneAsymmetricKey. Ignored: the
+    // expanded CHOICE reconstructs ML-KEM keys from the secret key alone in AWS-LC too, so honoring the
+    // public key here would make the two disagree.
+    if (CBS_peek_asn1_tag(&pkcs8, MLKEM_PKCS8_PUBLIC_KEY_TAG)
+        && (version != 1 || !skipOptionalField(&pkcs8, MLKEM_PKCS8_PUBLIC_KEY_TAG))) {
+        return nullptr;
+    }
+    // Trailing data within the SEQUENCE, rejected as mainline EVP_parse_private_key rejects it.
+    if (CBS_len(&pkcs8) != 0) {
+        return nullptr;
+    }
+    if (CBS_peek_asn1_tag(&priv, CBS_ASN1_CONTEXT_SPECIFIC | 0)) {
+        // seed CHOICE ([0] IMPLICIT OCTET STRING, the raw d || z keygen seed), expanded into a full key.
+        // The seed itself is dropped: AWS-LC-FIPS 3.1.0's KEM_KEY has no field to retain it, so regular
+        // FIPS re-emits such a key in the expandedKey form. That is the one intended FIPS-vs-non-FIPS
+        // behavioral difference in ML-KEM key handling, and it affects serialization only -- both CHOICEs
+        // parse in every build. See README.md, "Notable differences between ACCP and ACCP-FIPS".
+        // TODO [AWS-LC-FIPS 4.x]: drop this seed branch once the FIPS module can d2i seed-format ML-KEM keys.
+        CBS seed;
+        // The CHOICE has to be the entire content of the privateKey OCTET STRING.
+        if (!CBS_get_asn1(&priv, &seed, CBS_ASN1_CONTEXT_SPECIFIC | 0) || CBS_len(&priv) != 0) {
+            return nullptr;
+        }
+        return mlkemKeyFromSeed(nid, CBS_data(&seed), CBS_len(&seed));
+    }
+    if (CBS_peek_asn1_tag(&priv, CBS_ASN1_OCTETSTRING)) {
+        // expandedKey CHOICE. EVP_PKEY_kem_new_raw_secret_key validates the length against the parameter
+        // set's secret_key_len and returns NULL otherwise (surfaced by der2EvpPrivateKey as a decode
+        // failure), which is the same check kem_priv_decode makes before KEM_KEY_set_raw_secret_key.
+        CBS expanded;
+        // As above, nothing may follow the CHOICE inside the privateKey OCTET STRING.
+        if (!CBS_get_asn1(&priv, &expanded, CBS_ASN1_OCTETSTRING) || CBS_len(&priv) != 0) {
+            return nullptr;
+        }
+        return EVP_PKEY_kem_new_raw_secret_key(nid, CBS_data(&expanded), CBS_len(&expanded));
+    }
+    // Any other tag, the "both" CHOICE included; see the note above the function.
+    return nullptr;
+}
+
 EVP_PKEY* der2EvpPublicKey(const unsigned char* der, const int derLen, const char* javaExceptionClass)
 {
-    const unsigned char* der_mutable_ptr = der; // openssl modifies the input pointer
+    // Scope away the errors a failed d2i_PUBKEY queues. Its failure is expected for ML-KEM in regular
+    // FIPS (see the fallover below), and when nothing can parse |der| the errors are still in the queue
+    // for throw_openssl to report before this guard unwinds.
+    ErrorQueueMark error_mark;
 
+    // Try the standard decoder first so non-ML-KEM keys (and, in non-FIPS builds, ML-KEM keys) incur
+    // no ML-KEM parsing overhead.
+    const unsigned char* der_mutable_ptr = der; // openssl modifies the input pointer
     EVP_PKEY* result = d2i_PUBKEY(NULL, &der_mutable_ptr, derLen);
-    if (der + derLen != der_mutable_ptr) {
-        if (result) {
+    if (result != nullptr) {
+        if (der + derLen != der_mutable_ptr) {
             EVP_PKEY_free(result);
+            throw_openssl(javaExceptionClass, "Extra key information");
         }
-        throw_openssl(javaExceptionClass, "Extra key information");
+        if (!checkKey(result)) {
+            EVP_PKEY_free(result);
+            throw_openssl(javaExceptionClass, "Key fails check");
+        }
+        return result;
     }
-    if (!result) {
+
+    // d2i_PUBKEY could not parse |der|. In regular FIPS, AWS-LC-FIPS 3.1.0 has no pub_decode for
+    // ML-KEM, so d2i_PUBKEY raises UNSUPPORTED_ALGORITHM on ML-KEM SPKI; fall over to the hand-rolled
+    // parser. parseMLKEMPublicKey returns nullptr for non-ML-KEM inputs, so a genuinely unparseable
+    // key still throws below.
+    // TODO [AWS-LC-FIPS 4.x]: drop this ML-KEM SPKI fallover once the FIPS module supports d2i_PUBKEY for ML-KEM.
+    EVP_PKEY* mlkem = parseMLKEMPublicKey(der, derLen);
+    if (mlkem == nullptr) {
         throw_openssl(javaExceptionClass, "Unable to parse key");
     }
-
-    if (!checkKey(result)) {
-        EVP_PKEY_free(result);
+    if (!checkKey(mlkem)) {
+        EVP_PKEY_free(mlkem);
         throw_openssl(javaExceptionClass, "Key fails check");
     }
-    return result;
+    return mlkem;
 }
 
 bool checkKey(const EVP_PKEY* key)
@@ -209,9 +548,11 @@ size_t encodeExpandedMLDSAPrivateKey(const EVP_PKEY* key, uint8_t** out)
         throw_java_ex(EX_ILLEGAL_ARGUMENT, "Invalid ML-DSA signature size");
     }
     OPENSSL_buffer_auto raw_expanded(raw_len);
+    // OPENSSL_buffer_auto does not check its own allocation, and the next call memcpy's into it.
+    CHECK_OPENSSL(raw_expanded.buf != nullptr);
     CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(key, raw_expanded, &raw_len));
     CBB cbb, pkcs8, algorithm, priv, expanded;
-    CBB_init(&cbb, 0);
+    CHECK_OPENSSL(CBB_init(&cbb, 0));
     // Encoding below is based on expandedKey CHOICE member of PrivateKey ASN.1 structures in:
     // https://github.com/lamps-wg/dilithium-certificates/blob/main/X509-ML-DSA-2025.asn
     // spotless:off
@@ -222,17 +563,26 @@ size_t encodeExpandedMLDSAPrivateKey(const EVP_PKEY* key, uint8_t** out)
         !CBB_add_asn1(&pkcs8, &priv, CBS_ASN1_OCTETSTRING) ||
         !CBB_add_asn1(&priv, &expanded, CBS_ASN1_OCTETSTRING) ||
         !CBB_add_bytes(&expanded, raw_expanded, raw_len)) {
+        CBB_cleanup(&cbb);
         throw_java_ex(EX_RUNTIME_CRYPTO, "Error serializing expanded ML-DSA key");
     }
     // spotless:on
     size_t out_len;
+    // A failed CBB_finish leaves the CBB owning its buffer and does not write |*out|, so clean the CBB
+    // up and leave |*out| alone. A successful CBB_finish transfers the buffer to |*out| and cleans up.
     if (!CBB_finish(&cbb, out, &out_len)) {
-        OPENSSL_free(*out);
+        CBB_cleanup(&cbb);
         throw_java_ex(EX_RUNTIME_CRYPTO, "Error finalizing expanded ML-DSA key");
     }
     return out_len;
 }
+#endif // !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
 
+// ML-KEM expanded-format private-key PKCS8 encode. Unguarded (unlike the ML-DSA variant above):
+// regular FIPS relies on this because AWS-LC-FIPS 3.1.0 cannot marshal ML-KEM private keys (the
+// ML-KEM EVP_PKEY_ASN1_METHOD has no priv_encode in the FIPS module) and lacks seed support. The
+// raw-key APIs it uses (EVP_PKEY_get_raw_private_key, OBJ_nid2cbb) are available in the FIPS module.
+// TODO [AWS-LC-FIPS 4.x]: drop this hand-rolled encode once the FIPS module supports priv_encode for ML-KEM.
 size_t encodeExpandedMLKEMPrivateKey(const EVP_PKEY* key, uint8_t** out)
 {
     CHECK_OPENSSL(key);
@@ -240,27 +590,22 @@ size_t encodeExpandedMLKEMPrivateKey(const EVP_PKEY* key, uint8_t** out)
     CHECK_OPENSSL(out);
     size_t raw_len = 0;
     CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(key, nullptr, &raw_len));
-    int nid = NID_undef;
-    // See FIPS 203, Table 3: secret_key_len per parameter set
-    switch (raw_len) {
-    case 1632:
-        nid = NID_MLKEM512;
-        break;
-    case 2400:
-        nid = NID_MLKEM768;
-        break;
-    case 3168:
-        nid = NID_MLKEM1024;
-        break;
-    default:
-        throw_java_ex(EX_ILLEGAL_ARGUMENT, "Invalid ML-KEM secret key size");
+    size_t pub_len = 0;
+    CHECK_OPENSSL(EVP_PKEY_get_raw_public_key(key, nullptr, &pub_len));
+    int nid = mlkemNidForSecretKeyLen(raw_len);
+    if (nid == NID_undef || nid != mlkemNidForPublicKeyLen(pub_len)) {
+        throw_java_ex(EX_ILLEGAL_ARGUMENT, "Not an ML-KEM private key");
     }
     OPENSSL_buffer_auto raw_expanded(raw_len);
+    // OPENSSL_buffer_auto does not check its own allocation, and the next call memcpy's into it.
+    CHECK_OPENSSL(raw_expanded.buf != nullptr);
     CHECK_OPENSSL(EVP_PKEY_get_raw_private_key(key, raw_expanded, &raw_len));
     CBB cbb, pkcs8, algorithm, priv, expanded;
-    CBB_init(&cbb, 0);
-    // Encoding below is based on expandedKey CHOICE member of PrivateKey ASN.1 structures in:
-    // https://datatracker.ietf.org/doc/rfc9935/ section 6
+    CHECK_OPENSSL(CBB_init(&cbb, 0));
+    // Encoding below is based on the expandedKey CHOICE member of the PrivateKey structure in
+    // RFC 9935 Section 6 (Private Key Format), with the formal ASN.1 module in Appendix A:
+    // https://datatracker.ietf.org/doc/html/rfc9935#section-6
+    // https://datatracker.ietf.org/doc/html/rfc9935#appendix-A
     // spotless:off
     if (!CBB_add_asn1(&cbb, &pkcs8, CBS_ASN1_SEQUENCE) ||
         !CBB_add_asn1_uint64(&pkcs8, 0) ||
@@ -269,17 +614,19 @@ size_t encodeExpandedMLKEMPrivateKey(const EVP_PKEY* key, uint8_t** out)
         !CBB_add_asn1(&pkcs8, &priv, CBS_ASN1_OCTETSTRING) ||
         !CBB_add_asn1(&priv, &expanded, CBS_ASN1_OCTETSTRING) ||
         !CBB_add_bytes(&expanded, raw_expanded, raw_len)) {
+        CBB_cleanup(&cbb);
         throw_java_ex(EX_RUNTIME_CRYPTO, "Error serializing expanded ML-KEM key");
     }
     // spotless:on
     size_t out_len;
+    // A failed CBB_finish leaves the CBB owning its buffer and does not write |*out|, so clean the CBB
+    // up and leave |*out| alone. A successful CBB_finish transfers the buffer to |*out| and cleans up.
     if (!CBB_finish(&cbb, out, &out_len)) {
-        OPENSSL_free(*out);
+        CBB_cleanup(&cbb);
         throw_java_ex(EX_RUNTIME_CRYPTO, "Error finalizing expanded ML-KEM key");
     }
     return out_len;
 }
-#endif // !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
 
 size_t encodeRfc5915EcPrivateKey(const EVP_PKEY* key, uint8_t** out)
 {
@@ -301,7 +648,7 @@ size_t encodeRfc5915EcPrivateKey(const EVP_PKEY* key, uint8_t** out)
     int oid_data_len = OBJ_length(oid_obj);
     const EC_KEY* ec_key = EVP_PKEY_get0_EC_KEY(key);
     CBB cbb, pkcs8, algorithm, oid, priv;
-    CBB_init(&cbb, 0);
+    CHECK_OPENSSL(CBB_init(&cbb, 0));
     // spotless:off
     if (!CBB_add_asn1(&cbb, &pkcs8, CBS_ASN1_SEQUENCE) ||
         !CBB_add_asn1_uint64(&pkcs8, 0 /* version */) ||
@@ -319,9 +666,10 @@ size_t encodeRfc5915EcPrivateKey(const EVP_PKEY* key, uint8_t** out)
     }
     // spotless:on
     size_t out_len;
+    // A failed CBB_finish leaves the CBB owning its buffer and does not write |*out|, so clean the CBB
+    // up and leave |*out| alone. A successful CBB_finish transfers the buffer to |*out| and cleans up.
     if (!CBB_finish(&cbb, out, &out_len)) {
         CBB_cleanup(&cbb);
-        OPENSSL_free(*out);
         throw_java_ex(EX_RUNTIME_CRYPTO, "Error finalizing expanded EC key");
     }
     return out_len;

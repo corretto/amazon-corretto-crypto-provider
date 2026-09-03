@@ -100,5 +100,30 @@ public class MlKemUtilsTest {
   @DisabledIf("mlKemDisabled")
   public void testExpandPrivateKeyInvalidArgs() {
     TestUtil.assertThrows(IllegalArgumentException.class, () -> MlKemUtils.expandPrivateKey(null));
+
+    // A PrivateKey is permitted to return null from getEncoded() when it does not support encoding,
+    // as a key held in hardware would. The algorithm check alone does not catch that, and the null
+    // must be refused here rather than passed to JNI, where GetArrayLength would dereference it.
+    final PrivateKey unencodable =
+        new PrivateKey() {
+          static final long serialVersionUID = 1L;
+
+          @Override
+          public String getAlgorithm() {
+            return "ML-KEM-768";
+          }
+
+          @Override
+          public String getFormat() {
+            return null;
+          }
+
+          @Override
+          public byte[] getEncoded() {
+            return null;
+          }
+        };
+    TestUtil.assertThrows(
+        IllegalArgumentException.class, () -> MlKemUtils.expandPrivateKey(unencodable));
   }
 }

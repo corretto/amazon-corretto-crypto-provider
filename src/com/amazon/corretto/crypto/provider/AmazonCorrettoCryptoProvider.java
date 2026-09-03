@@ -174,7 +174,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     }
 
     if (shouldRegisterMLKEM) {
-      addService("KeyPairGenerator", "ML-KEM", "MlKemGen$MlKemGen768");
+      addService("KeyPairGenerator", "ML-KEM", "MlKemGen$MlKemGenGeneric");
       addService("KeyPairGenerator", "ML-KEM-512", "MlKemGen$MlKemGen512");
       addService("KeyPairGenerator", "ML-KEM-768", "MlKemGen$MlKemGen768");
       addService("KeyPairGenerator", "ML-KEM-1024", "MlKemGen$MlKemGen1024");
@@ -301,6 +301,15 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
           addService("Signature", algorithm + EvpSignatureBase.P1363_FORMAT_SUFFIX, className);
         }
       }
+    }
+
+    // PKCS#1 v1.5 RSA signatures with the SHA3 family. The JCA algorithm names retain the hyphen
+    // (e.g. "SHA3-256withRSA"), which isn't a legal Java identifier, so the backing classes use an
+    // underscore (e.g. EvpSignature$SHA3_256withRSA).
+    for (final String sha3 : asList("SHA3-224", "SHA3-256", "SHA3-384", "SHA3-512")) {
+      final String algorithm = format("%swithRSA", sha3);
+      final String className = format("EvpSignature$%swithRSA", sha3.replace("-", "_"));
+      addService("Signature", algorithm, className);
     }
 
     addService("Signature", "RSASSA-PSS", "EvpSignature$RSASSA_PSS");
