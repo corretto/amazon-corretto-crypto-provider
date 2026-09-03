@@ -18,10 +18,13 @@ RUN apt-get update \
         gnupg
 RUN curl -s https://apt.corretto.aws/corretto.key | apt-key add - \
     && echo 'deb https://apt.corretto.aws stable main' | tee /etc/apt/sources.list.d/corretto.list
+# Corretto 17, not 11: Gradle 9 refuses to run on a JVM older than 17, and the
+# build needs a JDK exposing javax.crypto.KEM to compile the ML-KEM Multi-Release
+# overlay (Corretto 17.0.20+ or JDK 21+).
 RUN apt-get update \
-    && apt-get install -y java-11-amazon-corretto-jdk
-ENV JAVA_HOME=/usr/lib/jvm/java-11-amazon-corretto/
-RUN echo 'export JAVA_HOME=/usr/lib/jvm/java-11-amazon-corretto/' >> /home/.bashrc
+    && apt-get install -y java-17-amazon-corretto-jdk
+ENV JAVA_HOME=/usr/lib/jvm/java-17-amazon-corretto/
+RUN echo 'export JAVA_HOME=/usr/lib/jvm/java-17-amazon-corretto/' >> /home/.bashrc
 
 # required dependencies for building/testing
 RUN apt-get install -y build-essential \
