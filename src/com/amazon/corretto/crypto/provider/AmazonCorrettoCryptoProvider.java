@@ -212,6 +212,16 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
         "AES_192/CBC",
         "AES_256/CBC");
 
+    addService(
+        "Cipher",
+        "AES/CTR",
+        "AesCtrSpi",
+        true,
+        singletonMap("SupportedModes", "CTR"),
+        "AES_128/CTR",
+        "AES_192/CTR",
+        "AES_256/CTR");
+
     addService("Cipher", "RSA/ECB/NoPadding", "RsaCipher$NoPadding");
     addService("Cipher", "RSA/ECB/Pkcs1Padding", "RsaCipher$Pkcs1");
     addService("Cipher", "RSA/ECB/OAEPPadding", "RsaCipher$OAEP");
