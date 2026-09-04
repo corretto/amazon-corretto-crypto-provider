@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import groovy.xml.*
+import javax.inject.Inject
+import org.gradle.process.ExecOperations
 
 plugins {
     id 'java'
@@ -11,6 +13,13 @@ plugins {
     id "com.google.osdetector" version "1.7.3"
     id "io.github.gradle-nexus.publish-plugin" version "2.0.0"
 }
+
+// Gradle 9 removed Project.exec() from task actions; ExecOperations is the
+// supported replacement. Inject it once and reuse it from every task action.
+interface InjectedExecOps {
+    @Inject ExecOperations getExecOps()
+}
+def execOps = objects.newInstance(InjectedExecOps).execOps
 
 group = 'software.amazon.cryptools'
 version = '2.6.0'
@@ -147,7 +156,7 @@ def cmakeBin = detect_cmake3()
 
 ext.isJceSigned = { pathToJar ->
     def stdout = new ByteArrayOutputStream()
-    exec {
+    execOps.exec {
         executable "jarsigner"
         args "-verify", pathToJar
         standardOutput = stdout;
@@ -182,10 +191,10 @@ repositories {
 
 dependencies {
     // Separate so we can extract the jar for the agent specifically
-    jacocoAgent group: 'org.jacoco', name: 'org.jacoco.agent', version: '0.8.13', classifier: 'runtime'
+    jacocoAgent 'org.jacoco:org.jacoco.agent:0.8.13:runtime'
 
     // Separate so we can extract the jar for the runner specifically
-    testRunner group: 'org.junit.platform', name: 'junit-platform-console-standalone', version: '1.10.3'
+    testRunner 'org.junit.platform:junit-platform-console-standalone:1.10.3'
 
     // Using the inbuilt 'testImplementation' dependency configuration enables Gradle,
     // and IDEs that import Gradle projects, to correctly identify and setup the test dependency libs
@@ -230,11 +239,11 @@ task buildAwsLc {
                 throw new GradleException("aws-lc dir empty! run 'git submodule update --init --recursive' to populate.")
             }
         }
-        exec {
+        execOps.exec {
             workingDir awslcSrcPath
             commandLine "git", "fetch", "--tags"
         }
-        exec {
+        execOps.exec {
             workingDir awslcSrcPath
             commandLine "git", "checkout", awsLcGitVersionId
         }
@@ -244,7 +253,7 @@ task buildAwsLc {
     }
 
     doLast {
-        exec {
+        execOps.exec {
             workingDir awslcSrcPath
             executable cmakeBin
             args "-B${cMakeBuildDir}"
@@ -274,7 +283,7 @@ task buildAwsLc {
 
             args '.'
         }
-        exec {
+        execOps.exec {
             workingDir awslcSrcPath
             commandLine 'make', '-j', Runtime.runtime.availableProcessors(), '-C', "${cMakeBuildDir}", 'install'
         }
@@ -296,7 +305,7 @@ def getStagedArtifact(platformClassifier, destDir) {
     println "Loaded staging id is " + stagingProperties['staging.id']
     def repoBase = "https://aws.oss.sonatype.org/content/repositories/" + stagingProperties['staging.id']
     mkdir "${destDir}"
-    exec {
+    execOps.exec {
         workingDir "${destDir}"
         commandLine 'wget', "${repoBase}/software/amazon/cryptools/${projectName}/${version}/${prebuiltJarFileName}"
     }
@@ -395,7 +404,7 @@ task build_objects {
     outputs.file("${buildDir}/cmake/AmazonCorrettoCryptoProvider.jar")
 
     doLast {
-      exec {
+      execOps.exec {
         workingDir "${buildDir}/cmake"
 
         commandLine 'make', '-j', Runtime.runtime.availableProcessors(), 'accp-jar'
@@ -448,7 +457,7 @@ task accp_javadoc(type: Jar) {
     dependsOn executeCmake, create_javadoc_folder
     doFirst {
         mkdir "${buildDir}/lib"
-        exec {
+        execOps.exec {
             workingDir "${buildDir}/cmake"
             commandLine 'make', 'javadoc'
         }
@@ -465,7 +474,7 @@ task src_jar {
     outputs.file("${buildDir}/lib/AmazonCorrettoCryptoProvider-sources.jar")
     doLast {
         mkdir "${buildDir}/lib"
-        exec {
+        execOps.exec {
             workingDir "${buildDir}/cmake"
             commandLine 'make', 'accp-jar-source'
         }
@@ -620,28 +629,28 @@ task coverage_cpp_report {
         mkdir "${buildDir}/reports/cpp"
     }
     doLast {
-        exec {
+        execOps.exec {
             workingDir "${buildDir}/cmake-coverage"
             commandLine 'lcov', '--capture', '--directory', "${buildDir}/cmake-coverage/CMakeFiles/amazonCorrettoCryptoProvider.dir/csrc", '--output-file', "${buildDir}/cmake-coverage/coverage.info", '--rc', 'lcov_branch_coverage=1', '--ignore-errors', lcovIgnore
         }
         // Convert absolute to relative paths
-        exec {
+        execOps.exec {
             workingDir "${buildDir}/cmake-coverage"
             commandLine 'perl', '-i', '-pe', "s[^SF:${projectDir}/*][SF:]", "${buildDir}/cmake-coverage/coverage.info"
         }
         // lcov captures coverage data for inline functions in system headers; strip this out to avoid
         // polluting our metrics with unused STL code.
-        exec {
+        execOps.exec {
             workingDir "${buildDir}/cmake-coverage"
             commandLine 'lcov', '-e', "${buildDir}/cmake-coverage/coverage.info", 'csrc/*', '--rc', 'lcov_branch_coverage=1', '--ignore-errors', lcovIgnore
             standardOutput = new FileOutputStream("${buildDir}/reports/cpp/coverage.info")
         }
-        exec {
+        execOps.exec {
             workingDir "${buildDir}/cmake-coverage"
             commandLine 'gcovr', '-r', "${projectDir}", '--xml'
             standardOutput = new FileOutputStream("${buildDir}/reports/cpp/cobertura.xml")
         }
-        exec {
+        execOps.exec {
              workingDir projectDir
              commandLine 'genhtml', '-o', "${buildDir}/reports/cpp", '--rc', 'genhtml_branch_coverage=1', "${buildDir}/reports/cpp/coverage.info", '--ignore-errors', lcovIgnore
         }
