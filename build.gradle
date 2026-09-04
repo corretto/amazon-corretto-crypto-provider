@@ -94,7 +94,13 @@ spotless {
   java {
     target 'src/**/*.java', 'tst/**/*.java'
     licenseHeaderFile 'build-tools/license-headers/LicenseHeader.java'
-    googleJavaFormat().reflowLongStrings()
+    // Pin google-java-format instead of taking spotless' default (1.24.0), which
+    // calls Log$DeferredDiagnosticHandler.getDiagnostics(); that signature changed
+    // in JDK 25, so the default throws NoSuchMethodError once the build JDK is 25.
+    // 1.28.0 is the newest release that still runs on a JDK 17 build JDK -- 1.29.0
+    // needs JCTree$JCAnyPattern, which does not exist before JDK 21 -- and it
+    // formats this codebase identically to 1.24.0.
+    googleJavaFormat('1.28.0').reflowLongStrings()
   }
 
   // clang-format is difficult to configure across all of our platforms so we
@@ -191,7 +197,10 @@ repositories {
 
 dependencies {
     // Separate so we can extract the jar for the agent specifically
-    jacocoAgent 'org.jacoco:org.jacoco.agent:0.8.13:runtime'
+    // 0.8.13 only supports Java 25 class files experimentally; 0.8.14 made 25
+    // official and 0.8.15 does the same for 26. The agent, core and report jars
+    // are still Java 5 bytecode, so this stays usable on the JDK 8 test runtime.
+    jacocoAgent 'org.jacoco:org.jacoco.agent:0.8.15:runtime'
 
     // Separate so we can extract the jar for the runner specifically
     testRunner 'org.junit.platform:junit-platform-console-standalone:1.10.3'
@@ -209,8 +218,8 @@ dependencies {
     testImplementation 'org.bouncycastle:bctls-jdk18on:1.85'
     testImplementation 'commons-codec:commons-codec:1.18.0'
     testImplementation 'org.hamcrest:hamcrest:3.0'
-    testImplementation 'org.jacoco:org.jacoco.core:0.8.13'
-    testImplementation 'org.jacoco:org.jacoco.report:0.8.13'
+    testImplementation 'org.jacoco:org.jacoco.core:0.8.15'
+    testImplementation 'org.jacoco:org.jacoco.report:0.8.15'
 }
 
 defaultTasks 'release'
