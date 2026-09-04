@@ -94,7 +94,13 @@ spotless {
   java {
     target 'src/**/*.java', 'tst/**/*.java'
     licenseHeaderFile 'build-tools/license-headers/LicenseHeader.java'
-    googleJavaFormat().reflowLongStrings()
+    // Pin google-java-format instead of taking spotless' default (1.24.0), which
+    // calls Log$DeferredDiagnosticHandler.getDiagnostics(); that signature changed
+    // in JDK 25, so the default throws NoSuchMethodError once the build JDK is 25.
+    // 1.28.0 is the newest release that still runs on a JDK 17 build JDK -- 1.29.0
+    // needs JCTree$JCAnyPattern, which does not exist before JDK 21 -- and it
+    // formats this codebase identically to 1.24.0.
+    googleJavaFormat('1.28.0').reflowLongStrings()
   }
 
   // clang-format is difficult to configure across all of our platforms so we
