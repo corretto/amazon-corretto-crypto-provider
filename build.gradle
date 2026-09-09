@@ -305,6 +305,7 @@ def getStagedArtifact(platformClassifier, destDir) {
     println "Loaded staging id is " + stagingProperties['staging.id']
     def repoBase = "https://aws.oss.sonatype.org/content/repositories/" + stagingProperties['staging.id']
     mkdir "${destDir}"
+    def execOps = objects.newInstance(InjectedExecOps).execOps
     execOps.exec {
         workingDir "${destDir}"
         commandLine 'wget', "${repoBase}/software/amazon/cryptools/${projectName}/${version}/${prebuiltJarFileName}"
