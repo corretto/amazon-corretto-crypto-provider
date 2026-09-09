@@ -260,6 +260,7 @@ jobs:
       run: |
         ./tests/ci/run_accp_basic_tests.sh --lcov-ignore inconsistent
         ./tests/ci/run_accp_test_integration.sh
+  # JDK 17 Arm64 job targeting JDK 17.
   macOS17ArmTarget17:
     name: JDK17ARM-TARGET-JDK17
     runs-on: macos-latest-xlarge
@@ -291,6 +292,7 @@ jobs:
       run: |
         ./tests/ci/run_accp_basic_tests.sh --lcov-ignore inconsistent --target-jdk-version 17
         ./tests/ci/run_accp_test_integration.sh
+  # JDK 21 Arm64 job targeting JDK 21.
   macOS21ArmTarget21:
     name: JDK21ARM-TARGET-JDK21
     runs-on: macos-latest-xlarge
@@ -322,10 +324,7 @@ jobs:
       run: |
         ./tests/ci/run_accp_basic_tests.sh --lcov-ignore inconsistent --target-jdk-version 21
         ./tests/ci/run_accp_test_integration.sh
-  # JDK 25 Arm64 job. Corretto 25 is the runtime under test, but the build runs
-  # on Corretto 21 and TARGET_JDK_VERSION stays at 21, so this covers JDK 21
-  # bytecode executing on the 25 runtime. The companion JDK25ARM-TARGET-JDK25
-  # job below covers building and targeting 25 natively.
+  # JDK 25 Arm64 job targeting JDK 21.
   macOS25ArmTarget21:
     name: JDK25ARM-TARGET-JDK21
     runs-on: macos-latest-xlarge
@@ -345,8 +344,8 @@ jobs:
       run: |
         pip install gcovr
 
-    # Set up Corretto 25 (the runtime we test against), saving its path, then
-    # Corretto 21 as the build JDK. JAVA_HOME ends up as Corretto 21.
+    # Set up Corretto 25 (the runtime we test against), then Corretto 21 as the
+    # build JDK, so JAVA_HOME ends up as Corretto 21.
     - name: Set up corretto 25
       uses: actions/setup-java@v3
       with:
@@ -368,6 +367,7 @@ jobs:
       run: |
         ./tests/ci/run_accp_basic_tests.sh --lcov-ignore inconsistent --target-jdk-version 21
         ./tests/ci/run_accp_test_integration.sh
+  # JDK 25 Arm64 job targeting JDK 25.
   macOS25ArmTarget25:
     name: JDK25ARM-TARGET-JDK25
     runs-on: macos-latest-xlarge
