@@ -19,7 +19,7 @@ version = '2.6.0'
 // private-key encoding on the AWS-LC version linked. A stale value there does not fail the build; it
 // silently downgrades those assertions to the tolerant branch. Both go away once the two pins name
 // AWS-LC versions that retain the ML-KEM keygen seed and implement priv_decode for it.
-ext.awsLcMainTag = 'v1.72.0'
+ext.awsLcMainTag = 'v5.8.0'
 ext.awsLcFipsTag = 'AWS-LC-FIPS-3.1.0'
 ext.isExperimentalFips = Boolean.getBoolean('EXPERIMENTAL_FIPS')
 ext.isFips = ext.isExperimentalFips || Boolean.getBoolean('FIPS')
