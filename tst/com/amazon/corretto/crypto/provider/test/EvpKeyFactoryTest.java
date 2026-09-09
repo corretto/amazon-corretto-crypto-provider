@@ -258,11 +258,29 @@ public class EvpKeyFactoryTest {
             ? KeyFactory.getInstance(algorithm)
             : KeyFactory.getInstance(algorithm, getAlternateProvider(algorithm));
 
+    // As in testPKCS8Encoding, ACCP hands back an already-X.509-encoded key's own bytes, so the
+    // spec has to come from a key ACCP owns for the comparison to measure ACCP's encoder.
+    final PublicKey nativePubKey =
+        isMlKemOrMlDsa(algorithm) ? (PublicKey) nativeFactory.translateKey(pubKey) : pubKey;
     final X509EncodedKeySpec nativeSpec =
-        nativeFactory.getKeySpec(pubKey, X509EncodedKeySpec.class);
-    final X509EncodedKeySpec jceSpec = jceFactory.getKeySpec(pubKey, X509EncodedKeySpec.class);
+        nativeFactory.getKeySpec(nativePubKey, X509EncodedKeySpec.class);
 
-    assertArrayEquals(jceSpec.getEncoded(), nativeSpec.getEncoded(), "X.509 encodings match");
+    if (isMlKemOrMlDsa(algorithm) && getAlternateProvider(algorithm) != null) {
+      // Before JDK 24 no JDK provider has ML-KEM or ML-DSA, so jceFactory is ACCP itself and
+      // comparing against it proves nothing. BouncyCastle agrees with ACCP on SPKI, so make it
+      // the reference: it has to accept ACCP's bytes and reproduce them. testPKCS8Encoding has
+      // no equivalent because BouncyCastle's private key encodings differ; see
+      // getAlternateProvider.
+      final KeyFactory bcFactory = KeyFactory.getInstance(algorithm, TestUtil.BC_PROVIDER);
+      final PublicKey bcKey = bcFactory.generatePublic(nativeSpec);
+      assertArrayEquals(
+          nativeSpec.getEncoded(),
+          bcFactory.getKeySpec(bcKey, X509EncodedKeySpec.class).getEncoded(),
+          "X.509 encodings match");
+    } else {
+      final X509EncodedKeySpec jceSpec = jceFactory.getKeySpec(pubKey, X509EncodedKeySpec.class);
+      assertArrayEquals(jceSpec.getEncoded(), nativeSpec.getEncoded(), "X.509 encodings match");
+    }
 
     // Get a spec with extra data
     final byte[] validSpec = nativeSpec.getEncoded();
@@ -330,8 +348,14 @@ public class EvpKeyFactoryTest {
             ? KeyFactory.getInstance(algorithm)
             : KeyFactory.getInstance(algorithm, getAlternateProvider(algorithm));
 
+    // ACCP hands back an already-PKCS#8-encoded key's own bytes, so a spec taken straight from a
+    // key another provider generated is that provider's encoding, not ACCP's. JDK 24 and later
+    // generate the ML-KEM and ML-DSA pairs themselves, so translate those into ACCP first;
+    // otherwise the assertions below measure the JDK's encoding instead of ACCP's.
+    final PrivateKey nativePrivKey =
+        isMlKemOrMlDsa(algorithm) ? (PrivateKey) nativeFactory.translateKey(privKey) : privKey;
     final PKCS8EncodedKeySpec nativeSpec =
-        nativeFactory.getKeySpec(privKey, PKCS8EncodedKeySpec.class);
+        nativeFactory.getKeySpec(nativePrivKey, PKCS8EncodedKeySpec.class);
 
     if (isMlKemWithExpandedOnlyEncoding(algorithm)) {
       // Against an AWS-LC that retains no keygen seed, such as the AWS-LC-FIPS 3.1.0 regular FIPS
@@ -765,7 +789,17 @@ public class EvpKeyFactoryTest {
   // coverage from any FIPS build whose AWS-LC does retain the seed; see
   // TestUtil.mlKemEmitsSeedEncoding.
   private static boolean isMlKemWithExpandedOnlyEncoding(final String algorithm) {
-    return algorithm.toUpperCase().startsWith("ML-KEM") && !TestUtil.mlKemEmitsSeedEncoding();
+    return isMlKem(algorithm) && !TestUtil.mlKemEmitsSeedEncoding();
+  }
+
+  private static boolean isMlKem(final String algorithm) {
+    return algorithm.toUpperCase().startsWith("ML-KEM");
+  }
+
+  // The two algorithms whose keys ACCP encodes with its own DER writers and which no JDK provider
+  // has before JDK 24.
+  private static boolean isMlKemOrMlDsa(final String algorithm) {
+    return isMlKem(algorithm) || algorithm.toUpperCase().startsWith("ML-DSA");
   }
 
   // This method is used to determine whether tests should use an alternate provider for a given
@@ -774,7 +808,9 @@ public class EvpKeyFactoryTest {
   // returned.
   private static Provider getAlternateProvider(String algorithm) {
     // JCE doesn't support ML-DSA until JDK24, and BouncyCastle currently serializes ML-DSA private
-    // keys via seeds.
+    // keys via seeds. Its ML-KEM private keys carry the seed and the expanded key together, a form
+    // AWS-LC rejects outright, so below JDK 24 there is no cross-provider reference for either
+    // algorithm's PKCS#8 encoding. Public keys are another matter; see testX509Encoding.
     // TODO: switch to BouncyCastle once BC supports CHOICE-encoded private keys
     // Similarly, JDK doesn't support EdDSA/Ed25519 until JDK15, and XDH/X25519 until JDK11
     Map<Integer, List<String>> jdkAlgorithmSupport = new HashMap<>();
