@@ -332,8 +332,8 @@ public class EvpKeyFactoryTest {
 
     // ACCP hands back an already-PKCS#8-encoded key's own bytes, so a spec taken straight from a
     // key another provider generated is that provider's encoding, not ACCP's. JDK 24 and later
-    // generate the ML-KEM pairs themselves, so translate those into ACCP first; otherwise both
-    // assertions below compare the JDK's bytes against themselves.
+    // generate the ML-KEM pairs themselves, so translate those into ACCP first; otherwise the
+    // assertions below measure the JDK's encoding instead of ACCP's.
     final PrivateKey nativePrivKey =
         isMlKem(algorithm) ? (PrivateKey) nativeFactory.translateKey(privKey) : privKey;
     final PKCS8EncodedKeySpec nativeSpec =
