@@ -330,8 +330,14 @@ public class EvpKeyFactoryTest {
             ? KeyFactory.getInstance(algorithm)
             : KeyFactory.getInstance(algorithm, getAlternateProvider(algorithm));
 
+    // ACCP hands back an already-PKCS#8-encoded key's own bytes, so a spec taken straight from a
+    // key another provider generated is that provider's encoding, not ACCP's. JDK 24 and later
+    // generate the ML-KEM pairs themselves, so translate those into ACCP first; otherwise both
+    // assertions below compare the JDK's bytes against themselves.
+    final PrivateKey nativePrivKey =
+        isMlKem(algorithm) ? (PrivateKey) nativeFactory.translateKey(privKey) : privKey;
     final PKCS8EncodedKeySpec nativeSpec =
-        nativeFactory.getKeySpec(privKey, PKCS8EncodedKeySpec.class);
+        nativeFactory.getKeySpec(nativePrivKey, PKCS8EncodedKeySpec.class);
 
     if (isMlKemWithExpandedOnlyEncoding(algorithm)) {
       // Against an AWS-LC that retains no keygen seed, such as the AWS-LC-FIPS 3.1.0 regular FIPS
@@ -765,7 +771,11 @@ public class EvpKeyFactoryTest {
   // coverage from any FIPS build whose AWS-LC does retain the seed; see
   // TestUtil.mlKemEmitsSeedEncoding.
   private static boolean isMlKemWithExpandedOnlyEncoding(final String algorithm) {
-    return algorithm.toUpperCase().startsWith("ML-KEM") && !TestUtil.mlKemEmitsSeedEncoding();
+    return isMlKem(algorithm) && !TestUtil.mlKemEmitsSeedEncoding();
+  }
+
+  private static boolean isMlKem(final String algorithm) {
+    return algorithm.toUpperCase().startsWith("ML-KEM");
   }
 
   // This method is used to determine whether tests should use an alternate provider for a given
