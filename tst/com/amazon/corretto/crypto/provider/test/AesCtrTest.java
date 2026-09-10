@@ -1125,7 +1125,7 @@ public class AesCtrTest {
    * <p>Documented limitation: this pins intent rather than guarding a failure mode. Because both
    * candidate implementations (identity comparison, or a value comparison over the encoded bytes)
    * yield correct output for equal key bytes, the test is insensitive to changing one into the
-   * other — confirmed by mutation, where it passed under both mutations that broke the two tests
+   * other - confirmed by mutation, where it passed under both mutations that broke the two tests
    * above. It is kept because it would catch a genuinely broken key-equality check, not because it
    * discriminates between the two reasonable ones.
    */
