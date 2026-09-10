@@ -213,17 +213,27 @@ ACCP has the following requirements:
 * JDK8 or newer (This includes both OracleJDK and [Amazon Corretto](https://aws.amazon.com/corretto/))
 * Linux (x86-64 or arm64) or MacOs running on x86_64 (also known as x64 or AMD64)
 
-## JDK 25+ Native Access
-Starting with JDK 25, the JVM [warns](https://openjdk.org/jeps/472) when native libraries are loaded without explicit native access enabled.
-To suppress these warnings when using ACCP, add the following JVM argument as described [here](https://docs.oracle.com/en/java/javase/25/core/restricted-methods.html):
+## JDK 24+ Native Access
+Starting with JDK 24, the JVM [warns](https://openjdk.org/jeps/472) when native libraries are loaded without explicit native access enabled.
+To suppress these warnings when using ACCP, grant native access to the module ACCP is loaded into, as described [here](https://docs.oracle.com/en/java/javase/25/core/restricted-methods.html):
+
+| ACCP is on the | JVM argument |
+| --- | --- |
+| class path | `--enable-native-access=ALL-UNNAMED` |
+| module path | `--enable-native-access=com.amazon.corretto.crypto.provider` |
+
+`ALL-UNNAMED` names the unnamed module only, so a module-path deployment must name ACCP's module.
+
+If you are producing an executable JAR, `Enable-Native-Access: ALL-UNNAMED` in its manifest replaces the class-path argument, as described [here](https://docs.oracle.com/en/java/javase/25/docs/specs/jar/jar.html#jar-manifest). The JVM reads that attribute from the JAR it launches, so adding it to a library JAR has no effect.
+
+Native access will be denied by default in a future JDK release, at which point a missing grant stops ACCP from initializing:
 
 ```
---enable-native-access=ALL-UNNAMED
+com.amazon.corretto.crypto.provider.RuntimeCryptoException: Unable to load native library
+Caused by: java.lang.IllegalCallerException: Illegal native access from module com.amazon.corretto.crypto.provider
 ```
 
-Or, if you're producing an executable JAR, you can update the JAR manifest as described [here](https://docs.oracle.com/en/java/javase/25/docs/specs/jar/jar.html#jar-manifest).
-
-This flag/manifest update will become required in a future JDK release when native access is denied by default.
+Add `--illegal-native-access=deny` to get that behavior today and confirm your grant is correct.
 
 # Using the provider
 ## Installation

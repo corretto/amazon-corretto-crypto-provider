@@ -961,6 +961,29 @@ add_custom_target(check-install-via-properties
 
     DEPENDS accp-jar tests-jar)
 
+# JEP 472 grants native access per module, so a module-path deployment must name
+# ACCP's module rather than ALL-UNNAMED. --illegal-native-access=deny makes an
+# unmatched grant fatal, which is the JDK's future default.
+if (TEST_JAVA_MAJOR_VERSION VERSION_GREATER_EQUAL 24)
+    add_custom_target(check-native-access-module-path
+        COMMAND ${TEST_JAVA_EXECUTABLE}
+            ${COVERAGE_ARGUMENTS}
+            ${TEST_FIPS_PROPERTY}
+            --module-path $<TARGET_PROPERTY:accp-jar,JAR_FILE>
+            --add-modules com.amazon.corretto.crypto.provider
+            --enable-native-access=com.amazon.corretto.crypto.provider
+            --illegal-native-access=deny
+            -cp $<TARGET_PROPERTY:tests-jar,JAR_FILE>:${TEST_CLASSPATH}
+            ${EXTERNAL_LIB_PROPERTY}
+            -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
+            -Dtest.data.dir=${TEST_DATA_DIR}
+            -Djava.security.properties=${INSTALL_PROPERTY_FILE}
+            ${TEST_JAVA_ARGS}
+            com.amazon.corretto.crypto.provider.test.SecurityPropertyTester
+
+        DEPENDS accp-jar tests-jar)
+endif()
+
 add_custom_target(check-external-lib
     # Unfortunately we do not have a way to know where the library is loaded from.
     # So this test just proves that requesting the external lib does not break things
@@ -1031,6 +1054,10 @@ set(check_targets
     check-junit-DifferentTempDir
     check-junit-edKeyFactory
     check-junit-FipsStatus)
+
+if(TARGET check-native-access-module-path)
+  set(check_targets ${check_targets} check-native-access-module-path)
+endif()
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
   set(check_targets ${check_targets} check-with-jni-flag)
