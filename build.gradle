@@ -94,7 +94,9 @@ spotless {
   java {
     target 'src/**/*.java', 'tst/**/*.java'
     licenseHeaderFile 'build-tools/license-headers/LicenseHeader.java'
-    googleJavaFormat().reflowLongStrings()
+    // Both bounds bind: 1.29.0 needs JDK 21+ to run, and spotless' default 1.24.0
+    // throws NoSuchMethodError on a JDK 25 build JDK.
+    googleJavaFormat('1.28.0').reflowLongStrings()
   }
 
   // clang-format is difficult to configure across all of our platforms so we
@@ -191,7 +193,7 @@ repositories {
 
 dependencies {
     // Separate so we can extract the jar for the agent specifically
-    jacocoAgent 'org.jacoco:org.jacoco.agent:0.8.13:runtime'
+    jacocoAgent 'org.jacoco:org.jacoco.agent:0.8.15:runtime'
 
     // Separate so we can extract the jar for the runner specifically
     testRunner 'org.junit.platform:junit-platform-console-standalone:1.10.3'
@@ -209,8 +211,8 @@ dependencies {
     testImplementation 'org.bouncycastle:bctls-jdk18on:1.85'
     testImplementation 'commons-codec:commons-codec:1.18.0'
     testImplementation 'org.hamcrest:hamcrest:3.0'
-    testImplementation 'org.jacoco:org.jacoco.core:0.8.13'
-    testImplementation 'org.jacoco:org.jacoco.report:0.8.13'
+    testImplementation 'org.jacoco:org.jacoco.core:0.8.15'
+    testImplementation 'org.jacoco:org.jacoco.report:0.8.15'
 }
 
 defaultTasks 'release'

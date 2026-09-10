@@ -20,6 +20,7 @@ while getopts "a:p:h" opt; do
     esac
 done
 
+# Gradle's wrapper needs a JVM 17 or newer; the ML-KEM overlay needs javax.crypto.KEM.
 _install_dependencies() {
     if [[ $CURRENT_PLATFORM == "Linux" ]]; then
         sudo yum update -y
@@ -27,7 +28,7 @@ _install_dependencies() {
             git \
             cmake3 \
             gradle \
-            java-11-amazon-corretto \
+            java-17-amazon-corretto \
             clang
     elif [[ $CURRENT_PLATFORM == "Darwin" ]]; then
         if ! command -v brew &>/dev/null; then
@@ -41,8 +42,7 @@ _install_dependencies() {
             git \
             cmake \
             gradle
-        brew install --cask corretto11
-                local java_version='11'
+        local java_version='17'
         brew install --cask "corretto${java_version}"
         export JAVA_HOME="/Library/Java/JavaVirtualMachines/amazon-corretto-${java_version}.jdk/Contents/Home/"
     fi
