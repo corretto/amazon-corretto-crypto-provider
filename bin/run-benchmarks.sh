@@ -20,8 +20,7 @@ while getopts "a:p:h" opt; do
     esac
 done
 
-# Corretto 17, not 11: the Gradle wrapper needs a JVM 17 or newer, and the build
-# needs javax.crypto.KEM to compile the ML-KEM overlay. See Dockerfile.dev.
+# Gradle's wrapper needs a JVM 17 or newer; the ML-KEM overlay needs javax.crypto.KEM.
 _install_dependencies() {
     if [[ $CURRENT_PLATFORM == "Linux" ]]; then
         sudo yum update -y
