@@ -637,6 +637,7 @@ public:
     // case requires the explicit pattern documented above.
     ~JByteArrayCritical();
     unsigned char* get();
+    unsigned char* get(size_t offset, size_t len);
 
     // End the critical region. For WIPE_OUTPUT on the copy path, also OPENSSL_cleanses
     // the native buffer, frees it via JNI_ABORT, and stashes the caller's writes for a
@@ -730,7 +731,9 @@ public:
         jbyteArray outputArray);
     ~JIOBlobs();
     uint8_t* get_input();
+    uint8_t* get_input(size_t offset, size_t len);
     uint8_t* get_output();
+    uint8_t* get_output(size_t offset, size_t len);
 
     // deleting copy & move operations to satisfy rule of five
     JIOBlobs(const JIOBlobs&) = delete;
@@ -742,6 +745,8 @@ private:
     // The native pointers that are either backed by a direct ByteBuffer or a byte array.
     uint8_t* input_ptr_;
     uint8_t* output_ptr_;
+    size_t input_len_;
+    size_t output_len_;
     JNIEnv* env_;
     // In case the blobs are backed by byte arrays, we need to keep a reference that is used when the destructor is
     // invoked.

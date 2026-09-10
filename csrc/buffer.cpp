@@ -189,6 +189,17 @@ unsigned char* JByteArrayCritical::get()
     return released_ ? nullptr : static_cast<unsigned char*>(ptr_);
 }
 
+unsigned char* JByteArrayCritical::get(size_t offset, size_t len)
+{
+    if (unlikely(released_)) {
+        return nullptr;
+    }
+    if (unlikely(!check_bounds(static_cast<size_t>(len_), offset, len))) {
+        throw java_ex(EX_ARRAYOOB, "Attempted to access outside the bounds of the array");
+    }
+    return static_cast<unsigned char*>(ptr_) + offset;
+}
+
 SimpleBuffer::SimpleBuffer(int size)
     : buffer_(nullptr)
 {
@@ -243,28 +254,52 @@ JIOBlobs::JIOBlobs(JNIEnv* env,
                    jbyteArray inputArray,
                    jobject outputDirectByteBuffer,
                    jbyteArray outputArray)
-    : env_(env)
+    : input_ptr_(nullptr)
+    , output_ptr_(nullptr)
+    , input_len_(0)
+    , output_len_(0)
+    , env_(env)
     , input_array_(inputArray)
     , output_array_(outputArray)
 {
+    if (inputDirectByteBuffer != nullptr && inputArray != nullptr) {
+        throw java_ex(
+            EX_ERROR,
+            "THIS SHOULD NOT BE REACHABLE. Both inputDirectByteBuffer and inputArray cannot be provided.");
+    }
+    if (outputDirectByteBuffer != nullptr && outputArray != nullptr) {
+        throw java_ex(
+            EX_ERROR,
+            "THIS SHOULD NOT BE REACHABLE. Both outputDirectByteBuffer and outputArray cannot be provided.");
+    }
+
+    // Gather all buffer lengths before entering a critical region.
+    if (inputDirectByteBuffer != nullptr) {
+        const jlong capacity = env->GetDirectBufferCapacity(inputDirectByteBuffer);
+        if (capacity < 0) {
+            throw java_ex(EX_ERROR, "GetDirectBufferCapacity failed.");
+        }
+        input_len_ = static_cast<size_t>(capacity);
+    } else if (inputArray != nullptr) {
+        input_len_ = static_cast<size_t>(env->GetArrayLength(inputArray));
+    }
+
+    if (outputDirectByteBuffer != nullptr) {
+        const jlong capacity = env->GetDirectBufferCapacity(outputDirectByteBuffer);
+        if (capacity < 0) {
+            throw java_ex(EX_ERROR, "GetDirectBufferCapacity failed.");
+        }
+        output_len_ = static_cast<size_t>(capacity);
+    } else if (outputArray != nullptr) {
+        output_len_ = static_cast<size_t>(env->GetArrayLength(outputArray));
+    }
+
     // First, we need to deal with buffers that are direct ByteBuffers.
     if (inputDirectByteBuffer != nullptr) {
-        // One should be null. In the Java layer, we ensure this.
-        if (inputArray != nullptr) {
-            throw java_ex(
-                EX_ERROR,
-                "THIS SHOULD NOT BE REACHABLE. Both inputDirectByteBuffer and inputArray cannot be provided.");
-        }
         input_ptr_ = (uint8_t*)env->GetDirectBufferAddress(inputDirectByteBuffer);
     }
 
     if (outputDirectByteBuffer != nullptr) {
-        // One should be null. In the Java layer, we ensure this.
-        if (outputArray != nullptr) {
-            throw java_ex(
-                EX_ERROR,
-                "THIS SHOULD NOT BE REACHABLE. Both outputDirectByteBuffer and outputArray cannot be provided.");
-        }
         output_ptr_ = (inputDirectByteBuffer == outputDirectByteBuffer)
             ? input_ptr_
             : ((uint8_t*)env->GetDirectBufferAddress(outputDirectByteBuffer));
@@ -312,6 +347,22 @@ JIOBlobs::~JIOBlobs()
 
 uint8_t* JIOBlobs::get_input() { return input_ptr_; }
 
+uint8_t* JIOBlobs::get_input(size_t offset, size_t len)
+{
+    if (unlikely(!check_bounds(input_len_, offset, len))) {
+        throw java_ex(EX_ARRAYOOB, "Attempted to access outside the bounds of the input buffer");
+    }
+    return input_ptr_ + offset;
+}
+
 uint8_t* JIOBlobs::get_output() { return output_ptr_; }
+
+uint8_t* JIOBlobs::get_output(size_t offset, size_t len)
+{
+    if (unlikely(!check_bounds(output_len_, offset, len))) {
+        throw java_ex(EX_ARRAYOOB, "Attempted to access outside the bounds of the output buffer");
+    }
+    return output_ptr_ + offset;
+}
 
 } // end of namespace AmazonCorrettoCryptoProvider
