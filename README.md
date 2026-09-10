@@ -53,6 +53,8 @@ Cipher algorithms:
     * AES_\<n\>/CBC/ISO10126Padding, where n can be 128, 192, or 256
 * AES/CFB/NoPadding
     * AES_\<n\>/CFB/NoPadding, where n can be 128 or 256
+* AES/CTR/NoPadding
+    * AES_\<n\>/CTR/NoPadding, where n can be 128, 192, or 256
 * RSA/ECB/NoPadding
 * RSA/ECB/PKCS1Padding
 * RSA/ECB/OAEPPadding
