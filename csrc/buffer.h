@@ -557,97 +557,30 @@ public:
     void zeroize() { OPENSSL_cleanse(&m_storage, sizeof(m_storage)); }
 };
 
-// Wipe modes for JByteArrayCritical. Callers must specify intent explicitly; there is no
-// default. Each mode reflects what the buffer holds and how its native copy must be handled
-// when the JVM returns one (GetPrimitiveArrayCritical may pin or copy at the JVM's discretion).
+// {Get,Release}PrimitiveArrayCritical wrapper. Treat the bytes as opaque (they may be
+// pinned to the Java array or copied at the JVM's discretion). On release, modifications
+// are committed back to the Java array via mode-0 release. Use this for non-sensitive
+// buffers (salt, info, ciphertext) where no zeroization or special handling is needed.
 //
-//   NO_WIPE:     Default release (mode 0). Use for non-sensitive buffers (salt, info, ciphertext).
-//   WIPE_INPUT:  Sensitive read-only buffer (key, password, plaintext-in). Caller does not write
-//                through get(). On the copy path, the native buffer is OPENSSL_cleansed and
-//                discarded via JNI_ABORT; the Java array is preserved unchanged.
-//   WIPE_OUTPUT: Sensitive buffer the caller writes through (derived key, plaintext-out). On the
-//                copy path, the bytes the caller wrote are stashed in a SecureAlloc-backed
-//                vector, the native buffer is OPENSSL_cleansed and discarded via JNI_ABORT, and
-//                the stashed bytes are committed back to the Java array via SetByteArrayRegion
-//                AFTER all critical regions on the thread have been released.
-enum class WipeMode {
-    NO_WIPE,
-    WIPE_INPUT,
-    WIPE_OUTPUT,
-};
-
-// Please follow the guidelines outlined in {Get,Release}PrimitiveArrayCritical when using this class:
-// https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/functions.html#GetPrimitiveArrayCritical_ReleasePrimitiveArrayCritical
+// For sensitive buffers, prefer the SecretInputArray / SecretOutputArray subclasses
+// declared below; they encode wipe semantics in the type rather than relying on a flag.
 //
-// JNI requires that no non-Release JNI calls be made while ANY critical region on the
-// thread is open. Notably, SetByteArrayRegion is forbidden. WIPE_OUTPUT eventually calls
-// SetByteArrayRegion to commit the caller's writes back to the Java array.
+// Spec: https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/functions.html#GetPrimitiveArrayCritical_ReleasePrimitiveArrayCritical
 //
-// The class supports two usage patterns:
-//
-// 1. Single WIPE_OUTPUT per scope (the common case): rely on RAII. Declare the
-//    WIPE_OUTPUT first so it destructs LAST under C++'s LIFO order, after every other
-//    JByteArrayCritical's critical region has ended. The dtor handles everything.
-//
-//        const jsize outLen    = env->GetArrayLength(jOutput);
-//        const jsize secretLen = env->GetArrayLength(jSecret);
-//        const jsize saltLen   = env->GetArrayLength(jSalt);
-//        // All GetArrayLength calls happen BEFORE the first ctor (see ctor docs below).
-//        JByteArrayCritical output(env, jOutput, outLen, WipeMode::WIPE_OUTPUT);  // declared FIRST
-//        JByteArrayCritical secret(env, jSecret, secretLen, WipeMode::WIPE_INPUT);
-//        JByteArrayCritical salt(env, jSalt, saltLen, WipeMode::NO_WIPE);
-//        // ... algorithm ...
-//        // Destruction at scope exit (reverse order):
-//        //   1. salt   -> ends salt's critical region (mode 0)
-//        //   2. secret -> ends secret's critical region (cleanse + JNI_ABORT)
-//        //   3. output -> ends output's critical region, then SetByteArrayRegion
-//        //                (safe: no other criticals are open at this point)
-//
-// 2. Multiple WIPE_OUTPUTs in one scope: the caller MUST drive release() and
-//    commitBack() manually so that ALL criticals are closed before ANY commit runs:
-//
-//        const jsize aLen        = env->GetArrayLength(jA);
-//        const jsize bLen        = env->GetArrayLength(jB);
-//        const jsize passwordLen = env->GetArrayLength(jPassword);
-//        JByteArrayCritical out1(env, jA, aLen, WipeMode::WIPE_OUTPUT);
-//        JByteArrayCritical out2(env, jB, bLen, WipeMode::WIPE_OUTPUT);
-//        JByteArrayCritical password(env, jPassword, passwordLen, WipeMode::WIPE_INPUT);
-//        // ... algorithm writes through out1, out2 ...
-//        // Close every critical region first:
-//        password.release();
-//        out2.release();
-//        out1.release();
-//        // Now no critical regions are open; safe to SetByteArrayRegion:
-//        out2.commitBack();
-//        out1.commitBack();
-//        // Subsequent dtor calls are no-ops (release/commit are idempotent).
-//
-//    Without the manual sequence, RAII alone would invoke out2's auto-commitBack while
-//    out1's critical region was still open -- a JNI rule violation.
+// JNI rule: while ANY JByteArrayCritical (or subclass) is in its critical region on the
+// thread, no other non-Release JNI calls (including GetArrayLength, SetByteArrayRegion,
+// etc.) may run. Callers MUST therefore compute every GetArrayLength they need BEFORE
+// constructing any JByteArrayCritical (or subclass), and SecretOutputArray's commitBack()
+// must run only after every critical region on the thread has been released.
 class JByteArrayCritical {
 public:
-    // |len| MUST be the result of env->GetArrayLength(jarray). Callers compute it
-    // before constructing any JByteArrayCritical so that all GetArrayLength calls
-    // happen outside any critical region (GetArrayLength is a non-Release JNI call,
-    // and JNI forbids non-Release JNI calls while any critical region on the thread
-    // is open).
-    JByteArrayCritical(JNIEnv* env, jbyteArray jarray, jsize len, WipeMode mode);
-    // Destructor calls release() and (for WIPE_OUTPUT) commitBack() if the caller has
-    // not done so. Safe for the single-WIPE_OUTPUT-per-scope case; the multi-output
-    // case requires the explicit pattern documented above.
-    ~JByteArrayCritical();
+    JByteArrayCritical(JNIEnv* env, jbyteArray jarray);
+    virtual ~JByteArrayCritical();
     unsigned char* get();
 
-    // End the critical region. For WIPE_OUTPUT on the copy path, also OPENSSL_cleanses
-    // the native buffer, frees it via JNI_ABORT, and stashes the caller's writes for a
-    // later commitBack(). Idempotent and noexcept (allocations happen in the ctor).
+    // End the critical region. Idempotent and noexcept. The dtor calls release() if the
+    // caller didn't.
     void release() noexcept;
-
-    // For WIPE_OUTPUT only: commit stashed bytes back to the Java array via
-    // SetByteArrayRegion. No-op for other modes or when no native copy was made.
-    // Idempotent. MUST be called only after release() has run on this object AND every
-    // OTHER JByteArrayCritical on the thread has exited its critical region.
-    void commitBack();
 
     // Exposed for unit testing of the cleanse-and-stash logic without a real JVM. Copies
     // |len| bytes from |src| into |dst| (resizing |dst| accordingly), then OPENSSL_cleanses
@@ -661,16 +594,96 @@ public:
     JByteArrayCritical(JByteArrayCritical&&) = delete;
     JByteArrayCritical& operator=(JByteArrayCritical&&) = delete;
 
-private:
+protected:
+    // Subclass hook: called from release() exactly once, after the released_ guard has
+    // been set. Default: ReleasePrimitiveArrayCritical(..., 0). Subclasses override this
+    // to perform OPENSSL_cleanse and/or use JNI_ABORT instead of mode 0. Must be noexcept.
+    virtual void doRelease() noexcept;
+
     void* ptr_;
     JNIEnv* env_;
     jbyteArray jarray_;
-    jsize len_;
     jboolean is_copy_;
-    WipeMode mode_;
     bool released_;
-    // Pre-allocated in the ctor for WIPE_OUTPUT on the copy path so release() is
-    // allocation-free and noexcept. Cleared by commitBack() to make it idempotent.
+};
+
+// Sensitive read-only Java byte array (key material, password, plaintext-in). The caller
+// MUST NOT write through get(). On release, if the JVM returned a copy, it is
+// OPENSSL_cleansed and discarded via JNI_ABORT so that no copy of the secret remains on
+// the C heap; the Java array is preserved unchanged. On the pinned path the wipe is a
+// no-op (mutating the Java array is forbidden).
+//
+// |len| must be env->GetArrayLength(jarray) computed BEFORE entering any critical region.
+class SecretInputArray : public JByteArrayCritical {
+public:
+    SecretInputArray(JNIEnv* env, jbyteArray jarray, jsize len);
+    ~SecretInputArray() override = default;
+
+protected:
+    void doRelease() noexcept override;
+
+private:
+    jsize len_;
+};
+
+// Sensitive caller-writable Java byte array (derived key, plaintext-out). On release, if
+// the JVM returned a copy, the caller's writes are stashed in a SecureAlloc-backed vector
+// (allocation reserved in the ctor), the native buffer is OPENSSL_cleansed and discarded
+// via JNI_ABORT, and the stashed bytes are committed back to the Java array via
+// SetByteArrayRegion. On the pinned path the writes already landed in the Java array and
+// no commit-back is needed.
+//
+// Usage patterns (single WIPE_OUTPUT per scope vs. multi-WIPE_OUTPUT) are described in
+// the body of the class comment below.
+//
+//   1. Single SecretOutputArray per scope: declare it FIRST so its dtor runs LAST under
+//      C++'s LIFO destruction. The dtor handles release() and commitBack() automatically:
+//
+//          SecretOutputArray output(env, jOutput, jOutputLen);  // declared FIRST
+//          SecretInputArray secret(env, jSecret, jSecretLen);
+//          JByteArrayCritical salt(env, jSalt);
+//          // ... algorithm ...
+//          // Destruction at scope exit:
+//          //   1. salt   -> ends salt's critical region (mode 0)
+//          //   2. secret -> ends secret's critical region (cleanse + JNI_ABORT)
+//          //   3. output -> ends output's critical region, then SetByteArrayRegion
+//          //                (safe: no other criticals are open at this point)
+//
+//   2. Multiple SecretOutputArrays in one scope: the caller MUST drive release() and
+//      commitBack() manually so all criticals are closed before any commit runs:
+//
+//          SecretOutputArray out1(env, jA, jALen);
+//          SecretOutputArray out2(env, jB, jBLen);
+//          SecretInputArray password(env, jPassword, jPasswordLen);
+//          // ... algorithm writes through out1, out2 ...
+//          password.release();
+//          out2.release();
+//          out1.release();
+//          // Now no critical regions are open; safe to SetByteArrayRegion:
+//          out2.commitBack();
+//          out1.commitBack();
+//          // Subsequent dtor calls are no-ops (release/commit are idempotent).
+//
+//      Without the manual sequence, RAII alone would invoke out2's auto-commitBack while
+//      out1's critical region was still open -- a JNI rule violation.
+//
+// |len| must be env->GetArrayLength(jarray) computed BEFORE entering any critical region.
+class SecretOutputArray : public JByteArrayCritical {
+public:
+    SecretOutputArray(JNIEnv* env, jbyteArray jarray, jsize len);
+    ~SecretOutputArray() override;
+
+    // Commit stashed bytes back to the Java array via SetByteArrayRegion. No-op when no
+    // native copy was made. Idempotent. MUST be called only after release() of this
+    // object AND every other JByteArrayCritical on the thread has exited its critical
+    // region.
+    void commitBack();
+
+protected:
+    void doRelease() noexcept override;
+
+private:
+    jsize len_;
     std::vector<uint8_t, SecureAlloc<uint8_t> > stash_;
 };
 
