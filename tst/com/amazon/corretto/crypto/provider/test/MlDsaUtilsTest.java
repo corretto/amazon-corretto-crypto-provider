@@ -4,10 +4,13 @@ package com.amazon.corretto.crypto.provider.test;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
+import com.amazon.corretto.crypto.provider.RuntimeCryptoException;
 import com.amazon.corretto.crypto.utils.MlDsaUtils;
+import java.security.GeneralSecurityException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -170,5 +173,49 @@ public class MlDsaUtilsTest {
         IllegalArgumentException.class, () -> MlDsaUtils.expandPrivateKey(nullAlgorithm));
     TestUtil.assertThrows(
         IllegalArgumentException.class, () -> MlDsaUtils.expandPrivateKey(wrongAlgorithm));
+  }
+
+  // A key claiming ML-DSA whose encoding is a well-formed SPKI for another algorithm passes every
+  // Java-side check, so only the parsed key's type tells the two apart. Unlike the cases above this
+  // one does reach JNI, hence the mlDsaDisabled() gate.
+  @Test
+  @DisabledIf("mlDsaDisabled")
+  public void testNonMlDsaSpkiIsRejected() throws Exception {
+    final TestKey ecKeyClaimingMlDsa =
+        new TestKey("ML-DSA-44", generateEcKeyPair().getPublic().getEncoded());
+
+    final byte[] message = new byte[256];
+    Arrays.fill(message, (byte) 0x41);
+
+    TestUtil.assertThrows(
+        IllegalArgumentException.class,
+        "Not an ML-DSA public key",
+        () -> MlDsaUtils.computeMu(ecKeyClaimingMlDsa, message));
+  }
+
+  // The private-key half of the same discrimination: a well-formed PKCS8 for another algorithm gets
+  // past every Java-side check and is refused by der2EvpPrivateKey's EVP_PKEY_PQDSA check. The
+  // exception type differs from computeMu's above, as the two javadocs document: this path reports
+  // an unusable encoding as RuntimeCryptoException.
+  @Test
+  @DisabledIf("mlDsaDisabled")
+  public void testNonMlDsaPkcs8IsRejected() throws Exception {
+    final TestKey ecKeyClaimingMlDsa =
+        new TestKey("ML-DSA-44", generateEcKeyPair().getPrivate().getEncoded());
+
+    final RuntimeCryptoException e =
+        assertThrows(
+            RuntimeCryptoException.class, () -> MlDsaUtils.expandPrivateKey(ecKeyClaimingMlDsa));
+    // throw_openssl reports the error AWS-LC queued and uses the string at the throw site only as a
+    // default for an empty queue, so what is pinned here is the reason d2i_PrivateKey records for a
+    // type mismatch, not "Unable to convert PKCS8_PRIV_KEY_INFO to EVP_PKEY". The mnemonic alone:
+    // the packed error code preceding it is an AWS-LC internal.
+    assertTrue(e.getMessage().contains("DIFFERENT_KEY_TYPES"), e.getMessage());
+  }
+
+  private static KeyPair generateEcKeyPair() throws GeneralSecurityException {
+    final KeyPairGenerator ecGen = KeyPairGenerator.getInstance("EC");
+    ecGen.initialize(256);
+    return ecGen.generateKeyPair();
   }
 }
