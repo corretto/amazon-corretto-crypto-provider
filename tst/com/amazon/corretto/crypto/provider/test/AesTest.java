@@ -145,6 +145,45 @@ public class AesTest {
   }
 
   @Test
+  public void tlsHeapBufferInPlaceWithAad() throws GeneralSecurityException {
+    final byte[] plaintext = TestUtil.getRandomBytes(16 * 1024);
+    final byte[] aad = TestUtil.getRandomBytes(5);
+    final GCMParameterSpec parameters = new GCMParameterSpec(128, nonce);
+
+    jceC.init(Cipher.ENCRYPT_MODE, key, parameters);
+    jceC.updateAAD(aad);
+    final byte[] expected = jceC.doFinal(plaintext);
+
+    final byte[] inPlaceRecord = Arrays.copyOf(plaintext, plaintext.length + 16);
+    final ByteBuffer input = ByteBuffer.wrap(inPlaceRecord);
+    input.limit(plaintext.length);
+    final ByteBuffer output = ByteBuffer.wrap(inPlaceRecord);
+
+    amznC.init(Cipher.ENCRYPT_MODE, key, parameters);
+    amznC.updateAAD(aad);
+    assertEquals(expected.length, amznC.doFinal(input, output));
+    assertArrayEquals(expected, inPlaceRecord);
+
+    // A caller that supplies data through update() must flush all buffered AAD before the first
+    // plaintext chunk while preserving the streaming result.
+    nonce[0]++;
+    final GCMParameterSpec streamingParameters = new GCMParameterSpec(128, nonce);
+    jceC.init(Cipher.ENCRYPT_MODE, key, streamingParameters);
+    jceC.updateAAD(aad);
+    final byte[] expectedStreaming = jceC.doFinal(plaintext);
+
+    final byte[] actualStreaming = new byte[expectedStreaming.length];
+    amznC.init(Cipher.ENCRYPT_MODE, key, streamingParameters);
+    amznC.updateAAD(aad, 0, 2);
+    amznC.updateAAD(aad, 2, aad.length - 2);
+    final int updateLength = amznC.update(plaintext, 0, 1024, actualStreaming, 0);
+    final int finalLength =
+        amznC.doFinal(plaintext, 1024, plaintext.length - 1024, actualStreaming, updateLength);
+    assertEquals(expectedStreaming.length, updateLength + finalLength);
+    assertArrayEquals(expectedStreaming, actualStreaming);
+  }
+
+  @Test
   public void amzn2jce_nonatomic() throws Throwable {
     amznC.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, nonce));
     ByteArrayOutputStream os = new ByteArrayOutputStream();

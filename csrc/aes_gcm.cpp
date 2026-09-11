@@ -179,6 +179,67 @@ static int cryptFinish(raii_env& env, int opMode, java_buffer resultBuf, unsigne
     return outl;
 }
 
+// Process a small, in-place encryption without repeatedly entering critical regions for the same
+// Java array. This is the shape used by SSLEngine: plaintext and ciphertext share one heap buffer,
+// and a TLS record is well below CHUNK_SIZE.
+static int encryptInPlaceSinglePass(raii_env& env,
+    java_buffer input,
+    jint inputOffset,
+    java_buffer result,
+    jint resultOffset,
+    unsigned int tagLen,
+    raii_cipher_ctx& ctx)
+{
+    if (unlikely(result.len() < input.len())) {
+        throw java_ex(EX_ARRAYOOB, "Tried to process more data than would fit in the output buffer");
+    }
+    if (unlikely(tagLen > result.len() - input.len())) {
+        throw java_ex(EX_SHORTBUF, "No space for GCM tag");
+    }
+
+    jni_borrow buffer(env, input, "input/output");
+    uint8_t* const arrayBase = buffer.data() - inputOffset;
+    uint8_t* const output = arrayBase + resultOffset;
+    const uint8_t* const plaintext = arrayBase + inputOffset;
+
+    int updateLength;
+    if (unlikely(!EVP_CipherUpdate(ctx, output, &updateLength, plaintext, input.len()))) {
+        throw java_ex::from_openssl(EX_RUNTIME_CRYPTO, "CipherUpdate failed");
+    }
+    if (unlikely(updateLength < 0 || static_cast<size_t>(updateLength) > result.len())) {
+        env.fatal_error("Buffer overrun in cipher update");
+    }
+
+    int finalLength;
+    if (unlikely(!EVP_CipherFinal_ex(ctx, output + updateLength, &finalLength))) {
+        throw java_ex::from_openssl(EX_RUNTIME_CRYPTO, "CipherFinal failed");
+    }
+    if (unlikely(finalLength < 0
+            || static_cast<size_t>(updateLength + finalLength) > result.len() - tagLen)) {
+        env.fatal_error("Buffer overrun in cipher final");
+    }
+
+    const int ciphertextLength = updateLength + finalLength;
+    if (unlikely(!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, tagLen, output + ciphertextLength))) {
+        throw java_ex(EX_RUNTIME_CRYPTO, "Failed to get GCM tag");
+    }
+
+    return ciphertextLength + tagLen;
+}
+
+namespace {
+void updateAAD_loop(raii_env& env, EVP_CIPHER_CTX* ctx, java_buffer aadData)
+{
+    jni_borrow aad(env, aadData, "aad");
+
+    int outl_ignored;
+    // Usually AAD is fairly small, so let's not worry about dropping locks periodically
+    if (!EVP_CipherUpdate(ctx, NULL, &outl_ignored, aad, aad.len())) {
+        throw java_ex::from_openssl(EX_RUNTIME_CRYPTO, "Failed to update AAD state");
+    }
+}
+}
+
 JNIEXPORT int JNICALL Java_com_amazon_corretto_crypto_provider_AesGcmSpi_oneShotEncrypt(JNIEnv* pEnv,
     jclass,
     jlong ctxPtr,
@@ -191,7 +252,9 @@ JNIEXPORT int JNICALL Java_com_amazon_corretto_crypto_provider_AesGcmSpi_oneShot
     jint resultOffset,
     jint tagLen,
     jbyteArray keyArray,
-    jbyteArray ivArray)
+    jbyteArray ivArray,
+    jbyteArray aadBuffer,
+    jint aadSize)
 {
     try {
         raii_env env(pEnv);
@@ -199,15 +262,26 @@ JNIEXPORT int JNICALL Java_com_amazon_corretto_crypto_provider_AesGcmSpi_oneShot
 
         initializeContext(env, ctxPtr, ctx, sameKey, keyArray, ivArray, NATIVE_MODE_ENCRYPT);
 
+        if (aadSize != 0) {
+            updateAAD_loop(env, ctx, java_buffer::from_array(env, aadBuffer, 0, aadSize));
+        }
+
         java_buffer input = java_buffer::from_array(env, inputArray, inoffset, inlen);
         java_buffer result = java_buffer::from_array(env, resultArray, resultOffset);
 
-        int outoffset = updateLoop(env, result, input, ctx);
-        if (outoffset < 0)
-            return 0;
+        int outputLength;
+        // IsSameObject must run before opening the critical region in
+        // encryptInPlaceSinglePass. JNI calls are forbidden while it is open.
+        if (inlen <= CHUNK_SIZE && env->IsSameObject(inputArray, resultArray)) {
+            outputLength = encryptInPlaceSinglePass(env, input, inoffset, result, resultOffset, tagLen, ctx);
+        } else {
+            int updateLength = updateLoop(env, result, input, ctx);
+            if (updateLength < 0)
+                return 0;
 
-        result = result.subrange(outoffset);
-        int finalOffset = cryptFinish(env, NATIVE_MODE_ENCRYPT, result, tagLen, ctx);
+            result = result.subrange(updateLength);
+            outputLength = updateLength + cryptFinish(env, NATIVE_MODE_ENCRYPT, result, tagLen, ctx);
+        }
 
         if (!ctxPtr && ctxOut) {
             // Context is new, but caller does want it back
@@ -215,7 +289,7 @@ JNIEXPORT int JNICALL Java_com_amazon_corretto_crypto_provider_AesGcmSpi_oneShot
             env->SetLongArrayRegion(ctxOut, 0 /* start position */, 1 /* number of elements */, &tmpPtr);
         }
 
-        return finalOffset + outoffset;
+        return outputLength;
     } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);
         return -1;
@@ -262,19 +336,6 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesGcmSpi_encryp
         ex.throw_to_java(pEnv);
         return -1;
     }
-}
-
-namespace {
-void updateAAD_loop(raii_env& env, EVP_CIPHER_CTX* ctx, java_buffer aadData)
-{
-    jni_borrow aad(env, aadData, "aad");
-
-    int outl_ignored;
-    // Usually AAD is fairly small, so let's not worry about dropping locks periodically
-    if (!EVP_CipherUpdate(ctx, NULL, &outl_ignored, aad, aad.len())) {
-        throw java_ex::from_openssl(EX_RUNTIME_CRYPTO, "Failed to update AAD state");
-    }
-}
 }
 
 JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_AesGcmSpi_encryptUpdateAAD(
