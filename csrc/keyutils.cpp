@@ -336,11 +336,12 @@ static bool skipOptionalField(CBS* cbs, unsigned tag)
 // pins for non-FIPS and experimental-FIPS builds, which spells the optional-field tags differently.
 // Do not relax these checks to match v1.72.0.
 //
-// Two deliberate departures from AWS-LC: the "both" CHOICE is rejected, since AWS-LC has not
-// implemented it in any flavor and accepting it here would mean quietly withdrawing support on the
-// FIPS bump; and trailing bytes after the CHOICE inside the privateKey OCTET STRING are rejected,
-// where kem_priv_decode ignores them. Ignoring them would let caller-controlled data ride along
-// inside an encoding the provider calls well-formed, and would stop getEncoded() round-tripping.
+// One deliberate departure from the AWS-LC-FIPS release branches this stands in for: the "both"
+// CHOICE is rejected. Mainline AWS-LC decodes it, but accepting it here would mean advertising
+// support in regular FIPS that disappears again when this parser is deleted on the FIPS bump.
+// Trailing bytes after the CHOICE inside the privateKey OCTET STRING are also rejected, which
+// mainline now does too; ignoring them would let caller-controlled data ride along inside an
+// encoding the provider calls well-formed, and would stop getEncoded() round-tripping.
 //
 // Neither this grammar nor v1.72.0's contains the other, so the flavors are not strictly ordered.
 // That is safe because of the fallover structure in der2EvpPrivateKey: outside regular FIPS a key is

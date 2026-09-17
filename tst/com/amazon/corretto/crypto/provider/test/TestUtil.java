@@ -17,12 +17,15 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.security.GeneralSecurityException;
+import java.security.KeyFactory;
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -226,6 +229,49 @@ public class TestUtil {
       }
     }
     return mlKemSeedEncodingEmitted;
+  }
+
+  // Memoizes mlKemAcceptsBothChoice(). Guarded by TestUtil.class, since ACCP's tests run
+  // concurrently.
+  private static Boolean mlKemBothChoiceAccepted;
+
+  /**
+   * Whether the AWS-LC this build links decodes the RFC 9935 Section 6 {@code both} CHOICE
+   * (SEQUENCE { seed, expandedKey }).
+   *
+   * <p>Like {@link #mlKemEmitsSeedEncoding} this is a property of the linked libcrypto, not of the
+   * build flavor, so probe for it rather than inferring it from {@code isFips()} or from a version
+   * string. Unlike {@link #linkedAwsLcLacksMlKemPrivDecode} it can be probed, because the input
+   * that distinguishes the two decoders is a well-formed key rather than a malformed one.
+   *
+   * <p>Probed with BouncyCastle's ML-KEM {@code getEncoded()}, which emits {@code both} by default,
+   * so the probe needs no ASN.1 surgery of its own. Callers are ML-KEM tests that already require
+   * BouncyCastle.
+   *
+   * <p>Computed on first use rather than in a static initializer: ACCP registers ML-KEM only on JDK
+   * 17 and above, and the question is meaningless where it does not.
+   */
+  public static synchronized boolean mlKemAcceptsBothChoice() {
+    if (mlKemBothChoiceAccepted == null) {
+      try {
+        final KeyPairGenerator bcKeyGen = KeyPairGenerator.getInstance("ML-KEM", BC_PROVIDER);
+        bcKeyGen.initialize(getMlKemParamSpec("ML-KEM-512"));
+        final byte[] both = bcKeyGen.generateKeyPair().getPrivate().getEncoded();
+        try {
+          KeyFactory.getInstance("ML-KEM-512", NATIVE_PROVIDER)
+              .generatePrivate(new PKCS8EncodedKeySpec(both));
+          mlKemBothChoiceAccepted = Boolean.TRUE;
+        } catch (final InvalidKeySpecException rejected) {
+          mlKemBothChoiceAccepted = Boolean.FALSE;
+        }
+      } catch (final GeneralSecurityException | RuntimeException e) {
+        // Deliberately not defaulting either way: a probe that guessed here would silently pick one
+        // of two opposite assertions in every caller, so the coverage would vanish rather than the
+        // build going red.
+        throw new AssertionError("could not probe ACCP's ML-KEM both CHOICE support", e);
+      }
+    }
+    return mlKemBothChoiceAccepted;
   }
 
   public static byte[] intArrayToByteArray(final int[] array) {
