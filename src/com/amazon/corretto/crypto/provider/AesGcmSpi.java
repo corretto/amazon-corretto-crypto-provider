@@ -188,6 +188,8 @@ final class AesGcmSpi extends CipherSpi {
   private int tagLength = DEFAULT_TAG_LENGTH / 8;
 
   private int opMode = -1;
+  // Key size in bytes demanded by the AES_<n> Standard Name this instance was created for.
+  private final int fixedKeySizeInBytes;
   private boolean hasConsumedData = false;
   private boolean needReset = false;
   private boolean contextInitialized = false;
@@ -197,9 +199,10 @@ final class AesGcmSpi extends CipherSpi {
   private final AccessibleByteArrayOutputStream decryptAADBuf =
       new AccessibleByteArrayOutputStream(0, Integer.MAX_VALUE);
 
-  AesGcmSpi(final AmazonCorrettoCryptoProvider provider) {
+  AesGcmSpi(final AmazonCorrettoCryptoProvider provider, final int fixedKeySizeInBytes) {
     Loader.checkNativeLibraryAvailability();
     this.provider = provider;
+    this.fixedKeySizeInBytes = fixedKeySizeInBytes;
   }
 
   private boolean saveNativeContext() {
@@ -300,11 +303,12 @@ final class AesGcmSpi extends CipherSpi {
       throw new InvalidKeyException("IV required for decrypt");
     }
 
+    final SecureRandom ivSource = Utils.randomOrDefault(secureRandom);
     final byte[] iv = new byte[12];
-    secureRandom.nextBytes(iv);
+    ivSource.nextBytes(iv);
 
     try {
-      engineInit(opMode, key, new GCMParameterSpec(DEFAULT_TAG_LENGTH, iv), secureRandom);
+      engineInit(opMode, key, new GCMParameterSpec(DEFAULT_TAG_LENGTH, iv), ivSource);
     } catch (InvalidAlgorithmParameterException e) {
       throw new AssertionError(e);
     }
@@ -323,7 +327,7 @@ final class AesGcmSpi extends CipherSpi {
 
     final byte[] newIv = checkIv(spec);
 
-    final byte[] newKey = checkKey(key, lastKey, this.key);
+    final byte[] newKey = checkKey(key, lastKey, this.key, fixedKeySizeInBytes);
 
     final boolean sameKey = checkKeyIvPair(jceOpMode, this.key, newKey, this.iv, newIv);
 
@@ -379,7 +383,8 @@ final class AesGcmSpi extends CipherSpi {
     return iv;
   }
 
-  private static byte[] checkKey(final Key key, final Key lastKey, final byte[] lastKeyBytes)
+  private static byte[] checkKey(
+      final Key key, final Key lastKey, final byte[] lastKeyBytes, final int fixedKeySizeInBytes)
       throws InvalidKeyException {
     if (key == null) {
       throw new InvalidKeyException("Key can't be null");
@@ -387,7 +392,7 @@ final class AesGcmSpi extends CipherSpi {
     if (key == lastKey) {
       return lastKeyBytes;
     }
-    return checkAesKey(key);
+    return checkAesKey(key, fixedKeySizeInBytes);
   }
 
   private static boolean checkKeyIvPair(

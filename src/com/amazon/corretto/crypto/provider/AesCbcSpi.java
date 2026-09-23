@@ -133,8 +133,11 @@ class AesCbcSpi extends CipherSpi {
   // remains false till the cipher is done processing. This is used during decryption with padding
   // to produce empty output when nothing is passed to the cipher.
   private boolean inputIsEmpty;
+  // Key size in bytes demanded by the AES_<n> Standard Name this instance was created for.
+  private final int fixedKeySizeInBytes;
 
-  AesCbcSpi(final Padding padding, final boolean saveContext) {
+  AesCbcSpi(final Padding padding, final boolean saveContext, final int fixedKeySizeInBytes) {
+    this.fixedKeySizeInBytes = fixedKeySizeInBytes;
     this.paddingScheme = padding;
     this.cipherState = CipherState.NEEDS_INITIALIZATION;
     this.unprocessedInput = 0;
@@ -239,7 +242,7 @@ class AesCbcSpi extends CipherSpi {
     }
 
     final byte[] iv = new byte[BLOCK_SIZE_IN_BYTES];
-    random.nextBytes(iv);
+    Utils.randomOrDefault(random).nextBytes(iv);
 
     try {
       engineInit(opmode, key, new IvParameterSpec(iv), null);
@@ -268,7 +271,7 @@ class AesCbcSpi extends CipherSpi {
       throws InvalidKeyException, InvalidAlgorithmParameterException {
     final int opMode = checkOperation(opmode);
     final byte[] iv = checkAesCbcIv(params);
-    final byte[] keyBytes = checkAesKey(key);
+    final byte[] keyBytes = checkAesKey(key, fixedKeySizeInBytes);
 
     // All checks passes, so we update the state:
     this.cipherState = CipherState.INITIALIZED;

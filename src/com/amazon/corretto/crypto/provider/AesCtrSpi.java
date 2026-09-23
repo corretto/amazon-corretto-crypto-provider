@@ -38,12 +38,15 @@ class AesCtrSpi extends CipherSpi {
   private NativeEvpCipherCtx context = null;
   private final AmazonCorrettoCryptoProvider provider;
   private final boolean saveContext;
+  // Key size in bytes demanded by the AES_<n> Standard Name this instance was created for.
+  private final int fixedKeySizeInBytes;
 
-  AesCtrSpi(final AmazonCorrettoCryptoProvider provider) {
+  AesCtrSpi(final AmazonCorrettoCryptoProvider provider, final int fixedKeySizeInBytes) {
     Loader.checkNativeLibraryAvailability();
     this.provider = provider;
     this.saveContext =
         provider.getNativeContextReleaseStrategy() == Utils.NativeContextReleaseStrategy.LAZY;
+    this.fixedKeySizeInBytes = fixedKeySizeInBytes;
   }
 
   @Override
@@ -104,10 +107,11 @@ class AesCtrSpi extends CipherSpi {
     if (opmode != Cipher.ENCRYPT_MODE && opmode != Cipher.WRAP_MODE) {
       throw new InvalidKeyException("IV required for decrypt");
     }
+    final SecureRandom ivSource = Utils.randomOrDefault(random);
     try {
       byte[] iv = new byte[IV_SIZE_IN_BYTES];
-      random.nextBytes(iv);
-      engineInit(opmode, key, new IvParameterSpec(iv), random);
+      ivSource.nextBytes(iv);
+      engineInit(opmode, key, new IvParameterSpec(iv), ivSource);
     } catch (InvalidAlgorithmParameterException e) {
       throw new InvalidKeyException("Failed to initialize with random IV", e);
     }
@@ -158,7 +162,7 @@ class AesCtrSpi extends CipherSpi {
   private void init(final int opmode, final Key key, final IvParameterSpec ivParameterSpec)
       throws InvalidKeyException, InvalidAlgorithmParameterException {
     // We're just checking for correctness and can discard the returned array
-    Arrays.fill(Utils.checkAesKey(key), (byte) 0);
+    Arrays.fill(Utils.checkAesKey(key, fixedKeySizeInBytes), (byte) 0);
 
     switch (opmode) {
       case Cipher.ENCRYPT_MODE:
