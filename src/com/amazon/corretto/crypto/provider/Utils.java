@@ -11,6 +11,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
@@ -31,6 +32,10 @@ final class Utils {
   static final int SHA384_CODE = 3;
   static final int SHA512_CODE = 4;
   static final int SHA224_CODE = 5;
+
+  /** Sentinel for AES services that accept any of the three AES key sizes. */
+  static final int ANY_AES_KEY_SIZE = 0;
+
   private static final String PROPERTY_NATIVE_CONTEXT_RELEASE_STRATEGY =
       "nativeContextReleaseStrategy";
 
@@ -656,7 +661,45 @@ final class Utils {
 
   static native void releaseEvpCipherCtx(long ctxPtr);
 
+  /** Supplies ACCP's own RNG for callers that pass a null source of randomness. */
+  static SecureRandom randomOrDefault(final SecureRandom random) {
+    return random == null ? new LibCryptoRng() : random;
+  }
+
+  /**
+   * Returns the key size in bytes that an {@code AES_<n>} Standard Name pins, or {@link
+   * #ANY_AES_KEY_SIZE} for a name that accepts every AES key size.
+   */
+  static int aesKeySizeFromAlgorithmName(final String algorithm) {
+    if (algorithm.length() < 7) {
+      return ANY_AES_KEY_SIZE;
+    }
+    switch (algorithm.substring(0, 7).toUpperCase()) {
+      case "AES_128":
+        return 128 / 8;
+      case "AES_192":
+        return 192 / 8;
+      case "AES_256":
+        return 256 / 8;
+      default:
+        return ANY_AES_KEY_SIZE;
+    }
+  }
+
+  /** Replaces the {@code AES_<n>} prefix of a Standard Name with plain {@code AES}. */
+  static String withoutAesKeySize(final String algorithm) {
+    if (aesKeySizeFromAlgorithmName(algorithm) == ANY_AES_KEY_SIZE) {
+      return algorithm;
+    }
+    return "AES" + algorithm.substring(7);
+  }
+
   static byte[] checkAesKey(final Key key) throws InvalidKeyException {
+    return checkAesKey(key, ANY_AES_KEY_SIZE);
+  }
+
+  static byte[] checkAesKey(final Key key, final int fixedKeySizeInBytes)
+      throws InvalidKeyException {
     if (key == null) {
       throw new InvalidKeyException("Key can't be null");
     }
@@ -678,8 +721,18 @@ final class Utils {
     if (encodedKey.length != 128 / 8
         && encodedKey.length != 192 / 8
         && encodedKey.length != 256 / 8) {
+      Arrays.fill(encodedKey, (byte) 0);
       throw new InvalidKeyException(
           "Bad key length of " + (encodedKey.length * 8) + " bits; expected 128, 192, or 256 bits");
+    }
+    if (fixedKeySizeInBytes != ANY_AES_KEY_SIZE && encodedKey.length != fixedKeySizeInBytes) {
+      Arrays.fill(encodedKey, (byte) 0);
+      throw new InvalidKeyException(
+          "Bad key length of "
+              + (encodedKey.length * 8)
+              + " bits; this algorithm requires "
+              + (fixedKeySizeInBytes * 8)
+              + " bits");
     }
     return encodedKey;
   }
