@@ -107,10 +107,10 @@ This results in better performance for Static-Ephemeral key agreement protocols.
 [KeyAgreement.generateSecret(String)](https://docs.oracle.com/javase/8/docs/api/javax/crypto/KeyAgreement.html#generateSecret-java.lang.String-) can be called with an input of "AES" for all Key Agreement algorithms.
 (The default Java implementation does not support "AES" as input with "ECDH" key agreement.)
 If "AES" is passed to this method, ACCP returns the largest possible AES key corresponding to the agreed secret.
-Alternatively, you can request an AES key of a particular size by appending the size (in bits) surrounded by brackets to this string.
-(Ex: "AES[128]" or "AES[256]")
-This returns a key of the requested strength or an `InvalidKeyException` if the agreed secret is not long enough for the requested AES key length.
-(This method of specifying key size is identical to the way [BouncyCastle](https://bouncycastle.org/java.html) specifies key size for `KeyAgreement.generateSecret(String)`.)
+Alternatively, you can request an AES key of a particular size by appending the size (in bytes) surrounded by brackets to this string.
+(Ex: "AES[16]" for AES-128 or "AES[32]" for AES-256)
+This returns a key of the requested strength or an `InvalidKeyException` if the requested size is not a valid AES key size, or if the agreed secret is not long enough for it.
+([BouncyCastle](https://bouncycastle.org/java.html) accepts the same bracketed syntax for `KeyAgreement.generateSecret(String)`, but interprets the value as a number of *bits*, so "AES[256]" is a 256-bit key there and an error here.)
 
 ## EC Key Equality For Truncated Keys on OpenJDK 10
 
