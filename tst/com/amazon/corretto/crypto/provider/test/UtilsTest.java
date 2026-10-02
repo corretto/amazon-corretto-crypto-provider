@@ -139,6 +139,16 @@ public class UtilsTest {
   }
 
   @Test
+  public void whenDirectOutputStartsBeforeInput_noClobber() throws Throwable {
+    ByteBuffer buffer = ByteBuffer.allocateDirect(100);
+    ByteBuffer input = buffer.duplicate();
+    input.position(10);
+    ByteBuffer output = buffer.duplicate();
+
+    assertNoClobber(input, output);
+  }
+
+  @Test
   public void whenMaximumSizeNativeBuffersAreUsed_correctClobberDetermination() throws Throwable {
     ByteBuffer buf;
     try {
@@ -158,7 +168,7 @@ public class UtilsTest {
 
     a.limit(a.capacity());
     a.position(b.position());
-    assertOutputClobbers(a, b);
+    assertNoClobber(a, b);
   }
 
   @Test
