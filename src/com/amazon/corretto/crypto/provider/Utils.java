@@ -133,7 +133,8 @@ final class Utils {
 
       // This will also allow getNativeBufferOffset to fully determine whether the buffers overlap
       // in native code, by factoring the limit() into the buffer capacity.
-      return getNativeBufferOffset(inputBuffer.slice(), outputBuffer.slice()) <= Integer.MAX_VALUE;
+      final long offset = getNativeBufferOffset(inputBuffer.slice(), outputBuffer.slice());
+      return offset > 0 && offset <= Integer.MAX_VALUE;
     }
 
     // At this point we'll need to check array() and arrayOffset(), but to do this we need both to

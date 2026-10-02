@@ -52,10 +52,16 @@ final class AesGcmSpi extends CipherSpi {
    *
    * @param ctxPtr Optional Context pointer
    * @param ctxPtrOut Optional out parameter to recieve new context
-   * @param input Input plaintext to encrypt
+   * @param inputDirect Input plaintext to encrypt as a direct ByteBuffer, or null when the input is
+   *     a heap array instead
+   * @param input Input plaintext to encrypt as a heap array, or null when the input is a direct
+   *     ByteBuffer instead
    * @param inputOffset Offset within input array of start of plaintext
    * @param inputLength Data length to encrypt
-   * @param result Result array - must have room for inputLength + tagLen + resultOffset bytes
+   * @param resultDirect Result ciphertext and tag as a direct ByteBuffer, or null when the result
+   *     is a heap array instead
+   * @param result Result ciphertext and tag as a heap array, or null when the result is a direct
+   *     ByteBuffer instead
    * @param resultOffset Offset of start of ciphertext in result array
    * @param tagLen Length of GCM tag
    * @param key AES key
@@ -66,9 +72,11 @@ final class AesGcmSpi extends CipherSpi {
       long ctxPtr,
       boolean sameKey,
       long[] ctxPtrOut,
+      ByteBuffer inputDirect,
       byte[] input,
       int inputOffset,
       int inputLength,
+      ByteBuffer resultDirect,
       byte[] result,
       int resultOffset,
       int tagLen,
@@ -82,10 +90,16 @@ final class AesGcmSpi extends CipherSpi {
    *
    * @param ctxPtr Optional Context pointer
    * @param ctxPtrOut Optional out parameter to recieve new context
-   * @param input Input plaintext to encrypt
+   * @param inputDirect Input ciphertext and tag to decrypt as a direct ByteBuffer, or null when the
+   *     input is a heap array instead
+   * @param input Input ciphertext and tag to decrypt as a heap array, or null when the input is a
+   *     direct ByteBuffer instead
    * @param inoffset Offset within input array of start of plaintext
    * @param inlen Data length to encrypt
-   * @param result Result array - must have room for inputLength + tagLen + resultOffset bytes
+   * @param resultDirect Result plaintext as a direct ByteBuffer, or null when the result is a heap
+   *     array instead
+   * @param result Result plaintext as a heap array, or null when the result is a direct ByteBuffer
+   *     instead
    * @param resultOffset Offset of start of ciphertext in result array
    * @param tagLen Length of GCM tag
    * @param key AES key
@@ -98,9 +112,11 @@ final class AesGcmSpi extends CipherSpi {
       long ctxPtr,
       boolean sameKey,
       long[] ctxPtrOut,
+      ByteBuffer inputDirect,
       byte[] input,
       int inoffset,
       int inlen,
+      ByteBuffer resultDirect,
       byte[] result,
       int resultOffset,
       int tagLen,
@@ -153,10 +169,16 @@ final class AesGcmSpi extends CipherSpi {
    *
    * @param ptr Native context pointer
    * @param releaseContext if true releases the context
-   * @param bytes Final input data (must not be null, even if no data is to be consumed)
+   * @param inputDirect Final plaintext to encrypt as a direct ByteBuffer, or null when the input is
+   *     a heap array instead
+   * @param bytes Final plaintext to encrypt as a heap array, or null when the input is a direct
+   *     ByteBuffer instead
    * @param offset Offset within bytes to start reading
    * @param length Length within bytes to read
-   * @param output Output buffer
+   * @param outputDirect Output ciphertext and tag as a direct ByteBuffer, or null when the output
+   *     is a heap array instead
+   * @param output Output ciphertext and tag as a heap array, or null when the output is a direct
+   *     ByteBuffer instead
    * @param outputOffset Offset within output buffer to start writing
    * @param tagLen Length of GCM tag
    * @return Number of bytes written in this final operation
@@ -164,9 +186,11 @@ final class AesGcmSpi extends CipherSpi {
   private static native int encryptDoFinal(
       long ptr,
       boolean releaseContext,
+      ByteBuffer inputDirect,
       byte[] bytes,
       int offset,
       int length,
+      ByteBuffer outputDirect,
       byte[] output,
       int outputOffset,
       int tagLen);
@@ -541,7 +565,13 @@ final class AesGcmSpi extends CipherSpi {
   // external callers. Decryption is always done as a single call which requires us to allocate an
   // array to receive the plaintext until we can validate its correctness.
   private int engineEncryptFinal(
-      byte[] input, final int inputOffset, int inputLen, final byte[] output, int outputOffset)
+      final ByteBuffer inputDirect,
+      byte[] input,
+      final int inputOffset,
+      int inputLen,
+      final ByteBuffer outputDirect,
+      final byte[] output,
+      int outputOffset)
       throws ShortBufferException {
     // The following failures should not trigger reset
     if (opMode != NATIVE_MODE_ENCRYPT) {
@@ -551,8 +581,12 @@ final class AesGcmSpi extends CipherSpi {
       input = EMPTY_ARRAY;
     }
 
-    checkOutputBuffer(inputLen, output, outputOffset, true);
-    checkArrayLimits(input, inputOffset, inputLen);
+    // Check the arrays only when the input and output are both heap buffers. A direct ByteBuffer
+    // has no array to check.
+    if (inputDirect == null && outputDirect == null) {
+      checkOutputBuffer(inputLen, output, outputOffset, true);
+      checkArrayLimits(input, inputOffset, inputLen);
+    }
 
     // Any future success or failure should trigger reset
     try {
@@ -596,9 +630,11 @@ final class AesGcmSpi extends CipherSpi {
                       ptr,
                       sameKey,
                       null,
+                      inputDirect,
                       finalInput,
                       inputOffset,
                       finalInputLength,
+                      outputDirect,
                       output,
                       finalOutputOffset,
                       tagLength,
@@ -613,9 +649,11 @@ final class AesGcmSpi extends CipherSpi {
                   0,
                   false,
                   ptrOut,
+                  inputDirect,
                   finalInput,
                   inputOffset,
                   finalInputLength,
+                  outputDirect,
                   output,
                   finalOutputOffset,
                   tagLength,
@@ -629,9 +667,11 @@ final class AesGcmSpi extends CipherSpi {
             0,
             false,
             null,
+            inputDirect,
             finalInput,
             inputOffset,
             finalInputLength,
+            outputDirect,
             output,
             finalOutputOffset,
             tagLength,
@@ -653,9 +693,11 @@ final class AesGcmSpi extends CipherSpi {
                     encryptDoFinal(
                         ptr,
                         false, // releaseContext
+                        inputDirect,
                         finalInput,
                         inputOffset,
                         finalInputLength,
+                        outputDirect,
                         output,
                         finalOutputOffset,
                         tagLength));
@@ -664,9 +706,11 @@ final class AesGcmSpi extends CipherSpi {
             encryptDoFinal(
                 context.take(),
                 true, // releaseContext
+                inputDirect,
                 input,
                 inputOffset,
                 finalInputLength,
+                outputDirect,
                 output,
                 finalOutputOffset,
                 tagLength);
@@ -680,9 +724,11 @@ final class AesGcmSpi extends CipherSpi {
   }
 
   private int engineDecryptFinal(
+      final ByteBuffer inputDirect,
       byte[] input,
       final int inputOffset,
       final int inputLen,
+      final ByteBuffer outputDirect,
       byte[] output,
       final int outputOffset)
       throws AEADBadTagException, ShortBufferException {
@@ -694,8 +740,12 @@ final class AesGcmSpi extends CipherSpi {
       input = EMPTY_ARRAY;
     }
 
-    checkOutputBuffer(inputLen, output, outputOffset, true);
-    checkArrayLimits(input, inputOffset, inputLen);
+    // Check the arrays only when the input and output are both heap buffers. A direct ByteBuffer
+    // has no array to check.
+    if (inputDirect == null && outputDirect == null) {
+      checkOutputBuffer(inputLen, output, outputOffset, true);
+      checkArrayLimits(input, inputOffset, inputLen);
+    }
 
     // Any future failure (or success) should trigger reset
     try {
@@ -729,9 +779,11 @@ final class AesGcmSpi extends CipherSpi {
                     ptr,
                     sameKey,
                     null,
+                    inputDirect,
                     workingInputArray,
                     workingInputOffset,
                     workingInputLength,
+                    outputDirect,
                     output,
                     outputOffset,
                     tagLength,
@@ -753,9 +805,11 @@ final class AesGcmSpi extends CipherSpi {
                 0,
                 false,
                 ptrOut,
+                inputDirect,
                 workingInputArray,
                 workingInputOffset,
                 workingInputLength,
+                outputDirect,
                 output,
                 outputOffset,
                 tagLength,
@@ -775,9 +829,11 @@ final class AesGcmSpi extends CipherSpi {
           0,
           false,
           null,
+          inputDirect,
           workingInputArray,
           workingInputOffset,
           workingInputLength,
+          outputDirect,
           output,
           outputOffset,
           tagLength,
@@ -790,9 +846,15 @@ final class AesGcmSpi extends CipherSpi {
           decryptAADBuf.isEmpty() ? EMPTY_ARRAY : decryptAADBuf.getDataBuffer(),
           decryptAADBuf.size());
     } catch (final AEADBadTagException e) {
-      final int maxFillSize = output.length - outputOffset;
-      final int endIndex = outputOffset + Math.min(maxFillSize, engineGetOutputSize(inputLen));
-      Arrays.fill(output, outputOffset, endIndex, (byte) 0);
+      if (output != null) {
+        final int maxFillSize = output.length - outputOffset;
+        final int endIndex = outputOffset + Math.min(maxFillSize, engineGetOutputSize(inputLen));
+        Arrays.fill(output, outputOffset, endIndex, (byte) 0);
+      } else {
+        final ByteBuffer plaintext = outputDirect.duplicate();
+        plaintext.limit(outputOffset + engineGetOutputSize(inputLen));
+        Utils.zeroByteBuffer(plaintext.slice());
+      }
       throw e;
     } finally {
       stateReset();
@@ -807,10 +869,10 @@ final class AesGcmSpi extends CipherSpi {
     try {
       switch (opMode) {
         case NATIVE_MODE_ENCRYPT:
-          actualLength = engineEncryptFinal(bytes, offset, length, buf, 0);
+          actualLength = engineEncryptFinal(null, bytes, offset, length, null, buf, 0);
           break;
         case NATIVE_MODE_DECRYPT:
-          actualLength = engineDecryptFinal(bytes, offset, length, buf, 0);
+          actualLength = engineDecryptFinal(null, bytes, offset, length, null, buf, 0);
           break;
         default:
           throw new IllegalStateException("Cipher not initialized");
@@ -832,9 +894,9 @@ final class AesGcmSpi extends CipherSpi {
       byte[] input, final int offset, final int length, final byte[] output, final int outputOffset)
       throws ShortBufferException, IllegalBlockSizeException, BadPaddingException {
     if (opMode == NATIVE_MODE_DECRYPT) {
-      return engineDecryptFinal(input, offset, length, output, outputOffset);
+      return engineDecryptFinal(null, input, offset, length, null, output, outputOffset);
     } else if (opMode == NATIVE_MODE_ENCRYPT) {
-      return engineEncryptFinal(input, offset, length, output, outputOffset);
+      return engineEncryptFinal(null, input, offset, length, null, output, outputOffset);
     } else {
       throw new IllegalStateException("Cipher not initialized");
     }
@@ -968,6 +1030,65 @@ final class AesGcmSpi extends CipherSpi {
       default:
         throw new IllegalStateException("Cipher not initialized");
     }
+  }
+
+  /**
+   * Passes ByteBuffers to native code without copying direct buffers to the heap. Falls back to the
+   * default JCE implementation when decrypt update() already buffered ciphertext, when either
+   * buffer is empty, or when the output would overwrite unread input.
+   */
+  @Override
+  protected int engineDoFinal(final ByteBuffer input, final ByteBuffer output)
+      throws ShortBufferException, IllegalBlockSizeException, BadPaddingException {
+    if (!decryptInputBuf.isEmpty()
+        || !input.hasRemaining()
+        || !output.hasRemaining()
+        || Utils.outputClobbersInput(input, output)) {
+      return super.engineDoFinal(input, output);
+    }
+
+    final int inputLength = input.remaining();
+    final int outputSize = engineGetOutputSize(inputLength);
+    if (output.remaining() < outputSize) {
+      throw new ShortBufferException(
+          String.format(
+              "Expected a buffer of at least %d bytes; got %d", outputSize, output.remaining()));
+    }
+
+    final ShimByteBuffer in = new ShimByteBuffer(input, true);
+    final ShimByteBuffer out = new ShimByteBuffer(output, false);
+    final int result;
+    switch (opMode) {
+      case NATIVE_MODE_ENCRYPT:
+        result =
+            engineEncryptFinal(
+                in.directByteBuffer,
+                in.array,
+                in.offset,
+                inputLength,
+                out.directByteBuffer,
+                out.array,
+                out.offset);
+        break;
+      case NATIVE_MODE_DECRYPT:
+        result =
+            engineDecryptFinal(
+                in.directByteBuffer,
+                in.array,
+                in.offset,
+                inputLength,
+                out.directByteBuffer,
+                out.array,
+                out.offset);
+        break;
+      default:
+        throw new IllegalStateException("Cipher not initialized");
+    }
+
+    out.writeBack(result);
+    input.position(input.limit());
+    output.position(output.position() + result);
+    return result;
   }
 
   private void checkOutputBuffer(
