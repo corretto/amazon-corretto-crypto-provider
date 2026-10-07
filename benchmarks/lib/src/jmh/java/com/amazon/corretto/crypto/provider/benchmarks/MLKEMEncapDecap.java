@@ -25,6 +25,8 @@ public class MLKEMEncapDecap {
     @Param({ "ML-KEM-512", "ML-KEM-768", "ML-KEM-1024" })
     public String algorithm;
 
+    // Jostle is absent because it registers no javax.crypto.KEM service; it exposes
+    // encapsulation through a Cipher and a KeyGenerator instead.
     @Param({AmazonCorrettoCryptoProvider.PROVIDER_NAME, "BC"})
     public String provider;
 

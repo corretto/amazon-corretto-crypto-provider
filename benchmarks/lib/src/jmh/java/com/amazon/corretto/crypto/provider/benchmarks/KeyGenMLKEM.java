@@ -17,7 +17,7 @@ public class KeyGenMLKEM {
     @Param({"ML-KEM-512", "ML-KEM-768", "ML-KEM-1024"})
     public String algorithm;
     
-    @Param({AmazonCorrettoCryptoProvider.PROVIDER_NAME, "BC"})
+    @Param({AmazonCorrettoCryptoProvider.PROVIDER_NAME, "BC", BenchmarkUtils.JOSTLE_PROVIDER_NAME})
     public String provider;
     
     private KeyPairGenerator kpg;

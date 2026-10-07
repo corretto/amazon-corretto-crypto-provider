@@ -55,6 +55,7 @@ public class Random {
     @Param({
       AmazonCorrettoCryptoProvider.PROVIDER_NAME + "/LibCryptoRng",
       "BC/DEFAULT",
+      BenchmarkUtils.JOSTLE_PROVIDER_NAME + "/DEFAULT",
       "SUN/NativePrng",
       "SUN/DRBG",
       "java.util.Random"
