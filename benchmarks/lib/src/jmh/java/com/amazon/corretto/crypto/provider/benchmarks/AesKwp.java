@@ -26,7 +26,7 @@ public class AesKwp {
   @Param({"128"})
   public int kekBits;
 
-  @Param({AmazonCorrettoCryptoProvider.PROVIDER_NAME, "BC", "SunJCE"})
+  @Param({AmazonCorrettoCryptoProvider.PROVIDER_NAME, "BC", "SunJCE", BenchmarkUtils.JOSTLE_PROVIDER_NAME})
   public String provider;
 
   protected Key kek;

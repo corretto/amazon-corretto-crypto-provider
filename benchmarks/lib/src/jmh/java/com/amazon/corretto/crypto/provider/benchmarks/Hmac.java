@@ -17,7 +17,7 @@ public class Hmac {
   @Param({"SHA224", "SHA256", "SHA384", "SHA512"})
   public String hash;
 
-  @Param({AmazonCorrettoCryptoProvider.PROVIDER_NAME, "BC", "SunJCE"})
+  @Param({AmazonCorrettoCryptoProvider.PROVIDER_NAME, "BC", "SunJCE", BenchmarkUtils.JOSTLE_PROVIDER_NAME})
   public String provider;
 
   private byte[] data_8B;
