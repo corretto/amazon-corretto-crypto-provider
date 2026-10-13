@@ -1,17 +1,18 @@
 name: ACCP release build
 
 # Builds the unsigned linux jars (non-FIPS and FIPS), then signs them in a fan-in job.
-# Only throwaway test keys exist so far; jars signed with them are NOT releasable (the JCE cert is
-# self-signed, so OracleJDK will refuse to load them as a provider). Release keys are added once the
-# CodeBuild runners exist. Only manually triggered: release jobs will run on runners that hold
-# signing secrets, so this workflow must never run on pull_request or pull_request_target.
+# signing-keys=test signs with throwaway keys; those jars are NOT releasable (the JCE cert is
+# self-signed, so OracleJDK will refuse to load them as a provider). signing-keys=release signs with
+# the production keys on the CodeBuild runner, which only exists for corretto/amazon-corretto-crypto-provider.
+# Only manually triggered: the release sign job runs on a runner that holds the signing secrets,
+# so this workflow must never run on pull_request or pull_request_target.
 on:
   workflow_dispatch:
     inputs:
       signing-keys:
         description: Keys for the sign job (none skips signing)
         type: choice
-        options: [test, none]
+        options: [test, release, none]
         default: test
 
 permissions:
@@ -64,7 +65,10 @@ jobs:
     name: Sign (${{ inputs.signing-keys }} keys)
     needs: build-linux
     if: inputs.signing-keys != 'none'
-    runs-on: ubuntu-24.04
+    runs-on: ${{ inputs.signing-keys == 'release' && format('codebuild-accp-gha-x86_64-{0}-{1}', github.run_id, github.run_attempt) || 'ubuntu-24.04' }}
+    env:
+      AWS_REGION: us-west-2
+      KEYS_DIR: ${{ github.workspace }}/../signing-keys
     steps:
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -95,12 +99,60 @@ jobs:
           echo "JCE_ALIAS=accp-test" >> "$GITHUB_ENV"
           echo "JCE_SIGNER=CN=ACCP test signing" >> "$GITHUB_ENV"
           echo "GPG_UID=accp-test@invalid" >> "$GITHUB_ENV"
+          mkdir -p "$KEYS_DIR" && : > "$KEYS_DIR/gpg-passphrase"
+          echo "GPG_PASSPHRASE_FILE=$KEYS_DIR/gpg-passphrase" >> "$GITHUB_ENV"
           keytool -genkeypair -alias accp-test -keyalg RSA -keysize 3072 -validity 1 \
             -dname "CN=ACCP test signing" -storetype JKS -keystore "$RUNNER_TEMP/accp-test.jks" \
             -storepass:env KEYSTORE_PASSWORD -keypass:env KEYSTORE_PASSWORD
           gpg --batch --pinentry-mode loopback --passphrase '' \
             --quick-gen-key "ACCP test signing <accp-test@invalid>" rsa3072 sign 1d
           gpg --armor --export accp-test@invalid > signed/signing-key.pub
+
+      # Same material and layout as the Staging buildspec in AccpPublicReleaseCDK
+      # (fetchSecretsCommands / SIGNING_SECRETS_CONFIG). Secret values are masked and kept in
+      # files under KEYS_DIR, which the cleanup step shreds.
+      - name: Load release keys
+        if: inputs.signing-keys == 'release'
+        run: |
+          umask 077
+          mkdir -p "$KEYS_DIR/gnupg"
+          bucket=838297025124.us-west-2.provider-signing-material
+          aws s3 cp --quiet "s3://$bucket/accp_signing_key_full_2024.jks" "$KEYS_DIR/accp.jks"
+          aws s3 cp --quiet "s3://$bucket/accp_gradle_2024.properties" "$KEYS_DIR/gradle.properties"
+          aws s3 cp --quiet "s3://$bucket/mvn_gpg.tgz" "$KEYS_DIR/mvn_gpg.tgz"
+          tar -xzpf "$KEYS_DIR/mvn_gpg.tgz" -C "$KEYS_DIR"
+
+          field() {
+            aws secretsmanager get-secret-value --secret-id "$1" --query SecretString --output text \
+              | python3 -c "import json,sys; print(json.load(sys.stdin)['$2'], end='')"
+          }
+          KEYSTORE_PASSWORD=$(field provider-signing-kestore-password-2024 password)
+          echo "::add-mask::$KEYSTORE_PASSWORD"
+          field gpg-signing password > "$KEYS_DIR/gpg-passphrase"
+          echo "::add-mask::$(cat "$KEYS_DIR/gpg-passphrase")"
+          GPG_KEYID=$(field gpg-signing keyId)
+
+          alias=$(sed -n 's/^jcecertAlias=//p' "$KEYS_DIR/gradle.properties" | tr -d '\r')
+          [[ -n "$alias" ]] || { echo "::error::jcecertAlias not found in gradle.properties"; exit 1; }
+
+          export GNUPGHOME="$KEYS_DIR/gnupg"
+          find "$KEYS_DIR/mvn_gpg" -type f -print0 | while IFS= read -r -d '' f; do
+            gpg --batch --pinentry-mode loopback --passphrase-file "$KEYS_DIR/gpg-passphrase" \
+              --import "$f" 2>/dev/null || true
+          done
+          gpg --batch --list-secret-keys "$GPG_KEYID" > /dev/null \
+            || { echo "::error::GPG secret key $GPG_KEYID not found in mvn_gpg.tgz"; exit 1; }
+          gpg --batch --armor --export "$GPG_KEYID" > signed/signing-key.pub
+
+          {
+            echo "KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"
+            echo "KEYSTORE=$KEYS_DIR/accp.jks"
+            echo "JCE_ALIAS=$alias"
+            echo "JCE_SIGNER=CN=Amazon Web Services, OU=Java Software Code Signing, O=Oracle Corporation"
+            echo "GPG_UID=$GPG_KEYID"
+            echo "GPG_PASSPHRASE_FILE=$KEYS_DIR/gpg-passphrase"
+            echo "GNUPGHOME=$GNUPGHOME"
+          } >> "$GITHUB_ENV"
 
       # Only the platform jars carry a JCE signature, matching fakePublish.
       - name: JCE-sign and verify
@@ -118,7 +170,8 @@ jobs:
         run: |
           cd signed
           for f in *.jar; do
-            gpg --batch --armor --detach-sign --local-user "$GPG_UID" "$f"
+            gpg --batch --pinentry-mode loopback --passphrase-file "$GPG_PASSPHRASE_FILE" \
+              --armor --detach-sign --local-user "$GPG_UID" "$f"
             gpg --batch --verify "$f.asc" "$f"
           done
 
@@ -127,7 +180,18 @@ jobs:
           cd signed
           sha256sum *.jar *.asc | tee -a "$GITHUB_STEP_SUMMARY"
 
+      - name: Shred keys
+        if: always()
+        run: |
+          [[ -d "$KEYS_DIR" ]] || exit 0
+          find "$KEYS_DIR" -type f -exec shred -u {} +
+          rm -rf "$KEYS_DIR"
+
+      # Release-signed jars are not uploaded: on a public repo, any workflow artifact is
+      # downloadable, and these would be production-signed builds of an unreleased commit.
+      # Publishing to Maven Central (M2) will consume them directly from this job.
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: inputs.signing-keys != 'release'
         with:
           name: accp-signed-${{ inputs.signing-keys }}
           path: signed/
@@ -138,6 +202,7 @@ jobs:
   smoke-test:
     name: Smoke ${{ matrix.platform }}${{ matrix.fips && ' FIPS' || '' }} on JDK ${{ matrix.jdk }}
     needs: sign
+    if: inputs.signing-keys == 'test'
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
