@@ -3,7 +3,8 @@ name: ACCP release build
 # Builds the unsigned linux jars (non-FIPS and FIPS), then signs them in a fan-in job.
 # signing-keys=test signs with throwaway keys; those jars are NOT releasable (the JCE cert is
 # self-signed, so OracleJDK will refuse to load them as a provider). signing-keys=release signs with
-# the production keys on the CodeBuild runner, which only exists for corretto/amazon-corretto-crypto-provider.
+# the production keys. Every job runs on the CodeBuild-hosted runners, which only serve
+# corretto/amazon-corretto-crypto-provider; on a fork the jobs queue and never start.
 # Only manually triggered: the release sign job runs on a runner that holds the signing secrets,
 # so this workflow must never run on pull_request or pull_request_target.
 on:
@@ -25,9 +26,8 @@ permissions:
 jobs:
   build-linux:
     name: Build ${{ matrix.platform }} (${{ matrix.fips && 'FIPS' || 'non-FIPS' }})
-    # Swap to the CodeBuild runner labels once the fleet exists:
-    # codebuild-accp-gha-<arch>-${{ github.run_id }}-${{ github.run_attempt }}
-    runs-on: ${{ matrix.runner }}
+    # CodeBuild-hosted runners (AccpPublicReleaseCDK GhaRunners stack), one project per arch.
+    runs-on: codebuild-accp-gha-${{ matrix.codebuild-arch }}-${{ github.run_id }}-${{ github.run_attempt }}
     strategy:
       fail-fast: false
       matrix:
@@ -35,10 +35,14 @@ jobs:
         fips: [false, true]
         include:
           - platform: linux-x86_64
-            runner: ubuntu-24.04
+            codebuild-arch: x86_64
           - platform: linux-aarch_64
-            runner: ubuntu-24.04-arm
+            codebuild-arch: aarch64
     steps:
+      # The AL2023 runner image may lack parts of the AWS-LC toolchain (see Dockerfile.dev).
+      - name: Install build tools
+        run: dnf install -y --setopt=install_weak_deps=False cmake gcc gcc-c++ make perl golang git
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: true
@@ -69,7 +73,7 @@ jobs:
     name: Sign (${{ (inputs.signing-keys || 'release') }} keys)
     needs: build-linux
     if: (inputs.signing-keys || 'release') != 'none'
-    runs-on: ${{ (inputs.signing-keys || 'release') == 'release' && format('codebuild-accp-gha-x86_64-{0}-{1}', github.run_id, github.run_attempt) || 'ubuntu-24.04' }}
+    runs-on: codebuild-accp-gha-x86_64-${{ github.run_id }}-${{ github.run_attempt }}
     env:
       AWS_REGION: us-west-2
     steps:
@@ -121,7 +125,7 @@ jobs:
     name: Smoke ${{ matrix.platform }}${{ matrix.fips && ' FIPS' || '' }} on JDK ${{ matrix.jdk }}
     needs: sign
     if: (inputs.signing-keys || 'release') == 'test'
-    runs-on: ${{ matrix.runner }}
+    runs-on: codebuild-accp-gha-${{ matrix.codebuild-arch }}-${{ github.run_id }}-${{ github.run_attempt }}
     strategy:
       fail-fast: false
       matrix:
@@ -130,9 +134,9 @@ jobs:
         jdk: ['8', '11', '17', '21']
         include:
           - platform: linux-x86_64
-            runner: ubuntu-24.04
+            codebuild-arch: x86_64
           - platform: linux-aarch_64
-            runner: ubuntu-24.04-arm
+            codebuild-arch: aarch64
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
