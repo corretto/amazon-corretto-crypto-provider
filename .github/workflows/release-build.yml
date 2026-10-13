@@ -27,7 +27,12 @@ jobs:
   build-linux:
     name: Build ${{ matrix.platform }} (${{ matrix.fips && 'FIPS' || 'non-FIPS' }})
     # CodeBuild-hosted runners (AccpPublicReleaseCDK GhaRunners stack), one project per arch.
-    runs-on: codebuild-accp-gha-${{ matrix.codebuild-arch }}-${{ github.run_id }}-${{ github.run_attempt }}
+    # Each job gets a unique label so GitHub routes it only to the runner created for it.
+    # FIPS needs a large instance: AWS-LC's delocate step runs out of memory on medium.
+    runs-on:
+      - codebuild-accp-gha-${{ matrix.codebuild-arch }}-${{ github.run_id }}-${{ github.run_attempt }}
+      - instance-size:${{ matrix.fips && 'large' || 'medium' }}
+      - build-${{ matrix.platform }}-${{ matrix.fips && 'fips' || 'nonfips' }}
     strategy:
       fail-fast: false
       matrix:
@@ -40,8 +45,9 @@ jobs:
             codebuild-arch: aarch64
     steps:
       # The AL2023 runner image may lack parts of the AWS-LC toolchain (see Dockerfile.dev).
+      # libstdc++-static provides libstdc++.a for the -static-libstdc++ link in CMakeLists.txt.
       - name: Install build tools
-        run: dnf install -y --setopt=install_weak_deps=False cmake gcc gcc-c++ make perl golang git
+        run: dnf install -y --setopt=install_weak_deps=False cmake gcc gcc-c++ libstdc++-static make perl golang git
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -72,8 +78,10 @@ jobs:
   sign:
     name: Sign (${{ (inputs.signing-keys || 'release') }} keys)
     needs: build-linux
-    if: (inputs.signing-keys || 'release') != 'none'
-    runs-on: codebuild-accp-gha-x86_64-${{ github.run_id }}-${{ github.run_attempt }}
+    if: inputs.signing-keys != 'none'
+    runs-on:
+      - codebuild-accp-gha-x86_64-${{ github.run_id }}-${{ github.run_attempt }}
+      - sign
     env:
       AWS_REGION: us-west-2
     steps:
@@ -124,8 +132,10 @@ jobs:
   smoke-test:
     name: Smoke ${{ matrix.platform }}${{ matrix.fips && ' FIPS' || '' }} on JDK ${{ matrix.jdk }}
     needs: sign
-    if: (inputs.signing-keys || 'release') == 'test'
-    runs-on: codebuild-accp-gha-${{ matrix.codebuild-arch }}-${{ github.run_id }}-${{ github.run_attempt }}
+    if: inputs.signing-keys == 'test'
+    runs-on:
+      - codebuild-accp-gha-${{ matrix.codebuild-arch }}-${{ github.run_id }}-${{ github.run_attempt }}
+      - smoke-${{ matrix.platform }}-${{ matrix.fips && 'fips' || 'nonfips' }}-jdk${{ matrix.jdk }}
     strategy:
       fail-fast: false
       matrix:
