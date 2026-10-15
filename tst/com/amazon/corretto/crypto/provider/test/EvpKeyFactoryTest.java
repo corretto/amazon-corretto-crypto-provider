@@ -433,9 +433,6 @@ public class EvpKeyFactoryTest {
     final BigInteger modulus = pubKey.getModulus();
     final BigInteger exponent = pubKey.getPublicExponent();
 
-    // An empty or malformed JWK decodes to a zeroed spec. Accepting it builds a 0-bit key and
-    // reports success, so a caller that relies on InvalidKeySpecException gets an unusable key
-    // instead of an error.
     assertThrows(
         InvalidKeySpecException.class,
         () -> nativeFactory.generatePublic(new RSAPublicKeySpec(BigInteger.ZERO, BigInteger.ZERO)));
