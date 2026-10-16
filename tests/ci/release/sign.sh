@@ -9,7 +9,7 @@
 #   release  production keys from the ACCP release account (CodeBuild runner role only)
 #
 # Secrets stay in shell variables and pipes. The only secret material written to disk is the
-# keystore (jarsigner needs a file) and the GPG keyring, both under a private temp dir that is
+# keystore (jarsigner needs a file) and the GPG home directory, both under a private temp dir that is
 # shredded on exit.
 #
 # Usage: sign.sh test|release DIR
@@ -76,14 +76,17 @@ load_release_keys() {
 
   aws s3 cp --quiet "$bucket/accp_signing_key_full_2024.jks" "$keystore"
 
-  # Import each archive member straight from S3; mvn_gpg.tgz never lands on disk.
-  local member
-  while IFS= read -r member; do
-    [[ "$member" == */ ]] && continue
-    aws s3 cp "$bucket/mvn_gpg.tgz" - | tar -xzOf - "$member" | gpg_with_passphrase --import 2>/dev/null || true
-  done < <(aws s3 cp "$bucket/mvn_gpg.tgz" - | tar -tzf -)
-  gpg --batch --list-secret-keys "$gpg_uid" >/dev/null \
-    || { echo "::error::GPG secret key $gpg_uid not found in mvn_gpg.tgz"; exit 1; }
+  # mvn_gpg.tgz is a gpg 2.1+ home directory. Its secret keys are in private-keys-v1.d, which
+  # gpg --import cannot read, so extract only the keyrings as GNUPGHOME (no revocation certs).
+  aws s3 cp "$bucket/mvn_gpg.tgz" - \
+    | tar -xzf - -C "$GNUPGHOME" --strip-components=1 --wildcards \
+        '*/pubring.kbx' '*/private-keys-v1.d/*'
+  # The archive predates the key's expiry extension; the committed public key carries it.
+  gpg --batch --import "$(dirname "$0")/signing-key.asc" 2>/dev/null
+  # Field 15 is '+' only when the secret is present (not a stub); field 2 'e'/'r' is expired/revoked.
+  gpg --batch --with-colons --list-secret-keys "$gpg_uid" \
+    | awk -F: '$1 == "sec" && $15 == "+" && $2 !~ /[er]/ { ok = 1 } END { exit !ok }' \
+    || { echo "::error::GPG secret key $gpg_uid missing, stubbed, or expired"; exit 1; }
 }
 
 case "$mode" in
