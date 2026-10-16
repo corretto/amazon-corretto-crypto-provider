@@ -19,7 +19,7 @@ public class RsaCipherOneShot {
   @Param({"2048", "4096"})
   public int keyBits;
 
-  @Param({AmazonCorrettoCryptoProvider.PROVIDER_NAME, "BC", "SunJCE"})
+  @Param({AmazonCorrettoCryptoProvider.PROVIDER_NAME, "BC", "SunJCE", BenchmarkUtils.JOSTLE_PROVIDER_NAME})
   public String provider;
 
   @Param({"NoPadding", "Pkcs1Padding", "OAEPPadding", "OAEPWithSHA-1AndMGF1Padding"})
@@ -33,6 +33,10 @@ public class RsaCipherOneShot {
 
   @Setup
   public void setup() throws Exception {
+    if (BenchmarkUtils.JOSTLE_PROVIDER_NAME.equals(provider) && "NoPadding".equals(padding)) {
+      throw new RuntimeException("Jostle does not offer unpadded RSA");
+    }
+
     BenchmarkUtils.setupProvider(provider);
     String rsaProvider = provider;
     if (provider.equals("SunJCE")) {

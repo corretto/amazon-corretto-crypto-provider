@@ -20,7 +20,7 @@ public class SignatureRsassaPss extends SignatureBase {
   @Param({"2048", "4096"})
   public int bits;
 
-  @Param({AmazonCorrettoCryptoProvider.PROVIDER_NAME, "BC", "SunRsaSign"})
+  @Param({AmazonCorrettoCryptoProvider.PROVIDER_NAME, "BC", "SunRsaSign", BenchmarkUtils.JOSTLE_PROVIDER_NAME})
   public String provider;
 
   @Setup

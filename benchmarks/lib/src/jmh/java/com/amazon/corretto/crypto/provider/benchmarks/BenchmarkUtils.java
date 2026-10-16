@@ -13,22 +13,29 @@ import java.util.Set;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.openssl.jostle.jcajce.provider.JostleProvider;
 
 class BenchmarkUtils {
   private BenchmarkUtils() {}
+
+  /** Name OpenSSL Jostle registers itself under. */
+  static final String JOSTLE_PROVIDER_NAME = "JSL";
 
   private static final SecureRandom sr = new SecureRandom();
   private static final List<Provider> DEFAULT_PROVIDERS = new ArrayList<>();
   private static AmazonCorrettoCryptoProvider accp = null;
   private static BouncyCastleProvider bc = null;
+  private static JostleProvider jostle = null;
 
   static {
-    // For BC and ACCP, if they are installed statically, we just remove them.
+    // For BC, Jostle and ACCP, if they are installed statically, we just remove them.
     for (Provider provider : Security.getProviders()) {
       if ("AmazonCorrettoCryptoProvider".equals(provider.getName())) {
         accp = (AmazonCorrettoCryptoProvider) provider;
       } else if ("BC".equals(provider.getName())) {
         bc = (BouncyCastleProvider) provider;
+      } else if (JOSTLE_PROVIDER_NAME.equals(provider.getName())) {
+        jostle = (JostleProvider) provider;
       } else {
         DEFAULT_PROVIDERS.add(provider);
       }
@@ -41,6 +48,17 @@ class BenchmarkUtils {
     }
     removeAllProviders();
     installDefaultProviders();
+  }
+
+  /**
+   * Constructing a JostleProvider extracts and loads OpenSSL, so forks that never benchmark it
+   * should not pay for it.
+   */
+  private static synchronized JostleProvider jostle() {
+    if (jostle == null) {
+      jostle = new JostleProvider();
+    }
+    return jostle;
   }
 
   static byte[] getRandBytes(int n) {
@@ -64,6 +82,12 @@ class BenchmarkUtils {
         break;
       case "BC":
         Security.insertProviderAt(bc, 1);
+        break;
+      case JOSTLE_PROVIDER_NAME:
+        // Jostle registers no "SHA" alias, which SUN's NativePRNG needs to seed its mixer, so the
+        // JDK providers have to stay available underneath it.
+        installDefaultProviders();
+        Security.insertProviderAt(jostle(), 1);
         break;
       case "SUN":
       case "SunEC":
