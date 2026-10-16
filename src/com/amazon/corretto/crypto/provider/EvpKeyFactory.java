@@ -216,6 +216,14 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
     protected PublicKey engineGeneratePublic(KeySpec keySpec) throws InvalidKeySpecException {
       if (keySpec instanceof RSAPublicKeySpec) {
         RSAPublicKeySpec spec = (RSAPublicKeySpec) keySpec;
+
+        if (spec.getModulus().signum() <= 0) {
+          throw new InvalidKeySpecException("RSA modulus must be positive");
+        }
+        if (spec.getPublicExponent().signum() <= 0) {
+          throw new InvalidKeySpecException("RSA public exponent must be positive");
+        }
+
         byte[] modulus = spec.getModulus().toByteArray();
         byte[] publicExponentArr = spec.getPublicExponent().toByteArray();
 

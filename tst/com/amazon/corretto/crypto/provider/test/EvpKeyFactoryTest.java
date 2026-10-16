@@ -426,6 +426,37 @@ public class EvpKeyFactoryTest {
 
   @ParameterizedTest(name = "{1}")
   @MethodSource("rsaPairs")
+  public void rsaPublicKeySpecRejectsNonPositiveValues(final KeyPair keyPair, final String testName)
+      throws Exception {
+    final KeyFactory nativeFactory = KeyFactory.getInstance("RSA", NATIVE_PROVIDER);
+    final RSAPublicKey pubKey = (RSAPublicKey) keyPair.getPublic();
+    final BigInteger modulus = pubKey.getModulus();
+    final BigInteger exponent = pubKey.getPublicExponent();
+
+    assertThrows(
+        InvalidKeySpecException.class,
+        () -> nativeFactory.generatePublic(new RSAPublicKeySpec(BigInteger.ZERO, BigInteger.ZERO)));
+    assertThrows(
+        InvalidKeySpecException.class,
+        () -> nativeFactory.generatePublic(new RSAPublicKeySpec(BigInteger.ZERO, exponent)));
+    assertThrows(
+        InvalidKeySpecException.class,
+        () -> nativeFactory.generatePublic(new RSAPublicKeySpec(modulus, BigInteger.ZERO)));
+    assertThrows(
+        InvalidKeySpecException.class,
+        () -> nativeFactory.generatePublic(new RSAPublicKeySpec(modulus.negate(), exponent)));
+    assertThrows(
+        InvalidKeySpecException.class,
+        () -> nativeFactory.generatePublic(new RSAPublicKeySpec(modulus, exponent.negate())));
+
+    final RSAPublicKey rebuilt =
+        (RSAPublicKey) nativeFactory.generatePublic(new RSAPublicKeySpec(modulus, exponent));
+    assertEquals(modulus, rebuilt.getModulus(), "Modulus");
+    assertEquals(exponent, rebuilt.getPublicExponent(), "Public Exponent");
+  }
+
+  @ParameterizedTest(name = "{1}")
+  @MethodSource("rsaPairs")
   public void rsaPrivateKeySpec(final KeyPair keyPair, final String testName) throws Exception {
     Samples<RSAPrivateKeySpec> specs = getSamples(keyPair, RSAPrivateKeySpec.class, true);
 
