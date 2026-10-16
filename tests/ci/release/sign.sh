@@ -82,6 +82,12 @@ load_release_keys() {
     | tar -xzf - -C "$GNUPGHOME" --strip-components=1 --wildcards \
         '*/pubring.kbx' '*/private-keys-v1.d/*'
   # The archive predates the key's expiry extension; the committed public key carries it.
+  # signing-key.asc is committed rather than fetched to avoid a keyserver dependency. To refresh
+  # it after the expiry is extended again, with GNUPGHOME pointing at a scratch directory:
+  #   curl -s 'https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x5EFEEFE6BD0BD916' | gpg --import
+  #   gpg --armor --export-options export-minimal \
+  #     --export 53935F41B347016137A25EDB5EFEEFE6BD0BD916 > signing-key.asc
+  # and check the fingerprint and new expiry before committing.
   gpg --batch --import "$(dirname "$0")/signing-key.asc" 2>/dev/null
   # Field 15 is '+' only when the secret is present (not a stub); field 2 'e'/'r' is expired/revoked.
   gpg --batch --with-colons --list-secret-keys "$gpg_uid" \
