@@ -1,0 +1,63 @@
+name: ACCP release build
+
+# Builds the unsigned linux jars (non-FIPS and FIPS). Signing and publishing are added in later steps.
+# Every job runs on the CodeBuild-hosted runners, which only serve
+# corretto/amazon-corretto-crypto-provider; on a fork the jobs queue and never start.
+# Only manually triggered: release jobs will run on runners that hold signing secrets,
+# so this workflow must never run on pull_request or pull_request_target.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-linux:
+    name: Build ${{ matrix.platform }} (${{ matrix.fips && 'FIPS' || 'non-FIPS' }})
+    # CodeBuild-hosted runners (AccpPublicReleaseCDK GhaRunners stack), one project per arch. The
+    # project's fleet sets the instance size. Each job gets a unique label so GitHub routes it only
+    # to the runner created for it.
+    runs-on:
+      - codebuild-accp-gha-${{ matrix.codebuild-arch }}-${{ github.run_id }}-${{ github.run_attempt }}
+      - build-${{ matrix.platform }}-${{ matrix.fips && 'fips' || 'nonfips' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [linux-x86_64, linux-aarch_64]
+        fips: [false, true]
+        include:
+          - platform: linux-x86_64
+            codebuild-arch: x86_64
+          - platform: linux-aarch_64
+            codebuild-arch: aarch64
+    steps:
+      # The AL2023 runner image may lack parts of the AWS-LC toolchain (see Dockerfile.dev).
+      # libstdc++-static provides libstdc++.a for the -static-libstdc++ link in CMakeLists.txt.
+      - name: Install build tools
+        run: dnf install -y --setopt=install_weak_deps=False cmake gcc gcc-c++ libstdc++-static make perl golang git
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: true
+          persist-credentials: false
+
+      # Corretto 17 is the build JDK: it exposes the javax.crypto.KEM API needed to
+      # compile the ML-KEM Multi-Release overlay. The jar still targets JDK 8.
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          java-version: '17'
+          distribution: 'corretto'
+
+      - name: Build
+        run: ./gradlew -DFIPS=${{ matrix.fips }} release_jars
+
+      - name: Record jar hashes
+        run: |
+          cd build/release
+          sha256sum *.jar | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: accp-${{ matrix.platform }}${{ matrix.fips && '-fips' || '' }}
+          path: build/release/*.jar
+          if-no-files-found: error
