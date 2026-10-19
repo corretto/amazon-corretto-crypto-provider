@@ -4,6 +4,7 @@ package com.amazon.corretto.crypto.provider;
 
 import java.lang.reflect.Method;
 import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidParameterException;
 import java.security.KeyPair;
 import java.security.KeyPairGeneratorSpi;
 import java.security.SecureRandom;
@@ -58,9 +59,21 @@ class MlKemGen extends KeyPairGeneratorSpi {
     this.parameterSet = selected;
   }
 
+  /**
+   * ML-KEM has no key size; the parameter set determines everything. Per the {@code
+   * KeyPairGenerator.initialize(int, SecureRandom)} contract, an unsupported key size is reported
+   * with {@code InvalidParameterException}.
+   *
+   * <p>As in the SunJCE provider, a keysize of -1 is accepted as a no-op: it is the JDK's
+   * convention for supplying a {@code SecureRandom} without changing the parameter set. The {@code
+   * random} parameter is ignored; key generation always draws from AWS-LC's DRBG.
+   */
   @Override
   public void initialize(int keysize, SecureRandom random) {
-    throw new UnsupportedOperationException();
+    if (keysize != -1) {
+      throw new InvalidParameterException(
+          "ML-KEM does not support initialization by key size. Select a parameter set instead.");
+    }
   }
 
   /**

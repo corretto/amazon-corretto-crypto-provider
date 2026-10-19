@@ -13,12 +13,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import com.amazon.corretto.crypto.utils.MlDsaUtils;
 import java.security.InvalidKeyException;
+import java.security.InvalidParameterException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
 import java.security.Provider;
 import java.security.PublicKey;
+import java.security.SecureRandom;
 import java.security.Signature;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
@@ -166,6 +168,16 @@ public class MLDSATest {
     assertEquals("ML-DSA", keyPair.getPublic().getAlgorithm());
   }
 
+  // The KeyPairGenerator contract requires InvalidParameterException for an unsupported key size.
+  @ParameterizedTest
+  @ValueSource(strings = {"ML-DSA", "ML-DSA-44", "ML-DSA-65", "ML-DSA-87"})
+  public void testKeySizeInitializationRejected(String algo) throws Exception {
+    KeyPairGenerator keyGen = KeyPairGenerator.getInstance(algo, NATIVE_PROVIDER);
+    assertThrows(InvalidParameterException.class, () -> keyGen.initialize(0));
+    assertThrows(InvalidParameterException.class, () -> keyGen.initialize(-2, new SecureRandom()));
+    assertThrows(InvalidParameterException.class, () -> keyGen.initialize(2048));
+  }
+
   @Test
   public void testKeyFactorySelfConversion() throws Exception {
     KeyPairGenerator keyGen = KeyPairGenerator.getInstance("ML-DSA", NATIVE_PROVIDER);
@@ -305,5 +317,34 @@ public class MLDSATest {
     extMuVerifier.initVerify(pub);
     extMuVerifier.update(mu);
     assertFalse(extMuVerifier.verify(signatureBytes));
+  }
+
+  // initialize(int) matches SUN: unsupported key sizes throw InvalidParameterException, but -1
+  // (the JDK's "keep the parameter set, use this SecureRandom"; jtreg SeedOrExpanded) is allowed.
+  @Test
+  public void testKeySizeInitializationMatchesSun() throws Exception {
+    TestUtil.assumeMinimumJavaVersion(24);
+    KeyPairGenerator accpGen = KeyPairGenerator.getInstance("ML-DSA-65", NATIVE_PROVIDER);
+    KeyPairGenerator sunGen = KeyPairGenerator.getInstance("ML-DSA-65", "SUN");
+
+    // ACCP: unsupported key sizes are rejected
+    assertThrows(InvalidParameterException.class, () -> accpGen.initialize(0));
+    assertThrows(
+        InvalidParameterException.class, () -> accpGen.initialize(2048, new SecureRandom()));
+
+    // SUN: unsupported key sizes are rejected
+    assertThrows(InvalidParameterException.class, () -> sunGen.initialize(0));
+    assertThrows(
+        InvalidParameterException.class, () -> sunGen.initialize(2048, new SecureRandom()));
+
+    // ACCP: -1 is accepted and keeps the parameter set
+    accpGen.initialize(-1, new SecureRandom());
+    KeyPair accpPair = accpGen.generateKeyPair();
+
+    // SUN: -1 is accepted and keeps the parameter set
+    sunGen.initialize(-1, new SecureRandom());
+    KeyPair sunPair = sunGen.generateKeyPair();
+
+    assertEquals(sunPair.getPublic().getEncoded().length, accpPair.getPublic().getEncoded().length);
   }
 }

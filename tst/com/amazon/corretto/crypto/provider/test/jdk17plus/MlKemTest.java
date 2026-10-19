@@ -15,6 +15,7 @@ import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import com.amazon.corretto.crypto.provider.RuntimeCryptoException;
 import com.amazon.corretto.crypto.utils.MlKemUtils;
 import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidParameterException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -257,8 +258,13 @@ public class MlKemTest {
     assertThrows(
         InvalidAlgorithmParameterException.class, () -> keyGen.initialize(notNamed, random));
 
-    // Keysize-based initialization is unsupported for ML-KEM.
-    assertThrows(UnsupportedOperationException.class, () -> keyGen.initialize(768, random));
+    // Keysize-based initialization is unsupported for ML-KEM. The KeyPairGenerator contract
+    // requires InvalidParameterException for an unsupported key size.
+    assertThrows(InvalidParameterException.class, () -> keyGen.initialize(768, random));
+    assertThrows(InvalidParameterException.class, () -> keyGen.initialize(768));
+    assertThrows(
+        InvalidParameterException.class,
+        () -> KeyPairGenerator.getInstance("ML-KEM", NATIVE_PROVIDER).initialize(0, random));
   }
 
   @Test
@@ -1274,5 +1280,34 @@ public class MlKemTest {
         secretFromSeed.getEncoded(),
         secretFromExpanded.getEncoded(),
         "Seed and expanded keys must produce identical shared secrets for " + paramSet);
+  }
+
+  // initialize(int) matches SunJCE: unsupported key sizes throw InvalidParameterException, but -1
+  // (the JDK's "keep the parameter set, use this SecureRandom"; jtreg SeedOrExpanded) is allowed.
+  @Test
+  public void testKeySizeInitializationMatchesSunJce() throws Exception {
+    TestUtil.assumeMinimumJavaVersion(24);
+    KeyPairGenerator accpGen = KeyPairGenerator.getInstance("ML-KEM-768", NATIVE_PROVIDER);
+    KeyPairGenerator jdkGen = KeyPairGenerator.getInstance("ML-KEM-768", "SunJCE");
+
+    // ACCP: unsupported key sizes are rejected
+    assertThrows(InvalidParameterException.class, () -> accpGen.initialize(0));
+    assertThrows(
+        InvalidParameterException.class, () -> accpGen.initialize(2048, new SecureRandom()));
+
+    // SunJCE: unsupported key sizes are rejected
+    assertThrows(InvalidParameterException.class, () -> jdkGen.initialize(0));
+    assertThrows(
+        InvalidParameterException.class, () -> jdkGen.initialize(2048, new SecureRandom()));
+
+    // ACCP: -1 is accepted and keeps the parameter set
+    accpGen.initialize(-1, new SecureRandom());
+    KeyPair accpPair = accpGen.generateKeyPair();
+
+    // SunJCE: -1 is accepted and keeps the parameter set
+    jdkGen.initialize(-1, new SecureRandom());
+    KeyPair jdkPair = jdkGen.generateKeyPair();
+
+    assertEquals(jdkPair.getPublic().getEncoded().length, accpPair.getPublic().getEncoded().length);
   }
 }

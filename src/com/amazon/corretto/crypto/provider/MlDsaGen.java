@@ -3,6 +3,7 @@
 package com.amazon.corretto.crypto.provider;
 
 import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidParameterException;
 import java.security.KeyPair;
 import java.security.KeyPairGeneratorSpi;
 import java.security.SecureRandom;
@@ -44,8 +45,21 @@ class MlDsaGen extends KeyPairGeneratorSpi {
             + " the ML-DSA-44, ML-DSA-65, or ML-DSA-87 service name to select a parameter set.");
   }
 
+  /**
+   * ML-DSA has no key size; the parameter set determines everything. Per the {@code
+   * KeyPairGenerator.initialize(int, SecureRandom)} contract, an unsupported key size is reported
+   * with {@code InvalidParameterException}.
+   *
+   * <p>As in the SUN provider, a keysize of -1 is accepted as a no-op: it is the JDK's convention
+   * for supplying a {@code SecureRandom} without changing the parameter set. The {@code random}
+   * parameter is ignored; key generation always draws from AWS-LC's DRBG.
+   */
+  @Override
   public void initialize(final int keysize, final SecureRandom random) {
-    throw new UnsupportedOperationException();
+    if (keysize != -1) {
+      throw new InvalidParameterException(
+          "ML-DSA does not support initialization by key size. Select a parameter set instead.");
+    }
   }
 
   @Override
