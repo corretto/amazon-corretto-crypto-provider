@@ -42,6 +42,24 @@ final class NamedParameterSpecs {
 
   private NamedParameterSpecs() {}
 
+  /**
+   * Returns a {@code NamedParameterSpec} for {@code name}, or null on JDK 10 and older where the
+   * type does not exist.
+   */
+  static AlgorithmParameterSpec newNamedParameterSpec(final String name) {
+    if (NAMED_PARAMETER_SPEC_CLASS == null) {
+      return null;
+    }
+    try {
+      return (AlgorithmParameterSpec)
+          NAMED_PARAMETER_SPEC_CLASS.getConstructor(String.class).newInstance(name);
+    } catch (final ReflectiveOperationException e) {
+      // NamedParameterSpec(String) is a public constructor of a public JDK 11+ type, so a failure
+      // here signals a broken runtime -- fail fast.
+      throw new AssertionError("Failed to construct NamedParameterSpec", e);
+    }
+  }
+
   // Extracts the parameter set name |params| designates, rejecting a spec that designates none.
   static String requireParameterSetName(final AlgorithmParameterSpec params)
       throws InvalidAlgorithmParameterException {

@@ -48,7 +48,9 @@ abstract class EvpKey implements Key, Destroyable {
 
   private static native void releaseKey(long ptr);
 
-  private static native byte[] encodePublicKey(long ptr);
+  // Package-private so subclasses (e.g. EvpMlDsaKey) can inspect the public half of any key. For a
+  // private key this works because its EVP_PKEY also carries the public key.
+  static native byte[] encodePublicKey(long ptr);
 
   private static native byte[] encodePrivateKey(long ptr);
 
