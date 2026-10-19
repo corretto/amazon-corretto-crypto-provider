@@ -145,8 +145,7 @@ jobs:
           path: signed/
           if-no-files-found: error
 
-  # Loads each signed platform jar as the JCA provider on every supported JDK. Corretto does not
-  # enforce JCE signatures; an OracleJDK load test needs the release keys and is added with them.
+  # Loads each signed platform jar as the JCA provider on every supported JDK.
   smoke-test:
     name: Smoke ${{ matrix.platform }}${{ matrix.fips && ' FIPS' || '' }} on JDK ${{ matrix.jdk }}
     needs: sign
