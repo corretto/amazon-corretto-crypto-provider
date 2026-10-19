@@ -20,6 +20,7 @@ import java.security.PrivateKey;
 import java.security.Provider;
 import java.security.PublicKey;
 import java.security.Signature;
+import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
@@ -305,5 +306,24 @@ public class MLDSATest {
     extMuVerifier.initVerify(pub);
     extMuVerifier.update(mu);
     assertFalse(extMuVerifier.verify(signatureBytes));
+  }
+
+  // KeyFactory null handling matches SUN: a null spec throws InvalidKeySpecException and a null
+  // key throws InvalidKeyException, never NullPointerException.
+  @Test
+  public void testKeyFactoryNullInputsMatchSun() throws Exception {
+    TestUtil.assumeMinimumJavaVersion(24);
+
+    // ACCP
+    KeyFactory accpKf = KeyFactory.getInstance("ML-DSA", NATIVE_PROVIDER);
+    assertThrows(InvalidKeySpecException.class, () -> accpKf.generatePublic(null));
+    assertThrows(InvalidKeySpecException.class, () -> accpKf.generatePrivate(null));
+    assertThrows(InvalidKeyException.class, () -> accpKf.translateKey(null));
+
+    // SUN
+    KeyFactory sunKf = KeyFactory.getInstance("ML-DSA", "SUN");
+    assertThrows(InvalidKeySpecException.class, () -> sunKf.generatePublic(null));
+    assertThrows(InvalidKeySpecException.class, () -> sunKf.generatePrivate(null));
+    assertThrows(InvalidKeyException.class, () -> sunKf.translateKey(null));
   }
 }
