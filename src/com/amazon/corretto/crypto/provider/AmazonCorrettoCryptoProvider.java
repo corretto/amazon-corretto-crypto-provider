@@ -956,12 +956,16 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     return getKeyFactory(EvpKeyType.valueOf(keyType));
   }
 
-  // This is just a convenience method to provide syntactic sugar to callers
+  // Converts |key| to an EvpKey for internal use by ACCP's SPIs. A key that had to be converted is
+  // marked ephemeral so the SPI releases its native memory as soon as it is done with it; an
+  // EvpKey the caller passed in is returned as-is and never marked ephemeral.
   EvpKey translateKey(Key key, EvpKeyType keyType) throws InvalidKeyException {
     if (key instanceof EvpKey) {
       return (EvpKey) key;
     } else {
-      return (EvpKey) getKeyFactory(keyType).translateKey(key);
+      final EvpKey result = (EvpKey) getKeyFactory(keyType).translateKey(key);
+      result.setEphemeral(true);
+      return result;
     }
   }
 
