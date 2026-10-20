@@ -82,7 +82,10 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
   @Override
   protected PublicKey engineGeneratePublic(KeySpec keySpec) throws InvalidKeySpecException {
     if (!(keySpec instanceof X509EncodedKeySpec)) {
-      throw new InvalidKeySpecException("Unsupported KeySpec " + keySpec.getClass());
+      // A null spec must surface as InvalidKeySpecException per the KeyFactory contract, not as a
+      // NullPointerException from building this message.
+      throw new InvalidKeySpecException(
+          "Unsupported KeySpec " + (keySpec == null ? "null" : keySpec.getClass()));
     }
     X509EncodedKeySpec x509 = (X509EncodedKeySpec) keySpec;
 
@@ -106,6 +109,11 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
 
   @Override
   protected Key engineTranslateKey(Key key) throws InvalidKeyException {
+    // A null key must surface as InvalidKeyException per the KeyFactory contract (matching the JDK
+    // providers), not as a NullPointerException from keyNeedsConversion.
+    if (key == null) {
+      throw new InvalidKeyException("Key must not be null");
+    }
     if (!keyNeedsConversion(key)) {
       return key;
     }
