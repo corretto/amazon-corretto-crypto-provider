@@ -77,6 +77,21 @@ public class AesCipherContractTest {
   }
 
   @ParameterizedTest(name = "{0}")
+  @MethodSource("pinnedKeySizeNames")
+  public void rejectedKeyEncodingIsCleansed(final String transformation, final int pinnedSize)
+      throws Exception {
+    for (final int keySize : AES_KEY_SIZES) {
+      if (keySize == pinnedSize) {
+        continue;
+      }
+      final Cipher cipher = Cipher.getInstance(transformation, NATIVE_PROVIDER);
+      final LiveEncodingKey key = new LiveEncodingKey(TestUtil.getRandomBytes(keySize));
+      assertThrows(InvalidKeyException.class, () -> cipher.init(Cipher.ENCRYPT_MODE, key));
+      assertArrayEquals(new byte[keySize], key.encoding, "rejected key encoding was left intact");
+    }
+  }
+
+  @ParameterizedTest(name = "{0}")
   @MethodSource("ivGeneratingNames")
   public void initWithoutSecureRandomStillGetsRandomIv(
       final String transformation, final int keySize) throws Exception {
@@ -125,5 +140,30 @@ public class AesCipherContractTest {
   /** Cipher.getInstance rejects a two-part transformation, so supply the missing padding. */
   private static String transformation(final String name) {
     return name.split("/").length == 3 ? name : name + "/NoPadding";
+  }
+
+  /** Hands out its own array from getEncoded(), so a cipher's cleansing of it is observable. */
+  @SuppressWarnings("serial")
+  private static final class LiveEncodingKey implements SecretKey {
+    private final byte[] encoding;
+
+    private LiveEncodingKey(final byte[] encoding) {
+      this.encoding = encoding;
+    }
+
+    @Override
+    public String getAlgorithm() {
+      return "AES";
+    }
+
+    @Override
+    public String getFormat() {
+      return "RAW";
+    }
+
+    @Override
+    public byte[] getEncoded() {
+      return encoding;
+    }
   }
 }

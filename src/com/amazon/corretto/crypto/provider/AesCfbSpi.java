@@ -10,6 +10,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.InvalidParameterSpecException;
+import java.util.Arrays;
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.CipherSpi;
@@ -154,11 +155,15 @@ class AesCfbSpi extends CipherSpi {
     if (keyBytes == null) {
       throw new InvalidKeyException("Key must support encoding");
     }
+    // AWS-LC has no 192-bit CFB cipher, so the accepted sizes are narrower than Utils.checkAesKey
+    // allows. Rejected keys get cleansed, as that helper does.
     if (keyBytes.length != KEY_LEN_AES128 && keyBytes.length != KEY_LEN_AES256) {
+      Arrays.fill(keyBytes, (byte) 0);
       throw new InvalidKeyException(
           "Key length must be " + KEY_LEN_AES128 + " or " + KEY_LEN_AES256);
     }
     if (fixedKeySizeInBytes != Utils.ANY_AES_KEY_SIZE && keyBytes.length != fixedKeySizeInBytes) {
+      Arrays.fill(keyBytes, (byte) 0);
       throw new InvalidKeyException(
           "Key length must be " + fixedKeySizeInBytes + " for this algorithm");
     }
