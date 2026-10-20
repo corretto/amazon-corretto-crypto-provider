@@ -97,7 +97,7 @@ public class AesTest {
   }
 
   private Object getSpiInstance() throws Throwable {
-    return sneakyConstruct(SPI_CLASS.getName(), NATIVE_PROVIDER);
+    return sneakyConstruct(SPI_CLASS.getName(), NATIVE_PROVIDER, /*fixedKeySizeInBytes*/ 0);
   }
 
   @Test

@@ -95,9 +95,12 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     addService("MessageDigest", "SHA-1", "SHA1Spi");
     addService("MessageDigest", "MD5", "MD5Spi");
 
-    addService("Cipher", "AES/GCM/NoPadding", "AesGcmSpi");
-    addService("Cipher", "AES_128/GCM/NoPadding", "AesGcmSpi");
-    addService("Cipher", "AES_256/GCM/NoPadding", "AesGcmSpi");
+    addAesCipherServices(
+        "AesGcmSpi",
+        /*attributes*/ null,
+        "AES/GCM/NoPadding",
+        "AES_128/GCM/NoPadding",
+        "AES_256/GCM/NoPadding");
 
     addService("Cipher", "AES/KW/NoPadding", "AesKeyWrapSpi", /*attributes*/ null, "AesWrap");
     addService(
@@ -192,32 +195,26 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     addService("Cipher", "AES/XTS/NoPadding", "AesXtsSpi", false);
 
     if (shouldRegisterAesCfb) {
-      addService(
-          "Cipher",
-          "AES/CFB",
+      addAesCipherServices(
           "AesCfbSpi",
-          true,
           singletonMap("SupportedModes", "CFB"),
+          "AES/CFB",
           "AES_128/CFB",
           "AES_256/CFB");
     }
 
-    addService(
-        "Cipher",
-        "AES/CBC",
+    addAesCipherServices(
         "AesCbcSpi",
-        false,
         singletonMap("SupportedModes", "CBC"),
+        "AES/CBC",
         "AES_128/CBC",
         "AES_192/CBC",
         "AES_256/CBC");
 
-    addService(
-        "Cipher",
-        "AES/CTR",
+    addAesCipherServices(
         "AesCtrSpi",
-        true,
         singletonMap("SupportedModes", "CTR"),
+        "AES/CTR",
         "AES_128/CTR",
         "AES_192/CTR",
         "AES_256/CTR");
@@ -327,6 +324,18 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     if (shouldRegisterMLDSA) {
       addService("Signature", "ML-DSA", "EvpSignatureRaw$MLDSA");
       addService("Signature", "ML-DSA-ExtMu", "EvpSignatureRaw$MLDSAExtMu");
+    }
+  }
+
+  /**
+   * Registers one AES Cipher name per entry in {@code algorithms}. An {@code AES_<n>} Standard Name
+   * cannot be an alias of the unrestricted name: the key size it pins is only knowable from the
+   * name the caller looked up, so each pinned name needs a service of its own.
+   */
+  private void addAesCipherServices(
+      final String className, final Map<String, String> attributes, final String... algorithms) {
+    for (final String algorithm : algorithms) {
+      addService("Cipher", algorithm, className, false, attributes);
     }
   }
 
@@ -529,15 +538,28 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
       if ("AES/XTS/NoPadding".equalsIgnoreCase(algo)) {
         return new AesXtsSpi();
       }
-      if (AES_CBC_PKCS7_PADDING_NAMES.contains(algo.toLowerCase())) {
-        return new AesCbcSpi(AesCbcSpi.Padding.PKCS7, saveContext);
+      // An AES_<n> name restricts the SPI to one key size but selects it like the plain AES name.
+      final int fixedKeySize = Utils.aesKeySizeFromAlgorithmName(algo);
+      final String transform = Utils.withoutAesKeySize(algo);
+      if (AES_CBC_PKCS7_PADDING_NAMES.contains(transform.toLowerCase())) {
+        return new AesCbcSpi(AesCbcSpi.Padding.PKCS7, saveContext, fixedKeySize);
       }
-      if (AES_CBC_ISO10126_PADDING_NAMES.contains(algo.toLowerCase())) {
-        return new AesCbcSpi(AesCbcSpi.Padding.ISO10126, saveContext);
+      if (AES_CBC_ISO10126_PADDING_NAMES.contains(transform.toLowerCase())) {
+        return new AesCbcSpi(AesCbcSpi.Padding.ISO10126, saveContext, fixedKeySize);
       }
+      final String upperTransform = transform.toUpperCase();
       // Allow the padding scheme to be set later by defaulting to a no-padding Cipher.
-      if (algo.toUpperCase().startsWith("AES/CBC")) {
-        return new AesCbcSpi(AesCbcSpi.Padding.NONE, saveContext);
+      if (upperTransform.startsWith("AES/CBC")) {
+        return new AesCbcSpi(AesCbcSpi.Padding.NONE, saveContext, fixedKeySize);
+      }
+      if (upperTransform.startsWith("AES/CTR")) {
+        return new AesCtrSpi(AmazonCorrettoCryptoProvider.this, fixedKeySize);
+      }
+      if (upperTransform.startsWith("AES/CFB")) {
+        return new AesCfbSpi(AmazonCorrettoCryptoProvider.this, fixedKeySize);
+      }
+      if (upperTransform.startsWith("AES/GCM")) {
+        return new AesGcmSpi(AmazonCorrettoCryptoProvider.this, fixedKeySize);
       }
       throw new NoSuchAlgorithmException(format("No service class for Cipher/%s", algo));
     }
