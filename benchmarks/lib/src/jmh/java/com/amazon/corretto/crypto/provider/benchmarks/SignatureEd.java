@@ -13,7 +13,7 @@ import org.openjdk.jmh.annotations.Threads;
 
 @State(Scope.Benchmark)
 public class SignatureEd extends SignatureBase {
-    @Param({AmazonCorrettoCryptoProvider.PROVIDER_NAME, "BC", "SunEC"})
+    @Param({AmazonCorrettoCryptoProvider.PROVIDER_NAME, "BC", "SunEC", BenchmarkUtils.JOSTLE_PROVIDER_NAME})
     public String provider;
 
     @Setup

@@ -15,7 +15,7 @@ import org.openjdk.jmh.annotations.State;
 @State(Scope.Benchmark)
 public class KeyGenMLDSA {
 
-    @Param({AmazonCorrettoCryptoProvider.PROVIDER_NAME, "BC"})
+    @Param({AmazonCorrettoCryptoProvider.PROVIDER_NAME, "BC", BenchmarkUtils.JOSTLE_PROVIDER_NAME})
     public String provider;
 
     @Param({"ML-DSA-44", "ML-DSA-65", "ML-DSA-87"})

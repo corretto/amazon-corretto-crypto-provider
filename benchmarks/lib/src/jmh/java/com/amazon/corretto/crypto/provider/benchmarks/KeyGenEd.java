@@ -15,7 +15,7 @@ import org.openjdk.jmh.annotations.State;
 @State(Scope.Benchmark)
 public class KeyGenEd {
 
-    @Param({AmazonCorrettoCryptoProvider.PROVIDER_NAME, "BC", "SunEC"})
+    @Param({AmazonCorrettoCryptoProvider.PROVIDER_NAME, "BC", "SunEC", BenchmarkUtils.JOSTLE_PROVIDER_NAME})
     public String provider;
 
     private KeyPairGenerator kpg;
