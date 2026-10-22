@@ -15,6 +15,7 @@ import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import com.amazon.corretto.crypto.provider.RuntimeCryptoException;
 import com.amazon.corretto.crypto.utils.MlKemUtils;
 import java.security.InvalidAlgorithmParameterException;
+import java.security.Key;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -54,6 +55,7 @@ import org.junit.jupiter.api.parallel.ResourceAccessMode;
 import org.junit.jupiter.api.parallel.ResourceLock;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 @Execution(ExecutionMode.CONCURRENT)
 @ExtendWith(TestResultLogger.class)
@@ -1274,5 +1276,33 @@ public class MlKemTest {
         secretFromSeed.getEncoded(),
         secretFromExpanded.getEncoded(),
         "Seed and expanded keys must produce identical shared secrets for " + paramSet);
+  }
+
+  // Reads getParams() through java.security.AsymmetricKey (JDK 22+), as the JDK itself does.
+  private static String paramsName(Key key) throws Exception {
+    Object spec = Class.forName("java.security.AsymmetricKey").getMethod("getParams").invoke(key);
+    return ((NamedParameterSpec) spec).getName();
+  }
+
+  // getParams() matches SunJCE on generated keys and on a key decoded from SunJCE's encoding.
+  @ParameterizedTest
+  @ValueSource(strings = {"ML-KEM-512", "ML-KEM-768", "ML-KEM-1024"})
+  public void testGetParamsMatchesSunJce(String paramSet) throws Exception {
+    TestUtil.assumeMinimumJavaVersion(24);
+
+    // ACCP
+    KeyPair accpPair = KeyPairGenerator.getInstance(paramSet, NATIVE_PROVIDER).generateKeyPair();
+
+    // SunJCE
+    KeyPair jdkPair = KeyPairGenerator.getInstance(paramSet, "SunJCE").generateKeyPair();
+
+    assertEquals(paramsName(jdkPair.getPublic()), paramsName(accpPair.getPublic()));
+    assertEquals(paramsName(jdkPair.getPrivate()), paramsName(accpPair.getPrivate()));
+
+    // ACCP decodes SunJCE's public key and reports the same parameter set as SunJCE
+    PublicKey decoded =
+        KeyFactory.getInstance("ML-KEM", NATIVE_PROVIDER)
+            .generatePublic(new X509EncodedKeySpec(jdkPair.getPublic().getEncoded()));
+    assertEquals(paramsName(jdkPair.getPublic()), paramsName(decoded));
   }
 }
