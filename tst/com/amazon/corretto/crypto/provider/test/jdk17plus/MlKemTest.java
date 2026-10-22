@@ -1286,6 +1286,8 @@ public class MlKemTest {
   // (the JDK's "keep the parameter set, use this SecureRandom"; jtreg SeedOrExpanded) is allowed.
   @Test
   public void testKeySizeInitializationMatchesSunJce() throws Exception {
+    // TODO: lift the JDK 24+ restriction once OpenJDK backports ML-KEM to its LTS releases:
+    // https://blogs.oracle.com/java/post-quantum-cryptography-in-long-term-support-jdk-releases
     TestUtil.assumeMinimumJavaVersion(24);
     KeyPairGenerator accpGen = KeyPairGenerator.getInstance("ML-KEM-768", NATIVE_PROVIDER);
     KeyPairGenerator jdkGen = KeyPairGenerator.getInstance("ML-KEM-768", "SunJCE");

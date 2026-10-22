@@ -323,6 +323,8 @@ public class MLDSATest {
   // (the JDK's "keep the parameter set, use this SecureRandom"; jtreg SeedOrExpanded) is allowed.
   @Test
   public void testKeySizeInitializationMatchesSun() throws Exception {
+    // TODO: lift the JDK 24+ restriction once OpenJDK backports ML-DSA to its LTS releases:
+    // https://blogs.oracle.com/java/post-quantum-cryptography-in-long-term-support-jdk-releases
     TestUtil.assumeMinimumJavaVersion(24);
     KeyPairGenerator accpGen = KeyPairGenerator.getInstance("ML-DSA-65", NATIVE_PROVIDER);
     KeyPairGenerator sunGen = KeyPairGenerator.getInstance("ML-DSA-65", "SUN");

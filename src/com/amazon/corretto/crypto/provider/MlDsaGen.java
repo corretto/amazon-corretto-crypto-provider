@@ -46,13 +46,13 @@ class MlDsaGen extends KeyPairGeneratorSpi {
   }
 
   /**
-   * ML-DSA has no key size; the parameter set determines everything. Per the {@code
-   * KeyPairGenerator.initialize(int, SecureRandom)} contract, an unsupported key size is reported
-   * with {@code InvalidParameterException}.
+   * ML-DSA key sizes are fixed by the parameter set, so a parameter set can't be selected by key
+   * size. Per the {@code KeyPairGenerator.initialize(int, SecureRandom)} contract, such a request
+   * is rejected with {@code InvalidParameterException}.
    *
    * <p>As in the SUN provider, a keysize of -1 is accepted as a no-op: it is the JDK's convention
    * for supplying a {@code SecureRandom} without changing the parameter set. The {@code random}
-   * parameter is ignored; key generation always draws from AWS-LC's DRBG.
+   * parameter is ignored; key generation always draws from AWS-LC's DRBG (see DIFFERENCES.md).
    */
   @Override
   public void initialize(final int keysize, final SecureRandom random) {
