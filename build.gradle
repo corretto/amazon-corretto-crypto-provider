@@ -888,7 +888,7 @@ if (project.hasProperty('jcecertAlias')) {
     }
 }
 
-// Maven Central Portal publishing (M2), the replacement for the OSSRH flow above. The Portal takes
+// Maven Central Portal publishing, the replacement for the OSSRH flow above. The Portal takes
 // one zip in Maven repository layout and validates it on upload, so there is no staging repository
 // and no staging id to carry between pipeline stages. The jars come in already JCE-signed and
 // GPG-signed from the release workflow's sign job, which is the only place the keys are loaded, so
