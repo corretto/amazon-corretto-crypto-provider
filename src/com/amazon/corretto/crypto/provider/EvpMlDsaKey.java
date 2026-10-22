@@ -17,8 +17,13 @@ abstract class EvpMlDsaKey extends EvpKey {
   MlDsaParameter getParameterSet() {
     MlDsaParameter result = parameterSet;
     if (result == null) {
-      result = MlDsaParameter.fromX509EncodedLength(use(EvpKey::encodePublicKey).length);
-      parameterSet = result;
+      synchronized (this) {
+        result = parameterSet;
+        if (result == null) {
+          result = MlDsaParameter.fromX509EncodedLength(use(EvpKey::encodePublicKey).length);
+          parameterSet = result;
+        }
+      }
     }
     return result;
   }
