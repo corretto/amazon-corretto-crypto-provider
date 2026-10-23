@@ -265,6 +265,9 @@ public class MlKemTest {
     assertThrows(
         InvalidParameterException.class,
         () -> KeyPairGenerator.getInstance("ML-KEM", NATIVE_PROVIDER).initialize(0, random));
+    // -1 is accepted and keeps the parameter set.
+    keyGen.initialize(-1, random);
+    assertEquals("ML-KEM-768", keyGen.generateKeyPair().getPublic().getAlgorithm());
   }
 
   @Test

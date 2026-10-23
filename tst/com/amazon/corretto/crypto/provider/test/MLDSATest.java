@@ -176,6 +176,9 @@ public class MLDSATest {
     assertThrows(InvalidParameterException.class, () -> keyGen.initialize(0));
     assertThrows(InvalidParameterException.class, () -> keyGen.initialize(-2, new SecureRandom()));
     assertThrows(InvalidParameterException.class, () -> keyGen.initialize(2048));
+    // -1 is accepted, and the generator still produces keys.
+    keyGen.initialize(-1, new SecureRandom());
+    assertNotNull(keyGen.generateKeyPair());
   }
 
   @Test
