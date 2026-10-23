@@ -7,14 +7,15 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.spec.AlgorithmParameterSpec;
 
 /**
- * Reflective access to {@code java.security.spec.NamedParameterSpec}, shared by the ML-KEM and
- * ML-DSA KeyPairGenerators so they agree on which specs are well-formed.
+ * Extracts the parameter set name from an {@code AlgorithmParameterSpec} passed to the ML-KEM and
+ * ML-DSA KeyPairGenerators, so both accept the same spec types: {@code
+ * java.security.spec.NamedParameterSpec} and other providers' specs exposing {@code getName()}.
  */
 final class NamedParameterSpecs {
   // java.security.spec.NamedParameterSpec is a JDK 11+ type not available at ACCP's bytecode
   // target, so it and its getName() accessor are resolved reflectively once, here. Both are null
-  // only on JDK 10 and older (see the static initializer), where initialize(spec, ...) rejects all
-  // specs, which is correct there.
+  // only on JDK 10 and older (see the static initializer), where only other providers' specs can
+  // name a parameter set.
   private static final Class<?> NAMED_PARAMETER_SPEC_CLASS;
   private static final Method NAMED_PARAMETER_SPEC_GET_NAME;
 
@@ -72,9 +73,9 @@ final class NamedParameterSpecs {
   }
 
   // Some providers name a parameter set with their own spec type, exposing it through the same
-  // public getName() accessor. BouncyCastle's MLKEMParameterSpec is the one that matters: its TLS
-  // stack initializes KeyPairGenerator.getInstance("ML-KEM") with one, and BC's own generic ML-KEM
-  // generator accepts either shape there (see BC's SpecUtil.getNameFrom).
+  // public getName() accessor. BouncyCastle's MLKEMParameterSpec and MLDSAParameterSpec are the
+  // ones that matter: BC's TLS stack initializes KeyPairGenerator.getInstance("ML-KEM") with the
+  // former, and BC's own generators accept either shape (see BC's SpecUtil.getNameFrom).
   //
   // Returns null when the name is not readable. Unlike NamedParameterSpec, that means "unsupported
   // spec" rather than a broken runtime, since any spec reaching here belongs to another provider.

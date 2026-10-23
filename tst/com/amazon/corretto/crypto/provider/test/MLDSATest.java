@@ -28,6 +28,7 @@ import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import org.bouncycastle.jcajce.spec.MLDSAParameterSpec;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledIf;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -235,6 +236,34 @@ public class MLDSATest {
             () -> keyGen.initialize(TestUtil.namedParameterSpec(other)));
       }
     }
+  }
+
+  // BouncyCastle names ML-DSA parameter sets with its own MLDSAParameterSpec rather than
+  // NamedParameterSpec. Both generators accept it, and the strict services still reject a spec
+  // naming a different (or HashML-DSA) parameter set.
+  @ParameterizedTest
+  @ValueSource(strings = {"ML-DSA-44", "ML-DSA-65", "ML-DSA-87"})
+  public void testKeyPairGeneratorAcceptsBouncyCastleSpec(String paramSet) throws Exception {
+    MLDSAParameterSpec bcSpec = MLDSAParameterSpec.fromName(paramSet);
+
+    KeyPairGenerator generic = KeyPairGenerator.getInstance("ML-DSA", NATIVE_PROVIDER);
+    generic.initialize(bcSpec);
+    assertEquals(
+        publicKeyLength(paramSet), generic.generateKeyPair().getPublic().getEncoded().length);
+
+    KeyPairGenerator specific = KeyPairGenerator.getInstance(paramSet, NATIVE_PROVIDER);
+    specific.initialize(bcSpec);
+    assertEquals(
+        publicKeyLength(paramSet), specific.generateKeyPair().getPublic().getEncoded().length);
+
+    assertThrows(
+        InvalidAlgorithmParameterException.class,
+        () ->
+            KeyPairGenerator.getInstance("ML-DSA-65", NATIVE_PROVIDER)
+                .initialize(MLDSAParameterSpec.ml_dsa_44));
+    assertThrows(
+        InvalidAlgorithmParameterException.class,
+        () -> generic.initialize(MLDSAParameterSpec.ml_dsa_44_with_sha512));
   }
 
   @Test
