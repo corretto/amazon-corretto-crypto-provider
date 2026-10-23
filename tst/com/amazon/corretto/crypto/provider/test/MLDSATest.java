@@ -12,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import com.amazon.corretto.crypto.utils.MlDsaUtils;
+import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
@@ -19,12 +20,15 @@ import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
 import java.security.Provider;
 import java.security.PublicKey;
+import java.security.SecureRandom;
 import java.security.Signature;
+import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import org.bouncycastle.jcajce.spec.MLDSAParameterSpec;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledIf;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -166,6 +170,102 @@ public class MLDSATest {
     assertEquals("ML-DSA", keyPair.getPublic().getAlgorithm());
   }
 
+  // Encoded public key length uniquely identifies the ML-DSA parameter set.
+  private static int publicKeyLength(String paramSet) throws Exception {
+    return KeyPairGenerator.getInstance(paramSet, NATIVE_PROVIDER)
+        .generateKeyPair()
+        .getPublic()
+        .getEncoded()
+        .length;
+  }
+
+  @Test
+  public void testGenericKeyPairGeneratorDefaultsTo44() throws Exception {
+    KeyPairGenerator keyGen = KeyPairGenerator.getInstance("ML-DSA", NATIVE_PROVIDER);
+    assertEquals(
+        publicKeyLength("ML-DSA-44"), keyGen.generateKeyPair().getPublic().getEncoded().length);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"ML-DSA-44", "ML-DSA-65", "ML-DSA-87"})
+  public void testGenericKeyPairGeneratorIsParameterSetSelectable(String paramSet)
+      throws Exception {
+    TestUtil.assumeMinimumJavaVersion(11);
+    KeyPairGenerator keyGen = KeyPairGenerator.getInstance("ML-DSA", NATIVE_PROVIDER);
+    keyGen.initialize(TestUtil.namedParameterSpec(paramSet));
+    assertEquals(
+        publicKeyLength(paramSet), keyGen.generateKeyPair().getPublic().getEncoded().length);
+    // Lower-case names are accepted too, matching the JCA's case-insensitive algorithm names.
+    keyGen.initialize(TestUtil.namedParameterSpec(paramSet.toLowerCase()), new SecureRandom());
+    assertEquals(
+        publicKeyLength(paramSet), keyGen.generateKeyPair().getPublic().getEncoded().length);
+  }
+
+  @Test
+  public void testGenericKeyPairGeneratorRejectsInvalidSpecs() throws Exception {
+    TestUtil.assumeMinimumJavaVersion(11);
+    KeyPairGenerator keyGen = KeyPairGenerator.getInstance("ML-DSA", NATIVE_PROVIDER);
+    assertThrows(
+        InvalidAlgorithmParameterException.class,
+        () -> keyGen.initialize(TestUtil.namedParameterSpec("ML-DSA-99")));
+    assertThrows(
+        InvalidAlgorithmParameterException.class,
+        () -> keyGen.initialize(TestUtil.namedParameterSpec("ML-KEM-768")));
+    assertThrows(
+        InvalidAlgorithmParameterException.class,
+        () -> keyGen.initialize((AlgorithmParameterSpec) null));
+    assertThrows(
+        InvalidAlgorithmParameterException.class,
+        () -> keyGen.initialize(new AlgorithmParameterSpec() {}));
+  }
+
+  // A parameter-set-specific generator accepts a spec naming its own set and rejects any other, so
+  // it never silently produces a key of the wrong parameter set.
+  @ParameterizedTest
+  @ValueSource(strings = {"ML-DSA-44", "ML-DSA-65", "ML-DSA-87"})
+  public void testSpecificKeyPairGeneratorsRemainStrict(String paramSet) throws Exception {
+    TestUtil.assumeMinimumJavaVersion(11);
+    KeyPairGenerator keyGen = KeyPairGenerator.getInstance(paramSet, NATIVE_PROVIDER);
+    keyGen.initialize(TestUtil.namedParameterSpec(paramSet));
+    assertEquals(
+        publicKeyLength(paramSet), keyGen.generateKeyPair().getPublic().getEncoded().length);
+    for (String other : new String[] {"ML-DSA-44", "ML-DSA-65", "ML-DSA-87"}) {
+      if (!other.equals(paramSet)) {
+        assertThrows(
+            InvalidAlgorithmParameterException.class,
+            () -> keyGen.initialize(TestUtil.namedParameterSpec(other)));
+      }
+    }
+  }
+
+  // BouncyCastle names ML-DSA parameter sets with its own MLDSAParameterSpec rather than
+  // NamedParameterSpec. Both generators accept it, and the strict services still reject a spec
+  // naming a different (or HashML-DSA) parameter set.
+  @ParameterizedTest
+  @ValueSource(strings = {"ML-DSA-44", "ML-DSA-65", "ML-DSA-87"})
+  public void testKeyPairGeneratorAcceptsBouncyCastleSpec(String paramSet) throws Exception {
+    MLDSAParameterSpec bcSpec = MLDSAParameterSpec.fromName(paramSet);
+
+    KeyPairGenerator generic = KeyPairGenerator.getInstance("ML-DSA", NATIVE_PROVIDER);
+    generic.initialize(bcSpec);
+    assertEquals(
+        publicKeyLength(paramSet), generic.generateKeyPair().getPublic().getEncoded().length);
+
+    KeyPairGenerator specific = KeyPairGenerator.getInstance(paramSet, NATIVE_PROVIDER);
+    specific.initialize(bcSpec);
+    assertEquals(
+        publicKeyLength(paramSet), specific.generateKeyPair().getPublic().getEncoded().length);
+
+    assertThrows(
+        InvalidAlgorithmParameterException.class,
+        () ->
+            KeyPairGenerator.getInstance("ML-DSA-65", NATIVE_PROVIDER)
+                .initialize(MLDSAParameterSpec.ml_dsa_44));
+    assertThrows(
+        InvalidAlgorithmParameterException.class,
+        () -> generic.initialize(MLDSAParameterSpec.ml_dsa_44_with_sha512));
+  }
+
   @Test
   public void testKeyFactorySelfConversion() throws Exception {
     KeyPairGenerator keyGen = KeyPairGenerator.getInstance("ML-DSA", NATIVE_PROVIDER);
@@ -305,5 +405,39 @@ public class MLDSATest {
     extMuVerifier.initVerify(pub);
     extMuVerifier.update(mu);
     assertFalse(extMuVerifier.verify(signatureBytes));
+  }
+
+  // initialize(NamedParameterSpec) matches SUN: the generic ML-DSA generator accepts a spec
+  // selecting any parameter set; a parameter-set-specific generator rejects a spec naming another.
+  @Test
+  public void testNamedParameterSpecInitializationMatchesSun() throws Exception {
+    TestUtil.assumeMinimumJavaVersion(24);
+    AlgorithmParameterSpec mlDsa87 = TestUtil.namedParameterSpec("ML-DSA-87");
+
+    // ACCP: the generic generator selects ML-DSA-87
+    KeyPairGenerator accpGeneric = KeyPairGenerator.getInstance("ML-DSA", NATIVE_PROVIDER);
+    accpGeneric.initialize(mlDsa87);
+    KeyPair accpPair = accpGeneric.generateKeyPair();
+
+    // SUN: the generic generator selects ML-DSA-87
+    KeyPairGenerator sunGeneric = KeyPairGenerator.getInstance("ML-DSA", "SUN");
+    sunGeneric.initialize(mlDsa87);
+    KeyPair sunPair = sunGeneric.generateKeyPair();
+
+    assertEquals(sunPair.getPublic().getEncoded().length, accpPair.getPublic().getEncoded().length);
+
+    // ACCP: the ML-DSA-44 generator rejects a spec naming ML-DSA-87, and a null spec
+    KeyPairGenerator accp44 = KeyPairGenerator.getInstance("ML-DSA-44", NATIVE_PROVIDER);
+    assertThrows(InvalidAlgorithmParameterException.class, () -> accp44.initialize(mlDsa87));
+    assertThrows(
+        InvalidAlgorithmParameterException.class,
+        () -> accp44.initialize((AlgorithmParameterSpec) null));
+
+    // SUN: the ML-DSA-44 generator rejects a spec naming ML-DSA-87, and a null spec
+    KeyPairGenerator sun44 = KeyPairGenerator.getInstance("ML-DSA-44", "SUN");
+    assertThrows(InvalidAlgorithmParameterException.class, () -> sun44.initialize(mlDsa87));
+    assertThrows(
+        InvalidAlgorithmParameterException.class,
+        () -> sun44.initialize((AlgorithmParameterSpec) null));
   }
 }
