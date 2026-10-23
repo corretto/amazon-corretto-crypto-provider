@@ -144,3 +144,46 @@ jobs:
           name: accp-signed-${{ inputs.signing-keys }}
           path: signed/
           if-no-files-found: error
+
+  # Loads each signed platform jar as the JCA provider on every supported JDK.
+  smoke-test:
+    name: Smoke ${{ matrix.platform }}${{ matrix.fips && ' FIPS' || '' }} on JDK ${{ matrix.jdk }}
+    needs: sign
+    runs-on:
+      - codebuild-accp-gha-${{ matrix.codebuild-arch }}-${{ github.run_id }}-${{ github.run_attempt }}
+      - smoke-${{ matrix.platform }}-${{ matrix.fips && 'fips' || 'nonfips' }}-jdk${{ matrix.jdk }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [linux-x86_64, linux-aarch_64]
+        fips: [false, true]
+        jdk: ['8', '11', '17', '21']
+        include:
+          - platform: linux-x86_64
+            codebuild-arch: x86_64
+          - platform: linux-aarch_64
+            codebuild-arch: aarch64
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: tests/ci/release
+          persist-credentials: false
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: accp-signed-${{ inputs.signing-keys }}
+          path: signed
+
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          java-version: ${{ matrix.jdk }}
+          distribution: 'corretto'
+
+      - name: Run smoke test
+        run: |
+          prefix=AmazonCorrettoCryptoProvider${{ matrix.fips && '-FIPS' || '' }}
+          jar=$(ls signed/$prefix-[0-9]*-${{ matrix.platform }}.jar)
+          version=$(basename "$jar" | sed -E "s/^$prefix-(.+)-${{ matrix.platform }}\.jar$/\1/")
+          mkdir classes
+          javac -cp "$jar" -d classes tests/ci/release/ReleaseSmokeTest.java
+          java -cp "$jar:classes" ReleaseSmokeTest "$version" ${{ matrix.fips }}
