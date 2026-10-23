@@ -19,6 +19,7 @@ import java.security.SecureRandom;
 import java.security.Security;
 import java.security.interfaces.ECPublicKey;
 import java.security.spec.ECGenParameterSpec;
+import java.util.Arrays;
 import javax.crypto.KeyAgreement;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -120,6 +121,33 @@ public class EvpKeyAgreementSpecificTest {
     final KeyPair x448KeyPair = KeyPairGenerator.getInstance("X448").generateKeyPair();
     final KeyAgreement accpAgreement = KeyAgreement.getInstance("XDH", NATIVE_PROVIDER);
     assertThrows(InvalidKeyException.class, () -> accpAgreement.init(x448KeyPair.getPrivate()));
+  }
+
+  // An AES size that is valid in the abstract but larger than the agreed secret must be rejected
+  // before the secret is consumed, so a caller can fall back to a shorter key. Reaching that case
+  // needs an agreement shorter than 32 bytes, which every parameter set in EvpKeyAgreementTest
+  // exceeds; P-224 agrees on 28.
+  @Test
+  public void oversizedAesKeyLeavesSecretIntact() throws Exception {
+    final KeyPairGenerator gen = KeyPairGenerator.getInstance("EC", NATIVE_PROVIDER);
+    gen.initialize(new ECGenParameterSpec("secp224r1"));
+    final KeyPair alice = gen.generateKeyPair();
+    final KeyPair bob = gen.generateKeyPair();
+
+    final KeyAgreement agreement = KeyAgreement.getInstance("ECDH", NATIVE_PROVIDER);
+    agreement.init(alice.getPrivate());
+    agreement.doPhase(bob.getPublic(), true);
+
+    // The peer side of the same agreement, so the expected bytes are known independently.
+    final KeyAgreement peer = KeyAgreement.getInstance("ECDH", NATIVE_PROVIDER);
+    peer.init(bob.getPrivate());
+    peer.doPhase(alice.getPublic(), true);
+    final byte[] agreedSecret = peer.generateSecret();
+
+    assertThrows(InvalidKeyException.class, () -> agreement.generateSecret("AES[32]"));
+    // Still usable, and still the same agreement: 28 bytes supplies AES-192 but not AES-256.
+    assertArrayEquals(
+        Arrays.copyOf(agreedSecret, 24), agreement.generateSecret("AES").getEncoded());
   }
 
   @Test
