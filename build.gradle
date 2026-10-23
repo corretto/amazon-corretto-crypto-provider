@@ -490,6 +490,24 @@ task src_jar {
     }
 }
 
+// Copies build/lib jars to build/release under their Maven Central names; build/lib keeps the
+// unversioned names that fakePublish and tests/ci scripts expect.
+task release_jars(type: Copy) {
+    dependsOn build, src_jar, accp_javadoc
+    // accp_javadoc does not depend on the generated hash SPI sources that build_objects creates.
+    accp_javadoc.mustRunAfter build
+    def projectName = isFips ? project.name + "-FIPS" : project.name
+    def prefix = "${projectName}-${version}"
+    from("${buildDir}/lib") {
+        include 'AmazonCorrettoCryptoProvider.jar'
+        include 'AmazonCorrettoCryptoProvider-sources.jar'
+        include 'AmazonCorrettoCryptoProvider-javadoc.jar'
+    }
+    into "${buildDir}/release"
+    rename '^AmazonCorrettoCryptoProvider\\.jar$', "${prefix}-${osdetector.classifier}.jar"
+    rename '^AmazonCorrettoCryptoProvider-(sources|javadoc)\\.jar$', "${prefix}-\$1.jar"
+}
+
 task test_extra_checks_exec(type: Exec) {
     dependsOn executeCmake
     workingDir "${buildDir}/cmake"
