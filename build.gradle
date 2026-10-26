@@ -890,39 +890,57 @@ if (project.hasProperty('jcecertAlias')) {
 
 // Maven Central Portal publishing, the replacement for the OSSRH flow above. The Portal takes
 // one zip in Maven repository layout and validates it on upload, so there is no staging repository
-// and no staging id to carry between pipeline stages. The jars come in already JCE-signed and
-// GPG-signed from the release workflow's sign job, which is the only place the keys are loaded, so
-// this path only lays artifacts out, checks every one is signed, and zips them.
+// and no staging id to carry between pipeline stages. The platform jars come in already JCE-signed
+// and GPG-signed from the release workflow's sign job, which is the only place the signing keys are
+// loaded, so this path only lays artifacts out, checks every one is signed, and zips them.
 //
-//   ./gradlew -PsignedJarsDir=<dir> [-DFIPS=true] centralPortalBundle
-if (project.hasProperty('signedJarsDir')) {
-    def signedJars = file(project.property('signedJarsDir'))
-    def accpArtifactId = isFips ? project.name + '-FIPS' : project.name
-    def jarPrefix = "${accpArtifactId}-${version}"
-    def bundleDir = file("${buildDir}/portal/bundle")
+// The POM and the empty main jar are declared unconditionally below (unlike the platform jars) so
+// generatePomFileForCentralPortalPublication and emptyJar can run before signedJarsDir exists,
+// letting release_jars carry them into the sign job's input directory alongside the platform jars.
+def accpArtifactId = isFips ? project.name + '-FIPS' : project.name
+def jarPrefix = "${accpArtifactId}-${version}"
+def bundleDir = file("${buildDir}/portal/bundle")
+def signedJars = project.hasProperty('signedJarsDir') ? file(project.property('signedJarsDir')) : null
 
-    publishing {
-        publications {
-            centralPortal(MavenPublication) {
-                artifactId = accpArtifactId
-                // The main artifact is an empty jar: ACCP ships native code, so every jar with
-                // content carries a platform classifier. This mirrors the OSSRH publication.
-                artifact emptyJar
+publishing {
+    publications {
+        centralPortal(MavenPublication) {
+            artifactId = accpArtifactId
+            // The main artifact is an empty jar: ACCP ships native code, so every jar with
+            // content carries a platform classifier. This mirrors the OSSRH publication.
+            artifact emptyJar
+            if (project.hasProperty('signedJarsDir')) {
                 artifact source: file("${signedJars}/${jarPrefix}-linux-x86_64.jar"), classifier: 'linux-x86_64', extension: 'jar'
                 artifact source: file("${signedJars}/${jarPrefix}-linux-aarch_64.jar"), classifier: 'linux-aarch_64', extension: 'jar'
                 artifact source: file("${signedJars}/${jarPrefix}-sources.jar"), classifier: 'sources', extension: 'jar'
                 artifact source: file("${signedJars}/${jarPrefix}-javadoc.jar"), classifier: 'javadoc', extension: 'jar'
-                configureAccpPom(pom, isFips)
             }
-        }
-        repositories {
-            maven {
-                name = 'portal'
-                url = bundleDir
-            }
+            configureAccpPom(pom, isFips)
         }
     }
+    repositories {
+        maven {
+            name = 'portal'
+            url = bundleDir
+        }
+    }
+}
 
+// Carries the POM and empty main jar to build/release under their Maven Central names, unsigned,
+// so the release workflow can fold them into the sign job's input directory the same way it
+// already does for the platform jars (see release_jars).
+task release_portal_metadata(type: Copy) {
+    dependsOn generatePomFileForCentralPortalPublication, emptyJar
+    from(generatePomFileForCentralPortalPublication.destination) {
+        rename '.*', "${jarPrefix}.pom"
+    }
+    from(emptyJar.archiveFile) {
+        rename '.*', "${jarPrefix}.jar"
+    }
+    into "${buildDir}/release"
+}
+
+if (project.hasProperty('signedJarsDir')) {
     // Gradle Module Metadata describes variants this publication does not have, and the Portal would
     // require a signature for it like any other file.
     tasks.named('generateMetadataFileForCentralPortalPublication') {
@@ -937,9 +955,10 @@ if (project.hasProperty('signedJarsDir')) {
         destinationDirectory = file("${buildDir}/portal")
 
         // Copy the detached signatures in alongside the artifacts they cover. The sign job emits one
-        // .asc per jar; the POM and the empty main jar are generated here, so they have none yet.
-        // The sign job holds both variants in one directory, and the FIPS artifactId carries -FIPS
-        // ahead of the version, so matching on the full prefix keeps the two bundles apart.
+        // .asc per file in signedJarsDir, including the POM and empty main jar that release_portal_metadata
+        // put there ahead of signing. The sign job holds both variants in one directory, and the FIPS
+        // artifactId carries -FIPS ahead of the version, so matching on the full prefix keeps the two
+        // bundles apart.
         from(signedJars) {
             include "${jarPrefix}*.asc"
             into "software/amazon/cryptools/${accpArtifactId}/${version}"
