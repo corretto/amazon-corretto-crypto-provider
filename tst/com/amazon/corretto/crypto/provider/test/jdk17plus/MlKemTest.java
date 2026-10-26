@@ -15,6 +15,7 @@ import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import com.amazon.corretto.crypto.provider.RuntimeCryptoException;
 import com.amazon.corretto.crypto.utils.MlKemUtils;
 import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
 import java.security.InvalidParameterException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
@@ -1314,5 +1315,24 @@ public class MlKemTest {
     KeyPair jdkPair = jdkGen.generateKeyPair();
 
     assertEquals(jdkPair.getPublic().getEncoded().length, accpPair.getPublic().getEncoded().length);
+  }
+
+  // KeyFactory null handling matches SunJCE: a null spec throws InvalidKeySpecException and a null
+  // key throws InvalidKeyException, never NullPointerException.
+  @Test
+  public void testKeyFactoryNullInputsMatchSunJce() throws Exception {
+    TestUtil.assumeMinimumJavaVersion(24);
+
+    // ACCP
+    KeyFactory accpKf = KeyFactory.getInstance("ML-KEM", NATIVE_PROVIDER);
+    assertThrows(InvalidKeySpecException.class, () -> accpKf.generatePublic(null));
+    assertThrows(InvalidKeySpecException.class, () -> accpKf.generatePrivate(null));
+    assertThrows(InvalidKeyException.class, () -> accpKf.translateKey(null));
+
+    // SunJCE
+    KeyFactory jdkKf = KeyFactory.getInstance("ML-KEM", "SunJCE");
+    assertThrows(InvalidKeySpecException.class, () -> jdkKf.generatePublic(null));
+    assertThrows(InvalidKeySpecException.class, () -> jdkKf.generatePrivate(null));
+    assertThrows(InvalidKeyException.class, () -> jdkKf.translateKey(null));
   }
 }
