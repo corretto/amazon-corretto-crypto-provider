@@ -292,6 +292,19 @@ public class EvpKeyFactoryTest {
     assertThrows(InvalidKeyException.class, () -> nativeFactory.translateKey(nullPrivateKey));
   }
 
+  // The KeyFactory contract requires InvalidKeySpecException, not NullPointerException, for a null
+  // KeySpec (JCK KeyFactoryTests generatePublic_nullKeySpec).
+  @ParameterizedTest(name = "{1}")
+  @MethodSource("allPairs")
+  public void nullKeySpec(final KeyPair keyPair, final String testName) throws Exception {
+    final KeyFactory nativeFactory =
+        KeyFactory.getInstance(keyPair.getPublic().getAlgorithm(), NATIVE_PROVIDER);
+
+    assertThrows(InvalidKeySpecException.class, () -> nativeFactory.generatePublic(null));
+
+    assertThrows(InvalidKeySpecException.class, () -> nativeFactory.generatePrivate(null));
+  }
+
   @ParameterizedTest(name = "{1}")
   @MethodSource("allPairs")
   public void nullFormat(final KeyPair keyPair, final String testName) throws Exception {
