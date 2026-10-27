@@ -84,7 +84,10 @@ ACCP's NONEwithRSA differs from Sun and BouncyCastle's `NONEwithRSA` in the foll
 To prevent callers from corrupting their signatures, we forbid them from updating a Signature's PSSParameterSpec while they are still updating a Signature object. Once the Signature has been updated, it must be reset, `sign()`'d, or `verify`'d before the PSS parameters may be updated. If a caller attempts to call `Signature.setParameter(...)` while a Signature instance has buffered data, we will throw an `IllegalStateException`.
 
 ## ML-KEM ignores caller-supplied SecureRandom
-For ML-KEM key generation (`KeyPairGenerator`) and KEM encapsulation (`KEM.newEncapsulator`), ACCP accepts but ignores any caller-supplied `SecureRandom`; AWS-LC always draws ML-KEM randomness from its own DRBG. Passing a custom `SecureRandom` (for example to force a specific entropy source) has no effect on these operations.
+For ML-KEM key generation (`KeyPairGenerator`) and KEM encapsulation (`KEM.newEncapsulator`), ACCP accepts but ignores any caller-supplied `SecureRandom`; AWS-LC always draws ML-KEM randomness from its own DRBG. Passing a custom `SecureRandom` (for example to force a specific entropy source) has no effect on these operations. This includes `KeyPairGenerator.initialize(-1, random)`, which ACCP accepts (as SunJCE does) without changing the parameter set.
+
+## ML-DSA ignores caller-supplied SecureRandom
+For ML-DSA key generation (`KeyPairGenerator`) and signing (`Signature.initSign(PrivateKey, SecureRandom)`), ACCP accepts but ignores any caller-supplied `SecureRandom`; AWS-LC always draws ML-DSA randomness from its own DRBG. This includes `KeyPairGenerator.initialize(-1, random)`, which ACCP accepts (as SUN does) without changing the parameter set. As a result, a deterministic `SecureRandom` does not produce deterministic ML-DSA keys or signatures.
 
 # Extensions
 Applications are unlikely to directly encounter any of these changes but may choose to take advantage of them.
