@@ -14,6 +14,7 @@ import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import com.amazon.corretto.crypto.utils.MlDsaUtils;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
+import java.security.InvalidParameterException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -266,6 +267,19 @@ public class MLDSATest {
         InvalidAlgorithmParameterException.class,
         () -> generic.initialize(MLDSAParameterSpec.ml_dsa_44_with_sha512));
   }
+  
+  // The KeyPairGenerator contract requires InvalidParameterException for an unsupported key size.
+  @ParameterizedTest
+  @ValueSource(strings = {"ML-DSA", "ML-DSA-44", "ML-DSA-65", "ML-DSA-87"})
+  public void testKeySizeInitializationRejected(String algo) throws Exception {
+    KeyPairGenerator keyGen = KeyPairGenerator.getInstance(algo, NATIVE_PROVIDER);
+    assertThrows(InvalidParameterException.class, () -> keyGen.initialize(0));
+    assertThrows(InvalidParameterException.class, () -> keyGen.initialize(-2, new SecureRandom()));
+    assertThrows(InvalidParameterException.class, () -> keyGen.initialize(2048));
+    // -1 is accepted, and the generator still produces keys.
+    keyGen.initialize(-1, new SecureRandom());
+    assertNotNull(keyGen.generateKeyPair());
+  }
 
   @Test
   public void testKeyFactorySelfConversion() throws Exception {
@@ -440,6 +454,37 @@ public class MLDSATest {
     assertThrows(
         InvalidAlgorithmParameterException.class,
         () -> sun44.initialize((AlgorithmParameterSpec) null));
+  }
+  
+  // initialize(int) matches SUN: unsupported key sizes throw InvalidParameterException, but -1
+  // (the JDK's "keep the parameter set, use this SecureRandom"; jtreg SeedOrExpanded) is allowed.
+  @Test
+  public void testKeySizeInitializationMatchesSun() throws Exception {
+    // TODO: lift the JDK 24+ restriction once OpenJDK backports ML-DSA to its LTS releases:
+    // https://blogs.oracle.com/java/post-quantum-cryptography-in-long-term-support-jdk-releases
+    TestUtil.assumeMinimumJavaVersion(24);
+    KeyPairGenerator accpGen = KeyPairGenerator.getInstance("ML-DSA-65", NATIVE_PROVIDER);
+    KeyPairGenerator sunGen = KeyPairGenerator.getInstance("ML-DSA-65", "SUN");
+
+    // ACCP: unsupported key sizes are rejected
+    assertThrows(InvalidParameterException.class, () -> accpGen.initialize(0));
+    assertThrows(
+        InvalidParameterException.class, () -> accpGen.initialize(2048, new SecureRandom()));
+
+    // SUN: unsupported key sizes are rejected
+    assertThrows(InvalidParameterException.class, () -> sunGen.initialize(0));
+    assertThrows(
+        InvalidParameterException.class, () -> sunGen.initialize(2048, new SecureRandom()));
+
+    // ACCP: -1 is accepted and keeps the parameter set
+    accpGen.initialize(-1, new SecureRandom());
+    KeyPair accpPair = accpGen.generateKeyPair();
+
+    // SUN: -1 is accepted and keeps the parameter set
+    sunGen.initialize(-1, new SecureRandom());
+    KeyPair sunPair = sunGen.generateKeyPair();
+
+    assertEquals(sunPair.getPublic().getEncoded().length, accpPair.getPublic().getEncoded().length);
   }
 
   // KeyFactory null handling matches SUN: a null spec throws InvalidKeySpecException and a null
