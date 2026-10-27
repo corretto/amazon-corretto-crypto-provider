@@ -267,7 +267,7 @@ public class MLDSATest {
         InvalidAlgorithmParameterException.class,
         () -> generic.initialize(MLDSAParameterSpec.ml_dsa_44_with_sha512));
   }
-  
+
   // The KeyPairGenerator contract requires InvalidParameterException for an unsupported key size.
   @ParameterizedTest
   @ValueSource(strings = {"ML-DSA", "ML-DSA-44", "ML-DSA-65", "ML-DSA-87"})
@@ -455,7 +455,7 @@ public class MLDSATest {
         InvalidAlgorithmParameterException.class,
         () -> sun44.initialize((AlgorithmParameterSpec) null));
   }
-  
+
   // initialize(int) matches SUN: unsupported key sizes throw InvalidParameterException, but -1
   // (the JDK's "keep the parameter set, use this SecureRandom"; jtreg SeedOrExpanded) is allowed.
   @Test
