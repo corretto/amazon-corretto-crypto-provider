@@ -311,7 +311,7 @@ public class EvpKeyFactoryTest {
 
     assertArrayEquals(foreign.getPrivate().getEncoded(), translated.getEncoded());
   }
-  
+
   // The KeyFactory contract requires InvalidKeySpecException, not NullPointerException, for a null
   // KeySpec (JCK KeyFactoryTests generatePublic_nullKeySpec).
   @ParameterizedTest(name = "{1}")

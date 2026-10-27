@@ -169,31 +169,6 @@ public class MLDSATest {
     assertEquals("ML-DSA", keyPair.getPublic().getAlgorithm());
   }
 
-  // jtreg SeedOrExpanded: a key returned by KeyFactory.translateKey is used to sign and then
-  // re-encoded. It must survive the Signature operation rather than being released as ephemeral.
-  @Test
-  public void testTranslatedKeyRemainsUsableAfterSigning() throws Exception {
-    KeyPair bcPair =
-        KeyPairGenerator.getInstance("ML-DSA-65", TestUtil.BC_PROVIDER).generateKeyPair();
-    KeyFactory keyFactory = KeyFactory.getInstance("ML-DSA", NATIVE_PROVIDER);
-    PrivateKey translated = (PrivateKey) keyFactory.translateKey(bcPair.getPrivate());
-
-    Signature signer = Signature.getInstance("ML-DSA", NATIVE_PROVIDER);
-    for (int i = 0; i < 2; i++) {
-      signer.initSign(translated);
-      signer.update(new byte[] {1, 2, 3});
-      signer.sign();
-    }
-
-    assertNotNull(translated.getEncoded());
-    // Re-parsing ACCP's encoding yields a key that still signs.
-    PrivateKey reparsed =
-        keyFactory.generatePrivate(new PKCS8EncodedKeySpec(translated.getEncoded()));
-    signer.initSign(reparsed);
-    signer.update(new byte[] {4, 5, 6});
-    assertNotNull(signer.sign());
-  }
-  
   // The KeyPairGenerator contract requires InvalidParameterException for an unsupported key size.
   @ParameterizedTest
   @ValueSource(strings = {"ML-DSA", "ML-DSA-44", "ML-DSA-65", "ML-DSA-87"})
@@ -221,6 +196,31 @@ public class MLDSATest {
     byte[] privateKeyEncoded = originalKeyPair.getPrivate().getEncoded();
     PrivateKey privateKey = keyFactory.generatePrivate(new PKCS8EncodedKeySpec(privateKeyEncoded));
     assertArrayEquals(privateKeyEncoded, privateKey.getEncoded());
+  }
+
+  // jtreg SeedOrExpanded: a key returned by KeyFactory.translateKey is used to sign and then
+  // re-encoded. It must survive the Signature operation rather than being released as ephemeral.
+  @Test
+  public void testTranslatedKeyRemainsUsableAfterSigning() throws Exception {
+    KeyPair bcPair =
+        KeyPairGenerator.getInstance("ML-DSA-65", TestUtil.BC_PROVIDER).generateKeyPair();
+    KeyFactory keyFactory = KeyFactory.getInstance("ML-DSA", NATIVE_PROVIDER);
+    PrivateKey translated = (PrivateKey) keyFactory.translateKey(bcPair.getPrivate());
+
+    Signature signer = Signature.getInstance("ML-DSA", NATIVE_PROVIDER);
+    for (int i = 0; i < 2; i++) {
+      signer.initSign(translated);
+      signer.update(new byte[] {1, 2, 3});
+      signer.sign();
+    }
+
+    assertNotNull(translated.getEncoded());
+    // Re-parsing ACCP's encoding yields a key that still signs.
+    PrivateKey reparsed =
+        keyFactory.generatePrivate(new PKCS8EncodedKeySpec(translated.getEncoded()));
+    signer.initSign(reparsed);
+    signer.update(new byte[] {4, 5, 6});
+    assertNotNull(signer.sign());
   }
 
   @Test
@@ -348,41 +348,6 @@ public class MLDSATest {
     assertFalse(extMuVerifier.verify(signatureBytes));
   }
 
-  // jtreg SeedOrExpanded, compared with SUN: a key returned by KeyFactory.translateKey stays usable
-  // after the Signature that signed with it is re-initialized to verify with a different key.
-  @Test
-  public void testTranslatedKeySurvivesSignatureReinitMatchesSun() throws Exception {
-    TestUtil.assumeMinimumJavaVersion(24);
-    KeyPair bcPair =
-        KeyPairGenerator.getInstance("ML-DSA-65", TestUtil.BC_PROVIDER).generateKeyPair();
-    byte[] message = {1, 2, 3};
-
-    // ACCP: sign, verify with the same Signature, then reuse the translated key
-    PrivateKey accpKey =
-        (PrivateKey)
-            KeyFactory.getInstance("ML-DSA", NATIVE_PROVIDER).translateKey(bcPair.getPrivate());
-    Signature accpSig = Signature.getInstance("ML-DSA", NATIVE_PROVIDER);
-    accpSig.initSign(accpKey);
-    accpSig.update(message);
-    byte[] accpSignature = accpSig.sign();
-    accpSig.initVerify(bcPair.getPublic());
-    accpSig.update(message);
-    assertTrue(accpSig.verify(accpSignature));
-    assertNotNull(accpKey.getEncoded());
-
-    // SUN: sign, verify with the same Signature, then reuse the translated key
-    PrivateKey sunKey =
-        (PrivateKey) KeyFactory.getInstance("ML-DSA", "SUN").translateKey(bcPair.getPrivate());
-    Signature sunSig = Signature.getInstance("ML-DSA", "SUN");
-    sunSig.initSign(sunKey);
-    sunSig.update(message);
-    byte[] sunSignature = sunSig.sign();
-    sunSig.initVerify(bcPair.getPublic());
-    sunSig.update(message);
-    assertTrue(sunSig.verify(sunSignature));
-    assertNotNull(sunKey.getEncoded());
-  }
-  
   // initialize(int) matches SUN: unsupported key sizes throw InvalidParameterException, but -1
   // (the JDK's "keep the parameter set, use this SecureRandom"; jtreg SeedOrExpanded) is allowed.
   @Test
@@ -431,5 +396,40 @@ public class MLDSATest {
     assertThrows(InvalidKeySpecException.class, () -> sunKf.generatePublic(null));
     assertThrows(InvalidKeySpecException.class, () -> sunKf.generatePrivate(null));
     assertThrows(InvalidKeyException.class, () -> sunKf.translateKey(null));
+  }
+
+  // jtreg SeedOrExpanded, compared with SUN: a key returned by KeyFactory.translateKey stays usable
+  // after the Signature that signed with it is re-initialized to verify with a different key.
+  @Test
+  public void testTranslatedKeySurvivesSignatureReinitMatchesSun() throws Exception {
+    TestUtil.assumeMinimumJavaVersion(24);
+    KeyPair bcPair =
+        KeyPairGenerator.getInstance("ML-DSA-65", TestUtil.BC_PROVIDER).generateKeyPair();
+    byte[] message = {1, 2, 3};
+
+    // ACCP: sign, verify with the same Signature, then reuse the translated key
+    PrivateKey accpKey =
+        (PrivateKey)
+            KeyFactory.getInstance("ML-DSA", NATIVE_PROVIDER).translateKey(bcPair.getPrivate());
+    Signature accpSig = Signature.getInstance("ML-DSA", NATIVE_PROVIDER);
+    accpSig.initSign(accpKey);
+    accpSig.update(message);
+    byte[] accpSignature = accpSig.sign();
+    accpSig.initVerify(bcPair.getPublic());
+    accpSig.update(message);
+    assertTrue(accpSig.verify(accpSignature));
+    assertNotNull(accpKey.getEncoded());
+
+    // SUN: sign, verify with the same Signature, then reuse the translated key
+    PrivateKey sunKey =
+        (PrivateKey) KeyFactory.getInstance("ML-DSA", "SUN").translateKey(bcPair.getPrivate());
+    Signature sunSig = Signature.getInstance("ML-DSA", "SUN");
+    sunSig.initSign(sunKey);
+    sunSig.update(message);
+    byte[] sunSignature = sunSig.sign();
+    sunSig.initVerify(bcPair.getPublic());
+    sunSig.update(message);
+    assertTrue(sunSig.verify(sunSignature));
+    assertNotNull(sunKey.getEncoded());
   }
 }
