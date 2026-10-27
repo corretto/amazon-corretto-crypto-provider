@@ -213,7 +213,7 @@ ACCP-FIPS is only supported on the following platforms:
 # Compatibility & Requirements
 ACCP has the following requirements:
 * JDK8 or newer (This includes both OracleJDK and [Amazon Corretto](https://aws.amazon.com/corretto/))
-* Linux (x86-64 or arm64) or MacOs running on x86_64 (also known as x64 or AMD64)
+* One of the platforms listed under [Platform Support](#platform-support) below
 
 ## JDK 25+ Native Access
 Starting with JDK 25, the JVM [warns](https://openjdk.org/jeps/472) when native libraries are loaded without explicit native access enabled.
@@ -226,6 +226,35 @@ To suppress these warnings when using ACCP, add the following JVM argument as de
 Or, if you're producing an executable JAR, you can update the JAR manifest as described [here](https://docs.oracle.com/en/java/javase/25/docs/specs/jar/jar.html#jar-manifest).
 
 This flag/manifest update will become required in a future JDK release when native access is denied by default.
+
+# Platform Support
+
+## Supported Platforms
+
+ACCP's release pipeline builds and smoke-tests the following OS/CPU/libc combinations before
+publishing. "Minimum glibc" is the oldest glibc a published `.so` is linked against; glibc's
+symbol versioning is forward-only, so a host with an older glibc cannot load a binary built
+against a newer one.
+
+| OS    | CPU     | Minimum glibc         | FIPS support |
+|-------|---------|------------------------|--------------|
+| Linux | x86-64  | 2.26 (Amazon Linux 2) | Yes, since 2.3.0 |
+| Linux | aarch64 | 2.26 (Amazon Linux 2) | Yes, since 2.3.0 |
+| macOS | x86-64  | N/A                    | Not supported |
+| macOS | aarch64 | N/A                    | Not supported |
+
+## Other platforms
+
+Any other OS/CPU/libc combination is not built or tested by ACCP's release pipeline or CI. ACCP
+may load and run there, but problems are not prioritized, and we make no compatibility guarantee.
+We welcome contributions that improve the experience on these platforms.
+
+In particular, a build linked against musl (e.g. Alpine Linux) is untested: AWS-LC itself can be
+built against musl, but ACCP has not validated loading a musl-linked native library into a
+glibc-based JVM process, and does not publish a musl classifier.
+
+If you'd like to see a platform added to the supported list, please open an
+[issue](https://github.com/corretto/amazon-corretto-crypto-provider/issues/new/choose) for discussion.
 
 # Using the provider
 ## Installation
