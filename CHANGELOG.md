@@ -5,6 +5,9 @@
 ### Minor
 * [PR 433:](https://github.com/corretto/amazon-corretto-crypto-provider/pull/433) Add build option for exposing self-test failure messages
 
+### Patch
+* Documented ACCP's current glibc floor (2.26, Amazon Linux 2) in a new Platform Support section. A future release will raise this floor when the release pipeline moves off Amazon Linux 2, and will be called out here when it happens.
+
 ## 2.5.0
 
 ### Minor
