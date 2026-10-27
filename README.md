@@ -231,17 +231,25 @@ This flag/manifest update will become required in a future JDK release when nati
 
 ## Supported Platforms
 
-ACCP's release pipeline builds and smoke-tests the following OS/CPU/libc combinations before
-publishing. "Minimum glibc" is the oldest glibc a published `.so` is linked against; glibc's
-symbol versioning is forward-only, so a host with an older glibc cannot load a binary built
-against a newer one.
+"Supported" means the platform is tested in CI before every release. The two platforms get there
+differently, so the minimum version each row names is not the same kind of guarantee:
 
-| OS    | CPU     | Minimum glibc         | FIPS support |
-|-------|---------|------------------------|--------------|
-| Linux | x86-64  | 2.26 (Amazon Linux 2) | Yes, since 2.3.0 |
-| Linux | aarch64 | 2.26 (Amazon Linux 2) | Yes, since 2.3.0 |
-| macOS | x86-64  | N/A                    | Not supported |
-| macOS | aarch64 | N/A                    | Not supported |
+* **Linux** is built and smoke-tested by the release pipeline itself, which pins its build image
+  (currently Amazon Linux 2). "Minimum glibc" is the oldest glibc a published `.so` is linked
+  against; glibc's symbol versioning is forward-only, so a host with an older glibc cannot load a
+  binary built against a newer one. This floor is a deliberate choice and changes only when
+  announced here and in the [CHANGELOG](./CHANGELOG.md).
+* **macOS** is tested by [`macos_ci_jobs.yml`](./.github/workflows/macos_ci_jobs.yml) on every pull
+  request, but against GitHub's `macos-latest` runner image, which GitHub moves forward on its own
+  schedule rather than ACCP pinning it. "Minimum macOS" below is whatever that image currently is,
+  not a floor ACCP has committed to.
+
+| OS    | CPU     | Minimum version                              | FIPS support |
+|-------|---------|-----------------------------------------------|--------------|
+| Linux | x86-64  | glibc 2.26 (Amazon Linux 2)                  | Yes, since 2.3.0 |
+| Linux | aarch64 | glibc 2.26 (Amazon Linux 2)                  | Yes, since 2.3.0 |
+| macOS | x86-64  | macOS 26 (GitHub's `macos-latest`; floats)   | Not supported |
+| macOS | aarch64 | macOS 26 (GitHub's `macos-latest`; floats)   | Not supported |
 
 ## Other platforms
 
