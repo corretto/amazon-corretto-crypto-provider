@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
+import com.amazon.corretto.crypto.provider.RuntimeCryptoException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.Security;
@@ -27,7 +28,12 @@ public class ReleaseSmokeTest {
 
     AmazonCorrettoCryptoProvider.install();
     AmazonCorrettoCryptoProvider accp = AmazonCorrettoCryptoProvider.INSTANCE;
-    accp.assertHealthy();
+    try {
+      accp.assertHealthy();
+    } catch (RuntimeCryptoException e) {
+      System.err.println("ACCP health check failed: " + e.getMessage());
+      throw e;
+    }
 
     check(PROVIDER_NAME.equals(Security.getProviders()[0].getName()), "ACCP is not provider #1");
     check(

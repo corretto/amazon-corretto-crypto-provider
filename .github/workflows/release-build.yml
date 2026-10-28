@@ -157,7 +157,7 @@ jobs:
       matrix:
         platform: [linux-x86_64, linux-aarch_64]
         fips: [false, true]
-        jdk: ['8', '11', '17', '21']
+        jdk: ['8', '11', '17', '21', '25']
         include:
           - platform: linux-x86_64
             codebuild-arch: x86_64
@@ -187,3 +187,7 @@ jobs:
           mkdir classes
           javac -cp "$jar" -d classes tests/ci/release/ReleaseSmokeTest.java
           java -cp "$jar:classes" ReleaseSmokeTest "$version" ${{ matrix.fips }}
+          if [ "${{ matrix.jdk }}" -ge 17 ]; then
+            javac -cp "$jar" -d classes tests/ci/release/ReleaseSmokeTestMlKem.java
+            java -cp "$jar:classes" ReleaseSmokeTestMlKem
+          fi
