@@ -253,9 +253,6 @@ differently, so the minimum version each row names is not the same kind of guara
 | macOS | x86-64  | macOS 26 (see note below)                    | Not supported |
 | macOS | aarch64 | macOS 26 (see note below)                    | Not supported |
 
-The macOS version in this table is an observation, not a pin: GitHub's runners reference documents
-the standard `macos-latest` label, but not the `-large` / `-xlarge` variants ACCP actually uses.
-Both reported macOS 26.6.x as of 2026-10-27. Expect this to drift as GitHub updates its images.
 
 ## Other platforms
 
