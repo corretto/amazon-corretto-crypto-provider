@@ -240,26 +240,28 @@ differently, so the minimum version each row names is not the same kind of guara
   binary built against a newer one. This floor is a deliberate choice and changes only when
   announced here and in the [CHANGELOG](./CHANGELOG.md).
 * **macOS** is tested by [`macos_ci_jobs.yml`](./.github/workflows/macos_ci_jobs.yml) on every pull
-  request, but against GitHub's `macos-latest` runner image, which GitHub moves forward on its own
-  schedule rather than ACCP pinning it. "Minimum macOS" below is whatever that image currently is,
-  not a floor ACCP has committed to.
+  request, but against GitHub's `macos-latest-large` / `macos-latest-xlarge` runner images, which
+  GitHub moves forward on its own schedule rather than ACCP pinning them. The macOS version below
+  is whatever those images currently are, not a floor ACCP has committed to. For the current
+  mapping, see GitHub's
+  [supported runners reference](https://docs.github.com/en/actions/reference/runners/github-hosted-runners#supported-runners-and-hardware-resources).
 
 | OS    | CPU     | Minimum version                              | FIPS support |
 |-------|---------|-----------------------------------------------|--------------|
 | Linux | x86-64  | glibc 2.26 (Amazon Linux 2)                  | Yes, since 2.3.0 |
 | Linux | aarch64 | glibc 2.26 (Amazon Linux 2)                  | Yes, since 2.3.0 |
-| macOS | x86-64  | macOS 26 (GitHub's `macos-latest`; floats)   | Not supported |
-| macOS | aarch64 | macOS 26 (GitHub's `macos-latest`; floats)   | Not supported |
+| macOS | x86-64  | macOS 26 (see note below)                    | Not supported |
+| macOS | aarch64 | macOS 26 (see note below)                    | Not supported |
+
+The macOS version in this table is an observation, not a pin: GitHub's runners reference documents
+the standard `macos-latest` label, but not the `-large` / `-xlarge` variants ACCP actually uses.
+Both reported macOS 26.6.x as of 2026-10-27. Expect this to drift as GitHub updates its images.
 
 ## Other platforms
 
 Any other OS/CPU/libc combination is not built or tested by ACCP's release pipeline or CI. ACCP
 may load and run there, but problems are not prioritized, and we make no compatibility guarantee.
 We welcome contributions that improve the experience on these platforms.
-
-In particular, a build linked against musl (e.g. Alpine Linux) is untested: AWS-LC itself can be
-built against musl, but ACCP has not validated loading a musl-linked native library into a
-glibc-based JVM process, and does not publish a musl classifier.
 
 If you'd like to see a platform added to the supported list, please open an
 [issue](https://github.com/corretto/amazon-corretto-crypto-provider/issues/new/choose) for discussion.
