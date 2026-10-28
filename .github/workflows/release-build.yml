@@ -107,11 +107,11 @@ jobs:
           echo "JCE_ALIAS=accp-test" >> "$GITHUB_ENV"
           echo "JCE_SIGNER=CN=ACCP test signing" >> "$GITHUB_ENV"
           echo "GPG_UID=accp-test@invalid" >> "$GITHUB_ENV"
-          keytool -genkeypair -alias accp-test -keyalg RSA -keysize 3072 -validity 1 \
+          keytool -genkeypair -alias accp-test -keyalg EC -groupname secp384r1 -validity 1 \
             -dname "CN=ACCP test signing" -storetype JKS -keystore "$RUNNER_TEMP/accp-test.jks" \
             -storepass:env KEYSTORE_PASSWORD -keypass:env KEYSTORE_PASSWORD
           gpg --batch --pinentry-mode loopback --passphrase '' \
-            --quick-gen-key "ACCP test signing <accp-test@invalid>" rsa3072 sign 1d
+            --quick-gen-key "ACCP test signing <accp-test@invalid>" nistp384 sign 1d
           gpg --armor --export accp-test@invalid > signed/signing-key.pub
 
       # Only the platform jars carry a JCE signature, matching fakePublish.
