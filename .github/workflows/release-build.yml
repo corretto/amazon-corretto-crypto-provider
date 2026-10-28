@@ -119,7 +119,7 @@ jobs:
         run: |
           for jar in signed/*-linux-*.jar; do
             jarsigner -keystore "$KEYSTORE" -storepass:env KEYSTORE_PASSWORD \
-              -tsa http://timestamp.digicert.com "$jar" "$JCE_ALIAS"
+              -tsa https://timestamp.digicert.com "$jar" "$JCE_ALIAS"
             jarsigner -verify -verbose -certs "$jar" > jarsigner.log
             grep -q "jar verified" jarsigner.log
             grep -q "Signed by \"$JCE_SIGNER\"" jarsigner.log
