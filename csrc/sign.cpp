@@ -68,6 +68,15 @@ bool initializeContext(raii_env& env,
     EVP_PKEY_up_ref(pKey);
     ctx->setKey(pKey);
 
+    if (paddingType != RSA_PKCS1_PSS_PADDING) {
+        // An id-RSASSA-PSS key reaches here whenever the caller asked for a PKCS#1 signature over a
+        // key whose AlgorithmIdentifier names PSS, which AWS-LC would otherwise refuse.
+        EVP_PKEY* rsaKey = rsaPssKeyAsRsa(ctx->getKey());
+        if (rsaKey != nullptr) {
+            ctx->setKey(rsaKey);
+        }
+    }
+
 #if defined(FIPS_BUILD) && !defined(EXPERIMENTAL_FIPS_BUILD)
     bool useDigestPath = (md != nullptr || EVP_PKEY_id(pKey) == EVP_PKEY_ED25519);
 #else

@@ -117,6 +117,12 @@ static bool inline BN_null_or_zero(const BIGNUM* bn) { return nullptr == bn || B
 // EVP_PKEY_RSA_PSS instead of EVP_PKEY_RSA.
 static inline bool isRsaKeyType(int keyType) { return keyType == EVP_PKEY_RSA || keyType == EVP_PKEY_RSA_PSS; }
 
+// Returns a new EVP_PKEY of type EVP_PKEY_RSA over |key|'s RSA key material, or nullptr when |key|
+// is not an EVP_PKEY_RSA_PSS key. AWS-LC rejects every padding mode but PSS on an EVP_PKEY_RSA_PSS
+// key, whereas the JDK's providers sign and encrypt with PKCS#1 and OAEP over a key carrying OID
+// id-RSASSA-PSS, so non-PSS operations run against the retyped key instead.
+EVP_PKEY* rsaPssKeyAsRsa(EVP_PKEY* key);
+
 class raii_cipher_ctx {
 private:
     EVP_CIPHER_CTX* m_ctx;
