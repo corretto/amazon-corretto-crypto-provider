@@ -1,9 +1,10 @@
 name: ACCP release build
 
 # Builds the unsigned linux jars (non-FIPS and FIPS), then signs them in a fan-in job.
-# signing-keys=test signs with throwaway keys; those jars are NOT releasable (the JCE cert is
-# self-signed, so OracleJDK will refuse to load them as a provider). signing-keys=release signs with
-# the production keys. Every job runs on the CodeBuild-hosted runners, which only serve
+# signing-keys=test signs with throwaway keys; those jars are NOT releasable (the self-signed JCE
+# cert fails Maven Central's signature enforcement, even though the jar loads fine as a provider on
+# most JDKs). signing-keys=release signs with the production keys. Every job runs on the
+# CodeBuild-hosted runners, which only serve
 # corretto/amazon-corretto-crypto-provider; on a fork the jobs queue and never start.
 # Only manually triggered: the release sign job runs on a runner that holds the signing secrets,
 # so this workflow must never run on pull_request or pull_request_target.

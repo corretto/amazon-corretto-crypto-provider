@@ -48,10 +48,10 @@ load_test_keys() {
   gpg_passphrase=''
 
   # JKS matches the format of the production keystore.
-  keytool -genkeypair -alias "$jce_alias" -keyalg RSA -keysize 3072 -validity 1 \
+  keytool -genkeypair -alias "$jce_alias" -keyalg EC -groupname secp384r1 -validity 1 \
     -dname "$jce_signer" -storetype JKS -keystore "$keystore" \
     -storepass:env KEYSTORE_PASSWORD -keypass:env KEYSTORE_PASSWORD 2>/dev/null
-  gpg_with_passphrase --quick-gen-key "ACCP test signing <$gpg_uid>" rsa3072 sign 1d 2>/dev/null
+  gpg_with_passphrase --quick-gen-key "ACCP test signing <$gpg_uid>" nistp384 sign 1d 2>/dev/null
 }
 
 # Same material as the Staging buildspec in AccpPublicReleaseCDK
