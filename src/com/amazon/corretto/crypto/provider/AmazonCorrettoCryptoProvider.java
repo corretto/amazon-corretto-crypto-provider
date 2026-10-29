@@ -167,7 +167,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     addService("KeyPairGenerator", "EC", "EcGen");
 
     if (shouldRegisterMLDSA) {
-      addService("KeyPairGenerator", "ML-DSA", "MlDsaGen$MlDsaGen44");
+      addService("KeyPairGenerator", "ML-DSA", "MlDsaGen$MlDsaGenGeneric");
       addService("KeyPairGenerator", "ML-DSA-44", "MlDsaGen$MlDsaGen44");
       addService("KeyPairGenerator", "ML-DSA-65", "MlDsaGen$MlDsaGen65");
       addService("KeyPairGenerator", "ML-DSA-87", "MlDsaGen$MlDsaGen87");

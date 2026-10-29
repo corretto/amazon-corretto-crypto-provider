@@ -13,36 +13,44 @@ class MlDsaGen extends KeyPairGeneratorSpi {
   /** Generates a new ML-DSA key and returns a pointer to it. */
   private static native long generateEvpMlDsaKey(int level);
 
-  private final AmazonCorrettoCryptoProvider provider_;
+  // Volatile because MlDsaGenGeneric writes it from initialize() while generateKeyPair() reads it;
+  // a generator shared between threads could otherwise read a stale parameter set.
+  private volatile MlDsaParameter parameterSet;
 
-  /**
-   * level_ corresponds to the purported NIST security level for each ML-DSA variant. It uniquely
-   * determines which NID is used to request an ML-DSA key. -1 indicates it is uninitialized.
-   */
-  private int level_ = -1;
-
-  private MlDsaGen(AmazonCorrettoCryptoProvider provider, Integer level) {
+  private MlDsaGen(final MlDsaParameter parameterSet) {
     Loader.checkNativeLibraryAvailability();
-    provider_ = provider;
-    level_ = level;
+    Utils.requireNonNull(parameterSet, "MlDsaParameter can not be null");
+    this.parameterSet = parameterSet;
   }
 
-  MlDsaGen(AmazonCorrettoCryptoProvider provider) {
-    this(provider, null);
+  // Sole writer of |parameterSet| after construction. Package-private rather than private because a
+  // private member of this class is not inherited by the nested MlDsaGenGeneric subclass.
+  final void setParameterSet(final MlDsaParameter selected) {
+    this.parameterSet = selected;
   }
 
   /**
-   * Rejects every spec, since each of these generators is bound to its parameter set at
-   * construction. {@code InvalidAlgorithmParameterException} rather than {@code
-   * UnsupportedOperationException} because the checked exception is what {@code
-   * KeyPairGenerator.Delegate} expects, so the JCA can fail over instead of propagating.
+   * Accepts a {@code NamedParameterSpec} naming this generator's own parameter set (a no-op) and
+   * rejects any other spec with {@code InvalidAlgorithmParameterException}, so the JCA can fail
+   * over rather than this generator silently producing a key of the wrong parameter set. {@link
+   * MlDsaGenGeneric} overrides this to make the generic {@code ML-DSA} service selectable, matching
+   * ACCP's ML-KEM generators and the SUN provider.
+   *
+   * <p>The {@code random} parameter is ignored; key generation always draws from AWS-LC's DRBG.
    */
   @Override
-  public void initialize(AlgorithmParameterSpec params, final SecureRandom random)
+  public void initialize(final AlgorithmParameterSpec params, final SecureRandom random)
       throws InvalidAlgorithmParameterException {
-    throw new InvalidAlgorithmParameterException(
-        "ACCP's ML-DSA KeyPairGenerator cannot be initialized with an AlgorithmParameterSpec. Use"
-            + " the ML-DSA-44, ML-DSA-65, or ML-DSA-87 service name to select a parameter set.");
+    final String name = NamedParameterSpecs.requireParameterSetName(params);
+    if (!parameterSet.matchesAlgorithmName(name)) {
+      throw new InvalidAlgorithmParameterException(
+          "Unsupported ML-DSA parameter set: "
+              + name
+              + ". This KeyPairGenerator only supports "
+              + parameterSet.getAlgorithmName()
+              + ".");
+    }
+    // Nothing else to configure: generateKeyPair() always produces a |parameterSet| key pair.
   }
 
   /**
@@ -64,30 +72,58 @@ class MlDsaGen extends KeyPairGeneratorSpi {
 
   @Override
   public KeyPair generateKeyPair() {
-    if (level_ < 0) {
-      throw new IllegalStateException("Key type not set");
-    }
-    long pkey_ptr = generateEvpMlDsaKey(level_);
+    long pkey_ptr = generateEvpMlDsaKey(parameterSet.getLevel());
     final EvpMlDsaPrivateKey privateKey = new EvpMlDsaPrivateKey(pkey_ptr);
     final EvpMlDsaPublicKey publicKey = privateKey.getPublicKey();
     return new KeyPair(publicKey, privateKey);
   }
 
+  /**
+   * Backs the parameter-set-agnostic {@code KeyPairGenerator.ML-DSA} service. Defaults to ML-DSA-44
+   * when used without initialization (preserving the historical behavior of this service), but a
+   * spec passed to {@code initialize} selects any supported parameter set.
+   */
+  public static final class MlDsaGenGeneric extends MlDsaGen {
+    public MlDsaGenGeneric(AmazonCorrettoCryptoProvider provider) {
+      super(MlDsaParameter.MLDSA_44);
+    }
+
+    /**
+     * Selects the parameter set named by {@code params} (case-insensitively) for subsequent {@code
+     * generateKeyPair()} calls, rather than requiring a spec naming ML-DSA-44.
+     */
+    @Override
+    public void initialize(final AlgorithmParameterSpec params, final SecureRandom random)
+        throws InvalidAlgorithmParameterException {
+      final String name = NamedParameterSpecs.requireParameterSetName(params);
+      final MlDsaParameter selected = MlDsaParameter.fromAlgorithmName(name);
+      if (selected == null) {
+        throw new InvalidAlgorithmParameterException(
+            "Unsupported ML-DSA parameter set: "
+                + name
+                + ". Supported parameter sets are "
+                + MlDsaParameter.supportedAlgorithmNames()
+                + ".");
+      }
+      setParameterSet(selected);
+    }
+  }
+
   public static final class MlDsaGen44 extends MlDsaGen {
     public MlDsaGen44(AmazonCorrettoCryptoProvider provider) {
-      super(provider, 2);
+      super(MlDsaParameter.MLDSA_44);
     }
   }
 
   public static final class MlDsaGen65 extends MlDsaGen {
     public MlDsaGen65(AmazonCorrettoCryptoProvider provider) {
-      super(provider, 3);
+      super(MlDsaParameter.MLDSA_65);
     }
   }
 
   public static final class MlDsaGen87 extends MlDsaGen {
     public MlDsaGen87(AmazonCorrettoCryptoProvider provider) {
-      super(provider, 5);
+      super(MlDsaParameter.MLDSA_87);
     }
   }
 }
