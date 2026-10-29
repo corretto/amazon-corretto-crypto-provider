@@ -797,17 +797,37 @@ task fakePublish {
 
 }
 
+// Both publication paths below publish the same coordinates, so the POM metadata lives in one
+// place rather than being repeated per publication.
+def configureAccpPom(pom, boolean fips) {
+    pom.name = fips ? 'Amazon Corretto Crypto Provider (FIPS)' : 'Amazon Corretto Crypto Provider'
+    pom.description = getDescriptionForPom(fips)
+    pom.url = 'https://github.com/corretto/amazon-corretto-crypto-provider'
+    pom.licenses {
+        license {
+            name = 'The Apache License, Version 2.0'
+            url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+        }
+    }
+    pom.scm {
+        url = 'https://github.com/corretto/amazon-corretto-crypto-provider.git'
+        connection = 'scm:git:git@github.com:corretto/amazon-corretto-crypto-provider.git'
+        developerConnection = 'scm:git:git@github.com:corretto/amazon-corretto-crypto-provider.git'
+    }
+    pom.developers {
+        developer {
+            id = 'amazonwebservices'
+            organization = 'Amazon Web Services'
+            organizationUrl = 'https://aws.amazon.com'
+        }
+    }
+}
+
 if (project.hasProperty('jcecertAlias')) {
     publishing {
         publications {
             mavenJava(MavenPublication) {
-                def pomName = "Amazon Corretto Crypto Provider"
-                if (isFips) {
-                    artifactId = project.name + "-FIPS"
-                    pomName = pomName + " (FIPS)"
-                } else {
-                    artifactId = project.name
-                }
+                artifactId = isFips ? project.name + "-FIPS" : project.name
                 def fakeMavenBase = "${buildDir}/fake_maven/${artifactId}-${version}-"
                 def x86Jar = "${fakeMavenBase}linux-x86_64.jar"
                 def aarch64Jar = "${fakeMavenBase}linux-aarch_64.jar"
@@ -825,33 +845,14 @@ if (project.hasProperty('jcecertAlias')) {
                 artifact source: file(javadocJar),classifier:"javadoc",extension:"jar"
                 artifact source: file(sourceJar),classifier:"sources",extension:"jar"
 
-                pom {
-                    name = pomName
-                    description = getDescriptionForPom(isFips)
-                    url = 'https://github.com/corretto/amazon-corretto-crypto-provider'
-                    licenses {
-                        license {
-                            name = 'The Apache License, Version 2.0'
-                            url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
-                        }
-                    }
-                    scm {
-                        url = 'https://github.com/corretto/amazon-corretto-crypto-provider.git'
-                        connection = 'scm:git:git@github.com:corretto/amazon-corretto-crypto-provider.git'
-                        developerConnection = 'scm:git:git@github.com:corretto/amazon-corretto-crypto-provider.git'
-                    }
-                    developers {
-                        developer {
-                            id = 'amazonwebservices'
-                            organization = 'Amazon Web Services'
-                            organizationUrl = 'https://aws.amazon.com'
-                        }
-                    }
-                }
+                configureAccpPom(pom, isFips)
             }
         }
     }
 
+    // Dead as of the OSSRH shutdown on 2025-06-30: aws.oss.sonatype.org no longer resolves, so this
+    // block and the two staging tasks below cannot publish. Only the internal CodePipeline invokes
+    // them, so they stay until it is retired in favour of centralPortalBundle below.
     nexusPublishing {
         repositories {
             sonatype {
@@ -905,12 +906,109 @@ if (project.hasProperty('jcecertAlias')) {
     }
 }
 
+// Maven Central Portal publishing, the replacement for the OSSRH flow above. The Portal takes
+// one zip in Maven repository layout and validates it on upload, so there is no staging repository
+// and no staging id to carry between pipeline stages. The platform jars come in already JCE-signed
+// and GPG-signed from the release workflow's sign job, which is the only place the signing keys are
+// loaded, so this path only lays artifacts out, checks every one is signed, and zips them.
+//
+// The POM and the empty main jar are declared unconditionally below (unlike the platform jars) so
+// generatePomFileForCentralPortalPublication and emptyJar can run before signedJarsDir exists,
+// letting release_jars carry them into the sign job's input directory alongside the platform jars.
+def accpArtifactId = isFips ? project.name + '-FIPS' : project.name
+def jarPrefix = "${accpArtifactId}-${version}"
+def bundleDir = file("${buildDir}/portal/bundle")
+def signedJars = project.hasProperty('signedJarsDir') ? file(project.property('signedJarsDir')) : null
+
+publishing {
+    publications {
+        centralPortal(MavenPublication) {
+            artifactId = accpArtifactId
+            // The main artifact is an empty jar: ACCP ships native code, so every jar with
+            // content carries a platform classifier. This mirrors the OSSRH publication.
+            artifact emptyJar
+            if (project.hasProperty('signedJarsDir')) {
+                artifact source: file("${signedJars}/${jarPrefix}-linux-x86_64.jar"), classifier: 'linux-x86_64', extension: 'jar'
+                artifact source: file("${signedJars}/${jarPrefix}-linux-aarch_64.jar"), classifier: 'linux-aarch_64', extension: 'jar'
+                artifact source: file("${signedJars}/${jarPrefix}-sources.jar"), classifier: 'sources', extension: 'jar'
+                artifact source: file("${signedJars}/${jarPrefix}-javadoc.jar"), classifier: 'javadoc', extension: 'jar'
+            }
+            configureAccpPom(pom, isFips)
+        }
+    }
+    repositories {
+        maven {
+            name = 'portal'
+            url = bundleDir
+        }
+    }
+}
+
+// Carries the POM and empty main jar to build/release under their Maven Central names, unsigned,
+// so the release workflow can fold them into the sign job's input directory the same way it
+// already does for the platform jars (see release_jars).
+task release_portal_metadata(type: Copy) {
+    dependsOn generatePomFileForCentralPortalPublication, emptyJar
+    from(generatePomFileForCentralPortalPublication.destination) {
+        rename '.*', "${jarPrefix}.pom"
+    }
+    from(emptyJar.archiveFile) {
+        rename '.*', "${jarPrefix}.jar"
+    }
+    into "${buildDir}/release"
+}
+
+if (project.hasProperty('signedJarsDir')) {
+    // Gradle Module Metadata describes variants this publication does not have, and the Portal would
+    // require a signature for it like any other file.
+    tasks.named('generateMetadataFileForCentralPortalPublication') {
+        enabled = false
+    }
+
+    task centralPortalBundle(type: Zip) {
+        description = 'Assembles the signed artifacts into a Maven Central Portal upload bundle.'
+        dependsOn 'publishCentralPortalPublicationToPortalRepository'
+
+        archiveFileName = "central-bundle-${accpArtifactId}-${version}.zip"
+        destinationDirectory = file("${buildDir}/portal")
+
+        // Copy the detached signatures in alongside the artifacts they cover. The sign job emits one
+        // .asc per file in signedJarsDir, including the POM and empty main jar that release_portal_metadata
+        // put there ahead of signing. The sign job holds both variants in one directory, and the FIPS
+        // artifactId carries -FIPS ahead of the version, so matching on the full prefix keeps the two
+        // bundles apart.
+        from(signedJars) {
+            include "${jarPrefix}*.asc"
+            into "software/amazon/cryptools/${accpArtifactId}/${version}"
+        }
+        // maven-metadata.xml describes the whole artifact across versions. The Portal derives that
+        // itself and rejects a bundle that tries to supply it.
+        from(bundleDir) {
+            exclude '**/maven-metadata.xml*'
+        }
+
+        doFirst {
+            def artifactDir = new File(bundleDir, "software/amazon/cryptools/${accpArtifactId}/${version}")
+            def needsSignature = artifactDir.listFiles().findAll {
+                !(it.name ==~ /.*\.(asc|md5|sha1|sha256|sha512)$/) && !it.name.startsWith('maven-metadata')
+            }
+            def unsigned = needsSignature.findAll { !new File(signedJars, "${it.name}.asc").exists() }
+            if (unsigned) {
+                throw new GradleException(
+                    "No detached signature in ${signedJars} for: " + unsigned.collect { it.name }.sort().join(', ') +
+                    ". The Portal rejects a bundle with an unsigned file, so the sign job has to cover these too.")
+            }
+        }
+    }
+}
+
 task clean(overwrite: true, type: Delete) {
    delete "${buildDir}/cmake"
    delete "${buildDir}/cmake-coverage"
    delete "${buildDir}/lib"
    delete "${buildDir}/reports"
    delete "${buildDir}/publications"
+   delete "${buildDir}/portal"
 }
 
 task deep_clean(type: Delete) {
