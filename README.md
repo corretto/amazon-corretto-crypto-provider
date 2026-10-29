@@ -213,7 +213,7 @@ ACCP-FIPS is only supported on the following platforms:
 # Compatibility & Requirements
 ACCP has the following requirements:
 * JDK8 or newer (This includes both OracleJDK and [Amazon Corretto](https://aws.amazon.com/corretto/))
-* Linux (x86-64 or arm64) or MacOs running on x86_64 (also known as x64 or AMD64)
+* One of the platforms listed under [Platform Support](#platform-support) below
 
 ## JDK 25+ Native Access
 Starting with JDK 25, the JVM [warns](https://openjdk.org/jeps/472) when native libraries are loaded without explicit native access enabled.
@@ -226,6 +226,42 @@ To suppress these warnings when using ACCP, add the following JVM argument as de
 Or, if you're producing an executable JAR, you can update the JAR manifest as described [here](https://docs.oracle.com/en/java/javase/25/docs/specs/jar/jar.html#jar-manifest).
 
 This flag/manifest update will become required in a future JDK release when native access is denied by default.
+
+# Platform Support
+
+## Supported Platforms
+
+"Supported" means the platform is tested in CI before every release. The two platforms get there
+differently, so the minimum version each row names is not the same kind of guarantee:
+
+* **Linux** is built and smoke-tested by the release pipeline itself, which pins its build image
+  (currently Amazon Linux 2). "Minimum glibc" is the oldest glibc a published `.so` is linked
+  against; glibc's symbol versioning is forward-only, so a host with an older glibc cannot load a
+  binary built against a newer one. This floor is a deliberate choice and changes only when
+  announced here and in the [CHANGELOG](./CHANGELOG.md).
+* **macOS** is tested by [`macos_ci_jobs.yml`](./.github/workflows/macos_ci_jobs.yml) on every pull
+  request, but against GitHub's `macos-latest-large` / `macos-latest-xlarge` runner images, which
+  GitHub moves forward on its own schedule rather than ACCP pinning them. The macOS version below
+  is whatever those images currently are, not a floor ACCP has committed to. For the current
+  mapping, see GitHub's
+  [supported runners reference](https://docs.github.com/en/actions/reference/runners/github-hosted-runners#supported-runners-and-hardware-resources).
+
+| OS    | CPU     | Minimum version                              | FIPS support |
+|-------|---------|-----------------------------------------------|--------------|
+| Linux | x86-64  | glibc 2.26 (Amazon Linux 2)                  | Yes, since 2.3.0 |
+| Linux | aarch64 | glibc 2.26 (Amazon Linux 2)                  | Yes, since 2.3.0 |
+| macOS | x86-64  | macOS 26 (see note below)                    | Not supported |
+| macOS | aarch64 | macOS 26 (see note below)                    | Not supported |
+
+
+## Other platforms
+
+Any other OS/CPU/libc combination is not built or tested by ACCP's release pipeline or CI. ACCP
+may load and run there, but problems are not prioritized, and we make no compatibility guarantee.
+We welcome contributions that improve the experience on these platforms.
+
+If you'd like to see a platform added to the supported list, please open an
+[issue](https://github.com/corretto/amazon-corretto-crypto-provider/issues/new/choose) for discussion.
 
 # Using the provider
 ## Installation
