@@ -128,7 +128,9 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
       } else {
         throw new InvalidKeyException("Cannot convert key of format " + key.getFormat());
       }
-      result.setEphemeral(true);
+      // Not ephemeral: the caller of KeyFactory.translateKey owns the returned key and may use it
+      // repeatedly. Only ACCP's internal conversions (AmazonCorrettoCryptoProvider.translateKey)
+      // mark their converted keys ephemeral so they are released after a single use.
       return result;
     } catch (final InvalidKeySpecException ex) {
       throw new InvalidKeyException(ex);

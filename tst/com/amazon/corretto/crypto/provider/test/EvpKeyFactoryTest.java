@@ -30,6 +30,7 @@ import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
 import java.security.Provider;
 import java.security.PublicKey;
+import java.security.Signature;
 import java.security.interfaces.ECPrivateKey;
 import java.security.interfaces.ECPublicKey;
 import java.security.interfaces.RSAPrivateCrtKey;
@@ -290,6 +291,25 @@ public class EvpKeyFactoryTest {
     assertThrows(InvalidKeyException.class, () -> nativeFactory.translateKey(nullPublicKey));
 
     assertThrows(InvalidKeyException.class, () -> nativeFactory.translateKey(nullPrivateKey));
+  }
+
+  // A key returned by KeyFactory.translateKey belongs to the caller: using it in an ACCP Signature
+  // must not destroy it. It was previously marked ephemeral, so the Signature released it after one
+  // use and a later getEncoded() threw IllegalStateException("Key has been destroyed").
+  @Test
+  public void translatedKeyRemainsUsableAfterSigning() throws Exception {
+    final KeyPair foreign = KeyPairGenerator.getInstance("RSA", "SunRsaSign").generateKeyPair();
+    final KeyFactory nativeFactory = KeyFactory.getInstance("RSA", NATIVE_PROVIDER);
+    final PrivateKey translated = (PrivateKey) nativeFactory.translateKey(foreign.getPrivate());
+
+    final Signature signer = Signature.getInstance("SHA256withRSA", NATIVE_PROVIDER);
+    for (int i = 0; i < 2; i++) {
+      signer.initSign(translated);
+      signer.update(new byte[] {1, 2, 3});
+      signer.sign();
+    }
+
+    assertArrayEquals(foreign.getPrivate().getEncoded(), translated.getEncoded());
   }
 
   // The KeyFactory contract requires InvalidKeySpecException, not NullPointerException, for a null
