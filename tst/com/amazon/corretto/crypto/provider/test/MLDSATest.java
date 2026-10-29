@@ -281,6 +281,52 @@ public class MLDSATest {
     assertNotNull(keyGen.generateKeyPair());
   }
 
+  // Reads getParams() reflectively and returns the NamedParameterSpec's name. On JDK 22+ it is
+  // called
+  // through the public java.security.AsymmetricKey interface, exactly as the JDK's SignatureUtil
+  // does. Older JDKs have no such interface; there the method is declared on ACCP's package-private
+  // key class, which reflection only lets this test call after setAccessible.
+  private static String paramsName(java.security.Key key) throws Exception {
+    java.lang.reflect.Method getParams;
+    try {
+      getParams = Class.forName("java.security.AsymmetricKey").getMethod("getParams");
+    } catch (ClassNotFoundException e) {
+      getParams = key.getClass().getMethod("getParams");
+      getParams.setAccessible(true);
+    }
+    Object spec = getParams.invoke(key);
+    assertNotNull(spec, "getParams() must return a NamedParameterSpec on JDK 11+");
+    assertEquals("java.security.spec.NamedParameterSpec", spec.getClass().getName());
+    return (String) spec.getClass().getMethod("getName").invoke(spec);
+  }
+
+  // jarsigner/keytool (SignatureUtil.fromSignature) derive the per-parameter-set OID from
+  // key.getParams(); without it signing fails with "Cannot derive AlgorithmIdentifier".
+  @ParameterizedTest
+  @ValueSource(strings = {"ML-DSA-44", "ML-DSA-65", "ML-DSA-87"})
+  public void testKeysReportParameterSet(String paramSet) throws Exception {
+    TestUtil.assumeMinimumJavaVersion(11);
+    KeyPair pair = KeyPairGenerator.getInstance(paramSet, NATIVE_PROVIDER).generateKeyPair();
+    assertEquals(paramSet, paramsName(pair.getPrivate()));
+    assertEquals(paramSet, paramsName(pair.getPublic()));
+
+    // Keys rebuilt through the KeyFactory report it too.
+    KeyFactory keyFactory = KeyFactory.getInstance("ML-DSA", NATIVE_PROVIDER);
+    assertEquals(
+        paramSet,
+        paramsName(
+            keyFactory.generatePrivate(new PKCS8EncodedKeySpec(pair.getPrivate().getEncoded()))));
+    assertEquals(
+        paramSet,
+        paramsName(
+            keyFactory.generatePublic(new X509EncodedKeySpec(pair.getPublic().getEncoded()))));
+
+    // So do keys from the generic generator once a parameter set is selected.
+    KeyPairGenerator generic = KeyPairGenerator.getInstance("ML-DSA", NATIVE_PROVIDER);
+    generic.initialize(TestUtil.namedParameterSpec(paramSet));
+    assertEquals(paramSet, paramsName(generic.generateKeyPair().getPrivate()));
+  }
+
   @Test
   public void testKeyFactorySelfConversion() throws Exception {
     KeyPairGenerator keyGen = KeyPairGenerator.getInstance("ML-DSA", NATIVE_PROVIDER);
@@ -564,5 +610,28 @@ public class MLDSATest {
     sunSig.update(message);
     assertTrue(sunSig.verify(sunSignature));
     assertNotNull(sunKey.getEncoded());
+  }
+
+  // getParams() matches SUN on generated keys and on a key decoded from SUN's encoding. The JDK
+  // uses it to pick the signature OID (keytool/jarsigner via SignatureUtil.fromSignature).
+  @ParameterizedTest
+  @ValueSource(strings = {"ML-DSA-44", "ML-DSA-65", "ML-DSA-87"})
+  public void testGetParamsMatchesSun(String paramSet) throws Exception {
+    TestUtil.assumeMinimumJavaVersion(24);
+
+    // ACCP
+    KeyPair accpPair = KeyPairGenerator.getInstance(paramSet, NATIVE_PROVIDER).generateKeyPair();
+
+    // SUN
+    KeyPair sunPair = KeyPairGenerator.getInstance(paramSet, "SUN").generateKeyPair();
+
+    assertEquals(paramsName(sunPair.getPublic()), paramsName(accpPair.getPublic()));
+    assertEquals(paramsName(sunPair.getPrivate()), paramsName(accpPair.getPrivate()));
+
+    // ACCP decodes SUN's public key and reports the same parameter set as SUN
+    PublicKey decoded =
+        KeyFactory.getInstance("ML-DSA", NATIVE_PROVIDER)
+            .generatePublic(new X509EncodedKeySpec(sunPair.getPublic().getEncoded()));
+    assertEquals(paramsName(sunPair.getPublic()), paramsName(decoded));
   }
 }
