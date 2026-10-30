@@ -1,11 +1,12 @@
 name: ACCP release build
 
 # Builds the unsigned linux jars (non-FIPS and FIPS), then signs them in a fan-in job.
-# Only throwaway test keys exist so far; jars signed with them are NOT releasable (the JCE cert is
-# self-signed, so OracleJDK will refuse to load them as a provider). Release keys are added in a
-# later step. Every job runs on the CodeBuild-hosted runners, which only serve
+# signing-keys=test signs with throwaway keys; those jars are NOT releasable (the self-signed JCE
+# cert fails Maven Central's signature enforcement, even though the jar loads fine as a provider on
+# most JDKs). signing-keys=release signs with the production keys. Every job runs on the
+# CodeBuild-hosted runners, which only serve
 # corretto/amazon-corretto-crypto-provider; on a fork the jobs queue and never start.
-# Only manually triggered: release jobs will run on runners that hold signing secrets,
+# Only manually triggered: the release sign job runs on a runner that holds the signing secrets,
 # so this workflow must never run on pull_request or pull_request_target.
 on:
   workflow_dispatch:
@@ -13,7 +14,7 @@ on:
       signing-keys:
         description: Keys for the sign job (none skips signing)
         type: choice
-        options: [test, none]
+        options: [test, release, none]
         default: test
 
 permissions:
@@ -77,7 +78,14 @@ jobs:
     runs-on:
       - codebuild-accp-gha-x86_64-${{ github.run_id }}-${{ github.run_attempt }}
       - sign
+    env:
+      AWS_REGION: us-west-2
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: tests/ci/release
+          persist-credentials: false
+
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           path: dist
@@ -96,50 +104,20 @@ jobs:
           java-version: '17'
           distribution: 'corretto'
 
-      # JKS matches the format of the production keystore.
-      - name: Generate throwaway keys
-        if: inputs.signing-keys == 'test'
-        run: |
-          export KEYSTORE_PASSWORD=$(openssl rand -hex 32)
-          echo "::add-mask::$KEYSTORE_PASSWORD"
-          echo "KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
-          echo "KEYSTORE=$RUNNER_TEMP/accp-test.jks" >> "$GITHUB_ENV"
-          echo "JCE_ALIAS=accp-test" >> "$GITHUB_ENV"
-          echo "JCE_SIGNER=CN=ACCP test signing" >> "$GITHUB_ENV"
-          echo "GPG_UID=accp-test@invalid" >> "$GITHUB_ENV"
-          keytool -genkeypair -alias accp-test -keyalg EC -groupname secp384r1 -validity 1 \
-            -dname "CN=ACCP test signing" -storetype JKS -keystore "$RUNNER_TEMP/accp-test.jks" \
-            -storepass:env KEYSTORE_PASSWORD -keypass:env KEYSTORE_PASSWORD
-          gpg --batch --pinentry-mode loopback --passphrase '' \
-            --quick-gen-key "ACCP test signing <accp-test@invalid>" nistp384 sign 1d
-          gpg --armor --export accp-test@invalid > signed/signing-key.pub
-
-      # Only the platform jars carry a JCE signature, matching fakePublish.
-      - name: JCE-sign and verify
-        run: |
-          for jar in signed/*-linux-*.jar; do
-            jarsigner -keystore "$KEYSTORE" -storepass:env KEYSTORE_PASSWORD \
-              -tsa https://timestamp.digicert.com "$jar" "$JCE_ALIAS"
-            jarsigner -verify -verbose -certs "$jar" > jarsigner.log
-            grep -q "jar verified" jarsigner.log
-            grep -q "Signed by \"$JCE_SIGNER\"" jarsigner.log
-            echo "$jar: JCE signature verified"
-          done
-
-      - name: GPG-sign and verify
-        run: |
-          cd signed
-          for f in *.jar; do
-            gpg --batch --armor --detach-sign --local-user "$GPG_UID" "$f"
-            gpg --batch --verify "$f.asc" "$f"
-          done
+      # Loads keys, signs, verifies, and shreds the keys in one process.
+      - name: Sign and verify
+        run: tests/ci/release/sign.sh ${{ inputs.signing-keys }} signed
 
       - name: Record hashes
         run: |
           cd signed
           sha256sum *.jar *.asc | tee -a "$GITHUB_STEP_SUMMARY"
 
+      # Release-signed jars are not uploaded: on a public repo, any workflow artifact is
+      # downloadable, and these would be production-signed builds of an unreleased commit.
+      # Publishing to Maven Central will consume them directly from this job.
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: inputs.signing-keys != 'release'
         with:
           name: accp-signed-${{ inputs.signing-keys }}
           path: signed/
@@ -149,6 +127,7 @@ jobs:
   smoke-test:
     name: Smoke ${{ matrix.platform }}${{ matrix.fips && ' FIPS' || '' }} on JDK ${{ matrix.jdk }}
     needs: sign
+    if: inputs.signing-keys == 'test'
     runs-on:
       - codebuild-accp-gha-${{ matrix.codebuild-arch }}-${{ github.run_id }}-${{ github.run_attempt }}
       - smoke-${{ matrix.platform }}-${{ matrix.fips && 'fips' || 'nonfips' }}-jdk${{ matrix.jdk }}
