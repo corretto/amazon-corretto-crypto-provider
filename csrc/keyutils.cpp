@@ -495,6 +495,21 @@ bool checkKey(const EVP_PKEY* key)
     return result;
 }
 
+EVP_PKEY* rsaPssKeyAsRsa(EVP_PKEY* key)
+{
+    if (EVP_PKEY_base_id(key) != EVP_PKEY_RSA_PSS) {
+        return nullptr;
+    }
+
+    RSA* rsa;
+    CHECK_OPENSSL(rsa = EVP_PKEY_get0_RSA(key));
+    EVP_PKEY_auto result = EVP_PKEY_auto::from(EVP_PKEY_new());
+    CHECK_OPENSSL(result.isInitialized());
+    CHECK_OPENSSL(EVP_PKEY_set1_RSA(result, rsa));
+
+    return result.take();
+}
+
 const EVP_MD* digestFromJstring(raii_env& env, jstring digestName)
 {
     if (!digestName) {

@@ -81,6 +81,16 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_RsaCipher_cipher
         }
 
         EVP_PKEY* key = reinterpret_cast<EVP_PKEY*>(ctxHandle);
+
+        // Keep the retyped key alive for as long as the EVP_PKEY_CTX built from it below.
+        EVP_PKEY_auto rsaKey;
+        if (padding != RSA_PKCS1_PSS_PADDING) {
+            rsaKey.set(rsaPssKeyAsRsa(key));
+            if (rsaKey.isInitialized()) {
+                key = rsaKey;
+            }
+        }
+
         // It is unclear if allocating a new EVP_PKEY_CTX for each operation is expensive.
         // If profiling shows that this is a significant cost when in a hot-path we should figure out a way to
         // cache and reusing the EVP_PKEY_CTX within the context of a single instance of a RsaCipher object.

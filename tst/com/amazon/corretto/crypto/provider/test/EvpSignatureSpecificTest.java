@@ -8,6 +8,7 @@ import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assumeMinimumJavaVersion;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assumeMinimumVersion;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.versionCompare;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -1059,6 +1060,84 @@ public final class EvpSignatureSpecificTest {
     verifier.initVerify(accpPub);
     verifier.update(MESSAGE);
     assertTrue(verifier.verify(signature));
+  }
+
+  /**
+   * SunRsaSign signs with PKCS#1 padding when handed a key carrying OID id-RSASSA-PSS, so ACCP's
+   * SHA*withRSA has to accept such a key as well. AWS-LC types the parsed key EVP_PKEY_RSA_PSS and
+   * refuses every padding mode but PSS on it, so the signature path has to retype the key.
+   */
+  @Test
+  public void testRsassaPssOidKeySignsPkcs1() throws Exception {
+    final KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSASSA-PSS");
+    kpg.initialize(2048);
+    final KeyPair pssKeyPair = kpg.generateKeyPair();
+
+    final KeyFactory accpKf = KeyFactory.getInstance("RSA", NATIVE_PROVIDER);
+    final PrivateKey accpPriv =
+        accpKf.generatePrivate(
+            new java.security.spec.PKCS8EncodedKeySpec(pssKeyPair.getPrivate().getEncoded()));
+    final PublicKey accpPub =
+        accpKf.generatePublic(
+            new java.security.spec.X509EncodedKeySpec(pssKeyPair.getPublic().getEncoded()));
+
+    final Signature signer = Signature.getInstance("SHA256withRSA", NATIVE_PROVIDER);
+    signer.initSign(accpPriv);
+    signer.update(MESSAGE);
+    final byte[] signature = signer.sign();
+
+    final Signature verifier = Signature.getInstance("SHA256withRSA", NATIVE_PROVIDER);
+    verifier.initVerify(accpPub);
+    verifier.update(MESSAGE);
+    assertTrue(verifier.verify(signature));
+
+    final Signature sunVerifier = Signature.getInstance("SHA256withRSA", "SunRsaSign");
+    sunVerifier.initVerify(pssKeyPair.getPublic());
+    sunVerifier.update(MESSAGE);
+    assertTrue(sunVerifier.verify(signature));
+
+    // The reverse direction: a PKCS#1 signature from SunRsaSign over the same key material
+    final Signature sunSigner = Signature.getInstance("SHA256withRSA", "SunRsaSign");
+    sunSigner.initSign(pssKeyPair.getPrivate());
+    sunSigner.update(MESSAGE);
+    final byte[] sunSignature = sunSigner.sign();
+
+    verifier.initVerify(accpPub);
+    verifier.update(MESSAGE);
+    assertTrue(verifier.verify(sunSignature));
+  }
+
+  /**
+   * SunJCE encrypts with a key carrying OID id-RSASSA-PSS, so ACCP's RSA Cipher has to accept one
+   * too. Same AWS-LC padding restriction as {@link #testRsassaPssOidKeySignsPkcs1()}.
+   */
+  @Test
+  public void testRsassaPssOidKeyPkcs1Cipher() throws Exception {
+    final KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSASSA-PSS");
+    kpg.initialize(2048);
+    final KeyPair pssKeyPair = kpg.generateKeyPair();
+
+    final KeyFactory accpKf = KeyFactory.getInstance("RSA", NATIVE_PROVIDER);
+    final PrivateKey accpPriv =
+        accpKf.generatePrivate(
+            new java.security.spec.PKCS8EncodedKeySpec(pssKeyPair.getPrivate().getEncoded()));
+    final PublicKey accpPub =
+        accpKf.generatePublic(
+            new java.security.spec.X509EncodedKeySpec(pssKeyPair.getPublic().getEncoded()));
+
+    final byte[] plaintext = "RSASSA-PSS OID key".getBytes(StandardCharsets.UTF_8);
+
+    final Cipher accpEncrypt = Cipher.getInstance("RSA/ECB/PKCS1Padding", NATIVE_PROVIDER);
+    accpEncrypt.init(Cipher.ENCRYPT_MODE, accpPub);
+    final byte[] ciphertext = accpEncrypt.doFinal(plaintext);
+
+    final Cipher accpDecrypt = Cipher.getInstance("RSA/ECB/PKCS1Padding", NATIVE_PROVIDER);
+    accpDecrypt.init(Cipher.DECRYPT_MODE, accpPriv);
+    assertArrayEquals(plaintext, accpDecrypt.doFinal(ciphertext));
+
+    final Cipher sunDecrypt = Cipher.getInstance("RSA/ECB/PKCS1Padding", "SunJCE");
+    sunDecrypt.init(Cipher.DECRYPT_MODE, pssKeyPair.getPrivate());
+    assertArrayEquals(plaintext, sunDecrypt.doFinal(ciphertext));
   }
 
   @SuppressWarnings("serial")
