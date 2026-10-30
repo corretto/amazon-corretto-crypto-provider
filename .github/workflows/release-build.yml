@@ -104,43 +104,6 @@ jobs:
           java-version: '17'
           distribution: 'corretto'
 
-      # JKS matches the format of the production keystore.
-      - name: Generate throwaway keys
-        if: inputs.signing-keys == 'test'
-        run: |
-          export KEYSTORE_PASSWORD=$(openssl rand -hex 32)
-          echo "::add-mask::$KEYSTORE_PASSWORD"
-          echo "KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
-          echo "KEYSTORE=$RUNNER_TEMP/accp-test.jks" >> "$GITHUB_ENV"
-          echo "JCE_ALIAS=accp-test" >> "$GITHUB_ENV"
-          echo "JCE_SIGNER=CN=ACCP test signing" >> "$GITHUB_ENV"
-          echo "GPG_UID=accp-test@invalid" >> "$GITHUB_ENV"
-          keytool -genkeypair -alias accp-test -keyalg EC -groupname secp384r1 -validity 1 \
-            -dname "CN=ACCP test signing" -storetype JKS -keystore "$RUNNER_TEMP/accp-test.jks" \
-            -storepass:env KEYSTORE_PASSWORD -keypass:env KEYSTORE_PASSWORD
-          gpg --batch --pinentry-mode loopback --passphrase '' \
-            --quick-gen-key "ACCP test signing <accp-test@invalid>" nistp384 sign 1d
-          gpg --armor --export accp-test@invalid > signed/signing-key.pub
-
-      # Only the platform jars carry a JCE signature, matching fakePublish.
-      - name: JCE-sign and verify
-        run: |
-          for jar in signed/*-linux-*.jar; do
-            jarsigner -keystore "$KEYSTORE" -storepass:env KEYSTORE_PASSWORD \
-              -tsa https://timestamp.digicert.com "$jar" "$JCE_ALIAS"
-            jarsigner -verify -verbose -certs "$jar" > jarsigner.log
-            grep -q "jar verified" jarsigner.log
-            grep -q "Signed by \"$JCE_SIGNER\"" jarsigner.log
-            echo "$jar: JCE signature verified"
-          done
-
-      - name: GPG-sign and verify
-        run: |
-          cd signed
-          for f in *.jar; do
-            gpg --batch --armor --detach-sign --local-user "$GPG_UID" "$f"
-            gpg --batch --verify "$f.asc" "$f"
-          done
       # Loads keys, signs, verifies, and shreds the keys in one process.
       - name: Sign and verify
         run: tests/ci/release/sign.sh ${{ inputs.signing-keys }} signed
