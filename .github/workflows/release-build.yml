@@ -115,7 +115,7 @@ jobs:
 
       # Release-signed jars are not uploaded: on a public repo, any workflow artifact is
       # downloadable, and these would be production-signed builds of an unreleased commit.
-      # Publishing to Maven Central (M2) will consume them directly from this job.
+      # Publishing to Maven Central will consume them directly from this job.
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: inputs.signing-keys != 'release'
         with:
