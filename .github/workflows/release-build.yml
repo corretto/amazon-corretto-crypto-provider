@@ -149,6 +149,7 @@ jobs:
   smoke-test:
     name: Smoke ${{ matrix.platform }}${{ matrix.fips && ' FIPS' || '' }} on JDK ${{ matrix.jdk }}
     needs: sign
+    if: inputs.signing-keys != 'none'
     runs-on:
       - codebuild-accp-gha-${{ matrix.codebuild-arch }}-${{ github.run_id }}-${{ github.run_attempt }}
       - smoke-${{ matrix.platform }}-${{ matrix.fips && 'fips' || 'nonfips' }}-jdk${{ matrix.jdk }}
