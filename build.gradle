@@ -912,9 +912,9 @@ if (project.hasProperty('jcecertAlias')) {
 // and GPG-signed from the release workflow's sign job, which is the only place the signing keys are
 // loaded, so this path only lays artifacts out, checks every one is signed, and zips them.
 //
-// The POM and the empty main jar are declared unconditionally below (unlike the platform jars) so
-// generatePomFileForCentralPortalPublication and emptyJar can run before signedJarsDir exists,
-// letting release_jars carry them into the sign job's input directory alongside the platform jars.
+// The POM and the empty main jar are available before signedJarsDir exists (unlike the platform
+// jars), so release_portal_metadata can carry them into the sign job's input directory alongside
+// the platform jars. Once signedJarsDir is set, the bundle takes the empty jar from there too.
 def accpArtifactId = isFips ? project.name + '-FIPS' : project.name
 def jarPrefix = "${accpArtifactId}-${version}"
 def bundleDir = file("${buildDir}/portal/bundle")
@@ -926,12 +926,16 @@ publishing {
             artifactId = accpArtifactId
             // The main artifact is an empty jar: ACCP ships native code, so every jar with
             // content carries a platform classifier. This mirrors the OSSRH publication.
-            artifact emptyJar
+            // When bundling, take the copy the sign job signed: emptyJar is not byte-reproducible
+            // (manifest timestamps), so a rebuild here would not match its detached signature.
             if (project.hasProperty('signedJarsDir')) {
+                artifact source: file("${signedJars}/${jarPrefix}.jar"), extension: 'jar'
                 artifact source: file("${signedJars}/${jarPrefix}-linux-x86_64.jar"), classifier: 'linux-x86_64', extension: 'jar'
                 artifact source: file("${signedJars}/${jarPrefix}-linux-aarch_64.jar"), classifier: 'linux-aarch_64', extension: 'jar'
                 artifact source: file("${signedJars}/${jarPrefix}-sources.jar"), classifier: 'sources', extension: 'jar'
                 artifact source: file("${signedJars}/${jarPrefix}-javadoc.jar"), classifier: 'javadoc', extension: 'jar'
+            } else {
+                artifact emptyJar
             }
             configureAccpPom(pom, isFips)
         }
