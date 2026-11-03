@@ -25,17 +25,21 @@ print(base64.b64encode(f\"{secret['username']}:{secret['password']}\".encode()).
 ")
 echo "::add-mask::$token"
 
-response=$(curl --fail --silent --show-error --request POST \
-  --header "Authorization: Bearer $token" \
+# Feeds the Authorization header to curl as a config on stdin, keeping the token out of curl's argv
+# (and so out of the process table). printf is a bash builtin, so it never spawns with the token.
+portal_curl() {
+  printf 'header = "Authorization: Bearer %s"\n' "$token" \
+    | curl --config - --fail --silent --show-error --request POST "$@"
+}
+
+response=$(portal_curl \
   --form "bundle=@${bundle};type=application/octet-stream" \
   "https://central.sonatype.com/api/v1/publisher/upload?name=${name}&publishingType=USER_MANAGED")
 deployment_id=$response
 echo "Uploaded as deployment $deployment_id"
 
 for _ in $(seq 1 30); do
-  status=$(curl --fail --silent --show-error --request POST \
-    --header "Authorization: Bearer $token" \
-    "https://central.sonatype.com/api/v1/publisher/status?id=${deployment_id}")
+  status=$(portal_curl "https://central.sonatype.com/api/v1/publisher/status?id=${deployment_id}")
   state=$(echo "$status" | python3 -c "import json,sys; print(json.load(sys.stdin)['deploymentState'])")
   echo "deploymentState=$state"
   case "$state" in
