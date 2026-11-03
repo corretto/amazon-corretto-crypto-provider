@@ -65,27 +65,31 @@ bool initializeContext(raii_env& env,
 {
     EVP_PKEY_CTX* pctx; // Logically owned by the ctx so doesn't need to be freed separately
 
-    EVP_PKEY_up_ref(pKey);
-    ctx->setKey(pKey);
+    // The branches below test the key the caller passed, not the retyped key the context may hold.
+    const int keyType = EVP_PKEY_id(pKey);
 
+    EVP_PKEY* rsaKey = nullptr;
     if (paddingType != RSA_PKCS1_PSS_PADDING) {
         // An id-RSASSA-PSS key reaches here whenever the caller asked for a PKCS#1 signature over a
         // key whose AlgorithmIdentifier names PSS, which AWS-LC would otherwise refuse.
-        EVP_PKEY* rsaKey = rsaPssKeyAsRsa(ctx->getKey());
-        if (rsaKey != nullptr) {
-            ctx->setKey(rsaKey);
-        }
+        rsaKey = rsaPssKeyAsRsa(pKey);
+    }
+
+    if (rsaKey != nullptr) {
+        ctx->setKey(rsaKey);
+    } else {
+        EVP_PKEY_up_ref(pKey);
+        ctx->setKey(pKey);
     }
 
 #if defined(FIPS_BUILD) && !defined(EXPERIMENTAL_FIPS_BUILD)
-    bool useDigestPath = (md != nullptr || EVP_PKEY_id(pKey) == EVP_PKEY_ED25519);
+    bool useDigestPath = (md != nullptr || keyType == EVP_PKEY_ED25519);
 #else
-    bool useDigestPath
-        = (md != nullptr || EVP_PKEY_id(pKey) == EVP_PKEY_ED25519 || (EVP_PKEY_id(pKey) == EVP_PKEY_PQDSA && !preHash));
+    bool useDigestPath = (md != nullptr || keyType == EVP_PKEY_ED25519 || (keyType == EVP_PKEY_PQDSA && !preHash));
 #endif
 
 #if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
-    if (preHash && EVP_PKEY_id(pKey) == EVP_PKEY_ED25519) {
+    if (preHash && keyType == EVP_PKEY_ED25519) {
         // ED25519 and ED25519PH (pre-hash) have different NIDs, but share an OID, so we treat them as a common
         // EvpKeyType in the java layer. So, if an EVP_PKEY_ED25519 pkey is initialized as |preHash|, we need to
         // replace |ctx|'s EVP_PKEY* with an EVP_PKEY_ED25519PH (pre-hash) pkey newly constructed from the current
