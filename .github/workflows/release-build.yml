@@ -132,6 +132,7 @@ jobs:
         run: |
           mkdir signed
           cp dist/*/*-linux-*.jar signed/
+          cp dist/accp-osx-aarch_64/*-osx-*.jar signed/
           cp dist/accp-linux-x86_64/*-sources.jar dist/accp-linux-x86_64/*-javadoc.jar signed/
           cp dist/accp-linux-x86_64-fips/*-sources.jar dist/accp-linux-x86_64-fips/*-javadoc.jar signed/
           ls -l signed
