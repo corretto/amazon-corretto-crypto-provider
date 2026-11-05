@@ -58,7 +58,7 @@ jobs:
           distribution: 'corretto'
 
       - name: Build
-        run: ./gradlew -DFIPS=${{ matrix.fips }} release_jars
+        run: ./gradlew -DFIPS=${{ matrix.fips }} release_jars release_portal_metadata
 
       - name: Record jar hashes
         run: |
@@ -69,6 +69,14 @@ jobs:
         with:
           name: accp-${{ matrix.platform }}${{ matrix.fips && '-fips' || '' }}
           path: build/release/*.jar
+          if-no-files-found: error
+
+      # One copy per variant is enough: the POM and empty jar are not platform-specific.
+      - if: matrix.platform == 'linux-x86_64'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: accp-portal-metadata${{ matrix.fips && '-fips' || '' }}
+          path: build/portal-metadata/*
           if-no-files-found: error
 
   sign:
@@ -97,6 +105,7 @@ jobs:
           cp dist/*/*-linux-*.jar signed/
           cp dist/accp-linux-x86_64/*-sources.jar dist/accp-linux-x86_64/*-javadoc.jar signed/
           cp dist/accp-linux-x86_64-fips/*-sources.jar dist/accp-linux-x86_64-fips/*-javadoc.jar signed/
+          cp dist/accp-portal-metadata*/* signed/
           ls -l signed
 
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
