@@ -830,6 +830,8 @@ endif()
 set(TEST_RUNNER_ARGUMENTS
     ${COVERAGE_ARGUMENTS}
     ${TEST_ADD_OPENS}
+    -Xmx8g
+    -Xms1g
     ${TEST_FIPS_PROPERTY}
     ${EXTERNAL_LIB_PROPERTY}
     -Dcom.amazon.corretto.crypto.provider.inTestSuite=hunter2
