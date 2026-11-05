@@ -948,9 +948,9 @@ publishing {
     }
 }
 
-// Carries the POM and empty main jar to build/release under their Maven Central names, unsigned,
-// so the release workflow can fold them into the sign job's input directory the same way it
-// already does for the platform jars (see release_jars).
+// Carries the POM and empty main jar to build/portal-metadata under their Maven Central names, unsigned.
+// The release workflow uploads that directory as its own artifact, so the sign job gets exactly these two
+// files without matching them by name.
 task release_portal_metadata(type: Copy) {
     dependsOn generatePomFileForCentralPortalPublication, emptyJar
     from(generatePomFileForCentralPortalPublication.destination) {
@@ -959,7 +959,7 @@ task release_portal_metadata(type: Copy) {
     from(emptyJar.archiveFile) {
         rename '.*', "${jarPrefix}.jar"
     }
-    into "${buildDir}/release"
+    into "${buildDir}/portal-metadata"
 }
 
 if (project.hasProperty('signedJarsDir')) {
