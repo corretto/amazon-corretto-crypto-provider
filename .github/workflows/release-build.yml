@@ -94,7 +94,7 @@ jobs:
       matrix:
         platform: [linux-x86_64, linux-aarch_64]
         fips: [false, true]
-        jdk: ['8', '11', '17', '21', '25']
+        jdk: ['17', '25']
         include:
           - platform: linux-x86_64
             codebuild-arch: x86_64
