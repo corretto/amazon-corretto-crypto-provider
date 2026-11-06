@@ -10,6 +10,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.InvalidParameterSpecException;
+import java.util.Arrays;
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.CipherSpi;
@@ -33,10 +34,13 @@ class AesCfbSpi extends CipherSpi {
   private byte[] key = null;
   private NativeResource context = null;
   private final AmazonCorrettoCryptoProvider provider;
+  // Key size in bytes demanded by the AES_<n> Standard Name this instance was created for.
+  private final int fixedKeySizeInBytes;
 
-  AesCfbSpi(final AmazonCorrettoCryptoProvider provider) {
+  AesCfbSpi(final AmazonCorrettoCryptoProvider provider, final int fixedKeySizeInBytes) {
     Loader.checkNativeLibraryAvailability();
     this.provider = provider;
+    this.fixedKeySizeInBytes = fixedKeySizeInBytes;
   }
 
   @Override
@@ -98,10 +102,11 @@ class AesCfbSpi extends CipherSpi {
     if (opmode != Cipher.ENCRYPT_MODE && opmode != Cipher.WRAP_MODE) {
       throw new InvalidKeyException("IV required for decrypt");
     }
+    final SecureRandom ivSource = Utils.randomOrDefault(random);
     try {
       byte[] iv = new byte[IV_SIZE_IN_BYTES];
-      random.nextBytes(iv);
-      engineInit(opmode, key, new IvParameterSpec(iv), random);
+      ivSource.nextBytes(iv);
+      engineInit(opmode, key, new IvParameterSpec(iv), ivSource);
     } catch (InvalidAlgorithmParameterException e) {
       throw new InvalidKeyException("Failed to initialize with random IV", e);
     }
@@ -150,9 +155,17 @@ class AesCfbSpi extends CipherSpi {
     if (keyBytes == null) {
       throw new InvalidKeyException("Key must support encoding");
     }
+    // AWS-LC has no 192-bit CFB cipher, so the accepted sizes are narrower than Utils.checkAesKey
+    // allows. Rejected keys get cleansed, as that helper does.
     if (keyBytes.length != KEY_LEN_AES128 && keyBytes.length != KEY_LEN_AES256) {
+      Arrays.fill(keyBytes, (byte) 0);
       throw new InvalidKeyException(
           "Key length must be " + KEY_LEN_AES128 + " or " + KEY_LEN_AES256);
+    }
+    if (fixedKeySizeInBytes != Utils.ANY_AES_KEY_SIZE && keyBytes.length != fixedKeySizeInBytes) {
+      Arrays.fill(keyBytes, (byte) 0);
+      throw new InvalidKeyException(
+          "Key length must be " + fixedKeySizeInBytes + " for this algorithm");
     }
 
     switch (opmode) {
