@@ -48,8 +48,8 @@ is visible only to the publishing account until someone publishes it.
 The smoke tests check that the build is correct, not that the signature is trusted. They run on Corretto,
 and OpenJDK-based JDKs do not check JCE provider signers (`javax.crypto.ProviderVerifier` reads only
 `cryptoPerms`), so a self-signed test jar loads the same as a production-signed one. The jar contents do not
-depend on the signature, so the smoke tests run on the unsigned build output in every mode, alongside
-signing rather than after it.
+depend on the signature, so the smoke tests run on the unsigned build output in every mode, and the
+`sign` job waits for them: a build that fails a smoke test is never signed or staged.
 
 Portal validation checks GPG signatures but ignores the JCE signature.
 
@@ -57,7 +57,6 @@ Portal validation checks GPG signatures but ignores the JCE signature.
 
 - The exact bytes that reach Maven Central are not smoke-tested. The plan is to pull them back from the
   Portal staging deployment after it reaches `VALIDATED` and run the smoke matrix on those.
-- A smoke-test failure does not stop the `sign` job or the Portal upload; the two run in parallel.
 - No check that Oracle JDK accepts the JCE signature. An Oracle JDK leg against the staged jars would cover
   it; running the test-key jar on Oracle JDK and expecting a load failure would show the check is live.
 - Only the non-FIPS bundle is uploaded to the Portal. FIPS is a separate deployment and is not wired up.
