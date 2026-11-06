@@ -145,10 +145,11 @@ jobs:
         run: tests/ci/release/publish.sh build/portal/central-bundle-*.zip
 
   # Loads each signed platform jar as the JCA provider on every supported JDK.
+  # Test keys only: release-signed jars are never uploaded as artifacts (see the sign job).
   smoke-test:
     name: Smoke ${{ matrix.platform }}${{ matrix.fips && ' FIPS' || '' }} on JDK ${{ matrix.jdk }}
     needs: sign
-    if: inputs.signing-keys != 'none'
+    if: inputs.signing-keys == 'test'
     runs-on:
       - codebuild-accp-gha-${{ matrix.codebuild-arch }}-${{ github.run_id }}-${{ github.run_attempt }}
       - smoke-${{ matrix.platform }}-${{ matrix.fips && 'fips' || 'nonfips' }}-jdk${{ matrix.jdk }}
