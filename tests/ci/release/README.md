@@ -19,12 +19,11 @@ The `signing-keys` input selects what runs:
 |---|---|---|---|
 | `build-linux`: linux x86_64 and aarch64, FIPS and non-FIPS, unsigned | yes | yes | yes |
 | `sign`: JCE + GPG sign and verify | skipped | throwaway keys | production keys |
-| `sign` uploads the signed jars as a workflow artifact | - | yes | no |
 | `sign` builds the Portal bundle and uploads it to Portal staging (non-FIPS only) | - | - | yes |
 | `smoke-test`: every unsigned platform jar on JDK 8, 11, 17, 21, 25 | yes | yes | yes |
 
-Release-signed jars are never uploaded as workflow artifacts. On a public repo any signed-in GitHub user can
-download them, and they would be production-signed builds of an unreleased commit: they verify as official,
+Signed jars are never uploaded as workflow artifacts. On a public repo any signed-in GitHub user can
+download artifacts, and release-signed jars would be production-signed builds of an unreleased commit: they verify as official,
 the signature cannot be recalled, and they can differ byte-for-byte from the version that is later
 published. The Portal upload is the only place they leave the `sign` job, and a `USER_MANAGED` deployment
 is visible only to the publishing account until someone publishes it.

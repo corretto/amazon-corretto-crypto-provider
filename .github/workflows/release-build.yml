@@ -82,7 +82,7 @@ jobs:
 
   # Loads each unsigned platform jar as the JCA provider on every supported JDK, in every mode.
   # Unsigned is enough: OpenJDK-based JDKs do not check provider signers, and the sign job verifies
-  # the signatures itself. Release-signed jars are never uploaded as artifacts (see the sign job).
+  # the signatures itself.
   smoke-test:
     name: Smoke ${{ matrix.platform }}${{ matrix.fips && ' FIPS' || '' }} on JDK ${{ matrix.jdk }}
     needs: build-linux
@@ -174,15 +174,9 @@ jobs:
           cd signed
           sha256sum *.jar *.asc | tee -a "$GITHUB_STEP_SUMMARY"
 
-      # Release-signed jars are not uploaded: on a public repo, any workflow artifact is
-      # downloadable, and these would be production-signed builds of an unreleased commit.
-      # Publishing to Maven Central will consume them directly from this job.
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: inputs.signing-keys != 'release'
-        with:
-          name: accp-signed-${{ inputs.signing-keys }}
-          path: signed/
-          if-no-files-found: error
+      # Signed jars are never uploaded as workflow artifacts: on a public repo any artifact is
+      # downloadable, and release-signed ones would be production-signed builds of an unreleased
+      # commit. The Portal bundle below is the only way they leave this job.
 
       # Non-FIPS only: the FIPS artifacts are a separate Portal deployment. Staging only: publish.sh
       # stops at VALIDATED, and the upload is USER_MANAGED, so nothing reaches Maven Central until a
