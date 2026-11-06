@@ -21,7 +21,7 @@ The `signing-keys` input selects what runs:
 | `sign`: JCE + GPG sign and verify | skipped | throwaway keys | production keys |
 | `sign` uploads the signed jars as a workflow artifact | - | yes | no |
 | `sign` builds the Portal bundle and uploads it to Portal staging (non-FIPS only) | - | - | yes |
-| `smoke-test`: every platform jar on JDK 8, 11, 17, 21, 25 | - | yes | - |
+| `smoke-test`: every unsigned platform jar on JDK 8, 11, 17, 21, 25 | yes | yes | yes |
 
 Release-signed jars are never uploaded as workflow artifacts. On a public repo any signed-in GitHub user can
 download them, and they would be production-signed builds of an unreleased commit: they verify as official,
@@ -37,7 +37,7 @@ is visible only to the publishing account until someone publishes it.
 | Version string and FIPS flag match the build | smoke test | |
 | ACCP is provider #1 and serves SHA-256 (known answer) and AES-GCM (round trip) | smoke test | |
 | ML-KEM classes load on JDK 17+ | smoke test (`ReleaseSmokeTestMlKem`) | |
-| Signing did not corrupt the jar | smoke test (test keys only) | |
+| Signing did not corrupt the jar | `sign.sh` (`jarsigner -verify`) | smoke test (runs on unsigned jars) |
 | JCE signature is present and signed by the expected cert DN | `sign.sh` (`jarsigner -verify`) | smoke test, Portal |
 | Oracle JDK trusts the JCE signature | nothing yet | smoke test runs on Corretto only |
 | GPG signature verifies | `sign.sh` (`gpg --verify`), then Portal validation | |
@@ -48,14 +48,16 @@ is visible only to the publishing account until someone publishes it.
 The smoke tests check that the build is correct, not that the signature is trusted. They run on Corretto,
 and OpenJDK-based JDKs do not check JCE provider signers (`javax.crypto.ProviderVerifier` reads only
 `cryptoPerms`), so a self-signed test jar loads the same as a production-signed one. The jar contents do not
-depend on the key, which is why test keys are enough for these checks.
+depend on the signature, so the smoke tests run on the unsigned build output in every mode, alongside
+signing rather than after it.
 
 Portal validation checks GPG signatures but ignores the JCE signature.
 
 ## Known gaps
 
-- Release-signed jars are not smoke-tested. The plan is to pull them back from the Portal staging
-  deployment after it reaches `VALIDATED` and run the smoke matrix on those bytes.
+- The exact bytes that reach Maven Central are not smoke-tested. The plan is to pull them back from the
+  Portal staging deployment after it reaches `VALIDATED` and run the smoke matrix on those.
+- A smoke-test failure does not stop the `sign` job or the Portal upload; the two run in parallel.
 - No check that Oracle JDK accepts the JCE signature. An Oracle JDK leg against the staged jars would cover
   it; running the test-key jar on Oracle JDK and expecting a load failure would show the check is live.
 - Only the non-FIPS bundle is uploaded to the Portal. FIPS is a separate deployment and is not wired up.
