@@ -4,6 +4,7 @@
 #include <openssl/mem.h>
 #include <cassert>
 #include <cstdlib>
+#include <limits>
 
 namespace AmazonCorrettoCryptoProvider {
 
@@ -40,24 +41,34 @@ std::vector<uint8_t, SecureAlloc<uint8_t> > java_buffer::to_vector(raii_env& env
 {
     std::vector<uint8_t, SecureAlloc<uint8_t> > vec(len());
 
-    get_bytes(env, &vec[0], 0, vec.size());
+    get_bytes(env, vec.data(), 0, vec.size());
 
     return vec;
 }
 
-jbyteArray vecToArray(raii_env& env, const std::vector<uint8_t, SecureAlloc<uint8_t> >& vec)
+jbyteArray bytesToArray(raii_env& env, const uint8_t* data, size_t length)
 {
-    jbyteArray array = env->NewByteArray(vec.size());
+    if (length > static_cast<size_t>(std::numeric_limits<jsize>::max())) {
+        throw_java_ex(EX_OOM, "Returned byte array is too large");
+    }
+    const jsize len = static_cast<jsize>(length);
+    jbyteArray array = env->NewByteArray(len);
     if (!array) {
         throw_java_ex(EX_OOM, "Failed to allocate memory for returned byte array");
     }
 
-    env->SetByteArrayRegion(array, 0, vec.size(), reinterpret_cast<const jbyte*>(&vec[0]));
-
-    // If something went wrong above, rethrow that exception as a C++ exception now
-    env.rethrow_java_exception();
+    if (len != 0) {
+        env->SetByteArrayRegion(array, 0, len, reinterpret_cast<const jbyte*>(data));
+        // If something went wrong above, rethrow that exception as a C++ exception now
+        env.rethrow_java_exception();
+    }
 
     return array;
+}
+
+jbyteArray vecToArray(raii_env& env, const std::vector<uint8_t, SecureAlloc<uint8_t> >& vec)
+{
+    return bytesToArray(env, vec.data(), vec.size());
 }
 
 void JByteArrayCritical::cleanse_and_stash(

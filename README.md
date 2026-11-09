@@ -60,6 +60,7 @@ Cipher algorithms:
 * RSA/ECB/OAEPPadding
 * RSA/ECB/OAEPWithSHA-1AndMGF1Padding
 * RSA/ECB/OAEPWithSHA1AndMGF1Padding
+* HPKE (ML-KEM suites only, also see [HPKE Considerations](#hpke-considerations))
 
 Signature algorithms:
 * SHA1withRSA
@@ -97,6 +98,7 @@ KeyPairGenerator:
 * X25519 (JDK 12+, also registered under the alias XDH)
 * ML-DSA, ML-DSA-44, ML-DSA-65, ML-DSA-87
 * ML-KEM, ML-KEM-512, ML-KEM-768, ML-KEM-1024 (JDK 17 or 21+, also see [ML-KEM Considerations](#ml-kem-considerations))
+* HPKE (also see [HPKE Considerations](#hpke-considerations))
 
 KeyGenerator:
 * AES
@@ -169,6 +171,37 @@ generator without naming a provider (`KeyPairGenerator.getInstance("ML-KEM-768")
 what lets the JCA fail over to another provider; a caller that named ACCP explicitly
 (`KeyPairGenerator.getInstance("ML-KEM-768", accp)`) sees the exception instead, since the JCA has no
 other provider to try.
+
+### HPKE Considerations
+
+ACCP supports [RFC 9180](https://datatracker.ietf.org/doc/html/rfc9180) base mode on JDK 8+ with
+ML-KEM-768 / HKDF-SHA256 / AES-128-GCM and ML-KEM-1024 / HKDF-SHA384 / AES-256-GCM.
+Availability depends on the linked AWS-LC. The ML-KEM codepoints come from draft-ietf-hpke-pq and may change.
+
+Initialize ACCP's `HPKE` KeyPairGenerator with a suite constant from
+[`HpkeParameterSpec`](./src/com/amazon/corretto/crypto/provider/HpkeParameterSpec.java).
+It produces [`HpkePublicKey`](./src/com/amazon/corretto/crypto/provider/HpkePublicKey.java) and
+[`HpkePrivateKey`](./src/com/amazon/corretto/crypto/provider/HpkePrivateKey.java), bound to the whole
+suite; see [`HpkeKey`](./src/com/amazon/corretto/crypto/provider/HpkeKey.java) for encodings.
+Do not reuse keys across ML-KEM and HPKE.
+For independent messages, [`HpkeUtils`](./src/com/amazon/corretto/crypto/utils/HpkeUtils.java) provides
+`seal` and `open` with `enc || ciphertext` framing and explicit ACCP selection.
+
+For a Cipher context, use the same suite and `info` on both sides. Transport the sender's
+`getIV()` encapsulation to the recipient's `withEncapsulation(enc)` parameters; `doFinal` returns
+only the message output. Supply matching AAD before each message's `update` calls.
+Messages are buffered until `doFinal`, must fit in a Java array, and must be opened in order.
+When splitting large data, authenticate ordering and completion in AAD. Permanent message loss
+requires a new sender context and encapsulation; reusing the old encapsulation permits replays.
+Use independent contexts for loss tolerance.
+
+A failed open clears buffered input and AAD without advancing the sequence number, and zeroes the
+output range, including overlapping ciphertext. Retry with an intact copy and supply AAD again.
+`ShortBufferException` preserves message state; retry with the same final input and a larger buffer.
+
+Name ACCP explicitly, or call `init` before querying Cipher properties so provider selection can
+consider the key. See [DIFFERENCES.md](./DIFFERENCES.md#hpke-differs-from-jdk-26s-hpke-cipher)
+for JDK 26 compatibility and the linked API documentation for method contracts.
 
 # Notes on ACCP-FIPS
 ACCP-FIPS is a variation of ACCP which uses AWS-LC-FIPS 2.x as its cryptographic module. This version of AWS-LC-FIPS has FIPS certificate [4816](https://csrc.nist.gov/projects/cryptographic-module-validation-program/certificate/4816).

@@ -9,6 +9,9 @@
 
 namespace AmazonCorrettoCryptoProvider {
 
+// Copies bytes into a new Java array; data may be null when length is zero.
+// Lengths exceeding Java's array limit throw OutOfMemoryError before any JNI call.
+jbyteArray bytesToArray(raii_env& env, const uint8_t* data, size_t length);
 jbyteArray vecToArray(raii_env& env, const std::vector<uint8_t, SecureAlloc<uint8_t> >& vec);
 
 /**
