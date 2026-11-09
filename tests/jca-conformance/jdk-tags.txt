@@ -1,0 +1,16 @@
+# Per-JDK-major pin of the OpenJDK update repo and GA tag from which the jtreg
+# test content (test/jdk crypto subtrees) is fetched. The test set differs by
+# JDK version, so each supported major is pinned to a specific General
+# Availability tag for reproducibility.
+#
+# Format (whitespace-separated):  <jdk-major> <github-repo> <git-tag>
+#
+# To bump test content for a version, change its tag. To add a JDK version, add
+# a line here AND a matrix entry in .github/workflows/jca-conformance.yml.
+#
+# Tags are GA releases from the openjdk update-release repos:
+#   https://github.com/openjdk/jdk17u  (tags like jdk-17.0.13-ga)
+#   https://github.com/openjdk/jdk21u  (tags like jdk-21.0.5-ga)
+
+17  openjdk/jdk17u  jdk-17.0.13-ga
+21  openjdk/jdk21u  jdk-21.0.5-ga
