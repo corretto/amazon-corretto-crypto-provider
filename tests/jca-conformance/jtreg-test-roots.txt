@@ -1,0 +1,29 @@
+# OpenJDK jtreg test roots to run against ACCP, relative to the `test/jdk`
+# directory of the OpenJDK source tree. One root per line; blank lines and
+# lines starting with `#` are ignored.
+#
+# Scope: only JCA/JCE areas where ACCP overrides a default-provider SPI. We
+# deliberately exclude TLS/JSSE (ACCP does not provide an SSLContext), PKCS#11,
+# Kerberos, and other areas ACCP does not touch.
+#
+# This list is intentionally conservative to start; branch 2 of issue #550
+# populates and trims it based on what actually runs against ACCP. Keep entries
+# scoped to directories that exercise algorithm SPIs ACCP implements.
+
+# Symmetric ciphers, AEAD, key wrap, KDFs, Mac, SecretKeyFactory (SunJCE).
+com/sun/crypto/provider
+
+# Public JCE API conformance: Cipher, Mac, KeyAgreement, KEM, KeyGenerator, etc.
+javax/crypto
+
+# MessageDigest, Signature, KeyFactory, KeyPairGenerator API conformance.
+java/security
+
+# EC/EdDSA provider tests (SunEC).
+sun/security/ec
+
+# RSA provider tests (SunRsaSign).
+sun/security/rsa
+
+# Shared provider-level tests (SecureRandom, algorithm parameters, etc.).
+sun/security/provider

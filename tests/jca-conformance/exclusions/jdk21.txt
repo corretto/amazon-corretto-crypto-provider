@@ -1,0 +1,9 @@
+# JCA/JCE conformance test exclusions (jdk21).
+#
+# Each non-comment line is a jtreg test selector (path relative to the OpenJDK
+# test/jdk root) that fails under ACCP for a triaged, accepted reason. Every
+# entry MUST be preceded by a comment giving the rationale and a link to either
+# a DIFFERENCES.md section or a tracking issue. See ../README.md for details.
+#
+# This file starts empty; branch 2 of issue #550 populates it from the first
+# real run of the harness against ACCP.
