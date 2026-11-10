@@ -77,6 +77,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
   private final boolean shouldRegisterAesCfb;
   private final boolean shouldRegisterMLKEM;
   private final boolean shouldRegisterX25519;
+  private final boolean shouldRegisterHpke;
   private final Utils.NativeContextReleaseStrategy nativeContextReleaseStrategy;
 
   private transient SelfTestSuite selfTestSuite = new SelfTestSuite();
@@ -227,6 +228,20 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     addService("Cipher", "RSA/ECB/OAEPPadding", "RsaCipher$OAEP");
     addService("Cipher", "RSA/ECB/OAEPWithSHA-1AndMGF1Padding", "RsaCipher$OAEPSha1");
     addService("Cipher", "RSA/ECB/OAEPWithSHA1AndMGF1Padding", "RsaCipher$OAEPSha1");
+
+    if (shouldRegisterHpke) {
+      // Include EvpKemKey so default lookup reaches HpkeCipher's HPKE import advice.
+      // See README.md's HPKE Considerations for provider selection.
+      addService(
+          "Cipher",
+          "HPKE",
+          "HpkeCipher",
+          singletonMap(
+              "SupportedKeyClasses",
+              "com.amazon.corretto.crypto.provider.HpkeKey"
+                  + "|com.amazon.corretto.crypto.provider.EvpKemKey"));
+      addService("KeyPairGenerator", "HPKE", "HpkeGen");
+    }
 
     final String hmacWithPrecomputedKeyKeyFactorySpi = "HmacWithPrecomputedKeyKeyFactorySpi";
     for (String hash : new String[] {"MD5", "SHA1", "SHA224", "SHA256", "SHA384", "SHA512"}) {
@@ -642,6 +657,8 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     this.shouldRegisterAesCfb = (!isFips() || isExperimentalFips());
 
     this.shouldRegisterMLKEM = Utils.isMlKemSupported();
+    // Check loading before probing the linked library's suites; see HpkeSuite.
+    this.shouldRegisterHpke = Loader.IS_AVAILABLE && HpkeSuite.anyAvailable();
 
     // XECKeys were introduced in JDK11, but ACCP's keys aren't compatible until JDK12+.
     // See comment in XDHGen.java for more details.

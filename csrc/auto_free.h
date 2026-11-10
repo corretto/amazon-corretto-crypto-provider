@@ -6,6 +6,7 @@
 #include "env.h"
 #include <openssl/ec.h>
 #include <openssl/evp.h>
+#include <openssl/hpke.h>
 #include <openssl/mem.h>
 #include <openssl/rsa.h>
 #include <openssl/x509.h>
@@ -34,7 +35,7 @@
 #define OPENSSL_auto(name)                                                                                             \
     class CLASSNAME(name) {                                                                                            \
     private:                                                                                                           \
-        name* PTR_NAME(name);                                                                                          \
+        name* PTR_NAME(name) = nullptr;                                                                                \
         void move(CLASSNAME(name) & other) { set(other.take()); }                                                      \
                                                                                                                        \
     public:                                                                                                            \
@@ -87,6 +88,7 @@ OPENSSL_auto(BN_CTX);
 OPENSSL_auto(EVP_MD_CTX);
 OPENSSL_auto(EVP_PKEY);
 OPENSSL_auto(EVP_PKEY_CTX);
+OPENSSL_auto(EVP_HPKE_KEY);
 
 class OPENSSL_buffer_auto {
 private:

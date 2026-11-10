@@ -12,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
+import com.amazon.corretto.crypto.provider.HpkePrivateKey;
 import com.amazon.corretto.crypto.provider.RuntimeCryptoException;
 import com.amazon.corretto.crypto.utils.MlKemUtils;
 import java.security.InvalidAlgorithmParameterException;
@@ -1364,5 +1365,76 @@ public class MlKemTest {
         KeyFactory.getInstance("ML-KEM", NATIVE_PROVIDER)
             .generatePublic(new X509EncodedKeySpec(jdkPair.getPublic().getEncoded()));
     assertEquals(paramsName(jdkPair.getPublic()), paramsName(decoded));
+  }
+
+  @Test
+  public void hpkeAndMlKemShareTheSeed() throws Exception {
+    // Seed-interchange contract: see HpkeKey.
+    assumeTrue(
+        NATIVE_PROVIDER.getService("KeyPairGenerator", "ML-KEM-768") != null
+            && NATIVE_PROVIDER.getService("KEM", "ML-KEM-768") != null,
+        "ACCP does not register ML-KEM on this JVM");
+    final String[] paramSets = {"ML-KEM-768", "ML-KEM-1024"};
+    final HpkeTestSuite[] suites = {HpkeTestSuite.MLKEM768, HpkeTestSuite.MLKEM1024};
+    int tested = 0;
+    for (int i = 0; i < paramSets.length; i++) {
+      final String paramSet = paramSets[i];
+      final HpkeTestSuite suite = suites[i];
+      if (!suite.isAvailable()) {
+        continue;
+      }
+      tested++;
+      final KeyPair mlkem =
+          KeyPairGenerator.getInstance(paramSet, NATIVE_PROVIDER).generateKeyPair();
+      final byte[] mlkemPkcs8 = mlkem.getPrivate().getEncoded();
+      final SubjectPublicKeyInfo mlkemSpki =
+          SubjectPublicKeyInfo.getInstance(mlkem.getPublic().getEncoded());
+      final byte[] mlkemPublicBytes = mlkemSpki.getPublicKeyData().getOctets();
+
+      // Expanded-only PKCS#8 keys have no retained seed to import into HPKE.
+      if (TestUtil.mlKemEmitsSeedEncoding()) {
+        final byte[] choice = privateKeyChoiceBytes(mlkemPkcs8);
+        assertEquals(CHOICE_TAG_SEED, choice[0] & 0xFF, paramSet);
+        assertEquals(66, choice.length, paramSet + " [0] tag, length, 64-byte seed");
+        final byte[] seed = Arrays.copyOfRange(choice, 2, choice.length);
+        assertArrayEquals(
+            Arrays.copyOfRange(mlkemPkcs8, mlkemPkcs8.length - 64, mlkemPkcs8.length),
+            seed,
+            paramSet + " the seed is the last 64 bytes of the PKCS#8 encoding");
+        final HpkePrivateKey hpkePrivate = HpkePrivateKey.fromEncoded(suite.spec(), seed);
+        assertArrayEquals(
+            mlkemPublicBytes,
+            hpkePrivate.getPublicKey().getEncoded(),
+            paramSet + " HPKE public key derived from the ML-KEM seed");
+        assertArrayEquals(seed, hpkePrivate.getEncoded(), paramSet);
+      }
+
+      final KeyPair hpke = suite.generateKeyPair();
+      final ASN1Encodable algorithm = ASN1Sequence.getInstance(mlkemPkcs8).getObjectAt(1);
+      final KeyFactory keyFactory = KeyFactory.getInstance(paramSet, NATIVE_PROVIDER);
+      final PrivateKey imported =
+          keyFactory.generatePrivate(
+              new PKCS8EncodedKeySpec(
+                  pkcs8WithPrivateKeyChoice(
+                      algorithm,
+                      new DERTaggedObject(
+                          false, 0, new DEROctetString(hpke.getPrivate().getEncoded())))));
+      final PublicKey hpkePublicAsMlKem =
+          keyFactory.generatePublic(
+              new X509EncodedKeySpec(
+                  new SubjectPublicKeyInfo(mlkemSpki.getAlgorithm(), hpke.getPublic().getEncoded())
+                      .getEncoded("DER")));
+      final KEM kem = KEM.getInstance(paramSet, NATIVE_PROVIDER);
+      final NamedParameterSpec paramSpec = new NamedParameterSpec(paramSet);
+      final KEM.Encapsulated encapsulated =
+          kem.newEncapsulator(hpkePublicAsMlKem, paramSpec, null).encapsulate();
+      assertArrayEquals(
+          encapsulated.key().getEncoded(),
+          kem.newDecapsulator(imported, paramSpec)
+              .decapsulate(encapsulated.encapsulation())
+              .getEncoded(),
+          paramSet + " ML-KEM key imported from an HPKE seed");
+    }
+    assumeTrue(tested > 0, "the linked AWS-LC provides no HPKE suite");
   }
 }
