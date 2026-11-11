@@ -1,6 +1,7 @@
 // Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 #include "generated-headers.h"
+#include <openssl/aead.h>
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <cassert>
@@ -46,6 +47,12 @@ extern "C" JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_Utils
     JNIEnv*, jclass, jlong ctxPtr)
 {
     EVP_CIPHER_CTX_free(reinterpret_cast<EVP_CIPHER_CTX*>(ctxPtr));
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_Utils_releaseEvpAeadCtx(
+    JNIEnv*, jclass, jlong ctxPtr)
+{
+    EVP_AEAD_CTX_free(reinterpret_cast<EVP_AEAD_CTX*>(ctxPtr));
 }
 
 EVP_MD const* digest_code_to_EVP_MD(int digestCode)
