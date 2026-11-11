@@ -1,9 +1,10 @@
 name: ACCP release build
 
 # Builds the unsigned linux jars (non-FIPS and FIPS), then signs them in a fan-in job.
-# signing-keys=test signs with throwaway keys; those jars are NOT releasable (the self-signed JCE
-# cert fails Maven Central's signature enforcement, even though the jar loads fine as a provider on
-# most JDKs). signing-keys=release signs with the production keys. Every job runs on the
+# signing-keys=test signs with throwaway keys; those jars are NOT releasable: the throwaway GPG key
+# is on no public keyserver, so Central Portal validation rejects them, and Oracle JDK rejects the
+# self-signed JCE cert (OpenJDK-based JDKs do not check provider signers, so the jar still loads
+# there). signing-keys=release signs with the production keys. See tests/ci/release/README.md. Every job runs on the
 # CodeBuild-hosted runners, which only serve
 # corretto/amazon-corretto-crypto-provider; on a fork the jobs queue and never start.
 # Only manually triggered: the release sign job runs on a runner that holds the signing secrets,
@@ -58,7 +59,7 @@ jobs:
           distribution: 'corretto'
 
       - name: Build
-        run: ./gradlew -DFIPS=${{ matrix.fips }} release_jars
+        run: ./gradlew -DFIPS=${{ matrix.fips }} release_jars release_portal_metadata
 
       - name: Record jar hashes
         run: |
@@ -71,9 +72,67 @@ jobs:
           path: build/release/*.jar
           if-no-files-found: error
 
+      # One copy per variant is enough: the POM and empty jar are not platform-specific.
+      - if: matrix.platform == 'linux-x86_64'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: accp-portal-metadata${{ matrix.fips && '-fips' || '' }}
+          path: build/portal-metadata/*
+          if-no-files-found: error
+
+  # Loads each unsigned platform jar as the JCA provider on every supported JDK, in every mode.
+  # Unsigned is enough: OpenJDK-based JDKs do not check provider signers, and the sign job verifies
+  # the signatures itself.
+  smoke-test:
+    name: Smoke ${{ matrix.platform }}${{ matrix.fips && ' FIPS' || '' }} on JDK ${{ matrix.jdk }}
+    needs: build-linux
+    runs-on:
+      - codebuild-accp-gha-${{ matrix.codebuild-arch }}-${{ github.run_id }}-${{ github.run_attempt }}
+      - smoke-${{ matrix.platform }}-${{ matrix.fips && 'fips' || 'nonfips' }}-jdk${{ matrix.jdk }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [linux-x86_64, linux-aarch_64]
+        fips: [false, true]
+        jdk: ['17', '25']
+        include:
+          - platform: linux-x86_64
+            codebuild-arch: x86_64
+          - platform: linux-aarch_64
+            codebuild-arch: aarch64
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: tests/ci/release
+          persist-credentials: false
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: accp-${{ matrix.platform }}${{ matrix.fips && '-fips' || '' }}
+          path: jars
+
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          java-version: ${{ matrix.jdk }}
+          distribution: 'corretto'
+
+      - name: Run smoke test
+        run: |
+          prefix=AmazonCorrettoCryptoProvider${{ matrix.fips && '-FIPS' || '' }}
+          jar=$(ls jars/$prefix-[0-9]*-${{ matrix.platform }}.jar)
+          version=$(basename "$jar" | sed -E "s/^$prefix-(.+)-${{ matrix.platform }}\.jar$/\1/")
+          mkdir classes
+          javac -cp "$jar" -d classes tests/ci/release/ReleaseSmokeTest.java
+          java -cp "$jar:classes" ReleaseSmokeTest "$version" ${{ matrix.fips }}
+          if [ "${{ matrix.jdk }}" -ge 17 ]; then
+            javac -cp "$jar" -d classes tests/ci/release/ReleaseSmokeTestMlKem.java
+            java -cp "$jar:classes" ReleaseSmokeTestMlKem
+          fi
+
   sign:
     name: Sign (${{ inputs.signing-keys }} keys)
-    needs: build-linux
+    # Smoke tests gate signing, so a broken build is never production-signed or staged.
+    needs: [build-linux, smoke-test]
     if: inputs.signing-keys != 'none'
     runs-on:
       - codebuild-accp-gha-x86_64-${{ github.run_id }}-${{ github.run_attempt }}
@@ -81,9 +140,10 @@ jobs:
     env:
       AWS_REGION: us-west-2
     steps:
+      # Full checkout, not sparse: the Portal bundle task runs Gradle from the repo root.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          sparse-checkout: tests/ci/release
+          submodules: true
           persist-credentials: false
 
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -97,6 +157,7 @@ jobs:
           cp dist/*/*-linux-*.jar signed/
           cp dist/accp-linux-x86_64/*-sources.jar dist/accp-linux-x86_64/*-javadoc.jar signed/
           cp dist/accp-linux-x86_64-fips/*-sources.jar dist/accp-linux-x86_64-fips/*-javadoc.jar signed/
+          cp dist/accp-portal-metadata*/* signed/
           ls -l signed
 
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
@@ -113,60 +174,17 @@ jobs:
           cd signed
           sha256sum *.jar *.asc | tee -a "$GITHUB_STEP_SUMMARY"
 
-      # Release-signed jars are not uploaded: on a public repo, any workflow artifact is
-      # downloadable, and these would be production-signed builds of an unreleased commit.
-      # Publishing to Maven Central will consume them directly from this job.
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: inputs.signing-keys != 'release'
-        with:
-          name: accp-signed-${{ inputs.signing-keys }}
-          path: signed/
-          if-no-files-found: error
+      # Signed jars are never uploaded as workflow artifacts: on a public repo any artifact is
+      # downloadable, and release-signed ones would be production-signed builds of an unreleased
+      # commit. The Portal bundle below is the only way they leave this job.
 
-  # Loads each signed platform jar as the JCA provider on every supported JDK.
-  smoke-test:
-    name: Smoke ${{ matrix.platform }}${{ matrix.fips && ' FIPS' || '' }} on JDK ${{ matrix.jdk }}
-    needs: sign
-    if: inputs.signing-keys != 'none'
-    runs-on:
-      - codebuild-accp-gha-${{ matrix.codebuild-arch }}-${{ github.run_id }}-${{ github.run_attempt }}
-      - smoke-${{ matrix.platform }}-${{ matrix.fips && 'fips' || 'nonfips' }}-jdk${{ matrix.jdk }}
-    strategy:
-      fail-fast: false
-      matrix:
-        platform: [linux-x86_64, linux-aarch_64]
-        fips: [false, true]
-        jdk: ['8', '11', '17', '21', '25']
-        include:
-          - platform: linux-x86_64
-            codebuild-arch: x86_64
-          - platform: linux-aarch_64
-            codebuild-arch: aarch64
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          sparse-checkout: tests/ci/release
-          persist-credentials: false
+      # Non-FIPS only: the FIPS artifacts are a separate Portal deployment. Staging only: publish.sh
+      # stops at VALIDATED, and the upload is USER_MANAGED, so nothing reaches Maven Central until a
+      # person publishes it in the Portal UI.
+      - name: Build Portal bundle
+        if: inputs.signing-keys == 'release'
+        run: ./gradlew -PsignedJarsDir="$PWD/signed" centralPortalBundle
 
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: accp-signed-${{ inputs.signing-keys }}
-          path: signed
-
-      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
-        with:
-          java-version: ${{ matrix.jdk }}
-          distribution: 'corretto'
-
-      - name: Run smoke test
-        run: |
-          prefix=AmazonCorrettoCryptoProvider${{ matrix.fips && '-FIPS' || '' }}
-          jar=$(ls signed/$prefix-[0-9]*-${{ matrix.platform }}.jar)
-          version=$(basename "$jar" | sed -E "s/^$prefix-(.+)-${{ matrix.platform }}\.jar$/\1/")
-          mkdir classes
-          javac -cp "$jar" -d classes tests/ci/release/ReleaseSmokeTest.java
-          java -cp "$jar:classes" ReleaseSmokeTest "$version" ${{ matrix.fips }}
-          if [ "${{ matrix.jdk }}" -ge 17 ]; then
-            javac -cp "$jar" -d classes tests/ci/release/ReleaseSmokeTestMlKem.java
-            java -cp "$jar:classes" ReleaseSmokeTestMlKem
-          fi
+      - name: Upload Portal bundle to staging
+        if: inputs.signing-keys == 'release'
+        run: tests/ci/release/publish.sh build/portal/central-bundle-*.zip
