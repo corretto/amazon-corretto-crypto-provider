@@ -178,13 +178,18 @@ jobs:
       # downloadable, and release-signed ones would be production-signed builds of an unreleased
       # commit. The Portal bundle below is the only way they leave this job.
 
-      # Non-FIPS only: the FIPS artifacts are a separate Portal deployment. Staging only: publish.sh
-      # stops at VALIDATED, and the upload is USER_MANAGED, so nothing reaches Maven Central until a
-      # person publishes it in the Portal UI.
-      - name: Build Portal bundle
+      # FIPS and non-FIPS are separate Maven coordinates, so each gets its own bundle and Portal
+      # deployment. Staging only: publish.sh stops at VALIDATED, and the upload is USER_MANAGED, so
+      # nothing reaches Maven Central until a person publishes it in the Portal UI.
+      - name: Build Portal bundles
         if: inputs.signing-keys == 'release'
-        run: ./gradlew -PsignedJarsDir="$PWD/signed" centralPortalBundle
+        run: |
+          ./gradlew -PsignedJarsDir="$PWD/signed" centralPortalBundle
+          ./gradlew -DFIPS=true -PsignedJarsDir="$PWD/signed" centralPortalBundle
 
-      - name: Upload Portal bundle to staging
+      - name: Upload Portal bundles to staging
         if: inputs.signing-keys == 'release'
-        run: tests/ci/release/publish.sh build/portal/central-bundle-*.zip
+        run: |
+          for bundle in build/portal/central-bundle-*.zip; do
+            tests/ci/release/publish.sh "$bundle"
+          done

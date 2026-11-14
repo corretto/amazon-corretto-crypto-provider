@@ -985,9 +985,11 @@ if (project.hasProperty('signedJarsDir')) {
             include "${jarPrefix}*.asc"
             into "software/amazon/cryptools/${accpArtifactId}/${version}"
         }
-        // maven-metadata.xml describes the whole artifact across versions. The Portal derives that
-        // itself and rejects a bundle that tries to supply it.
+        // The FIPS and non-FIPS runs publish into the same bundleDir, so take only this variant's
+        // files. maven-metadata.xml describes the whole artifact across versions. The Portal derives
+        // that itself and rejects a bundle that tries to supply it.
         from(bundleDir) {
+            include "software/amazon/cryptools/${accpArtifactId}/**"
             exclude '**/maven-metadata.xml*'
         }
 
