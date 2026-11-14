@@ -932,6 +932,9 @@ publishing {
                 artifact source: file("${signedJars}/${jarPrefix}.jar"), extension: 'jar'
                 artifact source: file("${signedJars}/${jarPrefix}-linux-x86_64.jar"), classifier: 'linux-x86_64', extension: 'jar'
                 artifact source: file("${signedJars}/${jarPrefix}-linux-aarch_64.jar"), classifier: 'linux-aarch_64', extension: 'jar'
+                if (!isFips) {
+                    artifact source: file("${signedJars}/${jarPrefix}-osx-aarch_64.jar"), classifier: 'osx-aarch_64', extension: 'jar'
+                }
                 artifact source: file("${signedJars}/${jarPrefix}-sources.jar"), classifier: 'sources', extension: 'jar'
                 artifact source: file("${signedJars}/${jarPrefix}-javadoc.jar"), classifier: 'javadoc', extension: 'jar'
             } else {

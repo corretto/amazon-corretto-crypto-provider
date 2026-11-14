@@ -105,7 +105,7 @@ gpg --batch --armor --export "$gpg_uid" > "$dir/signing-key.pub"
 
 # DigiCert's TSA does not respond on port 443, so this must stay HTTP. The timestamp token is
 # signed by DigiCert and checked by jarsigner, so a tampered response fails signing.
-for jar in "$dir"/*-linux-*.jar; do
+for jar in "$dir"/*-linux-*.jar "$dir"/*-osx-*.jar; do
   jarsigner -keystore "$keystore" -storepass:env KEYSTORE_PASSWORD \
     -tsa http://timestamp.digicert.com "$jar" "$jce_alias" >/dev/null
   verify=$(jarsigner -verify -verbose -certs "$jar")
