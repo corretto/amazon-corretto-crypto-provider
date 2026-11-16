@@ -19,7 +19,7 @@ The `signing-keys` input selects what runs:
 |---|---|---|---|
 | `build-linux`: linux x86_64 and aarch64, FIPS and non-FIPS, unsigned | yes | yes | yes |
 | `sign`: JCE + GPG sign and verify | skipped | throwaway keys | production keys |
-| `sign` builds the Portal bundle and uploads it to Portal staging (non-FIPS only) | - | - | yes |
+| `sign` builds the FIPS and non-FIPS Portal bundles and uploads each to Portal staging | - | - | yes |
 | `smoke-test`: every unsigned platform jar on JDK 17 and 25 | yes | yes | yes |
 
 Signed jars are never uploaded as workflow artifacts. On a public repo any signed-in GitHub user can
@@ -60,4 +60,3 @@ Portal validation checks GPG signatures but ignores the JCE signature.
   it; running the test-key jar on Oracle JDK and expecting a load failure would show the check is live.
 - The smoke matrix covers JDK 17 and 25 only, though the jars target JDK 8. The aarch64 runner fleet has one
   instance, so a wider matrix queues for a long time.
-- Only the non-FIPS bundle is uploaded to the Portal. FIPS is a separate deployment and is not wired up.
