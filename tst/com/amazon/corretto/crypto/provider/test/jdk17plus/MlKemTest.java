@@ -391,13 +391,12 @@ public class MlKemTest {
   @ParameterizedTest
   @MethodSource("mlKemParamSets")
   public void testPrivateKeyChoicesParse(String paramSet) throws Exception {
-    // ACCP parses the seed and expandedKey CHOICEs of RFC 9935 Section 6 in every build. Those
-    // are the two mainline AWS-LC implements, and ACCP's regular-FIPS fallover parser exists to
-    // stand in for that decoder, so it accepts exactly them and no more (see the both CHOICE in
-    // testBothChoiceRejected). AWS-LC-FIPS 3.1.0 decodes neither, so in regular FIPS the fallover
-    // parser is what accepts both encodings here. Every assertion is encoding-independent: the
-    // two encodings carry the same key material, so each must decapsulate a given ciphertext to
-    // the same shared secret.
+    // ACCP parses the seed and expandedKey CHOICEs of RFC 9935 Section 6 in every build. ACCP's
+    // regular-FIPS fallover parser exists to stand in for AWS-LC's decoder, so it accepts exactly
+    // these two and no more (see the both CHOICE in testBothChoiceFollowsLinkedAwsLc). The
+    // AWS-LC-FIPS release branches decode neither, so in regular FIPS the fallover parser is what
+    // accepts both encodings here. Every assertion is encoding-independent: the two encodings carry
+    // the same key material, so each must decapsulate a given ciphertext to the same shared secret.
     KeyPairGenerator bcKeyGen = KeyPairGenerator.getInstance("ML-KEM", TestUtil.BC_PROVIDER);
     bcKeyGen.initialize(TestUtil.getMlKemParamSpec(paramSet));
     KeyPair bcKeyPair = bcKeyGen.generateKeyPair();
@@ -461,17 +460,20 @@ public class MlKemTest {
 
   @ParameterizedTest
   @MethodSource("mlKemParamSets")
-  public void testBothChoiceRejected(String paramSet) throws Exception {
+  public void testBothChoiceFollowsLinkedAwsLc(String paramSet) throws Exception {
     // The both CHOICE (SEQUENCE { seed, expandedKey }) is well-formed RFC 9935 Section 6 and is
-    // what BouncyCastle's ML-KEM getEncoded() emits by default, but no AWS-LC flavor decodes it,
-    // mainline included: kem_priv_decode there still says "Case 3 ... not implemented yet".
-    // ACCP's regular-FIPS fallover parser deliberately matches that rejection instead of filling
-    // the gap, so that deleting the parser once AWS-LC-FIPS decodes ML-KEM natively cannot
-    // silently withdraw support ACCP had advertised. This test pins the rejection so that support
-    // can only ever be added on purpose, together with AWS-LC.
+    // what BouncyCastle's ML-KEM getEncoded() emits by default, so it is the encoding a caller
+    // holding a stock BouncyCastle key hands to ACCP. Whether ACCP accepts it is a property of the
+    // AWS-LC this build links, so key it on TestUtil's probe rather than on the build flavor.
+    //
+    // ACCP's regular-FIPS fallover parser in keyutils.cpp rejects the CHOICE whatever the linked
+    // AWS-LC does, so that deleting the parser on the FIPS bump cannot withdraw support ACCP had
+    // advertised. testBothChoiceSupportMatchesLinkedAwsLc pins the probe's answer against the
+    // linked AWS-LC, so support still cannot start or stop being advertised unnoticed.
     KeyPairGenerator bcKeyGen = KeyPairGenerator.getInstance("ML-KEM", TestUtil.BC_PROVIDER);
     bcKeyGen.initialize(TestUtil.getMlKemParamSpec(paramSet));
-    MLKEMPrivateKey bcPriv = (MLKEMPrivateKey) bcKeyGen.generateKeyPair().getPrivate();
+    KeyPair bcKeyPair = bcKeyGen.generateKeyPair();
+    MLKEMPrivateKey bcPriv = (MLKEMPrivateKey) bcKeyPair.getPrivate();
     byte[] bothForm = bcPriv.getEncoded();
     assertEquals(
         CHOICE_TAG_BOTH,
@@ -479,53 +481,119 @@ public class MlKemTest {
         paramSet + " BouncyCastle getEncoded() is the both SEQUENCE");
 
     KeyFactory keyFactory = KeyFactory.getInstance(paramSet, NATIVE_PROVIDER);
-    assertPrivateKeyRejected(
-        keyFactory, paramSet + " BouncyCastle's default both encoding", bothForm);
-
-    // Also reject it when nothing else about the encoding is unusual: same algorithm, same version
-    // 0 PrivateKeyInfo shell as the seed and expandedKey encodings ACCP does accept, and a seed and
-    // expandedKey that agree with each other. The CHOICE alone is the reason for the rejection.
     ASN1Encodable algorithm = ASN1Sequence.getInstance(bothForm).getObjectAt(1);
     ASN1Sequence both = ASN1Sequence.getInstance(privateKeyChoiceBytes(bothForm));
     byte[] seed = ASN1OctetString.getInstance(both.getObjectAt(0)).getOctets();
     byte[] expanded = ASN1OctetString.getInstance(both.getObjectAt(1)).getOctets();
-    assertPrivateKeyRejected(
-        keyFactory,
-        paramSet + " a self-consistent both CHOICE in a version 0 PrivateKeyInfo",
-        pkcs8WithPrivateKeyChoice(algorithm, bothChoice(seed, expanded)));
 
-    // The halves on their own are accepted, so the rejections above are attributable to the CHOICE
-    // rather than to this test having mangled the key material or the shell.
-    assertNotNull(
+    // The halves on their own are accepted in every build, so whichever answer the CHOICE gets
+    // below is attributable to the CHOICE rather than to this test having mangled the key material
+    // or the shell.
+    PrivateKey fromSeedHalf =
         keyFactory.generatePrivate(
             new PKCS8EncodedKeySpec(
                 pkcs8WithPrivateKeyChoice(
-                    algorithm, new DERTaggedObject(false, 0, new DEROctetString(seed))))),
-        paramSet + " the seed half alone must be accepted");
+                    algorithm, new DERTaggedObject(false, 0, new DEROctetString(seed)))));
+    assertNotNull(fromSeedHalf, paramSet + " the seed half alone must be accepted");
     assertNotNull(
         keyFactory.generatePrivate(
             new PKCS8EncodedKeySpec(
                 pkcs8WithPrivateKeyChoice(algorithm, new DEROctetString(expanded)))),
         paramSet + " the expandedKey half alone must be accepted");
 
-    // MlKemUtils.expandPrivateKey parses through the same grammar, so it rejects the both CHOICE
-    // too rather than handing the input back unchanged. Note that this is reachable with a stock
-    // BouncyCastle key: getAlgorithm() on one is the parameter-set name, so the ML-KEM check in
-    // expandPrivateKey passes and the both-encoded getEncoded() reaches the native parser. The
-    // rejection is unchecked because expandPrivateKey declares no checked exceptions.
-    assertThrows(RuntimeCryptoException.class, () -> MlKemUtils.expandPrivateKey(bcPriv));
+    if (!TestUtil.mlKemAcceptsBothChoice()) {
+      assertPrivateKeyRejected(
+          keyFactory, paramSet + " BouncyCastle's default both encoding", bothForm);
+      // Rejected even when nothing else about the encoding is unusual: same algorithm, same version
+      // 0 PrivateKeyInfo shell as the seed and expandedKey encodings ACCP does accept, and a seed
+      // and expandedKey that agree with each other. The CHOICE alone is the reason.
+      assertPrivateKeyRejected(
+          keyFactory,
+          paramSet + " a self-consistent both CHOICE in a version 0 PrivateKeyInfo",
+          pkcs8WithPrivateKeyChoice(algorithm, bothChoice(seed, expanded)));
+      // MlKemUtils.expandPrivateKey parses through the same grammar, so it rejects the both CHOICE
+      // too rather than handing the input back unchanged. Note that this is reachable with a stock
+      // BouncyCastle key: getAlgorithm() on one is the parameter-set name, so the ML-KEM check in
+      // expandPrivateKey passes and the both-encoded getEncoded() reaches the native parser. The
+      // rejection is unchecked because expandPrivateKey declares no checked exceptions.
+      assertThrows(RuntimeCryptoException.class, () -> MlKemUtils.expandPrivateKey(bcPriv));
+      return;
+    }
+
+    // Where the CHOICE parses, the key it yields has to be the key the encoding describes rather
+    // than merely something that parsed: a decoder that read one half and ignored the other, or
+    // read the halves into the wrong fields, would still hand back a usable ML-KEM key.
+    PrivateKey fromBoth = keyFactory.generatePrivate(new PKCS8EncodedKeySpec(bothForm));
+    KEM kem = KEM.getInstance(paramSet, NATIVE_PROVIDER);
+    NamedParameterSpec paramSpec = new NamedParameterSpec(paramSet);
+    PublicKey accpPub =
+        keyFactory.generatePublic(new X509EncodedKeySpec(bcKeyPair.getPublic().getEncoded()));
+    KEM.Encapsulated encapsulated = kem.newEncapsulator(accpPub, paramSpec, null).encapsulate();
+    assertArrayEquals(
+        encapsulated.key().getEncoded(),
+        kem.newDecapsulator(fromBoth, paramSpec)
+            .decapsulate(encapsulated.encapsulation())
+            .getEncoded(),
+        paramSet + " a both-imported private key must decapsulate to the encapsulated secret");
+    // Byte-identical to the key imported from the seed half alone, which also pins that the seed
+    // survives the import: a build whose getEncoded() emits the seed CHOICE can match here only by
+    // having kept it.
+    assertArrayEquals(
+        fromSeedHalf.getEncoded(),
+        fromBoth.getEncoded(),
+        paramSet + " a both-imported private key must re-encode as the seed half alone does");
+    assertArrayEquals(
+        bcPriv.getPrivateKey(false).getEncoded(),
+        MlKemUtils.expandPrivateKey(bcPriv),
+        paramSet + " expandPrivateKey must expand a both encoding to BouncyCastle's expandedKey");
+
+    // The halves of a both encoding can disagree, and the point of carrying both is that a decoder
+    // can tell. One whose seed does not expand to its expandedKey describes no key at all, so
+    // taking either half would be importing key material the encoding does not vouch for.
+    byte[] corruptedSeed = seed.clone();
+    corruptedSeed[0] ^= 0x01;
+    assertPrivateKeyRejected(
+        keyFactory,
+        paramSet + " a both CHOICE whose seed does not expand to its expandedKey",
+        pkcs8WithPrivateKeyChoice(algorithm, bothChoice(corruptedSeed, expanded)));
+  }
+
+  @Test
+  public void testBothChoiceSupportMatchesLinkedAwsLc() {
+    // Guards TestUtil.mlKemAcceptsBothChoice() the way testPrivateKeyEncodingMatchesLinkedAwsLc
+    // guards the seed probe. The probe reads as "rejected" both where the linked AWS-LC has no
+    // decoder for the CHOICE and where ML-KEM private-key parsing is broken outright, and in the
+    // second case every caller would assert the rejection it already expects and the coverage would
+    // disappear rather than the build going red. Check it against the one input that is not ACCP's
+    // own behavior, the version of AWS-LC the build linked.
+    //
+    // Only the versions build.gradle pins can be checked this way. A -DAWSLC_GITVERSION override,
+    // or AWS-LC's own CI building ACCP against the tip of main, links an AWS-LC whose ML-KEM
+    // support is not known here, and there the probe stands alone.
+    final Optional<Boolean> expected = TestUtil.pinnedAwsLcAcceptsMlKemBothChoice();
+    assumeTrue(
+        expected.isPresent(),
+        NATIVE_PROVIDER.getAwsLcVersionStr() + " is not a version build.gradle pins");
+    assertEquals(
+        expected.get(),
+        TestUtil.mlKemAcceptsBothChoice(),
+        "ACCP's ML-KEM both CHOICE support does not match what "
+            + NATIVE_PROVIDER.getAwsLcVersionStr()
+            + " is known to decode. A pin that moved to an AWS-LC which decodes the CHOICE makes"
+            + " ACCP advertise it, which is a decision rather than a side effect: update"
+            + " TestUtil.pinnedAwsLcAcceptsMlKemBothChoice, say so on MlKemUtils.expandPrivateKey"
+            + " and in README.md, and decide whether the fallover parser in keyutils.cpp should"
+            + " keep rejecting it");
   }
 
   @ParameterizedTest
   @MethodSource("mlKemParamSets")
   public void testImportedPrivateKeyPublicKeyAvailability(String paramSet) throws Throwable {
-    // ACCP reconstructs an imported ML-KEM private key the same way mainline AWS-LC's decoder
-    // does, one CHOICE at a time, so the two agree per CHOICE in every build: seed derives the
-    // whole key pair, while expandedKey sets only the raw secret key (KEM_KEY_set_raw_secret_key)
-    // and leaves the public key unpopulated. Encoding the public key of an expandedKey-imported
-    // private key therefore fails instead of returning its SPKI. Pinned here so the asymmetry
-    // cannot change silently in either direction: closing it in ACCP alone would be a divergence
-    // from AWS-LC.
+    // A seed-imported ML-KEM private key derives the whole key pair, so it carries its public key.
+    // Whether an expandedKey-imported one does depends on the decoder: ACCP's fallover parser sets
+    // only the raw secret key, as early mainline AWS-LC did, so the public key is unpopulated and
+    // encoding it fails; a later AWS-LC recovers it from the decapsulation key, which embeds it.
+    // Pinned here per decoder so neither answer can change silently.
     KeyPairGenerator bcKeyGen = KeyPairGenerator.getInstance("ML-KEM", TestUtil.BC_PROVIDER);
     bcKeyGen.initialize(TestUtil.getMlKemParamSpec(paramSet));
     KeyPair bcKeyPair = bcKeyGen.generateKeyPair();
@@ -544,8 +612,26 @@ public class MlKemTest {
     PrivateKey fromExpanded =
         accpKf.generatePrivate(new PKCS8EncodedKeySpec(bcPriv.getPrivateKey(false).getEncoded()));
     PublicKey pubFromExpanded = TestUtil.sneakyInvoke(fromExpanded, "getPublicKey");
-    // An expandedKey-imported private key carries no public key, so encoding it fails.
-    assertThrows(RuntimeCryptoException.class, pubFromExpanded::getEncoded);
+    if (TestUtil.linkedAwsLcLacksMlKemPrivDecode()) {
+      // ACCP's fallover parser is the whole decoder here, so hold it to what it documents.
+      // Populating the public key would advertise a capability that vanishes when the parser is
+      // deleted on the FIPS bump.
+      assertThrows(RuntimeCryptoException.class, pubFromExpanded::getEncoded);
+      return;
+    }
+    // AWS-LC's own decoder answers, so take whichever answer that version gives. The one thing it
+    // may not do is report a wrong public key: the encapsulation key sits at a fixed offset inside
+    // the decapsulation key, and reading it from the wrong one yields bytes of the right length.
+    try {
+      assertArrayEquals(
+          spki,
+          pubFromExpanded.getEncoded(),
+          paramSet
+              + " an expandedKey-imported private key that carries a public key must carry the one"
+              + " embedded in its decapsulation key");
+    } catch (RuntimeCryptoException expected) {
+      // An AWS-LC whose expandedKey import leaves the public key unpopulated.
+    }
   }
 
   @ParameterizedTest
@@ -1199,10 +1285,10 @@ public class MlKemTest {
         paramSet + " BouncyCastle and ACCP must agree on the expanded encoding of the same key");
 
     // ACCP imports BouncyCastle's keys. Ask BC for the expandedKey CHOICE of RFC 9935 Section 6
-    // specifically, so this stays a like-for-like comparison of re-encodings: ACCP rejects the both
-    // CHOICE that BC's getEncoded() emits by default, and an expandedKey-imported ACCP key has no
-    // seed to emit, so it round-trips to the expanded form in every build. The seed CHOICE is
-    // covered by testPrivateKeyChoicesParse.
+    // specifically, so this stays a like-for-like comparison of re-encodings: an
+    // expandedKey-imported ACCP key has no seed to emit, so it round-trips to the expanded form in
+    // every build. The seed CHOICE is covered by testPrivateKeyChoicesParse, and the both CHOICE
+    // that BC's getEncoded() emits by default by testBothChoiceFollowsLinkedAwsLc.
     // https://github.com/bcgit/bc-java/blob/b41f23936724284a20f10dff13c76896a846031b/prov/src/main/java/org/bouncycastle/jcajce/interfaces/MLKEMPrivateKey.java#L35
     final KeyPairGenerator bcKeyGen = KeyPairGenerator.getInstance("ML-KEM", TestUtil.BC_PROVIDER);
     bcKeyGen.initialize(TestUtil.getMlKemParamSpec(paramSet));

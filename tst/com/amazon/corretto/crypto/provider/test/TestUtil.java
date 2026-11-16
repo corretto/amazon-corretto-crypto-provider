@@ -17,12 +17,15 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.security.GeneralSecurityException;
+import java.security.KeyFactory;
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -171,6 +174,73 @@ public class TestUtil {
       return Optional.of(Boolean.FALSE);
     }
     return Optional.empty();
+  }
+
+  /**
+   * What {@link #mlKemAcceptsBothChoice} has to answer for the AWS-LC versions build.gradle pins,
+   * or empty for any other AWS-LC.
+   *
+   * <p>Neither pinned version decodes the {@code both} CHOICE: the pinned mainline tag does not,
+   * and no AWS-LC-FIPS 3.x release branch decodes an ML-KEM PKCS#8 private key at all. A mainline
+   * bump that crosses the commit adding the decoder therefore fails here, and this is the one place
+   * that has to be revisited to decide whether ACCP starts advertising the CHOICE.
+   */
+  public static Optional<Boolean> pinnedAwsLcAcceptsMlKemBothChoice() {
+    final String version = awsLcVersionStr();
+    if (version.contains(AWSLC_MAIN_PIN) || version.contains(AWSLC_FIPS_RELEASE_BRANCH)) {
+      return Optional.of(Boolean.FALSE);
+    }
+    return Optional.empty();
+  }
+
+  // Memoizes mlKemAcceptsBothChoice(). Guarded by TestUtil.class, since ACCP's tests run
+  // concurrently.
+  private static Boolean mlKemBothChoiceAccepted;
+
+  /**
+   * Whether the AWS-LC this build links decodes the {@code both} CHOICE of RFC 9935 Section 6
+   * ({@code SEQUENCE } &#123; seed, expandedKey &#125;), which is what BouncyCastle's ML-KEM {@code
+   * getEncoded()} emits by default.
+   *
+   * <p>A property of the linked libcrypto rather than of the build flavor, for the reasons given on
+   * {@link #mlKemEmitsSeedEncoding}. Unlike {@link #linkedAwsLcLacksMlKemPrivDecode} it can be
+   * probed, because a {@code both} key is a well-formed encoding that a shipping encoder really
+   * emits rather than one of the malformed encodings whose handling is the thing under test.
+   *
+   * <p>Checked against {@link #pinnedAwsLcAcceptsMlKemBothChoice} by {@code
+   * MlKemTest.testBothChoiceSupportMatchesLinkedAwsLc}, so a build that links a pinned AWS-LC
+   * cannot quietly take the rejection branch of every caller because ML-KEM parsing regressed.
+   */
+  public static synchronized boolean mlKemAcceptsBothChoice() {
+    if (mlKemBothChoiceAccepted == null) {
+      try {
+        final KeyPairGenerator bcKeyGen = KeyPairGenerator.getInstance("ML-KEM", BC_PROVIDER);
+        bcKeyGen.initialize(getMlKemParamSpec("ML-KEM-512"));
+        final byte[] both = bcKeyGen.generateKeyPair().getPrivate().getEncoded();
+        // privateKey is the third field of the PrivateKeyInfo SEQUENCE, and the both CHOICE is a
+        // SEQUENCE (0x30) inside it. Held to that here so a change in what BouncyCastle emits by
+        // default cannot turn this into a probe of some other CHOICE.
+        final byte[] choice =
+            ASN1OctetString.getInstance(ASN1Sequence.getInstance(both).getObjectAt(2)).getOctets();
+        if (choice.length == 0 || (choice[0] & 0xFF) != 0x30) {
+          throw new AssertionError(
+              "BouncyCastle's default ML-KEM private key encoding is no longer the both CHOICE");
+        }
+        try {
+          KeyFactory.getInstance("ML-KEM-512", NATIVE_PROVIDER)
+              .generatePrivate(new PKCS8EncodedKeySpec(both));
+          mlKemBothChoiceAccepted = Boolean.TRUE;
+        } catch (final InvalidKeySpecException rejected) {
+          mlKemBothChoiceAccepted = Boolean.FALSE;
+        }
+      } catch (final GeneralSecurityException | RuntimeException e) {
+        // As in mlKemEmitsSeedEncoding, answering false because ML-KEM is merely broken would pick
+        // the weaker assertion in every caller, so the coverage would vanish rather than the build
+        // going red.
+        throw new AssertionError("could not probe ACCP's ML-KEM both CHOICE support", e);
+      }
+    }
+    return mlKemBothChoiceAccepted;
   }
 
   // Memoizes mlKemEmitsSeedEncoding(). Guarded by TestUtil.class, since ACCP's tests run
