@@ -8,6 +8,7 @@ signs, smoke-tests, and stages ACCP release jars. It runs only on the CodeBuild-
 |---|---|
 | `sign.sh` | JCE-signs (`jarsigner`) each platform jar and GPG-signs every jar and the POM, then verifies both |
 | `publish.sh` | Uploads a Central Portal bundle as a `USER_MANAGED` deployment and waits for `VALIDATED` |
+| `portal_bundle.py` | Assembles the signed files into one Portal bundle per artifact (FIPS and non-FIPS), with checksums. Fails if any file lacks a signature. Runs in place of Gradle on the `sign` runner, which can read the signing secrets |
 | `ReleaseSmokeTest.java`, `ReleaseSmokeTestMlKem.java` | Load a signed platform jar as the JCA provider and check it works |
 | `signing-key.asc` | Public half of the production GPG key, committed to avoid a keyserver dependency in `sign.sh` |
 

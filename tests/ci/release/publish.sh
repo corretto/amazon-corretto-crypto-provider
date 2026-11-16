@@ -2,7 +2,7 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
-# Uploads a Central Portal bundle zip (from the centralPortalBundle Gradle task) and polls until
+# Uploads a Central Portal bundle zip (from portal_bundle.py) and polls until
 # the Portal finishes validating it. Publishing itself stays manual: the upload always requests
 # USER_MANAGED, so a human still reviews and clicks publish in the Portal UI.
 #
