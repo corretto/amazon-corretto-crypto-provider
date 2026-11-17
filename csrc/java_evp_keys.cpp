@@ -47,7 +47,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpKey_enc
         // This next line allocates memory. On failure i2d_PUBKEY leaves |der| untouched.
         int derLen = i2d_PUBKEY(key, &der);
         if (derLen <= 0 && EVP_PKEY_id(key) == EVP_PKEY_KEM) {
-            // AWS-LC-FIPS 3.1.0 has no pub_encode for ML-KEM, so i2d_PUBKEY raises
+            // AWS-LC-FIPS 3.x has no pub_encode for ML-KEM, so i2d_PUBKEY raises
             // UNSUPPORTED_ALGORITHM there; hand-roll the SubjectPublicKeyInfo instead. The
             // hand-rolled encoding is byte-identical to what i2d_PUBKEY produces in non-FIPS builds.
             //
@@ -777,7 +777,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpKemPriv
         CBB cbb;
         CHECK_OPENSSL(CBB_init(&cbb, 0));
         // Prefer the standard PKCS8 marshal, which yields the compact seed format whenever the linked
-        // AWS-LC retains the ML-KEM keygen seed. AWS-LC-FIPS 3.1.0 cannot marshal ML-KEM private keys
+        // AWS-LC retains the ML-KEM keygen seed. AWS-LC-FIPS 3.x cannot marshal ML-KEM private keys
         // (no priv_encode) and retains no seed, so on failure fall back to hand-rolled expanded-format
         // PKCS8. Which of the two forms a build emits thus follows the library it links rather than its
         // FIPS flavor, and a FIPS module that starts retaining the seed starts emitting it here with no

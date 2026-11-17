@@ -373,7 +373,7 @@ public class EvpKeyFactoryTest {
         nativeFactory.getKeySpec(nativePrivKey, PKCS8EncodedKeySpec.class);
 
     if (isMlKemWithExpandedOnlyEncoding(algorithm)) {
-      // Against an AWS-LC that retains no keygen seed, such as the AWS-LC-FIPS 3.1.0 regular FIPS
+      // Against an AWS-LC that retains no keygen seed, such as the AWS-LC-FIPS 3.x regular FIPS
       // pins, ACCP always emits the RFC 9935 expandedKey form for ML-KEM private keys. Other
       // providers may emit the seed form for the same key, so the two encodings need not be
       // byte-identical. Assert that ACCP's own encoding round-trips unchanged instead of comparing
