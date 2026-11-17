@@ -177,23 +177,6 @@ public class TestUtil {
     return Optional.empty();
   }
 
-  /**
-   * What {@link #mlKemAcceptsBothChoice} has to answer for the AWS-LC versions build.gradle pins,
-   * or empty for any other AWS-LC.
-   *
-   * <p>Neither pinned version decodes the {@code both} CHOICE: the pinned mainline tag does not,
-   * and no AWS-LC-FIPS 3.x release branch decodes an ML-KEM PKCS#8 private key at all. A mainline
-   * bump that crosses the commit adding the decoder therefore fails here, and this is the one place
-   * that has to be revisited to decide whether ACCP starts advertising the CHOICE.
-   */
-  public static Optional<Boolean> pinnedAwsLcAcceptsMlKemBothChoice() {
-    final String version = awsLcVersionStr();
-    if (version.contains(AWSLC_MAIN_PIN) || version.contains(AWSLC_FIPS_RELEASE_BRANCH)) {
-      return Optional.of(Boolean.FALSE);
-    }
-    return Optional.empty();
-  }
-
   // Memoizes mlKemAcceptsBothChoice(). Guarded by TestUtil.class, since ACCP's tests run
   // concurrently.
   private static Boolean mlKemBothChoiceAccepted;

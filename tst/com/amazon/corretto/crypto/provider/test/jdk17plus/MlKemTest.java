@@ -468,8 +468,9 @@ public class MlKemTest {
     //
     // ACCP's regular-FIPS fallover parser in keyutils.cpp rejects the CHOICE whatever the linked
     // AWS-LC does, so that deleting the parser on the FIPS bump cannot withdraw support ACCP had
-    // advertised. testBothChoiceSupportMatchesLinkedAwsLc pins the probe's answer against the
-    // linked AWS-LC, so support still cannot start or stop being advertised unnoticed.
+    // advertised. The probe is the only thing that decides which branch runs, so moving a pin onto
+    // an AWS-LC that decodes the CHOICE switches this test over on its own; see build.gradle, where
+    // the pins carry the note about the documentation that then needs updating.
     KeyPairGenerator bcKeyGen = KeyPairGenerator.getInstance("ML-KEM", TestUtil.BC_PROVIDER);
     bcKeyGen.initialize(TestUtil.getMlKemParamSpec(paramSet));
     KeyPair bcKeyPair = bcKeyGen.generateKeyPair();
@@ -556,34 +557,6 @@ public class MlKemTest {
         keyFactory,
         paramSet + " a both CHOICE whose seed does not expand to its expandedKey",
         pkcs8WithPrivateKeyChoice(algorithm, bothChoice(corruptedSeed, expanded)));
-  }
-
-  @Test
-  public void testBothChoiceSupportMatchesLinkedAwsLc() {
-    // A one-way tripwire on the two AWS-LC versions build.gradle pins. Neither decodes the CHOICE,
-    // so this fires only when a pin moves to an AWS-LC that does, which is the moment ACCP starts
-    // advertising it and the moment that has to be a decision rather than a side effect of a bump.
-    // It cannot catch the opposite drift, a probe that reads "rejected" because ML-KEM parsing
-    // broke: expected and actual would agree on false. mlKemAcceptsBothChoice guards itself against
-    // that by requiring a known-good encoding to parse before it answers false.
-    //
-    // Only the pinned versions can be checked at all. A -DAWSLC_GITVERSION override, or AWS-LC's
-    // own CI building ACCP against the tip of main, links an AWS-LC whose ML-KEM support is not
-    // known here, and there the probe stands alone.
-    final Optional<Boolean> expected = TestUtil.pinnedAwsLcAcceptsMlKemBothChoice();
-    assumeTrue(
-        expected.isPresent(),
-        NATIVE_PROVIDER.getAwsLcVersionStr() + " is not a version build.gradle pins");
-    assertEquals(
-        expected.get(),
-        TestUtil.mlKemAcceptsBothChoice(),
-        "ACCP's ML-KEM both CHOICE support does not match what "
-            + NATIVE_PROVIDER.getAwsLcVersionStr()
-            + " is known to decode. A pin that moved to an AWS-LC which decodes the CHOICE makes"
-            + " ACCP advertise it, which is a decision rather than a side effect: update"
-            + " TestUtil.pinnedAwsLcAcceptsMlKemBothChoice, say so on MlKemUtils.expandPrivateKey"
-            + " and in README.md, and decide whether the fallover parser in keyutils.cpp should"
-            + " keep rejecting it");
   }
 
   @ParameterizedTest
