@@ -50,6 +50,7 @@ import org.bouncycastle.crypto.digests.SHA224Digest;
 import org.bouncycastle.crypto.digests.SHA256Digest;
 import org.bouncycastle.crypto.digests.SHA384Digest;
 import org.bouncycastle.crypto.digests.SHA512Digest;
+import org.bouncycastle.jcajce.interfaces.MLKEMPrivateKey;
 import org.bouncycastle.jcajce.spec.MLKEMParameterSpec;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assumptions;
@@ -207,16 +208,19 @@ public class TestUtil {
    * probed, because a {@code both} key is a well-formed encoding that a shipping encoder really
    * emits rather than one of the malformed encodings whose handling is the thing under test.
    *
-   * <p>Checked against {@link #pinnedAwsLcAcceptsMlKemBothChoice} by {@code
-   * MlKemTest.testBothChoiceSupportMatchesLinkedAwsLc}, so a build that links a pinned AWS-LC
-   * cannot quietly take the rejection branch of every caller because ML-KEM parsing regressed.
+   * <p>A rejection is only evidence of a missing decoder if the decoder is otherwise working, so
+   * before answering false this confirms that the {@code expandedKey} CHOICE of the same key
+   * parses. Without that, ML-KEM private-key parsing broken outright would read identically to a
+   * libcrypto that does not implement the CHOICE, and every caller would take its rejection branch
+   * and assert the rejection it already expects.
    */
   public static synchronized boolean mlKemAcceptsBothChoice() {
     if (mlKemBothChoiceAccepted == null) {
       try {
         final KeyPairGenerator bcKeyGen = KeyPairGenerator.getInstance("ML-KEM", BC_PROVIDER);
         bcKeyGen.initialize(getMlKemParamSpec("ML-KEM-512"));
-        final byte[] both = bcKeyGen.generateKeyPair().getPrivate().getEncoded();
+        final MLKEMPrivateKey bcPriv = (MLKEMPrivateKey) bcKeyGen.generateKeyPair().getPrivate();
+        final byte[] both = bcPriv.getEncoded();
         // privateKey is the third field of the PrivateKeyInfo SEQUENCE, and the both CHOICE is a
         // SEQUENCE (0x30) inside it. Held to that here so a change in what BouncyCastle emits by
         // default cannot turn this into a probe of some other CHOICE.
@@ -226,11 +230,15 @@ public class TestUtil {
           throw new AssertionError(
               "BouncyCastle's default ML-KEM private key encoding is no longer the both CHOICE");
         }
+        final KeyFactory accpKf = KeyFactory.getInstance("ML-KEM-512", NATIVE_PROVIDER);
         try {
-          KeyFactory.getInstance("ML-KEM-512", NATIVE_PROVIDER)
-              .generatePrivate(new PKCS8EncodedKeySpec(both));
+          accpKf.generatePrivate(new PKCS8EncodedKeySpec(both));
           mlKemBothChoiceAccepted = Boolean.TRUE;
         } catch (final InvalidKeySpecException rejected) {
+          // The expandedKey CHOICE of the same key reaches the same decoder and every AWS-LC
+          // accepts it, so its rejection means the decoder is broken rather than incomplete. It
+          // throws out of the probe here, which is what makes a false answer trustworthy.
+          accpKf.generatePrivate(new PKCS8EncodedKeySpec(bcPriv.getPrivateKey(false).getEncoded()));
           mlKemBothChoiceAccepted = Boolean.FALSE;
         }
       } catch (final GeneralSecurityException | RuntimeException e) {

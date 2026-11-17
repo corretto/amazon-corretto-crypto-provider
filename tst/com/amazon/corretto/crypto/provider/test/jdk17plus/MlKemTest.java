@@ -560,16 +560,16 @@ public class MlKemTest {
 
   @Test
   public void testBothChoiceSupportMatchesLinkedAwsLc() {
-    // Guards TestUtil.mlKemAcceptsBothChoice() the way testPrivateKeyEncodingMatchesLinkedAwsLc
-    // guards the seed probe. The probe reads as "rejected" both where the linked AWS-LC has no
-    // decoder for the CHOICE and where ML-KEM private-key parsing is broken outright, and in the
-    // second case every caller would assert the rejection it already expects and the coverage would
-    // disappear rather than the build going red. Check it against the one input that is not ACCP's
-    // own behavior, the version of AWS-LC the build linked.
+    // A one-way tripwire on the two AWS-LC versions build.gradle pins. Neither decodes the CHOICE,
+    // so this fires only when a pin moves to an AWS-LC that does, which is the moment ACCP starts
+    // advertising it and the moment that has to be a decision rather than a side effect of a bump.
+    // It cannot catch the opposite drift, a probe that reads "rejected" because ML-KEM parsing
+    // broke: expected and actual would agree on false. mlKemAcceptsBothChoice guards itself against
+    // that by requiring a known-good encoding to parse before it answers false.
     //
-    // Only the versions build.gradle pins can be checked this way. A -DAWSLC_GITVERSION override,
-    // or AWS-LC's own CI building ACCP against the tip of main, links an AWS-LC whose ML-KEM
-    // support is not known here, and there the probe stands alone.
+    // Only the pinned versions can be checked at all. A -DAWSLC_GITVERSION override, or AWS-LC's
+    // own CI building ACCP against the tip of main, links an AWS-LC whose ML-KEM support is not
+    // known here, and there the probe stands alone.
     final Optional<Boolean> expected = TestUtil.pinnedAwsLcAcceptsMlKemBothChoice();
     assumeTrue(
         expected.isPresent(),
