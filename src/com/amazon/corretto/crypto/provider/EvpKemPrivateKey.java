@@ -27,7 +27,7 @@ class EvpKemPrivateKey extends EvpKemKey implements PrivateKey {
 
   @Override
   protected byte[] internalGetEncoded() {
-    // ML-KEM private keys prefer seed format, but AWS-LC-FIPS 3.1.0 cannot marshal ML-KEM private
+    // ML-KEM private keys prefer seed format, but AWS-LC-FIPS 3.x cannot marshal ML-KEM private
     // keys and lacks seed support, so the native encoder falls back to expanded format in regular
     // FIPS. (Mirrors EvpMlDsaPrivateKey's seed/expanded handling.)
     assertNotDestroyed();

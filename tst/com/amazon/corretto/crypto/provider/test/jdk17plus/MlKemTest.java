@@ -736,10 +736,8 @@ public class MlKemTest {
     // way AWS-LC v5.0.0 spells kAttributesTag and kPublicKeyTag, so it treats the other form of
     // either tag as unrecognized trailing data inside the SEQUENCE and rejects the key.
     //
-    // A primitive [0] where attributes belong is rejected everywhere, though the pinned non-FIPS
-    // AWS-LC v1.72.0 gets there by another route: its kAttributesTag is the primitive form, so it
-    // matches, but it then tries to consume the field from the outer CBS it has already advanced
-    // past the SEQUENCE, and fails.
+    // A primitive [0] where attributes belong is rejected everywhere, by ACCP's parser and by every
+    // AWS-LC the pins name.
     assertPrivateKeyRejected(
         keyFactory,
         paramSet + " primitive [0] attributes",
@@ -752,13 +750,14 @@ public class MlKemTest {
                 })
             .getEncoded("DER"));
 
-    // A constructed [1] where a primitive [1] publicKey belongs is one of the two input classes the
-    // decoders disagree on, and the disagreement is entirely on AWS-LC's side of it. ACCP's parser
-    // rejects it, and so does AWS-LC v5.0.0 and later, via the trailing-data check
-    // EVP_parse_private_key gained there. The pinned v1.72.0 matches neither of its tags against
-    // 0xA1 and has no such check, so it accepts the key and ignores the field. Which answer a build
-    // gives therefore turns on the AWS-LC it links, not on the build flavor; see
-    // assertMalformedFieldNotAbsorbed.
+    // A constructed [1] where a primitive [1] publicKey belongs is rejected by ACCP's parser, and
+    // by
+    // AWS-LC v5.0.0 and later via the trailing-data check EVP_parse_private_key gained there. Both
+    // pins name such a version, so both answer the same way today. It goes through
+    // assertMalformedFieldNotAbsorbed anyway, because which answer a build gives turns on the
+    // AWS-LC
+    // it links rather than on the build flavor, and an older AWS-LC matches neither of its tags
+    // against 0xA1 and has no such check, so it accepts the key and ignores the field.
     assertMalformedFieldNotAbsorbed(
         keyFactory,
         paramSet + " constructed [1] publicKey",
@@ -1139,7 +1138,7 @@ public class MlKemTest {
   @MethodSource("mlKemParamSets")
   public void testPrivateKeyEncodingIsSeedFormat(String paramSet) throws Exception {
     // ACCP cannot EMIT the seed encoding against an AWS-LC that stores no keygen seed, such as the
-    // AWS-LC-FIPS 3.1.0 that regular FIPS pins: getEncoded() produces the expanded form instead.
+    // AWS-LC-FIPS 3.x that regular FIPS pins: getEncoded() produces the expanded form instead.
     // (Seed PARSING is supported everywhere; see testPrivateKeyChoicesParse, which also pins the
     // expanded form those builds emit here.) Keyed on the linked AWS-LC rather than on the FIPS
     // build flavor, so that this skips only where the capability is genuinely absent -- see
