@@ -109,17 +109,10 @@ public class EvpKeyAgreementSpecificTest {
     assertArrayEquals(aliceSecret, bobSecret);
   }
 
-  // ACCP's own KeyAgreement consuming a foreign public key, which is the direction a TLS handshake
-  // takes: JSSE hands the peer's key to whichever provider owns the key agreement, so ACCP has to
-  // recognize the curve-specific name as naming its own algorithm. assertAccpXECKeysInteropWith
-  // covers only the opposite direction, where the foreign provider consumes ACCP's keys and the
-  // name ACCP reports is never in question.
   @Test
   public void testAccpXdhKeyAgreementAcceptsBouncyCastleX25519Key() throws Exception {
     final KeyPair bcKeyPair =
         KeyPairGenerator.getInstance("X25519", TestUtil.BC_PROVIDER).generateKeyPair();
-    // The premise of the test: BouncyCastle names the key by its curve. SunEC reports "XDH" for the
-    // same key, which is why BouncyCastle is the provider that exercises this path.
     assertEquals(
         "X25519",
         bcKeyPair.getPublic().getAlgorithm(),
