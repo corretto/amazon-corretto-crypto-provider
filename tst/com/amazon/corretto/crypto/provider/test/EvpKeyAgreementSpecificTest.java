@@ -111,6 +111,7 @@ public class EvpKeyAgreementSpecificTest {
 
   @Test
   public void testAccpXdhKeyAgreementAcceptsBouncyCastleX25519Key() throws Exception {
+    TestUtil.assumeMinimumJavaVersion(17);
     final KeyPair bcKeyPair =
         KeyPairGenerator.getInstance("X25519", TestUtil.BC_PROVIDER).generateKeyPair();
     assertEquals(
