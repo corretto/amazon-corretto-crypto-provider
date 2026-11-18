@@ -117,17 +117,7 @@ jobs:
           distribution: 'corretto'
 
       - name: Run smoke test
-        run: |
-          prefix=AmazonCorrettoCryptoProvider${{ matrix.fips && '-FIPS' || '' }}
-          jar=$(ls jars/$prefix-[0-9]*-${{ matrix.platform }}.jar)
-          version=$(basename "$jar" | sed -E "s/^$prefix-(.+)-${{ matrix.platform }}\.jar$/\1/")
-          mkdir classes
-          javac -cp "$jar" -d classes tests/ci/release/ReleaseSmokeTest.java
-          java -cp "$jar:classes" ReleaseSmokeTest "$version" ${{ matrix.fips }}
-          if [ "${{ matrix.jdk }}" -ge 17 ]; then
-            javac -cp "$jar" -d classes tests/ci/release/ReleaseSmokeTestMlKem.java
-            java -cp "$jar:classes" ReleaseSmokeTestMlKem
-          fi
+        run: tests/ci/release/smoke-test.sh jars ${{ matrix.platform }} ${{ matrix.fips }} ${{ matrix.jdk }}
 
   sign:
     name: Sign (${{ inputs.signing-keys }} keys)
@@ -139,6 +129,8 @@ jobs:
       - sign
     env:
       AWS_REGION: us-west-2
+    outputs:
+      staged-artifact-id: ${{ steps.upload-staged.outputs.artifact-id }}
     steps:
       # Only the release scripts: this runner can read the signing secrets and the Portal token, so
       # it runs no build tooling.
@@ -175,9 +167,6 @@ jobs:
           cd signed
           sha256sum *.jar *.asc | tee -a "$GITHUB_STEP_SUMMARY"
 
-      # Signed jars are never uploaded as workflow artifacts: on a public repo any artifact is
-      # downloadable, and release-signed ones would be production-signed builds of an unreleased
-      # commit. The Portal bundle below is the only way they leave this job.
 
       # FIPS and non-FIPS are separate Maven coordinates, so each gets its own bundle and Portal
       # deployment. Staging only: publish.sh stops at VALIDATED, and the upload is USER_MANAGED, so
@@ -186,9 +175,87 @@ jobs:
         if: inputs.signing-keys == 'release'
         run: python3 tests/ci/release/portal_bundle.py signed bundles
 
+      # publish.sh also downloads the platform jars back from each VALIDATED deployment and checks
+      # they match the bundle, so the staged-test jobs test exactly what is staged.
       - name: Upload Portal bundles to staging
         if: inputs.signing-keys == 'release'
+        env:
+          STAGED_JARS_DIR: staged
         run: |
           for bundle in bundles/central-bundle-*.zip; do
             tests/ci/release/publish.sh "$bundle"
           done
+
+      # This is the only place production-signed jars leave this job as a workflow artifact. On a
+      # public repo any signed-in user can download it. The aarch64 staged test needs the jars on
+      # another runner, and the alternative is reading the Portal token, which can publish, there.
+      # delete-staged-artifact removes the artifact once the staged tests finish, and the one-day
+      # retention covers the case where that job never runs.
+      - id: upload-staged
+        if: inputs.signing-keys == 'release'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: accp-staged-release
+          path: staged/*.jar
+          retention-days: 1
+          if-no-files-found: error
+
+  # Smoke-tests the jars downloaded back from Portal staging: the signed bytes a release would
+  # publish. One JDK, because smoke-test already covered the JDK range on the same code before
+  # signing; this pass checks that signing and staging left the jars intact, including the
+  # META-INF/versions overlay that ReleaseSmokeTestMlKem loads.
+  staged-test:
+    name: Staged ${{ matrix.platform }}${{ matrix.fips && ' FIPS' || '' }} on JDK 17
+    needs: sign
+    if: inputs.signing-keys == 'release'
+    runs-on:
+      - codebuild-accp-gha-${{ matrix.codebuild-arch }}-${{ github.run_id }}-${{ github.run_attempt }}
+      - staged-${{ matrix.platform }}-${{ matrix.fips && 'fips' || 'nonfips' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [linux-x86_64, linux-aarch_64]
+        fips: [false, true]
+        include:
+          - platform: linux-x86_64
+            codebuild-arch: x86_64
+          - platform: linux-aarch_64
+            codebuild-arch: aarch64
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: tests/ci/release
+          persist-credentials: false
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: accp-staged-release
+          path: jars
+
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          java-version: '17'
+          distribution: 'corretto'
+
+      - name: Verify JCE signature
+        run: |
+          prefix=AmazonCorrettoCryptoProvider${{ matrix.fips && '-FIPS' || '' }}
+          jarsigner -verify -verbose -certs jars/$prefix-[0-9]*-${{ matrix.platform }}.jar | grep -q "jar verified"
+
+      - name: Run smoke test
+        run: tests/ci/release/smoke-test.sh jars ${{ matrix.platform }} ${{ matrix.fips }} 17
+
+  # Runs even when a staged test fails, so the production-signed artifact never outlives the run.
+  delete-staged-artifact:
+    name: Delete staged-jar artifact
+    needs: [sign, staged-test]
+    if: always() && needs.sign.outputs.staged-artifact-id != ''
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Delete artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: ${{ needs.sign.outputs.staged-artifact-id }}
+        run: gh api --method DELETE "repos/${{ github.repository }}/actions/artifacts/$ARTIFACT_ID"

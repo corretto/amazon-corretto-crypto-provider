@@ -9,6 +9,10 @@
 # The token is a Sonatype Central Portal "user token" (not the account login), fetched from
 # Secrets Manager. It behaves like base64(username:password) over Bearer auth.
 #
+# If STAGED_JARS_DIR is set, the platform jars are downloaded back from the VALIDATED deployment into
+# it, and each must match the bundle byte for byte. The staged-test jobs then test the exact staged
+# files. Only this job holds the token, so it does the download for them.
+#
 # Usage: publish.sh BUNDLE_ZIP [DEPLOYMENT_NAME]
 set -euo pipefail
 
@@ -29,10 +33,28 @@ echo "::add-mask::$token"
 # (and so out of the process table). printf is a bash builtin, so it never spawns with the token.
 portal_curl() {
   printf 'header = "Authorization: Bearer %s"\n' "$token" \
-    | curl --config - --fail --silent --show-error --request POST "$@"
+    | curl --config - --fail --silent --show-error "$@"
 }
 
-response=$(portal_curl \
+fetch_staged_jars() {
+  mkdir -p "$STAGED_JARS_DIR"
+  local path out expected actual
+  for path in $(python3 -c "import sys, zipfile; print('\n'.join(zipfile.ZipFile(sys.argv[1]).namelist()))" "$bundle" \
+      | grep -E -- '-(linux|osx)-[a-z0-9_]+\.jar$'); do
+    out="$STAGED_JARS_DIR/$(basename "$path")"
+    portal_curl --output "$out" \
+      "https://central.sonatype.com/api/v1/publisher/deployment/${deployment_id}/download/${path}"
+    expected=$(python3 -c "import hashlib, sys, zipfile; print(hashlib.sha256(zipfile.ZipFile(sys.argv[1]).read(sys.argv[2])).hexdigest())" "$bundle" "$path")
+    actual=$(sha256sum "$out" | cut -d' ' -f1)
+    if [ "$expected" != "$actual" ]; then
+      echo "::error::$path from staging does not match the bundle ($actual != $expected)"
+      exit 1
+    fi
+    echo "Fetched $path from staging, sha256 $actual"
+  done
+}
+
+response=$(portal_curl --request POST \
   --form "bundle=@${bundle};type=application/octet-stream" \
   "https://central.sonatype.com/api/v1/publisher/upload?name=${name}&publishingType=USER_MANAGED")
 deployment_id=$response
@@ -41,7 +63,7 @@ echo "Uploaded as deployment $deployment_id"
 for _ in $(seq 1 30); do
   # The deployment already exists, so a transient status error must not abort: rerunning would
   # upload a duplicate deployment.
-  if ! status=$(portal_curl "https://central.sonatype.com/api/v1/publisher/status?id=${deployment_id}"); then
+  if ! status=$(portal_curl --request POST "https://central.sonatype.com/api/v1/publisher/status?id=${deployment_id}"); then
     echo "::warning::Status request failed, retrying"
     sleep 10
     continue
@@ -49,7 +71,11 @@ for _ in $(seq 1 30); do
   state=$(echo "$status" | python3 -c "import json,sys; print(json.load(sys.stdin)['deploymentState'])")
   echo "deploymentState=$state"
   case "$state" in
-    VALIDATED) echo "$status"; exit 0 ;;
+    VALIDATED)
+      echo "$status"
+      if [ -n "${STAGED_JARS_DIR:-}" ]; then fetch_staged_jars; fi
+      exit 0
+      ;;
     FAILED) echo "::error::Portal validation failed"; echo "$status"; exit 1 ;;
     PENDING|VALIDATING) sleep 10 ;;
     *) echo "::error::Unexpected deploymentState $state"; echo "$status"; exit 1 ;;
