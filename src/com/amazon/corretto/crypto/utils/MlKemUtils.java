@@ -25,8 +25,9 @@ public final class MlKemUtils {
    * PrivateKeyInfo} wrapping the {@code expandedKey} CHOICE, with no {@code attributes} and no
    * {@code publicKey}. Those optional {@code OneAsymmetricKey} fields are accepted on input but are
    * not carried over, so this method is idempotent on its own output rather than byte-preserving on
-   * arbitrary input. Only the {@code seed} and {@code expandedKey} CHOICEs of RFC 9935 Section 6
-   * are accepted; the {@code both} CHOICE is rejected.
+   * arbitrary input. The {@code seed} and {@code expandedKey} CHOICEs of RFC 9935 Section 6 are
+   * accepted in every build. Acceptance of the {@code both} CHOICE follows the AWS-LC this build
+   * links; in ACCP-FIPS, where ACCP's own parser is the ML-KEM private-key decoder, it is rejected.
    *
    * @param key an ML-KEM private key
    * @return a byte[] containing the PKCS8-encoded expanded private key
