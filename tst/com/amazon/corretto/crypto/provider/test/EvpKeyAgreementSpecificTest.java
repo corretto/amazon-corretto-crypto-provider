@@ -109,6 +109,39 @@ public class EvpKeyAgreementSpecificTest {
     assertArrayEquals(aliceSecret, bobSecret);
   }
 
+  // ACCP's own KeyAgreement consuming a foreign public key, which is the direction a TLS handshake
+  // takes: JSSE hands the peer's key to whichever provider owns the key agreement, so ACCP has to
+  // recognize the curve-specific name as naming its own algorithm. assertAccpXECKeysInteropWith
+  // covers only the opposite direction, where the foreign provider consumes ACCP's keys and the
+  // name ACCP reports is never in question.
+  @Test
+  public void testAccpXdhKeyAgreementAcceptsBouncyCastleX25519Key() throws Exception {
+    final KeyPair bcKeyPair =
+        KeyPairGenerator.getInstance("X25519", TestUtil.BC_PROVIDER).generateKeyPair();
+    // The premise of the test: BouncyCastle names the key by its curve. SunEC reports "XDH" for the
+    // same key, which is why BouncyCastle is the provider that exercises this path.
+    assertEquals(
+        "X25519",
+        bcKeyPair.getPublic().getAlgorithm(),
+        "BouncyCastle names an X25519 key by its curve, which is the case under test");
+
+    final KeyPair accpKeyPair =
+        KeyPairGenerator.getInstance("X25519", NATIVE_PROVIDER).generateKeyPair();
+
+    final KeyAgreement accpAgreement = KeyAgreement.getInstance("XDH", NATIVE_PROVIDER);
+    accpAgreement.init(accpKeyPair.getPrivate());
+    accpAgreement.doPhase(bcKeyPair.getPublic(), true);
+
+    final KeyAgreement bcAgreement = KeyAgreement.getInstance("X25519", TestUtil.BC_PROVIDER);
+    bcAgreement.init(bcKeyPair.getPrivate());
+    bcAgreement.doPhase(accpKeyPair.getPublic(), true);
+
+    assertArrayEquals(
+        accpAgreement.generateSecret(),
+        bcAgreement.generateSecret(),
+        "BouncyCastle and ACCP must agree on the shared secret");
+  }
+
   // ACCP registers KeyAgreement under the "XDH" name, whose SupportedKeyClasses (XECPublicKey /
   // XECPrivateKey) also match X448 keys. ACCP only supports X25519, so init'ing with a (SunEC) X448
   // key must fail with InvalidKeyException, letting the JCA fall through to another provider. This
