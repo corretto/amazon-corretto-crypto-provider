@@ -138,7 +138,7 @@ abstract class EvpKeyFactory extends KeyFactorySpi {
   }
 
   protected boolean keyNeedsConversion(Key key) throws InvalidKeyException {
-    if (key.getAlgorithm() == null || !key.getAlgorithm().startsWith(type.jceName)) {
+    if (!type.matchesAlgorithm(key.getAlgorithm())) {
       throw new InvalidKeyException(
           "Incorrect key algorithm: " + key.getAlgorithm() + ". Expected: " + type.jceName);
     }
