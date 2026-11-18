@@ -9,10 +9,13 @@ import static com.amazon.corretto.crypto.provider.test.TestUtil.saveProviders;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import java.nio.charset.StandardCharsets;
+import java.security.InvalidKeyException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
@@ -131,6 +134,40 @@ public class MiscSingleThreadedTests {
           NATIVE_PROVIDER.getName(),
           ka.getProvider().getName(),
           "XDH KeyAgreement silently failed over to another provider");
+    } finally {
+      restoreProviders(oldProviders);
+    }
+  }
+
+  /** Default lookup must reach the HPKE key-import advice. */
+  @Test
+  public void hpkeMlKemKeyAdviceOnDefaultLookup() throws Exception {
+    assumeTrue(
+        NATIVE_PROVIDER.getService("KeyPairGenerator", "ML-KEM-768") != null,
+        "ACCP does not register ML-KEM on this JVM");
+    final HpkeTestSuite suite = HpkeTestSuite.MLKEM768;
+    suite.assumeAvailable();
+    final KeyPair mlkem =
+        KeyPairGenerator.getInstance("ML-KEM-768", NATIVE_PROVIDER).generateKeyPair();
+    final Provider[] oldProviders = saveProviders();
+    try {
+      AmazonCorrettoCryptoProvider.install();
+      final InvalidKeyException forPublic =
+          assertThrows(
+              InvalidKeyException.class,
+              () ->
+                  Cipher.getInstance("HPKE")
+                      .init(Cipher.ENCRYPT_MODE, mlkem.getPublic(), suite.spec()));
+      final InvalidKeyException forPrivate =
+          assertThrows(
+              InvalidKeyException.class,
+              () ->
+                  Cipher.getInstance("HPKE")
+                      .init(
+                          Cipher.DECRYPT_MODE,
+                          mlkem.getPrivate(),
+                          suite.spec().withEncapsulation(new byte[suite.encLength])));
+      HpkeCipherTest.assertMlKemKeyAdvice(forPublic, forPrivate);
     } finally {
       restoreProviders(oldProviders);
     }

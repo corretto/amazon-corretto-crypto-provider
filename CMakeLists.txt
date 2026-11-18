@@ -376,7 +376,7 @@ else()
         COMMAND ${Java_JAR_EXECUTABLE} uf ${ACCP_JAR_TMP} -C ${CMAKE_CURRENT_BINARY_DIR}/tmplib/ com/amazon/corretto/crypto/provider/
         COMMAND ${Java_JAR_EXECUTABLE} uf ${ACCP_JAR_TMP} -C ${CMAKE_CURRENT_BINARY_DIR}/generated-java/ com/amazon/corretto/crypto/provider/version.properties
         COMMAND ${CMAKE_COMMAND} -E copy ${ACCP_JAR_TMP} ${ACCP_JAR}
-        DEPENDS code-only-jar module-jar ${VERSION_PROPERTIES_FILE}
+        DEPENDS code-only-jar module-jar amazonCorrettoCryptoProvider ${VERSION_PROPERTIES_FILE}
     )
 
     # Multi-Release overlay: add the versioned jdk17plus (ML-KEM SPI) classes as
@@ -475,6 +475,7 @@ endif()
 # ML-KEM always ships (as the Multi-Release overlay) and its JNI symbols must
 # exist wherever it registers, so these are compiled unconditionally.
 set(C_SRC ${C_SRC} csrc/mlkem_gen.cpp csrc/mlkem_spi.cpp)
+set(C_SRC ${C_SRC} csrc/hpke.cpp)
 
 add_library(amazonCorrettoCryptoProvider SHARED ${C_SRC})
 
@@ -496,6 +497,10 @@ if(ENABLE_NATIVE_TEST_HOOKS)
 
     add_executable(test_buffer EXCLUDE_FROM_ALL csrc/test_buffer.cpp)
     target_link_libraries(test_buffer amazonCorrettoCryptoProvider)
+
+    add_executable(test_auto_free EXCLUDE_FROM_ALL csrc/test_auto_free.cpp)
+    target_compile_options(test_auto_free PRIVATE -fno-elide-constructors)
+    target_link_libraries(test_auto_free amazonCorrettoCryptoProvider)
 endif()
 
 #### Start of feature tests
@@ -802,6 +807,8 @@ add_custom_command(
     COMMAND ${Java_JAR_EXECUTABLE} uf ${TESTS_JAR}.tmp.jar -C ${CMAKE_CURRENT_SOURCE_DIR}/tst .
     COMMAND ${CMAKE_COMMAND} -E copy ${TESTS_JAR}.tmp.jar ${TESTS_JAR}
     DEPENDS tests-code-jar
+        $<TARGET_PROPERTY:tests-code-jar,JAR_FILE>
+        ${CMAKE_CURRENT_SOURCE_DIR}/tst/com/amazon/corretto/crypto/provider/test/hpke_base_kat.txt
 )
 add_custom_target(tests-jar DEPENDS ${TESTS_JAR})
 set_property(TARGET tests-jar PROPERTY JAR_FILE ${TESTS_JAR})
@@ -1054,6 +1061,13 @@ if(ENABLE_NATIVE_TEST_HOOKS)
         COMMAND $<TARGET_FILE:test_buffer>
     )
     add_dependencies(check check-buffer)
+
+    add_custom_target(check-auto-free
+        COMMAND ${CMAKE_COMMAND} -E copy ${OPENSSL_CRYPTO_LIBRARY} $<TARGET_FILE_DIR:test_auto_free>
+        COMMAND $<TARGET_FILE:test_auto_free>
+        DEPENDS test_auto_free
+    )
+    add_dependencies(check check-auto-free)
 endif()
 
 add_custom_target(coverage

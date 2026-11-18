@@ -89,6 +89,22 @@ For ML-KEM key generation (`KeyPairGenerator`) and KEM encapsulation (`KEM.newEn
 ## ML-DSA ignores caller-supplied SecureRandom
 For ML-DSA key generation (`KeyPairGenerator`) and signing (`Signature.initSign(PrivateKey, SecureRandom)`), ACCP accepts but ignores any caller-supplied `SecureRandom`; AWS-LC always draws ML-DSA randomness from its own DRBG. This includes `KeyPairGenerator.initialize(-1, random)`, which ACCP accepts (as SUN does) without changing the parameter set. As a result, a deterministic `SecureRandom` does not produce deterministic ML-DSA keys or signatures.
 
+## HPKE differs from JDK 26's HPKE Cipher
+
+ACCP accepts `HpkeParameterSpec` on JDK 8+ and JDK 26's `javax.crypto.spec.HPKEParameterSpec` for
+ML-KEM-768 and ML-KEM-1024 base-mode suites. Classical DHKEM, PSK/auth modes, and secret export are unsupported.
+
+ACCP requires suite-bound `HpkePublicKey` and `HpkePrivateKey` objects with `RAW` encodings
+(public key bytes or a 64-byte private seed), and an explicitly initialized `HPKE` KeyPairGenerator.
+SunJCE uses the KEM's generator; JDK 26 has no standard ML-KEM HPKE key type.
+
+ACCP buffers messages until `doFinal`; encryption `update` returns no output, while SunJCE returns
+ciphertext. Caller-supplied `SecureRandom` is ignored in favor of AWS-LC's DRBG.
+
+ACCP parameters compare by value and print suite ids and `info`/encapsulation lengths; JDK parameters
+use identity equality and print `info`. See [HPKE Considerations](./README.md#hpke-considerations)
+for usage and API links.
+
 # Extensions
 Applications are unlikely to directly encounter any of these changes but may choose to take advantage of them.
 
