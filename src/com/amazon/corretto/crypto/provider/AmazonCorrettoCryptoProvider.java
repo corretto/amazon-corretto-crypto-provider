@@ -319,11 +319,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
         final String algorithm = format("%swith%s", hash, base);
         final String className = format("EvpSignature$%s", algorithm);
         final String oid = SIGNATURE_OIDS.get(algorithm);
-        if (oid != null) {
-          addService("Signature", algorithm, className, null, oid, "OID." + oid);
-        } else {
-          addService("Signature", algorithm, className);
-        }
+        addService("Signature", algorithm, className, null, oid, "OID." + oid);
         if (base.equals("ECDSA")) {
           addService("Signature", algorithm + EvpSignatureBase.P1363_FORMAT_SUFFIX, className);
         }
