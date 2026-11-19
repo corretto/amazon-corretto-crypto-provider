@@ -45,6 +45,7 @@ import java.security.Security;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -287,6 +288,27 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     addSignatures();
   }
 
+  // OID aliases for signature algorithms so that JCA lookups by OID (e.g. during cert chain
+  // validation) resolve to ACCP instead of falling through to a lower-priority provider.
+  private static final Map<String, String> SIGNATURE_OIDS;
+
+  static {
+    final Map<String, String> m = new HashMap<>();
+    // ECDSA — X9.62 / RFC 5758
+    m.put("SHA1withECDSA", "1.2.840.10045.4.1");
+    m.put("SHA224withECDSA", "1.2.840.10045.4.3.1");
+    m.put("SHA256withECDSA", "1.2.840.10045.4.3.2");
+    m.put("SHA384withECDSA", "1.2.840.10045.4.3.3");
+    m.put("SHA512withECDSA", "1.2.840.10045.4.3.4");
+    // RSA PKCS#1 v1.5 — RFC 8017
+    m.put("SHA1withRSA", "1.2.840.113549.1.1.5");
+    m.put("SHA224withRSA", "1.2.840.113549.1.1.14");
+    m.put("SHA256withRSA", "1.2.840.113549.1.1.11");
+    m.put("SHA384withRSA", "1.2.840.113549.1.1.12");
+    m.put("SHA512withRSA", "1.2.840.113549.1.1.13");
+    SIGNATURE_OIDS = Collections.unmodifiableMap(m);
+  }
+
   private void addSignatures() {
     // Basic signature styles
     final List<String> bases = asList("RSA", "ECDSA");
@@ -296,7 +318,12 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
       for (final String hash : hashes) {
         final String algorithm = format("%swith%s", hash, base);
         final String className = format("EvpSignature$%s", algorithm);
-        addService("Signature", algorithm, className);
+        final String oid = SIGNATURE_OIDS.get(algorithm);
+        if (oid != null) {
+          addService("Signature", algorithm, className, null, oid, "OID." + oid);
+        } else {
+          addService("Signature", algorithm, className);
+        }
         if (base.equals("ECDSA")) {
           addService("Signature", algorithm + EvpSignatureBase.P1363_FORMAT_SUFFIX, className);
         }
@@ -312,7 +339,13 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
       addService("Signature", algorithm, className);
     }
 
-    addService("Signature", "RSASSA-PSS", "EvpSignature$RSASSA_PSS");
+    addService(
+        "Signature",
+        "RSASSA-PSS",
+        "EvpSignature$RSASSA_PSS",
+        null,
+        "1.2.840.113549.1.1.10",
+        "OID.1.2.840.113549.1.1.10");
     addService("Signature", "NONEwithRSASSA-PSS", "NoneWithRsa$Pss");
     addService("Signature", "NONEwithRSA", "NoneWithRsa$Pkcs15");
     addService("Signature", "NONEwithECDSA", "EvpSignatureRaw$NONEwithECDSA");
