@@ -797,17 +797,37 @@ task fakePublish {
 
 }
 
+// Both publication paths below publish the same coordinates, so the POM metadata lives in one
+// place rather than being repeated per publication.
+def configureAccpPom(pom, boolean fips) {
+    pom.name = fips ? 'Amazon Corretto Crypto Provider (FIPS)' : 'Amazon Corretto Crypto Provider'
+    pom.description = getDescriptionForPom(fips)
+    pom.url = 'https://github.com/corretto/amazon-corretto-crypto-provider'
+    pom.licenses {
+        license {
+            name = 'The Apache License, Version 2.0'
+            url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+        }
+    }
+    pom.scm {
+        url = 'https://github.com/corretto/amazon-corretto-crypto-provider.git'
+        connection = 'scm:git:git@github.com:corretto/amazon-corretto-crypto-provider.git'
+        developerConnection = 'scm:git:git@github.com:corretto/amazon-corretto-crypto-provider.git'
+    }
+    pom.developers {
+        developer {
+            id = 'amazonwebservices'
+            organization = 'Amazon Web Services'
+            organizationUrl = 'https://aws.amazon.com'
+        }
+    }
+}
+
 if (project.hasProperty('jcecertAlias')) {
     publishing {
         publications {
             mavenJava(MavenPublication) {
-                def pomName = "Amazon Corretto Crypto Provider"
-                if (isFips) {
-                    artifactId = project.name + "-FIPS"
-                    pomName = pomName + " (FIPS)"
-                } else {
-                    artifactId = project.name
-                }
+                artifactId = isFips ? project.name + "-FIPS" : project.name
                 def fakeMavenBase = "${buildDir}/fake_maven/${artifactId}-${version}-"
                 def x86Jar = "${fakeMavenBase}linux-x86_64.jar"
                 def aarch64Jar = "${fakeMavenBase}linux-aarch_64.jar"
@@ -825,33 +845,14 @@ if (project.hasProperty('jcecertAlias')) {
                 artifact source: file(javadocJar),classifier:"javadoc",extension:"jar"
                 artifact source: file(sourceJar),classifier:"sources",extension:"jar"
 
-                pom {
-                    name = pomName
-                    description = getDescriptionForPom(isFips)
-                    url = 'https://github.com/corretto/amazon-corretto-crypto-provider'
-                    licenses {
-                        license {
-                            name = 'The Apache License, Version 2.0'
-                            url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
-                        }
-                    }
-                    scm {
-                        url = 'https://github.com/corretto/amazon-corretto-crypto-provider.git'
-                        connection = 'scm:git:git@github.com:corretto/amazon-corretto-crypto-provider.git'
-                        developerConnection = 'scm:git:git@github.com:corretto/amazon-corretto-crypto-provider.git'
-                    }
-                    developers {
-                        developer {
-                            id = 'amazonwebservices'
-                            organization = 'Amazon Web Services'
-                            organizationUrl = 'https://aws.amazon.com'
-                        }
-                    }
-                }
+                configureAccpPom(pom, isFips)
             }
         }
     }
 
+    // Dead as of the OSSRH shutdown on 2025-06-30: aws.oss.sonatype.org no longer resolves, so this
+    // block and the two staging tasks below cannot publish. Only the internal CodePipeline invokes
+    // them, so they stay until it is retired in favour of the release workflow's Portal publishing.
     nexusPublishing {
         repositories {
             sonatype {
@@ -903,6 +904,38 @@ if (project.hasProperty('jcecertAlias')) {
             ant.fail('Insufficient configuration for signing')
         }
     }
+}
+
+// Maven Central Portal metadata. Gradle only generates the POM and the empty main jar here; the
+// release workflow's sign job signs them with the platform jars, and tests/ci/release/portal_bundle.py
+// assembles the upload bundle there without running Gradle.
+def accpArtifactId = isFips ? project.name + '-FIPS' : project.name
+def jarPrefix = "${accpArtifactId}-${version}"
+
+publishing {
+    publications {
+        centralPortal(MavenPublication) {
+            artifactId = accpArtifactId
+            // The main artifact is an empty jar: ACCP ships native code, so every jar with
+            // content carries a platform classifier.
+            artifact emptyJar
+            configureAccpPom(pom, isFips)
+        }
+    }
+}
+
+// Carries the POM and empty main jar to build/portal-metadata under their Maven Central names, unsigned.
+// The release workflow uploads that directory as its own artifact, so the sign job gets exactly these two
+// files without matching them by name.
+task release_portal_metadata(type: Copy) {
+    dependsOn generatePomFileForCentralPortalPublication, emptyJar
+    from(generatePomFileForCentralPortalPublication.destination) {
+        rename '.*', "${jarPrefix}.pom"
+    }
+    from(emptyJar.archiveFile) {
+        rename '.*', "${jarPrefix}.jar"
+    }
+    into "${buildDir}/portal-metadata"
 }
 
 task clean(overwrite: true, type: Delete) {

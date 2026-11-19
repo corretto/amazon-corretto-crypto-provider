@@ -114,8 +114,8 @@ for jar in "$dir"/*-linux-*.jar; do
   echo "$jar: JCE signature verified"
 done
 
-for jar in "$dir"/*.jar; do
-  gpg_with_passphrase --armor --local-user "$gpg_uid" --detach-sign "$jar"
-  gpg --batch --verify "$jar.asc" "$jar" 2>/dev/null
-  echo "$jar: GPG signature verified"
+for file in "$dir"/*.jar "$dir"/*.pom; do
+  gpg_with_passphrase --armor --local-user "$gpg_uid" --detach-sign "$file"
+  gpg --batch --verify "$file.asc" "$file" 2>/dev/null
+  echo "$file: GPG signature verified"
 done
