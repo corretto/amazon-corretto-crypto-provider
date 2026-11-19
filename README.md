@@ -212,7 +212,7 @@ ACCP-FIPS is only supported on the following platforms:
 
 # Compatibility & Requirements
 ACCP has the following requirements:
-* JDK8 or newer (This includes both OracleJDK and [Amazon Corretto](https://aws.amazon.com/corretto/))
+* JDK8 or newer (This includes both OracleJDK and [Amazon Corretto](https://aws.amazon.com/corretto/)). CI tests the LTS releases: 8, 11, 17, 21, and 25. Non-LTS releases may work but are not tested.
 * One of the platforms listed under [Platform Support](#platform-support) below
 
 ## JDK 25+ Native Access

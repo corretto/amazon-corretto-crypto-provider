@@ -7,6 +7,7 @@
 
 ### Patch
 * Documented ACCP's current glibc floor (2.26, Amazon Linux 2) in a new Platform Support section. A future release will raise this floor when the release pipeline moves off Amazon Linux 2, and will be called out here when it happens.
+* Documented that CI tests only LTS JDK releases (8, 11, 17, 21, 25). Non-LTS releases may work but are not tested.
 
 ## 2.5.0
 
