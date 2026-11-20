@@ -100,7 +100,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     m.put("SHA256withRSA", "1.2.840.113549.1.1.11");
     m.put("SHA384withRSA", "1.2.840.113549.1.1.12");
     m.put("SHA512withRSA", "1.2.840.113549.1.1.13");
-    SIGNATURE_OIDS = Collections.unmodifiableMap(m);
+    SIGNATURE_OIDS = m;
 
     if (!Loader.IS_AVAILABLE && DebugFlag.VERBOSELOGS.isEnabled()) {
       getLogger(PROVIDER_NAME).fine("Native JCE libraries are unavailable - disabling");
