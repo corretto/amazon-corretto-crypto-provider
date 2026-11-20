@@ -17,6 +17,7 @@ import java.security.InvalidKeyException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.Provider;
 import java.security.PublicKey;
@@ -314,6 +315,12 @@ public class EvpKeyAgreementTest {
     assertEquals("AES", aesKey.getAlgorithm());
     assertEquals("RAW", aesKey.getFormat());
     assertArrayEquals(Arrays.copyOf(rawSecret, expectedKeyLength), aesKey.getEncoded());
+
+    // JCA algorithm names are case-insensitive, and SunJCE's DH accepts "aes".
+    params.nativeAgreement.init(params.pairs[0].getPrivate());
+    assertNull(params.nativeAgreement.doPhase(params.pairs[1].getPublic(), true));
+    assertArrayEquals(
+        aesKey.getEncoded(), params.nativeAgreement.generateSecret("aes").getEncoded());
   }
 
   @ParameterizedTest
@@ -344,7 +351,7 @@ public class EvpKeyAgreementTest {
     params.nativeAgreement.init(params.pairs[0].getPrivate());
     assertNull(params.nativeAgreement.doPhase(params.pairs[1].getPublic(), true));
     assertThrows(
-        InvalidKeyException.class, () -> params.nativeAgreement.generateSecret("FAKE_ALG"));
+        NoSuchAlgorithmException.class, () -> params.nativeAgreement.generateSecret("FAKE_ALG"));
   }
 
   @ParameterizedTest
@@ -353,7 +360,7 @@ public class EvpKeyAgreementTest {
     params.nativeAgreement.init(params.pairs[0].getPrivate());
     assertNull(params.nativeAgreement.doPhase(params.pairs[1].getPublic(), true));
     assertThrows(
-        InvalidKeyException.class, () -> params.nativeAgreement.generateSecret("FAKE_ALG[8]"));
+        NoSuchAlgorithmException.class, () -> params.nativeAgreement.generateSecret("FAKE_ALG[8]"));
   }
 
   @ParameterizedTest
@@ -362,7 +369,29 @@ public class EvpKeyAgreementTest {
     params.nativeAgreement.init(params.pairs[0].getPrivate());
     assertNull(params.nativeAgreement.doPhase(params.pairs[1].getPublic(), true));
     assertThrows(
-        InvalidKeyException.class, () -> params.nativeAgreement.generateSecret(" #$*(& DO  3VR89"));
+        NoSuchAlgorithmException.class,
+        () -> params.nativeAgreement.generateSecret(" #$*(& DO  3VR89"));
+  }
+
+  @ParameterizedTest
+  @MethodSource("params")
+  public void algorithmValidatedBeforeSecretConsumed(TestParams params)
+      throws GeneralSecurityException {
+    final byte[] rawSecret = params.rawSecrets[0][1];
+    params.nativeAgreement.init(params.pairs[0].getPrivate());
+    assertNull(params.nativeAgreement.doPhase(params.pairs[1].getPublic(), true));
+
+    assertThrows(NoSuchAlgorithmException.class, () -> params.nativeAgreement.generateSecret(null));
+    assertThrows(
+        NoSuchAlgorithmException.class, () -> params.nativeAgreement.generateSecret("Generic[32]"));
+    assertThrows(InvalidKeyException.class, () -> params.nativeAgreement.generateSecret("AES[20]"));
+    // Digits that overflow an int must not escape as an unchecked NumberFormatException.
+    assertThrows(
+        InvalidKeyException.class,
+        () -> params.nativeAgreement.generateSecret("AES[99999999999999999999]"));
+
+    // None of the above consumed the agreed secret, so the object is still usable.
+    assertArrayEquals(rawSecret, params.nativeAgreement.generateSecret("Generic").getEncoded());
   }
 
   @ParameterizedTest
@@ -383,12 +412,20 @@ public class EvpKeyAgreementTest {
   @ParameterizedTest
   @MethodSource("params")
   public void secretInShortArray(TestParams params) throws GeneralSecurityException {
+    final byte[] rawSecret = params.rawSecrets[0][1];
     params.nativeAgreement.init(params.pairs[0].getPrivate());
     assertNull(params.nativeAgreement.doPhase(params.pairs[1].getPublic(), true));
-    final byte[] largeArray = new byte[params.rawSecrets[0][1].length + 3];
+    final byte[] largeArray = new byte[rawSecret.length + 3];
 
     assertThrows(
         ShortBufferException.class, () -> params.nativeAgreement.generateSecret(largeArray, 5));
+    // A missing buffer is a ShortBufferException rather than a NullPointerException, matching
+    // SunJCE's DH.
+    assertThrows(ShortBufferException.class, () -> params.nativeAgreement.generateSecret(null, 0));
+
+    // Neither rejection consumed the agreed secret, so the caller can retry with enough room.
+    assertEquals(rawSecret.length, params.nativeAgreement.generateSecret(largeArray, 0));
+    assertArrayEquals(rawSecret, Arrays.copyOf(largeArray, rawSecret.length));
   }
 
   @ParameterizedTest
