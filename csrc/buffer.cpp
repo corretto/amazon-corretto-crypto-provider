@@ -70,13 +70,13 @@ void JByteArrayCritical::cleanse_and_stash(
     OPENSSL_cleanse(src, len);
 }
 
-JByteArrayCritical::JByteArrayCritical(JNIEnv* env, jbyteArray jarray, jsize len, WipeMode mode)
+// ---- Base class: non-sensitive critical region ----
+
+JByteArrayCritical::JByteArrayCritical(JNIEnv* env, jbyteArray jarray)
     : ptr_(nullptr)
     , env_(env)
     , jarray_(jarray)
-    , len_(len)
     , is_copy_(JNI_FALSE)
-    , mode_(mode)
     , released_(false)
 {
     ptr_ = env->GetPrimitiveArrayCritical(jarray, &is_copy_);
@@ -86,35 +86,16 @@ JByteArrayCritical::JByteArrayCritical(JNIEnv* env, jbyteArray jarray, jsize len
 #ifndef NDEBUG
     ++s_open_criticals;
 #endif
-
-    // Reserve stash capacity now that we know whether the JVM made a copy. Skipping this
-    // allocation entirely on the pinned path (HotSpot's typical behavior) is the
-    // optimization. release() must remain allocation-free and noexcept, so the reserve()
-    // happens here rather than later -- but if it throws, the partially-constructed JBAC's
-    // dtor won't run (ctor never finished), so we'd leak the critical region. Catch
-    // bad_alloc, release the critical region ourselves, and rethrow to preserve the
-    // original failure mode.
-    if (mode_ == WipeMode::WIPE_OUTPUT && is_copy_ && len_ > 0) {
-        try {
-            stash_.reserve(static_cast<size_t>(len_));
-        } catch (...) {
-            env_->ReleasePrimitiveArrayCritical(jarray_, ptr_, JNI_ABORT);
-#ifndef NDEBUG
-            --s_open_criticals;
-#endif
-            ptr_ = nullptr;
-            throw java_ex(EX_OOM, "Failed to allocate stash buffer for sensitive output array");
-        }
-    }
 }
 
 JByteArrayCritical::~JByteArrayCritical()
 {
-    // RAII fallback for the single-WIPE_OUTPUT-per-scope case: end the critical region
-    // and commit any stashed writes. Multi-WIPE_OUTPUT scopes must drive these manually
-    // (see class comment); calls here will be no-ops if the caller already did.
+    // RAII fallback. Subclass dtors must run their cleanup BEFORE this base dtor, since
+    // doRelease() is dispatched through a virtual call -- by the time we reach ~JBAC, the
+    // derived object's vtable slice is gone and a virtual call would resolve to the base.
+    // SecretOutputArray::~SecretOutputArray() therefore calls release() itself before
+    // chaining here.
     release();
-    commitBack();
 }
 
 void JByteArrayCritical::release() noexcept
@@ -124,69 +105,119 @@ void JByteArrayCritical::release() noexcept
     }
     released_ = true;
 #ifndef NDEBUG
-    assert(s_open_criticals > 0 && "release() would underflow s_open_criticals; unbalanced ctor/release()");
+    assert(s_open_criticals > 0 && "release() called with negative open criticals, should never happen");
     --s_open_criticals;
 #endif
-
-    // Pinned or non-sensitive: ptr_ aliases the Java array (or is opaque to us). The
-    // ReleasePrimitiveArrayCritical mode parameter is per the JNI spec:
-    //   0           -- copy back any modifications, then free the native buffer (the
-    //                  default; commits writes back to the Java array on the copy path).
-    //   JNI_COMMIT  -- copy back, but keep the native buffer alive.
-    //   JNI_ABORT   -- free the native buffer WITHOUT copying back (used below on the
-    //                  wipe path so cleansed zeros don't reach the Java array).
-    // Mode 0 here commits any writes that already landed in the Java array; for the
-    // pinned WIPE_* paths we must not mutate the array, which mode 0 also satisfies (no
-    // rewrite occurs when ptr_ IS the array). See:
-    // https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/functions.html#ReleasePrimitiveArrayCritical
-    if (!is_copy_ || mode_ == WipeMode::NO_WIPE) {
-        env_->ReleasePrimitiveArrayCritical(jarray_, ptr_, 0);
-        return;
-    }
-
-    // Wipe path on the JVM-copy variant. For WIPE_OUTPUT, stash the caller's writes
-    // (allocation-free; capacity was reserved in the ctor). Cleanse the native copy in
-    // both cases, then JNI_ABORT to free without copying the cleansed bytes back.
-    if (mode_ == WipeMode::WIPE_OUTPUT) {
-        JByteArrayCritical::cleanse_and_stash(static_cast<uint8_t*>(ptr_), len_, stash_);
-    } else if (len_ > 0) { // WIPE_INPUT
-        OPENSSL_cleanse(ptr_, len_);
-    }
-    env_->ReleasePrimitiveArrayCritical(jarray_, ptr_, JNI_ABORT);
-    // The stashed bytes (if any) are committed in commitBack(), which the dtor or
-    // caller invokes after every critical region on the thread is closed.
+    doRelease();
 }
 
-void JByteArrayCritical::commitBack()
+void JByteArrayCritical::doRelease() noexcept
 {
-    if (mode_ != WipeMode::WIPE_OUTPUT) {
-        return;
-    }
-    // Tripping this assertion means another JByteArrayCritical's critical region is
-    // still open on this thread. SetByteArrayRegion is forbidden in that state. See the
-    // class comment in buffer.h for the call-site pattern (single WIPE_OUTPUT per scope
-    // declared first; multi-WIPE_OUTPUT requires manual release()/commitBack() ordering).
-    //
-    // Not directly unit-tested: assert() calls abort() on failure, which is incompatible
-    // with the in-process test harness, and constructing a JByteArrayCritical needs a real
-    // JNIEnv. Code review of new call sites is the primary defense; this assertion is the
-    // backstop that fires in any debug-mode test run that misuses the API.
-#ifndef NDEBUG
-    assert(s_open_criticals == 0 && "commitBack() called while a critical region is still open on this thread");
-#endif
-   if (stash_.empty()) {
-      return;
-   }
-    env_->SetByteArrayRegion(jarray_,
-        0,
-        static_cast<jsize>(stash_.size()),
-        reinterpret_cast<const jbyte*>(stash_.data()));
-    stash_.clear(); // idempotent: subsequent calls are no-ops
+    // Default base behavior: mode-0 release. Per JNI spec, mode 0 means "copy back any
+    // modifications, then free the native buffer." For the pinned path ptr_ aliases the
+    // Java array so there is nothing to copy back. See:
+    // https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/functions.html#ReleasePrimitiveArrayCritical
+    env_->ReleasePrimitiveArrayCritical(jarray_, ptr_, 0);
 }
 
 unsigned char* JByteArrayCritical::get()
 {
     return released_ ? nullptr : static_cast<unsigned char*>(ptr_);
+}
+
+// ---- SecretInputArray: cleanse-on-release ----
+
+SecretInputArray::SecretInputArray(JNIEnv* env, jbyteArray jarray, jsize len)
+    : JByteArrayCritical(env, jarray)
+    , len_(len)
+{
+}
+
+void SecretInputArray::doRelease() noexcept
+{
+    if (is_copy_) {
+        // Caller did not write through get(). Cleanse the native copy and discard via
+        // JNI_ABORT to avoid mode-0's commit-back of zeros to the Java array.
+        if (len_ > 0) {
+            OPENSSL_cleanse(ptr_, len_);
+        }
+        env_->ReleasePrimitiveArrayCritical(jarray_, ptr_, JNI_ABORT);
+    } else {
+        // Pinned: ptr_ aliases the Java array; mutating it is forbidden. Mode-0 release.
+        env_->ReleasePrimitiveArrayCritical(jarray_, ptr_, 0);
+    }
+}
+
+// ---- SecretOutputArray: cleanse-and-stash, with deferred commit-back ----
+
+SecretOutputArray::SecretOutputArray(JNIEnv* env, jbyteArray jarray, jsize len)
+    : JByteArrayCritical(env, jarray)
+    , len_(len)
+{
+    // Reserve stash capacity now (after we know is_copy_) so doRelease() is allocation-
+    // free and noexcept. Skipping the allocation on the pinned path (HotSpot's typical
+    // behavior) is a meaningful optimization. If reserve() throws, the base class has
+    // already entered the critical region; we must release it ourselves before rethrow,
+    // since the dtor of a partially-constructed-derived object will NOT run.
+    if (is_copy_ && len_ > 0) {
+        try {
+            stash_.reserve(static_cast<size_t>(len_));
+        } catch (...) {
+            env_->ReleasePrimitiveArrayCritical(jarray_, ptr_, JNI_ABORT);
+#ifndef NDEBUG
+            --s_open_criticals;
+#endif
+            ptr_ = nullptr;
+            released_ = true; // mark released so base dtor skips its release()
+            throw java_ex(EX_OOM, "Failed to allocate stash buffer for sensitive output array");
+        }
+    }
+}
+
+SecretOutputArray::~SecretOutputArray()
+{
+    // Run derived release() while our vtable is still intact (so doRelease() dispatches
+    // to SecretOutputArray::doRelease, stashing bytes). Then commit any stashed bytes.
+    // The base class dtor will call release() too, but it'll be a no-op (idempotent).
+    release();
+    commitBack();
+}
+
+void SecretOutputArray::doRelease() noexcept
+{
+    if (is_copy_) {
+        // Stash the caller's writes (allocation-free; capacity reserved in the ctor),
+        // cleanse the native copy, then JNI_ABORT to free without copying the cleansed
+        // bytes back. The stash is committed later by commitBack().
+        JByteArrayCritical::cleanse_and_stash(static_cast<uint8_t*>(ptr_), len_, stash_);
+        env_->ReleasePrimitiveArrayCritical(jarray_, ptr_, JNI_ABORT);
+    } else {
+        // Pinned: caller's writes already landed in the Java array; mode-0 release.
+        env_->ReleasePrimitiveArrayCritical(jarray_, ptr_, 0);
+    }
+}
+
+void SecretOutputArray::commitBack()
+{
+    // Tripping this assertion means another JByteArrayCritical's critical region is
+    // still open on this thread. SetByteArrayRegion is forbidden in that state. See the
+    // class comment in buffer.h for the call-site patterns.
+    //
+    // Not directly unit-tested: assert() calls abort() on failure, which is incompatible
+    // with the in-process test harness, and constructing a SecretOutputArray needs a
+    // real JNIEnv. Code review of new call sites is the primary defense; this assertion
+    // is the backstop that fires in any debug-mode test run that misuses the API.
+#ifndef NDEBUG
+    assert(s_open_criticals == 0 && "commitBack() called while a critical region is still open on this thread");
+#endif
+    if (stash_.empty()) {
+        return;
+    }
+    env_->SetByteArrayRegion(jarray_,
+        0,
+        static_cast<jsize>(stash_.size()),
+        reinterpret_cast<const jbyte*>(stash_.data()));
+    stash_.clear(); // idempotent: subsequent calls are no-ops
 }
 
 SimpleBuffer::SimpleBuffer(int size)
