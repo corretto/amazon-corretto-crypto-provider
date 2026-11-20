@@ -82,7 +82,26 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
   private transient SelfTestSuite selfTestSuite = new SelfTestSuite();
 
+  // OID aliases for signature algorithms so that JCA lookups by OID (e.g. during cert chain
+  // validation) resolve to ACCP instead of falling through to a lower-priority provider.
+  private static final Map<String, String> SIGNATURE_OIDS;
+
   static {
+    final Map<String, String> m = new HashMap<>();
+    // ECDSA — X9.62 / RFC 5758
+    m.put("SHA1withECDSA", "1.2.840.10045.4.1");
+    m.put("SHA224withECDSA", "1.2.840.10045.4.3.1");
+    m.put("SHA256withECDSA", "1.2.840.10045.4.3.2");
+    m.put("SHA384withECDSA", "1.2.840.10045.4.3.3");
+    m.put("SHA512withECDSA", "1.2.840.10045.4.3.4");
+    // RSA PKCS#1 v1.5 — RFC 8017
+    m.put("SHA1withRSA", "1.2.840.113549.1.1.5");
+    m.put("SHA224withRSA", "1.2.840.113549.1.1.14");
+    m.put("SHA256withRSA", "1.2.840.113549.1.1.11");
+    m.put("SHA384withRSA", "1.2.840.113549.1.1.12");
+    m.put("SHA512withRSA", "1.2.840.113549.1.1.13");
+    SIGNATURE_OIDS = Collections.unmodifiableMap(m);
+
     if (!Loader.IS_AVAILABLE && DebugFlag.VERBOSELOGS.isEnabled()) {
       getLogger(PROVIDER_NAME).fine("Native JCE libraries are unavailable - disabling");
     }
@@ -286,27 +305,6 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     }
 
     addSignatures();
-  }
-
-  // OID aliases for signature algorithms so that JCA lookups by OID (e.g. during cert chain
-  // validation) resolve to ACCP instead of falling through to a lower-priority provider.
-  private static final Map<String, String> SIGNATURE_OIDS;
-
-  static {
-    final Map<String, String> m = new HashMap<>();
-    // ECDSA — X9.62 / RFC 5758
-    m.put("SHA1withECDSA", "1.2.840.10045.4.1");
-    m.put("SHA224withECDSA", "1.2.840.10045.4.3.1");
-    m.put("SHA256withECDSA", "1.2.840.10045.4.3.2");
-    m.put("SHA384withECDSA", "1.2.840.10045.4.3.3");
-    m.put("SHA512withECDSA", "1.2.840.10045.4.3.4");
-    // RSA PKCS#1 v1.5 — RFC 8017
-    m.put("SHA1withRSA", "1.2.840.113549.1.1.5");
-    m.put("SHA224withRSA", "1.2.840.113549.1.1.14");
-    m.put("SHA256withRSA", "1.2.840.113549.1.1.11");
-    m.put("SHA384withRSA", "1.2.840.113549.1.1.12");
-    m.put("SHA512withRSA", "1.2.840.113549.1.1.13");
-    SIGNATURE_OIDS = Collections.unmodifiableMap(m);
   }
 
   private void addSignatures() {
