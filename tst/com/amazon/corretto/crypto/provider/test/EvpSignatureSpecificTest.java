@@ -52,6 +52,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import javax.crypto.AEADBadTagException;
 import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
@@ -1196,7 +1197,7 @@ public final class EvpSignatureSpecificTest {
     return EXPECTED_OID_ALIASES.entrySet().stream()
         .flatMap(
             e ->
-                java.util.stream.Stream.of(
+                Stream.of(
                     Arguments.of(e.getKey(), e.getValue()),
                     Arguments.of("OID." + e.getKey(), e.getValue())));
   }
