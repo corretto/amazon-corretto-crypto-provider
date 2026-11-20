@@ -45,11 +45,14 @@ import java.security.spec.PSSParameterSpec;
 import java.security.spec.RSAKeyGenParameterSpec;
 import java.security.spec.RSAPrivateKeySpec;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import javax.crypto.AEADBadTagException;
 import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
@@ -1170,5 +1173,66 @@ public final class EvpSignatureSpecificTest {
     public String getFormat() {
       return format_;
     }
+  }
+
+  // ----- OID alias resolution tests -----
+
+  private static final Map<String, String> EXPECTED_OID_ALIASES = new LinkedHashMap<>();
+
+  static {
+    EXPECTED_OID_ALIASES.put("1.2.840.10045.4.1", "SHA1withECDSA");
+    EXPECTED_OID_ALIASES.put("1.2.840.10045.4.3.1", "SHA224withECDSA");
+    EXPECTED_OID_ALIASES.put("1.2.840.10045.4.3.2", "SHA256withECDSA");
+    EXPECTED_OID_ALIASES.put("1.2.840.10045.4.3.3", "SHA384withECDSA");
+    EXPECTED_OID_ALIASES.put("1.2.840.10045.4.3.4", "SHA512withECDSA");
+    EXPECTED_OID_ALIASES.put("1.2.840.113549.1.1.5", "SHA1withRSA");
+    EXPECTED_OID_ALIASES.put("1.2.840.113549.1.1.14", "SHA224withRSA");
+    EXPECTED_OID_ALIASES.put("1.2.840.113549.1.1.11", "SHA256withRSA");
+    EXPECTED_OID_ALIASES.put("1.2.840.113549.1.1.12", "SHA384withRSA");
+    EXPECTED_OID_ALIASES.put("1.2.840.113549.1.1.13", "SHA512withRSA");
+    EXPECTED_OID_ALIASES.put("1.2.840.113549.1.1.10", "RSASSA-PSS");
+  }
+
+  private static Stream<Arguments> oidAliasParams() {
+    return EXPECTED_OID_ALIASES.entrySet().stream()
+        .flatMap(
+            e ->
+                Stream.of(
+                    Arguments.of(e.getKey(), e.getValue()),
+                    Arguments.of("OID." + e.getKey(), e.getValue())));
+  }
+
+  @ParameterizedTest
+  @MethodSource("oidAliasParams")
+  public void signatureGetInstanceByOidResolvesToAccp(String oid, String expectedAlgorithm)
+      throws NoSuchAlgorithmException {
+    final Signature sig = Signature.getInstance(oid, NATIVE_PROVIDER);
+    assertEquals(
+        NATIVE_PROVIDER.getName(),
+        sig.getProvider().getName(),
+        "OID " + oid + " should resolve to ACCP");
+  }
+
+  @ParameterizedTest
+  @MethodSource("oidAliasParams")
+  public void signatureByOidProducesVerifiableSignature(String oid, String expectedAlgorithm)
+      throws GeneralSecurityException {
+    final KeyPair kp = expectedAlgorithm.contains("ECDSA") ? ECDSA_PAIR : RSA_PAIR;
+    final Signature signer = Signature.getInstance(oid, NATIVE_PROVIDER);
+    if (expectedAlgorithm.equals("RSASSA-PSS")) {
+      signer.setParameter(new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1));
+    }
+    signer.initSign(kp.getPrivate());
+    signer.update(MESSAGE);
+    final byte[] signature = signer.sign();
+
+    final Signature verifier = Signature.getInstance(expectedAlgorithm, NATIVE_PROVIDER);
+    if (expectedAlgorithm.equals("RSASSA-PSS")) {
+      verifier.setParameter(
+          new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1));
+    }
+    verifier.initVerify(kp.getPublic());
+    verifier.update(MESSAGE);
+    assertTrue(verifier.verify(signature), "Signature via OID " + oid + " should verify");
   }
 }
