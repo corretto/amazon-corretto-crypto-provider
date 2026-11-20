@@ -1220,8 +1220,7 @@ public final class EvpSignatureSpecificTest {
     final KeyPair kp = expectedAlgorithm.contains("ECDSA") ? ECDSA_PAIR : RSA_PAIR;
     final Signature signer = Signature.getInstance(oid, NATIVE_PROVIDER);
     if (expectedAlgorithm.equals("RSASSA-PSS")) {
-      signer.setParameter(
-          new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1));
+      signer.setParameter(new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1));
     }
     signer.initSign(kp.getPrivate());
     signer.update(MESSAGE);
