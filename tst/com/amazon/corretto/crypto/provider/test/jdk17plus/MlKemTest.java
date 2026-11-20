@@ -392,12 +392,11 @@ public class MlKemTest {
   @MethodSource("mlKemParamSets")
   public void testPrivateKeyChoicesParse(String paramSet) throws Exception {
     // ACCP parses the seed and expandedKey CHOICEs of RFC 9935 Section 6 in every build. Those
-    // are the two mainline AWS-LC implements, and ACCP's regular-FIPS fallover parser exists to
-    // stand in for that decoder, so it accepts exactly them and no more (see the both CHOICE in
-    // testBothChoiceRejected). AWS-LC-FIPS 3.1.0 decodes neither, so in regular FIPS the fallover
-    // parser is what accepts both encodings here. Every assertion is encoding-independent: the
-    // two encodings carry the same key material, so each must decapsulate a given ciphertext to
-    // the same shared secret.
+    // are the two mainline AWS-LC implements, and ACCP's fallover parser stands in for whichever
+    // of them the linked AWS-LC does not decode, so it accepts exactly those two and no more (see
+    // the both CHOICE in testBothChoiceRejected). Every assertion is encoding-independent: the two
+    // encodings carry the same key material, so each must decapsulate a given ciphertext to the
+    // same shared secret.
     KeyPairGenerator bcKeyGen = KeyPairGenerator.getInstance("ML-KEM", TestUtil.BC_PROVIDER);
     bcKeyGen.initialize(TestUtil.getMlKemParamSpec(paramSet));
     KeyPair bcKeyPair = bcKeyGen.generateKeyPair();
@@ -1065,8 +1064,8 @@ public class MlKemTest {
   @ParameterizedTest
   @MethodSource("mlKemParamSets")
   public void testPrivateKeyEncodingIsSeedFormat(String paramSet) throws Exception {
-    // ACCP cannot EMIT the seed encoding against an AWS-LC that stores no keygen seed, such as the
-    // AWS-LC-FIPS 3.1.0 that regular FIPS pins: getEncoded() produces the expanded form instead.
+    // ACCP cannot EMIT the seed encoding against an AWS-LC that stores no keygen seed, as the FIPS
+    // module does not: getEncoded() produces the expanded form instead.
     // (Seed PARSING is supported everywhere; see testPrivateKeyChoicesParse, which also pins the
     // expanded form those builds emit here.) Keyed on the linked AWS-LC rather than on the FIPS
     // build flavor, so that this skips only where the capability is genuinely absent -- see

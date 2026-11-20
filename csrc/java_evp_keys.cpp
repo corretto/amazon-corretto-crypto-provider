@@ -38,10 +38,9 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpKey_enc
         EVP_PKEY* key = reinterpret_cast<EVP_PKEY*>(keyHandle);
         OPENSSL_buffer_auto der;
 
-        // Scope away the errors a failed i2d_PUBKEY queues: for ML-KEM in regular FIPS that failure is
-        // expected and handled below. The guard has to be set before the call, since ERR_set_mark marks
-        // the newest error rather than deleting it. CHECK_OPENSSL below still sees (and reports) the
-        // errors, because the guard does not unwind until this scope exits.
+        // Scope away the errors a failed i2d_PUBKEY queues. The guard has to be set before the call,
+        // since ERR_set_mark marks the newest error rather than deleting it. CHECK_OPENSSL below still
+        // sees (and reports) the errors, because the guard does not unwind until this scope exits.
         ErrorQueueMark error_mark;
 
         // This next line allocates memory. On failure i2d_PUBKEY leaves |der| untouched.

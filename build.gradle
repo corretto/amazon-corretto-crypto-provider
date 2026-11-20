@@ -23,7 +23,7 @@ def execOps = objects.newInstance(InjectedExecOps).execOps
 
 group = 'software.amazon.cryptools'
 version = '2.6.0'
-// Bumping either pin means updating AWSLC_MAIN_PIN / AWSLC_FIPS_RELEASE_BRANCH in
+// Bumping either pin means updating AWSLC_MAIN_PIN / AWSLC_FIPS_PIN in
 // tst/com/amazon/corretto/crypto/provider/test/TestUtil.java, which keys ML-KEM's expected
 // private-key encoding on the AWS-LC version linked. A stale value there does not fail the build; it
 // silently downgrades those assertions to the tolerant branch. Both go away once the two pins name

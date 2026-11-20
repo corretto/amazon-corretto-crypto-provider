@@ -183,9 +183,9 @@ size_t encodeExpandedMLDSAPrivateKey(const EVP_PKEY* key, uint8_t** out);
 
 // Expands ML-KEM |key|, allocates appropriately sized buffer to |*out|, writes the PKCS8-encoded expanded key to
 // |*out|, and returns the size of |*out| on success and throws an unchecked exception on failure. The caller takes
-// ownership of |*out|. Available in all builds: regular FIPS uses this because AWS-LC-FIPS 3.1.0 cannot marshal
-// ML-KEM private keys (no priv_encode) and lacks seed support.
-// TODO [AWS-LC-FIPS 4.x]: regular FIPS can drop this once the FIPS module supports priv_encode for ML-KEM.
+// ownership of |*out|. MlKemUtils.expandPrivateKey needs the expandedKey CHOICE specifically, which
+// i2d_PrivateKey does not give where the key retains its keygen seed.
+// TODO [AWS-LC-FIPS 5.0]: revisit once the FIPS module retains the ML-KEM keygen seed.
 size_t encodeExpandedMLKEMPrivateKey(const EVP_PKEY* key, uint8_t** out);
 
 // Formats an EC private key with redundant curve identifier confromant to RFC
