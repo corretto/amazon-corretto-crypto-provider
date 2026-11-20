@@ -103,6 +103,12 @@ esac
 
 gpg --batch --armor --export "$gpg_uid" > "$dir/signing-key.pub"
 
+# Fingerprints make the run log an auditable signing record: they identify the exact cert and key,
+# where the signer DN check alone would accept any cert issued to the same name.
+summary=${GITHUB_STEP_SUMMARY:-/dev/null}
+gpg_fingerprint=$(gpg --batch --with-colons --fingerprint "$gpg_uid" | awk -F: '$1 == "fpr" { print $10; exit }')
+echo "GPG signing key fingerprint: $gpg_fingerprint" | tee -a "$summary"
+
 # DigiCert's TSA does not respond on port 443, so this must stay HTTP. The timestamp token is
 # signed by DigiCert and checked by jarsigner, so a tampered response fails signing.
 for jar in "$dir"/*-linux-*.jar; do
@@ -111,7 +117,9 @@ for jar in "$dir"/*-linux-*.jar; do
   verify=$(jarsigner -verify -verbose -certs "$jar")
   grep -q "jar verified" <<<"$verify"
   grep -qF "Signed by \"$jce_signer\"" <<<"$verify"
-  echo "$jar: JCE signature verified"
+  # The first SHA256 line is the signer's own cert; the timestamp authority's chain follows it.
+  cert_fingerprint=$(keytool -printcert -jarfile "$jar" | awk '$1 == "SHA256:" { print $2; exit }')
+  echo "$jar: JCE signature verified, signer cert SHA-256 $cert_fingerprint" | tee -a "$summary"
 done
 
 for file in "$dir"/*.jar "$dir"/*.pom; do
