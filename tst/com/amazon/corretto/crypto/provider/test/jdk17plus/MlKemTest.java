@@ -764,26 +764,12 @@ public class MlKemTest {
    * Asserts that a PKCS#8 encoding carrying one malformed field that no ML-KEM encoder emits is
    * never absorbed into the key.
    *
-   * <p>Which of the two acceptable answers a build gives turns on the AWS-LC it links rather than
-   * on the build flavor, and the inputs that distinguish the two decoders are exactly these, so
-   * there is nothing to probe with: key it on the reported version, via {@link
-   * TestUtil#linkedAwsLcLacksMlKemPrivDecode}. Where ACCP's fallover parser in keyutils.cpp is the
-   * whole decoder, hold it to the strictness it documents -- these are the only assertions anywhere
-   * that pin it, and without them the checks could be deleted and every build would still pass.
-   * Where the linked AWS-LC decodes ML-KEM itself, its answer is whatever that version does, so
-   * accept either and require only that an accepted key re-encodes to exactly the well-formed
-   * encoding the field was grafted onto.
-   *
-   * <p>TODO [AWS-LC-FIPS 4.x]: drop the tolerance once the FIPS module implements priv_decode for
-   * ML-KEM. parseMLKEMPrivateKey goes away with it, and every build then answers with AWS-LC's
-   * decoder rather than ACCP's own.
+   * <p>Every build decodes ML-KEM with AWS-LC's own priv_decode, so the answer is whatever that
+   * version does: accept either rejection or acceptance, and require only that an accepted key
+   * re-encodes to exactly the well-formed encoding the field was grafted onto.
    */
   private static void assertMalformedFieldNotAbsorbed(
       KeyFactory keyFactory, String label, byte[] wellFormed, byte[] malformed) throws Exception {
-    if (TestUtil.linkedAwsLcLacksMlKemPrivDecode()) {
-      assertPrivateKeyRejected(keyFactory, label, malformed);
-      return;
-    }
     try {
       PrivateKey ignored = keyFactory.generatePrivate(new PKCS8EncodedKeySpec(malformed));
       assertArrayEquals(
