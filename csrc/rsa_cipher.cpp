@@ -82,9 +82,10 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_RsaCipher_cipher
 
         EVP_PKEY* key = reinterpret_cast<EVP_PKEY*>(ctxHandle);
 
-        // Keep the retyped key alive for as long as the EVP_PKEY_CTX built from it below.
+        // |key| points into |rsaKey| after a retype, so |rsaKey| must outlive the last read of |key| below.
         EVP_PKEY_auto rsaKey;
-        if (padding != RSA_PKCS1_PSS_PADDING) {
+        // NoPadding stays refused: it would expose raw private-key operations on a signature-only key.
+        if (padding == RSA_PKCS1_PADDING || padding == RSA_PKCS1_OAEP_PADDING) {
             rsaKey.set(rsaPssKeyAsRsa(key));
             if (rsaKey.isInitialized()) {
                 key = rsaKey;

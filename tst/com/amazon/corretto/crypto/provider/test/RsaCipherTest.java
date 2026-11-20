@@ -16,6 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
+import com.amazon.corretto.crypto.provider.RuntimeCryptoException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -35,8 +36,10 @@ import java.security.SecureRandom;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.security.spec.MGF1ParameterSpec;
+import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.RSAPrivateCrtKeySpec;
 import java.security.spec.RSAPrivateKeySpec;
+import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -1251,6 +1254,43 @@ public class RsaCipherTest {
     byte[] recovered = dec.doFinal(ciphertext);
 
     assertArrayEquals(plaintext, recovered, "Buffer must be cleared after failed doFinal");
+  }
+
+  @Test
+  public void pssOidKeyRoundTripsWithOaep() throws Exception {
+    final KeyPair pair = pssOidKeyPair();
+    final byte[] plaintext = new byte[32];
+    Arrays.fill(plaintext, (byte) 0xEE);
+
+    final Cipher enc = Cipher.getInstance(OAEP_PADDING, NATIVE_PROVIDER);
+    enc.init(Cipher.ENCRYPT_MODE, pair.getPublic());
+    final Cipher dec = Cipher.getInstance(OAEP_PADDING, NATIVE_PROVIDER);
+    dec.init(Cipher.DECRYPT_MODE, pair.getPrivate());
+
+    assertArrayEquals(plaintext, dec.doFinal(enc.doFinal(plaintext)));
+  }
+
+  @Test
+  public void pssOidKeyRejectedForNoPadding() throws Exception {
+    final KeyPair pair = pssOidKeyPair();
+    final Cipher raw = Cipher.getInstance(NO_PADDING, NATIVE_PROVIDER);
+    raw.init(Cipher.ENCRYPT_MODE, pair.getPrivate());
+
+    // Raw private-key operations stay off a key whose AlgorithmIdentifier confines it to signing.
+    assertThrows(RuntimeCryptoException.class, () -> raw.doFinal(new byte[256]));
+  }
+
+  /** An ACCP keypair over key material whose AlgorithmIdentifier names id-RSASSA-PSS. */
+  private static KeyPair pssOidKeyPair() throws GeneralSecurityException {
+    final KeyPairGenerator pssKeyGen = KeyPairGenerator.getInstance("RSASSA-PSS");
+    pssKeyGen.initialize(2048);
+    final KeyPair pssPair = pssKeyGen.generateKeyPair();
+    assertEquals("RSASSA-PSS", pssPair.getPublic().getAlgorithm());
+
+    final KeyFactory accpKeyFactory = KeyFactory.getInstance("RSA", NATIVE_PROVIDER);
+    return new KeyPair(
+        accpKeyFactory.generatePublic(new X509EncodedKeySpec(pssPair.getPublic().getEncoded())),
+        accpKeyFactory.generatePrivate(new PKCS8EncodedKeySpec(pssPair.getPrivate().getEncoded())));
   }
 
   private class TestThread extends Thread {
