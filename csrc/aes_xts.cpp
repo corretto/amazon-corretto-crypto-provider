@@ -98,7 +98,8 @@ extern "C" JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_AesXt
         JByteArrayCritical output(env, joutput, jOutputArrLen, WipeMode::NO_WIPE);
 
         AesXtsCipher cipher(true, packedTweakKey.get() + AES_XTS_KEY_INDEX_START, packedTweakKey.get());
-        cipher.encrypt(input.get() + inputOffset, inputLen, output.get() + outputOffset);
+        cipher.encrypt(
+            input.get(inputOffset, inputLen), inputLen, output.get(outputOffset, inputLen));
 
     } catch (java_ex& ex) {
         ex.throw_to_java(env);
@@ -126,7 +127,8 @@ extern "C" JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_AesXt
         JByteArrayCritical packedTweakKey(env, jPackedTweakKey, jPackedTweakKeyLen, WipeMode::WIPE_INPUT);
 
         AesXtsCipher cipher(true, packedTweakKey.get() + AES_XTS_KEY_INDEX_START, packedTweakKey.get());
-        cipher.encrypt(input.get() + inputOffset, inputLen, input.get() + outputOffset);
+        cipher.encrypt(
+            input.get(inputOffset, inputLen), inputLen, input.get(outputOffset, inputLen));
 
     } catch (java_ex& ex) {
         ex.throw_to_java(env);
@@ -155,7 +157,8 @@ extern "C" JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_AesXt
         JByteArrayCritical input(env, jinput, jInputArrLen, WipeMode::NO_WIPE);
 
         AesXtsCipher cipher(false, packedTweakKey.get() + AES_XTS_KEY_INDEX_START, packedTweakKey.get());
-        cipher.decrypt(input.get() + inputOffset, inputLen, output.get() + outputOffset);
+        cipher.decrypt(
+            input.get(inputOffset, inputLen), inputLen, output.get(outputOffset, inputLen));
 
     } catch (java_ex& ex) {
         ex.throw_to_java(env);
@@ -183,7 +186,8 @@ extern "C" JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_AesXt
         JByteArrayCritical packedTweakKey(env, jPackedTweakKey, jPackedTweakKeyLen, WipeMode::WIPE_INPUT);
 
         AesXtsCipher cipher(false, packedTweakKey.get() + AES_XTS_KEY_INDEX_START, packedTweakKey.get());
-        cipher.decrypt(input.get() + inputOffset, inputLen, input.get() + outputOffset);
+        cipher.decrypt(
+            input.get(inputOffset, inputLen), inputLen, input.get(outputOffset, inputLen));
 
     } catch (java_ex& ex) {
         ex.throw_to_java(env);

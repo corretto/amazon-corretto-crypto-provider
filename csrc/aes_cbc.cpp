@@ -26,6 +26,46 @@ static bool is_encryption_mode(jint op_mode)
     return op_mode == com_amazon_corretto_crypto_provider_AesCbcSpi_ENC_MODE;
 }
 
+static void check_unprocessed_input(jint unprocessed_input)
+{
+    if (unprocessed_input < 0 || unprocessed_input > AES_CBC_BLOCK_SIZE_IN_BYTES) {
+        // This should not be reachable since we check this in Java.
+        throw java_ex(EX_ERROR, "unprocessed_input is not in [0, 16] range.");
+    }
+}
+
+static size_t output_size(
+    jint op_mode, jint padding, jint input_len, jint unprocessed_input, bool do_final)
+{
+    // Mirror AesCbcSpi's update/final allocation rules so the entire native write span is checked.
+    if (input_len < 0) {
+        throw java_ex(EX_ARRAYOOB, "Negative input length");
+    }
+    check_unprocessed_input(unprocessed_input);
+
+    const size_t total = static_cast<size_t>(input_len) + static_cast<size_t>(unprocessed_input);
+    const size_t remainder = total % AES_CBC_BLOCK_SIZE_IN_BYTES;
+    if (do_final) {
+        // Padded encryption always appends enough bytes to complete one final block.
+        const bool adds_padding_block
+            = padding != com_amazon_corretto_crypto_provider_AesCbcSpi_NO_PADDING
+            && is_encryption_mode(op_mode);
+        return adds_padding_block ? total + AES_CBC_BLOCK_SIZE_IN_BYTES - remainder : total;
+    }
+
+    if (total == 0) {
+        return 0;
+    }
+    if (padding == com_amazon_corretto_crypto_provider_AesCbcSpi_NO_PADDING
+        || is_encryption_mode(op_mode)
+        || remainder != 0) {
+        return total - remainder;
+    }
+
+    // AWS-LC may touch the withheld block even though it is not included in the return value.
+    return total;
+}
+
 class AesCbcCipher {
     JNIEnv* jenv_;
     EVP_CIPHER_CTX* ctx_;
@@ -48,14 +88,6 @@ class AesCbcCipher {
         }
 
         return true;
-    }
-
-    static void check_unprocessed_input(int unprocessed_input)
-    {
-        if (unprocessed_input < 0 || unprocessed_input > 16) {
-            // This should not be reachable since we check this in Java.
-            throw java_ex(EX_ERROR, "unprocessed_input is not in [0, 16] range.");
-        }
     }
 
 public:
@@ -133,7 +165,7 @@ public:
 
     int update(uint8_t const* input, int input_len, uint8_t* output, int unprocessed_input)
     {
-        check_unprocessed_input(unprocessed_input);
+        AmazonCorrettoCryptoProvider::check_unprocessed_input(unprocessed_input);
         int result = 0;
         if (output_clobbers_input(input, input_len, output, unprocessed_input)) {
             SimpleBuffer temp(input_len + unprocessed_input);
@@ -324,12 +356,13 @@ extern "C" JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesCb
 
         // update
         JIOBlobs io_blobs(env, inputDirect, inputArray, outputDirect, outputArray);
-        int result = aes_cbc_cipher.extended_update(is_iso10126, is_enc, lastBlock, io_blobs.get_input() + inputOffset,
-            inputLen, io_blobs.get_output() + outputOffset, 0);
+        uint8_t* input = io_blobs.get_input(inputOffset, inputLen);
+        uint8_t* output = io_blobs.get_output(outputOffset, output_size(opMode, padding, inputLen, 0, true));
+        int result = aes_cbc_cipher.extended_update(is_iso10126, is_enc, lastBlock, input, inputLen, output, 0);
 
         // final
         result += aes_cbc_cipher.extended_do_final(
-            is_iso10126, is_enc, lastBlock, io_blobs.get_output() + outputOffset + result, inputLen - result);
+            is_iso10126, is_enc, lastBlock, output + result, inputLen - result);
 
         return result;
 
@@ -368,9 +401,15 @@ extern "C" JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesCb
 
         // update
         JIOBlobs io_blobs(env, inputDirect, inputArray, outputDirect, outputArray);
-
-        return aes_cbc_cipher.extended_update(is_iso10126_padding(padding), is_encryption_mode(opMode), lastBlock,
-            io_blobs.get_input() + inputOffset, inputLen, io_blobs.get_output() + outputOffset, 0);
+        uint8_t* input = io_blobs.get_input(inputOffset, inputLen);
+        uint8_t* output = io_blobs.get_output(outputOffset, output_size(opMode, padding, inputLen, 0, false));
+        return aes_cbc_cipher.extended_update(is_iso10126_padding(padding),
+            is_encryption_mode(opMode),
+            lastBlock,
+            input,
+            inputLen,
+            output,
+            0);
 
     } catch (java_ex& ex) {
         ex.throw_to_java(env);
@@ -398,9 +437,16 @@ extern "C" JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesCb
 
         // update
         JIOBlobs io_blobs(env, inputDirect, inputArray, outputDirect, outputArray);
-
-        return aes_cbc_cipher.extended_update(is_iso10126_padding(padding), is_encryption_mode(opMode), lastBlock,
-            io_blobs.get_input() + inputOffset, inputLen, io_blobs.get_output() + outputOffset, unprocessedInput);
+        uint8_t* input = io_blobs.get_input(inputOffset, inputLen);
+        uint8_t* output
+            = io_blobs.get_output(outputOffset, output_size(opMode, padding, inputLen, unprocessedInput, false));
+        return aes_cbc_cipher.extended_update(is_iso10126_padding(padding),
+            is_encryption_mode(opMode),
+            lastBlock,
+            input,
+            inputLen,
+            output,
+            unprocessedInput);
 
     } catch (java_ex& ex) {
         ex.throw_to_java(env);
@@ -429,18 +475,20 @@ extern "C" JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesCb
 
         bool is_iso10126 = is_iso10126_padding(padding);
         bool is_enc = is_encryption_mode(opMode);
-
         int up = unprocessedInput;
 
         // update
         JIOBlobs io_blobs(env, inputDirect, inputArray, outputDirect, outputArray);
-        int result = aes_cbc_cipher.extended_update(is_iso10126, is_enc, lastBlock, io_blobs.get_input() + inputOffset,
-            inputLen, io_blobs.get_output() + outputOffset, up);
+        uint8_t* input = io_blobs.get_input(inputOffset, inputLen);
+        uint8_t* output
+            = io_blobs.get_output(outputOffset, output_size(opMode, padding, inputLen, unprocessedInput, true));
+        int result = aes_cbc_cipher.extended_update(
+            is_iso10126, is_enc, lastBlock, input, inputLen, output, up);
 
         // final
         up = (inputLen + unprocessedInput) - result;
         result += aes_cbc_cipher.extended_do_final(
-            is_iso10126, is_enc, lastBlock, io_blobs.get_output() + outputOffset + result, up);
+            is_iso10126, is_enc, lastBlock, output + result, up);
 
         return result;
 

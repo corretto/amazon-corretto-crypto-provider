@@ -152,9 +152,10 @@ extern "C" JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesCf
 
         // update and final
         JIOBlobs io_blobs(env, nullptr, inputArray, nullptr, outputArray);
-        int result
-            = aes_cfb_cipher.update(io_blobs.get_input() + inputOffset, inputLen, io_blobs.get_output() + outputOffset);
-        result += aes_cfb_cipher.do_final(io_blobs.get_output() + outputOffset + result);
+        uint8_t* input = io_blobs.get_input(inputOffset, inputLen);
+        uint8_t* output = io_blobs.get_output(outputOffset, inputLen);
+        int result = aes_cfb_cipher.update(input, inputLen, output);
+        result += aes_cfb_cipher.do_final(output + result);
 
         return result;
 
@@ -190,8 +191,9 @@ extern "C" JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesCf
 
         // update
         JIOBlobs io_blobs(env, nullptr, inputArray, nullptr, outputArray);
-        return aes_cfb_cipher.update(
-            io_blobs.get_input() + inputOffset, inputLen, io_blobs.get_output() + outputOffset);
+        uint8_t* input = io_blobs.get_input(inputOffset, inputLen);
+        uint8_t* output = io_blobs.get_output(outputOffset, inputLen);
+        return aes_cfb_cipher.update(input, inputLen, output);
 
     } catch (java_ex& ex) {
         ex.throw_to_java(env);
@@ -214,8 +216,9 @@ extern "C" JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesCf
 
         // update
         JIOBlobs io_blobs(env, nullptr, inputArray, nullptr, outputArray);
-        return aes_cfb_cipher.update(
-            io_blobs.get_input() + inputOffset, inputLen, io_blobs.get_output() + outputOffset);
+        uint8_t* input = io_blobs.get_input(inputOffset, inputLen);
+        uint8_t* output = io_blobs.get_output(outputOffset, inputLen);
+        return aes_cfb_cipher.update(input, inputLen, output);
 
     } catch (java_ex& ex) {
         ex.throw_to_java(env);
@@ -239,9 +242,10 @@ extern "C" JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_AesCf
 
         // update and final
         JIOBlobs io_blobs(env, nullptr, inputArray, nullptr, outputArray);
-        int result
-            = aes_cfb_cipher.update(io_blobs.get_input() + inputOffset, inputLen, io_blobs.get_output() + outputOffset);
-        result += aes_cfb_cipher.do_final(io_blobs.get_output() + outputOffset + result);
+        uint8_t* input = io_blobs.get_input(inputOffset, inputLen);
+        uint8_t* output = io_blobs.get_output(outputOffset, inputLen);
+        int result = aes_cfb_cipher.update(input, inputLen, output);
+        result += aes_cfb_cipher.do_final(output + result);
 
         return result;
 
