@@ -192,7 +192,7 @@ ACCP did not track a FIPS branch/release version of AWS-LC until ACCP v2.3.0. Be
 | 2.4.0               | 1.30.1         | 2.0.13              |
 | 2.4.1               | 1.30.1         | 2.0.13              |
 | 2.5.0               | 1.47.0         | 3.0.0               |
-| 2.6.0               | 5.12.0         | 3.6.0               |
+| 2.6.0               | 5.12.0         | 4.2.0               |
 
 Notable differences between ACCP and ACCP-FIPS:
 * ACCP uses [the latest release of AWS-LC](https://github.com/aws/aws-lc/releases), whereas, ACCP-FIPS uses [a timestamped FIPS branch of AWS-LC](https://github.com/aws/aws-lc/branches).
