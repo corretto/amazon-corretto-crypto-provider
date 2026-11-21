@@ -7,17 +7,16 @@
 
 using namespace AmazonCorrettoCryptoProvider;
 
-extern "C" JNIEXPORT void JNICALL
-Java_com_amazon_corretto_crypto_provider_Pbkdf2SecretKeyFactorySpi_pbkdf2(JNIEnv* env,
-                                                                          jclass,
-                                                                          jbyteArray jPassword,
-                                                                          jint passwordLen,
-                                                                          jbyteArray jSalt,
-                                                                          jint saltLen,
-                                                                          jint iterations,
-                                                                          jint digestCode,
-                                                                          jbyteArray jOutput,
-                                                                          jint outputLen)
+extern "C" JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_Pbkdf2SecretKeyFactorySpi_pbkdf2(JNIEnv* env,
+    jclass,
+    jbyteArray jPassword,
+    jint passwordLen,
+    jbyteArray jSalt,
+    jint saltLen,
+    jint iterations,
+    jint digestCode,
+    jbyteArray jOutput,
+    jint outputLen)
 {
     try {
         // GetArrayLength must be called BEFORE any JBAC ctor, since GetArrayLength is a
@@ -35,7 +34,7 @@ Java_com_amazon_corretto_crypto_provider_Pbkdf2SecretKeyFactorySpi_pbkdf2(JNIEnv
         EVP_MD const* digest = digest_code_to_EVP_MD(digestCode);
 
         if (PKCS5_PBKDF2_HMAC(reinterpret_cast<const char*>(password.get()), passwordLen, salt.get(), saltLen,
-                              iterations, digest, outputLen, output.get())
+                iterations, digest, outputLen, output.get())
             != 1) {
             throw_openssl(EX_RUNTIME_CRYPTO, "Heap allocation in PBKDF2 failed.");
         }

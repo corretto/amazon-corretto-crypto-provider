@@ -93,7 +93,7 @@ public class KeyReuseThreadStormTest {
   }
 
   private static boolean canUseMlDsa() {
-    return (!NATIVE_PROVIDER.isFips() || NATIVE_PROVIDER.isExperimentalFips());
+    return true;
   }
 
   @Test

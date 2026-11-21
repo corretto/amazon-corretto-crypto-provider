@@ -34,10 +34,8 @@ import org.junit.jupiter.params.provider.ValueSource;
 public class MlDsaUtilsTest {
   private static final Provider NATIVE_PROVIDER = AmazonCorrettoCryptoProvider.INSTANCE;
 
-  // TODO: remove this disablement when ACCP consumes an AWS-LC-FIPS release with ML-DSA
   private static boolean mlDsaDisabled() {
-    return AmazonCorrettoCryptoProvider.INSTANCE.isFips()
-        && !AmazonCorrettoCryptoProvider.INSTANCE.isExperimentalFips();
+    return false;
   }
 
   @ParameterizedTest
