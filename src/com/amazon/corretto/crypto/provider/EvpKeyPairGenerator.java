@@ -67,6 +67,11 @@ abstract class EvpKeyPairGenerator extends KeyPairGeneratorSpi {
       return new KeyPair(jcePublicKey, jcePrivateKey);
     } catch (final GeneralSecurityException e) {
       throw new RuntimeException("Error generating key pair", e);
+    } finally {
+      // The caller only ever sees the JCE keys, so nothing can reach these two again and the
+      // native keys would otherwise sit in the janitor until the next GC.
+      ((EvpKey) privateKey).destroy();
+      ((EvpKey) publicKey).destroy();
     }
   }
 }
