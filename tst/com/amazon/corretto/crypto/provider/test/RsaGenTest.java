@@ -17,6 +17,7 @@ import java.math.BigInteger;
 import java.security.GeneralSecurityException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidParameterException;
+import java.security.Key;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.Provider;
@@ -30,6 +31,7 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.crypto.Cipher;
+import javax.security.auth.Destroyable;
 import org.bouncycastle.util.encoders.Hex;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -265,14 +267,17 @@ public class RsaGenTest {
   }
 
   static void testSeparateDestruction(final KeyPair kp) throws Exception {
-    // Make sure that the keys are backed by the same native object.
-    // Otherwise the test is invalid.
+    // The halves share one native key, each holding a reference of its own, so releasing either
+    // one leaves the other's reference intact.
     assertEquals(
         EvpKeyFactoryTest.getRawPointer(kp.getPublic()),
         EvpKeyFactoryTest.getRawPointer(kp.getPrivate()),
-        "Keys must be backed by same native object for test to be valid");
+        "Keys must be backed by the same native object");
     // Destroy the private key
     kp.getPrivate().destroy();
+    assertTrue(
+        isNativeKeyReleased(kp.getPrivate()),
+        "destroy() must release the native reference, not defer to GC");
     // Getting encoded private key must fail and mention destruction
     try {
       kp.getPrivate().getEncoded();
@@ -286,6 +291,20 @@ public class RsaGenTest {
     assertTrue(encoded.length > 0);
     // Leading byte of an encoded key will never be zero
     assertTrue(encoded[0] != 0);
+    // PublicKey does not extend Destroyable, so the cast is how callers reach destroy()
+    ((Destroyable) kp.getPublic()).destroy();
+    assertTrue(
+        isNativeKeyReleased(kp.getPublic()),
+        "destroy() must release the native reference, not defer to GC");
+  }
+
+  private static boolean isNativeKeyReleased(final Key key) {
+    try {
+      return TestUtil.sneakyInvoke_boolean(
+          TestUtil.sneakyGetField(key, "internalKey"), "isReleased");
+    } catch (final Throwable t) {
+      throw new AssertionError("Could not read native key state", t);
+    }
   }
 
   private static void assertConsistency(final RSAPublicKey pub, final RSAPrivateCrtKey priv)

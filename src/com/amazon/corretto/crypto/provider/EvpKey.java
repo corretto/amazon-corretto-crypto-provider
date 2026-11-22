@@ -31,12 +31,6 @@ abstract class EvpKey implements Key, Destroyable {
   protected final boolean isPublicKey;
 
   /**
-   * Indicates that the backing native key is used by another java object and thus must not be
-   * released by this one.
-   */
-  protected boolean sharedKey = false;
-
-  /**
    * Indicates that this key is entirely managed within ACCP controlled code and thus we know when
    * we're done with it and can release it.
    */
@@ -53,6 +47,8 @@ abstract class EvpKey implements Key, Destroyable {
   static native byte[] encodePublicKey(long ptr);
 
   private static native byte[] encodePrivateKey(long ptr);
+
+  private static native long upRefKey(long ptr);
 
   protected static native byte[] getDerEncodedParams(long ptr);
 
@@ -88,6 +84,14 @@ abstract class EvpKey implements Key, Destroyable {
       throws X {
     assertNotDestroyed();
     internalKey.useVoid(function);
+  }
+
+  /**
+   * Returns a second handle on this key's native key, carrying its own reference. Each EvpKey
+   * releases exactly one reference, so neither key frees the other's.
+   */
+  protected InternalKey upRefInternalKey() {
+    return new InternalKey(use(EvpKey::upRefKey));
   }
 
   @Override
@@ -239,9 +243,7 @@ abstract class EvpKey implements Key, Destroyable {
   public synchronized void destroy() {
     assertNotDestroyed();
     isDestroyed = true;
-    if (!sharedKey) {
-      internalKey.release();
-    }
+    internalKey.release();
     destroyJavaState();
   }
 

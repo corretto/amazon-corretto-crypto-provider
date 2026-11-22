@@ -18,11 +18,7 @@ class EvpKemPrivateKey extends EvpKemKey implements PrivateKey {
   }
 
   public EvpKemPublicKey getPublicKey() {
-    this.ephemeral = true;
-    this.sharedKey = true;
-    final EvpKemPublicKey result = new EvpKemPublicKey(internalKey);
-    result.sharedKey = true;
-    return result;
+    return new EvpKemPublicKey(upRefInternalKey());
   }
 
   @Override

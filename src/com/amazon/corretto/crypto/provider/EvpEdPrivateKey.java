@@ -21,11 +21,7 @@ class EvpEdPrivateKey extends EvpEdKey implements PrivateKey {
   }
 
   public EvpEdPublicKey getPublicKey() {
-    ephemeral = false;
-    sharedKey = true;
-    final EvpEdPublicKey result = new EvpEdPublicKey(internalKey);
-    result.sharedKey = true;
-    return result;
+    return new EvpEdPublicKey(upRefInternalKey());
   }
 
   public Optional<byte[]> getBytes() {
