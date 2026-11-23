@@ -12,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
@@ -45,11 +46,14 @@ import java.security.spec.PSSParameterSpec;
 import java.security.spec.RSAKeyGenParameterSpec;
 import java.security.spec.RSAPrivateKeySpec;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import javax.crypto.AEADBadTagException;
 import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
@@ -78,6 +82,7 @@ public final class EvpSignatureSpecificTest {
   private static final byte[] MESSAGE = new byte[513];
   private static final KeyPair RSA_PAIR;
   private static final KeyPair ECDSA_PAIR;
+  private static final KeyPair ED25519_PAIR;
 
   // Digests usable for RSASSA-PSS (message digest and MGF1 digest). The SHA3 short names retain
   // their hyphen (e.g. "SHA3-256"), unlike the SHA2 names (e.g. "SHA-256").
@@ -110,6 +115,9 @@ public final class EvpSignatureSpecificTest {
       kg = KeyPairGenerator.getInstance("EC");
       kg.initialize(new ECGenParameterSpec("NIST P-384"));
       ECDSA_PAIR = kg.generateKeyPair();
+
+      kg = KeyPairGenerator.getInstance("Ed25519");
+      ED25519_PAIR = kg.generateKeyPair();
     } catch (final GeneralSecurityException ex) {
       throw new RuntimeException(ex);
     }
@@ -1170,5 +1178,72 @@ public final class EvpSignatureSpecificTest {
     public String getFormat() {
       return format_;
     }
+  }
+
+  // ----- OID alias resolution tests -----
+
+  private static final Map<String, String> EXPECTED_OID_ALIASES = new LinkedHashMap<>();
+
+  static {
+    EXPECTED_OID_ALIASES.put("1.2.840.10045.4.1", "SHA1withECDSA");
+    EXPECTED_OID_ALIASES.put("1.2.840.10045.4.3.1", "SHA224withECDSA");
+    EXPECTED_OID_ALIASES.put("1.2.840.10045.4.3.2", "SHA256withECDSA");
+    EXPECTED_OID_ALIASES.put("1.2.840.10045.4.3.3", "SHA384withECDSA");
+    EXPECTED_OID_ALIASES.put("1.2.840.10045.4.3.4", "SHA512withECDSA");
+    EXPECTED_OID_ALIASES.put("1.2.840.113549.1.1.5", "SHA1withRSA");
+    EXPECTED_OID_ALIASES.put("1.2.840.113549.1.1.14", "SHA224withRSA");
+    EXPECTED_OID_ALIASES.put("1.2.840.113549.1.1.11", "SHA256withRSA");
+    EXPECTED_OID_ALIASES.put("1.2.840.113549.1.1.12", "SHA384withRSA");
+    EXPECTED_OID_ALIASES.put("1.2.840.113549.1.1.13", "SHA512withRSA");
+    EXPECTED_OID_ALIASES.put("1.2.840.113549.1.1.10", "RSASSA-PSS");
+    EXPECTED_OID_ALIASES.put("2.16.840.1.101.3.4.3.13", "SHA3-224withRSA");
+    EXPECTED_OID_ALIASES.put("2.16.840.1.101.3.4.3.14", "SHA3-256withRSA");
+    EXPECTED_OID_ALIASES.put("2.16.840.1.101.3.4.3.15", "SHA3-384withRSA");
+    EXPECTED_OID_ALIASES.put("2.16.840.1.101.3.4.3.16", "SHA3-512withRSA");
+    EXPECTED_OID_ALIASES.put("1.3.101.112", "Ed25519");
+  }
+
+  private static Stream<Arguments> oidAliasParams() {
+    return EXPECTED_OID_ALIASES.entrySet().stream()
+        .flatMap(
+            e ->
+                Stream.of(
+                    Arguments.of(e.getKey(), e.getValue()),
+                    Arguments.of("OID." + e.getKey(), e.getValue())));
+  }
+
+  @ParameterizedTest
+  @MethodSource("oidAliasParams")
+  public void oidAliasResolvesToSameServiceAsName(String oid, String expectedAlgorithm) {
+    assertSame(
+        NATIVE_PROVIDER.getService("Signature", expectedAlgorithm),
+        NATIVE_PROVIDER.getService("Signature", oid),
+        "OID " + oid + " should map to the same service as " + expectedAlgorithm);
+  }
+
+  @ParameterizedTest
+  @MethodSource("oidAliasParams")
+  public void signatureByOidProducesVerifiableSignature(String oid, String expectedAlgorithm)
+      throws GeneralSecurityException {
+    final KeyPair kp =
+        expectedAlgorithm.contains("ECDSA")
+            ? ECDSA_PAIR
+            : expectedAlgorithm.equals("Ed25519") ? ED25519_PAIR : RSA_PAIR;
+    final Signature signer = Signature.getInstance(oid, NATIVE_PROVIDER);
+    if (expectedAlgorithm.equals("RSASSA-PSS")) {
+      signer.setParameter(new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1));
+    }
+    signer.initSign(kp.getPrivate());
+    signer.update(MESSAGE);
+    final byte[] signature = signer.sign();
+
+    final Signature verifier = Signature.getInstance(expectedAlgorithm, NATIVE_PROVIDER);
+    if (expectedAlgorithm.equals("RSASSA-PSS")) {
+      verifier.setParameter(
+          new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1));
+    }
+    verifier.initVerify(kp.getPublic());
+    verifier.update(MESSAGE);
+    assertTrue(verifier.verify(signature), "Signature via OID " + oid + " should verify");
   }
 }
