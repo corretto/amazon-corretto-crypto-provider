@@ -105,10 +105,6 @@ EVP_PKEY* der2EvpPrivateKey(const unsigned char* der,
     const char* javaExceptionClass);
 EVP_PKEY* der2EvpPublicKey(const unsigned char* der, const int derLen, const char* javaExceptionClass);
 bool checkKey(const EVP_PKEY* key);
-// Encodes an ML-KEM public key as an X.509 SubjectPublicKeyInfo DER blob. Used instead of
-// i2d_PUBKEY for ML-KEM, which AWS-LC-FIPS 3.1.0 does not support.
-// TODO [AWS-LC-FIPS 4.x]: remove once the FIPS module supports i2d_PUBKEY for ML-KEM.
-size_t encodeMLKEMPublicKey(const EVP_PKEY* key, uint8_t** out);
 static bool inline BN_null_or_zero(const BIGNUM* bn) { return nullptr == bn || BN_is_zero(bn); }
 
 // Returns true if keyType is EVP_PKEY_RSA or EVP_PKEY_RSA_PSS. RSASSA-PSS keys
@@ -180,18 +176,16 @@ const EVP_MD* digestFromJstring(raii_env& env, jstring digestName);
 
 RSA* new_private_RSA_key_with_no_e(BIGNUM const* n, BIGNUM const* d);
 
-#if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
 // Expands ML-DSA |key|, allocates appropriately sized buffer to |*out|, writes the PKCS8-encoded expanded key to
 // |*out|, and returns the size of |*out| on success and throws an unchecked exception on failure. The caller takes
 // ownership of |*out|.
 size_t encodeExpandedMLDSAPrivateKey(const EVP_PKEY* key, uint8_t** out);
-#endif
 
 // Expands ML-KEM |key|, allocates appropriately sized buffer to |*out|, writes the PKCS8-encoded expanded key to
 // |*out|, and returns the size of |*out| on success and throws an unchecked exception on failure. The caller takes
-// ownership of |*out|. Available in all builds: regular FIPS uses this because AWS-LC-FIPS 3.1.0 cannot marshal
-// ML-KEM private keys (no priv_encode) and lacks seed support.
-// TODO [AWS-LC-FIPS 4.x]: regular FIPS can drop this once the FIPS module supports priv_encode for ML-KEM.
+// ownership of |*out|. MlKemUtils.expandPrivateKey needs the expandedKey CHOICE specifically, which
+// i2d_PrivateKey does not give where the key retains its keygen seed.
+// TODO [AWS-LC-FIPS 5.0]: revisit once the FIPS module retains the ML-KEM keygen seed.
 size_t encodeExpandedMLKEMPrivateKey(const EVP_PKEY* key, uint8_t** out);
 
 // Formats an EC private key with redundant curve identifier confromant to RFC

@@ -60,8 +60,7 @@ jbyteArray vecToArray(raii_env& env, const std::vector<uint8_t, SecureAlloc<uint
     return array;
 }
 
-void JByteArrayCritical::cleanse_and_stash(
-    uint8_t* src, jsize len, std::vector<uint8_t, SecureAlloc<uint8_t> >& dst)
+void JByteArrayCritical::cleanse_and_stash(uint8_t* src, jsize len, std::vector<uint8_t, SecureAlloc<uint8_t> >& dst)
 {
     if (len <= 0) {
         return;
@@ -174,20 +173,15 @@ void JByteArrayCritical::commitBack()
 #ifndef NDEBUG
     assert(s_open_criticals == 0 && "commitBack() called while a critical region is still open on this thread");
 #endif
-   if (stash_.empty()) {
-      return;
-   }
-    env_->SetByteArrayRegion(jarray_,
-        0,
-        static_cast<jsize>(stash_.size()),
-        reinterpret_cast<const jbyte*>(stash_.data()));
+    if (stash_.empty()) {
+        return;
+    }
+    env_->SetByteArrayRegion(
+        jarray_, 0, static_cast<jsize>(stash_.size()), reinterpret_cast<const jbyte*>(stash_.data()));
     stash_.clear(); // idempotent: subsequent calls are no-ops
 }
 
-unsigned char* JByteArrayCritical::get()
-{
-    return released_ ? nullptr : static_cast<unsigned char*>(ptr_);
-}
+unsigned char* JByteArrayCritical::get() { return released_ ? nullptr : static_cast<unsigned char*>(ptr_); }
 
 SimpleBuffer::SimpleBuffer(int size)
     : buffer_(nullptr)
@@ -239,10 +233,10 @@ JBinaryBlob::~JBinaryBlob()
 uint8_t* JBinaryBlob::get() { return ptr_; }
 
 JIOBlobs::JIOBlobs(JNIEnv* env,
-                   jobject inputDirectByteBuffer,
-                   jbyteArray inputArray,
-                   jobject outputDirectByteBuffer,
-                   jbyteArray outputArray)
+    jobject inputDirectByteBuffer,
+    jbyteArray inputArray,
+    jobject outputDirectByteBuffer,
+    jbyteArray outputArray)
     : env_(env)
     , input_array_(inputArray)
     , output_array_(outputArray)
@@ -251,8 +245,7 @@ JIOBlobs::JIOBlobs(JNIEnv* env,
     if (inputDirectByteBuffer != nullptr) {
         // One should be null. In the Java layer, we ensure this.
         if (inputArray != nullptr) {
-            throw java_ex(
-                EX_ERROR,
+            throw java_ex(EX_ERROR,
                 "THIS SHOULD NOT BE REACHABLE. Both inputDirectByteBuffer and inputArray cannot be provided.");
         }
         input_ptr_ = (uint8_t*)env->GetDirectBufferAddress(inputDirectByteBuffer);
@@ -261,8 +254,7 @@ JIOBlobs::JIOBlobs(JNIEnv* env,
     if (outputDirectByteBuffer != nullptr) {
         // One should be null. In the Java layer, we ensure this.
         if (outputArray != nullptr) {
-            throw java_ex(
-                EX_ERROR,
+            throw java_ex(EX_ERROR,
                 "THIS SHOULD NOT BE REACHABLE. Both outputDirectByteBuffer and outputArray cannot be provided.");
         }
         output_ptr_ = (inputDirectByteBuffer == outputDirectByteBuffer)

@@ -110,41 +110,21 @@ public class TestUtil {
   }
 
   // The AWS-LC git version ids build.gradle pins: awsLcMainTag for non-FIPS and experimental-FIPS
-  // builds, awsLcFipsTag for regular FIPS, the latter matched as a release-branch family. Keep both
-  // in sync with build.gradle: a stale value fails nothing, it just stops matching and downgrades
-  // every assertion below to its tolerant branch.
+  // builds, awsLcFipsTag for regular FIPS. Keep both in sync with build.gradle: a stale value fails
+  // nothing, it just stops matching and downgrades every assertion below to its tolerant branch.
   //
   // CMake prefixes the configured id with "AWS-LC " on its way into version.properties, so match
-  // these as substrings rather than anchoring either end.
+  // these as substrings rather than anchoring either end. The FIPS pin is a release tag on the
+  // AWS-LC FIPS 4 branch and carries no "FIPS" marker, so it cannot be matched as a family prefix
+  // the way the AWS-LC-FIPS-3.x tags were.
   private static final String AWSLC_MAIN_PIN = "v5.12.0";
-  private static final String AWSLC_FIPS_RELEASE_BRANCH = "AWS-LC-FIPS-3.";
+  private static final String AWSLC_FIPS_PIN = "v4.2.0";
 
   private static String awsLcVersionStr() {
     final String version = NATIVE_PROVIDER.getAwsLcVersionStr();
     // A build whose version.properties carries no AWS-LC version matches no pin, which leaves every
     // oracle below unanswered rather than asserting against a version nobody reported.
     return version == null ? "" : version;
-  }
-
-  /**
-   * Whether the AWS-LC this build links has no {@code priv_decode} for ML-KEM, so that {@code
-   * d2i_PrivateKey} always fails and ACCP's fallover parser in {@code keyutils.cpp} is the whole
-   * ML-KEM PKCS#8 decoder. Where AWS-LC has one, it answers first and the fallover is never
-   * consulted, and the two disagree on inputs no ML-KEM encoder emits.
-   *
-   * <p>Like {@link #mlKemEmitsSeedEncoding} this is a property of the linked libcrypto rather than
-   * of the build flavor. Unlike the seed capability it cannot be probed, since the only inputs that
-   * distinguish the two decoders are the malformed encodings the callers are asserting on -- so key
-   * it on the reported version instead. Every AWS-LC-FIPS 3.x release branch spells {@code
-   * kem_asn1_meth}'s {@code priv_decode} and {@code priv_encode} slots NULL. Everything else --
-   * mainline, AWS-LC-FIPS 4.x and later, and any {@code -DAWSLC_GITVERSION} override -- is taken to
-   * decode ML-KEM itself, which is the tolerant answer.
-   *
-   * <p>TODO [AWS-LC-FIPS 4.x]: delete along with parseMLKEMPrivateKey once the FIPS module
-   * implements priv_decode for ML-KEM.
-   */
-  public static boolean linkedAwsLcLacksMlKemPrivDecode() {
-    return awsLcVersionStr().contains(AWSLC_FIPS_RELEASE_BRANCH);
   }
 
   /**
@@ -167,7 +147,7 @@ public class TestUtil {
     if (version.contains(AWSLC_MAIN_PIN)) {
       return Optional.of(Boolean.TRUE);
     }
-    if (version.contains(AWSLC_FIPS_RELEASE_BRANCH)) {
+    if (version.contains(AWSLC_FIPS_PIN)) {
       return Optional.of(Boolean.FALSE);
     }
     return Optional.empty();

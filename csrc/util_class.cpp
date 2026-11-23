@@ -17,10 +17,8 @@ extern "C" {
  * Signature: (Ljava/nio/ByteBuffer;Ljava/nio/ByteBuffer;)J
  */
 
-JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_Utils_getNativeBufferOffset(JNIEnv* env,
-                                                                                             jclass,
-                                                                                             jobject bufA,
-                                                                                             jobject bufB)
+JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_Utils_getNativeBufferOffset(
+    JNIEnv* env, jclass, jobject bufA, jobject bufB)
 {
     const jlong JINT_MAX = (1L << 31) - 1L;
     const jlong JINT_MIN = -(1L << 31);
@@ -64,9 +62,8 @@ JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_Utils_getNative
  * Method:    getEvpMdFromName
  * Signature: (Ljava/lang/String;)J
  */
-JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_Utils_getEvpMdFromName(JNIEnv* pEnv,
-                                                                                        jclass,
-                                                                                        jstring mdName)
+JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_Utils_getEvpMdFromName(
+    JNIEnv* pEnv, jclass, jstring mdName)
 {
     try {
         raii_env env(pEnv);
@@ -87,7 +84,6 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_Utils_getDigestL
     return EVP_MD_size(reinterpret_cast<const EVP_MD*>(evpMd));
 }
 
-#if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
 /*
  * Class:     com_amazon_corretto_crypto_utils_MlDsaUtils
  * Method:    expandPrivateKeyInternal
@@ -100,8 +96,8 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_Utils_getDigestL
  * EX_RUNTIME_CRYPTO rather than EX_INVALID_KEY_SPEC because InvalidKeySpecException is checked and
  * MlDsaUtils.expandPrivateKey does not declare it.
  */
-JNIEXPORT jbyteArray JNICALL
-Java_com_amazon_corretto_crypto_utils_MlDsaUtils_expandPrivateKeyInternal(JNIEnv* pEnv, jclass, jbyteArray keyBytes)
+JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_utils_MlDsaUtils_expandPrivateKeyInternal(
+    JNIEnv* pEnv, jclass, jbyteArray keyBytes)
 {
     jbyteArray result = NULL;
     try {
@@ -136,7 +132,6 @@ Java_com_amazon_corretto_crypto_utils_MlDsaUtils_expandPrivateKeyInternal(JNIEnv
     }
     return result;
 }
-#endif // !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
 
 /*
  * Class:     com_amazon_corretto_crypto_utils_MlKemUtils
@@ -167,8 +162,8 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_utils_MlKemUtils_ex
 
         EVP_PKEY_auto key;
         try {
-            key.set(der2EvpPrivateKey(
-                key_der, key_der_len, EVP_PKEY_KEM, /*shouldCheckPrivate*/ false, EX_RUNTIME_CRYPTO));
+            key.set(
+                der2EvpPrivateKey(key_der, key_der_len, EVP_PKEY_KEM, /*shouldCheckPrivate*/ false, EX_RUNTIME_CRYPTO));
         } catch (...) {
             env->ReleaseByteArrayElements(keyBytes, (jbyte*)key_der, JNI_ABORT);
             throw;
@@ -192,7 +187,6 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_utils_MlKemUtils_ex
     return result;
 }
 
-#if !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
 /*
  * Class:     com_amazon_corretto_crypto_utils_MlDsaUtils
  * Method:    computeMuInternal
@@ -263,7 +257,6 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_utils_MlDsaUtils_co
         return 0;
     }
 }
-#endif // !defined(FIPS_BUILD) || defined(EXPERIMENTAL_FIPS_BUILD)
 
 /*
  * Class:     com_amazon_corretto_crypto_utils_DigestUtils
@@ -282,8 +275,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_utils_DigestUtils_d
         jni_string md_name(env, digestName);
         const EVP_MD* md = EVP_get_digestbyname(md_name.native_str);
         if (md == nullptr) {
-            throw_java_ex(
-                EX_ILLEGAL_ARGUMENT, std::string("Unsupported digest algorithm: ") + md_name.native_str);
+            throw_java_ex(EX_ILLEGAL_ARGUMENT, std::string("Unsupported digest algorithm: ") + md_name.native_str);
         }
         const int hash_nid = EVP_MD_type(md);
 
@@ -298,8 +290,8 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_utils_DigestUtils_d
         int is_alloced = 0;
         try {
             if (1
-                != RSA_add_pkcs1_prefix(&out_msg, &out_msg_len, &is_alloced, hash_nid, (const uint8_t*)digest,
-                                        (size_t)digest_len)) {
+                != RSA_add_pkcs1_prefix(
+                    &out_msg, &out_msg_len, &is_alloced, hash_nid, (const uint8_t*)digest, (size_t)digest_len)) {
                 ERR_clear_error();
                 throw_java_ex(EX_ILLEGAL_ARGUMENT, "RSA_add_pkcs1_prefix failed");
             }
