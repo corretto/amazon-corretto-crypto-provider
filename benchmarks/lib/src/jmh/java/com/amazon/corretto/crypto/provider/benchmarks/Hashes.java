@@ -13,7 +13,7 @@ import org.openjdk.jmh.annotations.State;
 
 @State(Scope.Benchmark)
 public class Hashes {
-  @Param({"SHA-256", "SHA-384", "SHA-512", "SHA-1", "MD5"})
+  @Param({"SHA-256", "SHA-384", "SHA-512", "SHA-1", "MD5", "SHA3-256"})
   public String algorithm;
 
   @Param({AmazonCorrettoCryptoProvider.PROVIDER_NAME, "BC", "SUN", BenchmarkUtils.JOSTLE_PROVIDER_NAME})
@@ -26,6 +26,11 @@ public class Hashes {
 
   @Setup
   public void setup() throws Exception {
+    if (AmazonCorrettoCryptoProvider.PROVIDER_NAME.equals(provider)
+        && algorithm.startsWith("SHA3-")) {
+      throw new RuntimeException("ACCP registers no SHA3 MessageDigest");
+    }
+
     BenchmarkUtils.setupProvider(provider);
     data_8B = BenchmarkUtils.getRandBytes(8);
     data_1KiB = BenchmarkUtils.getRandBytes(1024);
