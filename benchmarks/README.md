@@ -46,11 +46,15 @@ Jostle publishes one jar per architecture and no architecture-neutral jar, so th
 `x86_64` or `aarch64` classifier for you. Use `-PjostleVersion="JOSTLE_VERSION"` to benchmark a
 version other than the default.
 
-A few benchmarks leave Jostle out because it does not offer the algorithm:
+A few benchmarks skip a provider because it does not offer the algorithm:
 
-* `MLKEMEncapDecap` needs a `javax.crypto.KEM` service. Jostle exposes ML-KEM encapsulation
-  through a `Cipher` and a `KeyGenerator` instead.
-* `RsaCipherOneShot` skips the `NoPadding` case. Jostle serves RSA only with PKCS#1 v1.5 or OAEP.
+* `Hashes` skips ACCP for `SHA3-256`. ACCP registers no SHA3 `MessageDigest`, so only the other
+  three providers report a number. ACCP does sign with SHA3, which `SignatureRSA` and
+  `SignatureRsassaPss` measure.
+* `MLKEMEncapDecap` leaves Jostle out. It needs a `javax.crypto.KEM` service, and Jostle exposes
+  ML-KEM encapsulation through a `Cipher` and a `KeyGenerator` instead.
+* `RsaCipherOneShot` skips Jostle for the `NoPadding` case. Jostle serves RSA only with PKCS#1 v1.5
+  or OAEP.
 
 `AesXtsBenchmark`, `AesGcmVsKwp`, `CipherReuse`, and `EcUtilsBenchmark` name their providers in code
 rather than sweeping a parameter, so adding a provider there means adding benchmark methods.

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.amazon.corretto.crypto.provider.benchmarks;
 
+import java.security.spec.MGF1ParameterSpec;
 import java.security.spec.PSSParameterSpec;
 import java.security.spec.RSAKeyGenParameterSpec;
 
@@ -14,7 +15,7 @@ import org.openjdk.jmh.annotations.State;
 
 @State(Scope.Benchmark)
 public class SignatureRsassaPss extends SignatureBase {
-  @Param({"SHA-1"})
+  @Param({"SHA-1", "SHA3-256"})
   public String hash;
 
   @Param({"2048", "4096"})
@@ -31,10 +32,22 @@ public class SignatureRsassaPss extends SignatureBase {
         new PSSParameterSpec(
             hash,
             PSSParameterSpec.DEFAULT.getMGFAlgorithm(),
-            PSSParameterSpec.DEFAULT.getMGFParameters(),
-            PSSParameterSpec.DEFAULT.getSaltLength(),
+            new MGF1ParameterSpec(hash),
+            digestLength(hash),
             PSSParameterSpec.DEFAULT.getTrailerField());
     super.setup(provider, "RSA", keyParams, "RSASSA-PSS", sigParams);
+  }
+
+  /** RFC 8017 section 8.1 recommends a salt as long as the digest. */
+  private static int digestLength(final String hash) {
+    switch (hash) {
+      case "SHA-1":
+        return 20;
+      case "SHA3-256":
+        return 32;
+      default:
+        throw new IllegalArgumentException("Unknown digest length for " + hash);
+    }
   }
 
   @Benchmark
