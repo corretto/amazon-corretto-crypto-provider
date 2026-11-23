@@ -4,6 +4,7 @@ package com.amazon.corretto.crypto.provider.test;
 
 import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.security.KeyPair;
@@ -13,6 +14,7 @@ import java.security.Security;
 import java.security.Signature;
 import java.util.ArrayList;
 import java.util.List;
+import javax.security.auth.Destroyable;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -65,5 +67,17 @@ public class RemoveDefaultProvidersTest {
     signature.initVerify(keyPair.getPublic());
     signature.update(message);
     assertTrue(signature.verify(signatureBytes));
+  }
+
+  @Test
+  void testEdDSAKeyPairSurvivesGeneration() throws Exception {
+    // With no SunEC to rebuild them through, generation hands back ACCP's own keys and the caller
+    // owns them, so generateKeyPair() must not release them on its way out.
+    final KeyPair keyPair =
+        KeyPairGenerator.getInstance("EdDSA", NATIVE_PROVIDER).generateKeyPair();
+    assertFalse(keyPair.getPrivate().isDestroyed());
+    assertFalse(((Destroyable) keyPair.getPublic()).isDestroyed());
+    assertTrue(keyPair.getPrivate().getEncoded().length > 0);
+    assertTrue(keyPair.getPublic().getEncoded().length > 0);
   }
 }

@@ -23,12 +23,7 @@ class EvpEcPrivateKey extends EvpEcKey implements ECPrivateKey, CanDerivePublicK
 
   @Override
   public EvpEcPublicKey getPublicKey() {
-    // Once our internal key could be elsewhere, we can no longer safely release it when done
-    ephemeral = false;
-    sharedKey = true;
-    final EvpEcPublicKey result = new EvpEcPublicKey(internalKey);
-    result.sharedKey = true;
-    return result;
+    return new EvpEcPublicKey(upRefInternalKey());
   }
 
   @Override

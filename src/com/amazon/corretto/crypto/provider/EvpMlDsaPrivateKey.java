@@ -18,11 +18,7 @@ class EvpMlDsaPrivateKey extends EvpMlDsaKey implements PrivateKey {
   }
 
   public EvpMlDsaPublicKey getPublicKey() {
-    this.ephemeral = false;
-    this.sharedKey = true;
-    final EvpMlDsaPublicKey result = new EvpMlDsaPublicKey(internalKey);
-    result.sharedKey = true;
-    return result;
+    return new EvpMlDsaPublicKey(upRefInternalKey());
   }
 
   @Override

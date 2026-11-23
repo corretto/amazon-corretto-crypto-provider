@@ -60,6 +60,24 @@ JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpKey_enc
 
 /*
  * Class:     com_amazon_corretto_crypto_provider_EvpKey
+ * Method:    upRefKey
+ */
+JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_EvpKey_upRefKey(JNIEnv* pEnv, jclass, jlong keyHandle)
+{
+    try {
+        raii_env env(pEnv);
+
+        EVP_PKEY* key = reinterpret_cast<EVP_PKEY*>(keyHandle);
+        CHECK_OPENSSL(EVP_PKEY_up_ref(key) == 1);
+        return keyHandle;
+    } catch (java_ex& ex) {
+        ex.throw_to_java(pEnv);
+        return 0;
+    }
+}
+
+/*
+ * Class:     com_amazon_corretto_crypto_provider_EvpKey
  * Method:    encodePrivateKey
  */
 JNIEXPORT jbyteArray JNICALL Java_com_amazon_corretto_crypto_provider_EvpKey_encodePrivateKey(
