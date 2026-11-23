@@ -82,6 +82,7 @@ public final class EvpSignatureSpecificTest {
   private static final byte[] MESSAGE = new byte[513];
   private static final KeyPair RSA_PAIR;
   private static final KeyPair ECDSA_PAIR;
+  private static final KeyPair ED25519_PAIR;
 
   // Digests usable for RSASSA-PSS (message digest and MGF1 digest). The SHA3 short names retain
   // their hyphen (e.g. "SHA3-256"), unlike the SHA2 names (e.g. "SHA-256").
@@ -114,6 +115,9 @@ public final class EvpSignatureSpecificTest {
       kg = KeyPairGenerator.getInstance("EC");
       kg.initialize(new ECGenParameterSpec("NIST P-384"));
       ECDSA_PAIR = kg.generateKeyPair();
+
+      kg = KeyPairGenerator.getInstance("Ed25519");
+      ED25519_PAIR = kg.generateKeyPair();
     } catch (final GeneralSecurityException ex) {
       throw new RuntimeException(ex);
     }
@@ -1192,6 +1196,11 @@ public final class EvpSignatureSpecificTest {
     EXPECTED_OID_ALIASES.put("1.2.840.113549.1.1.12", "SHA384withRSA");
     EXPECTED_OID_ALIASES.put("1.2.840.113549.1.1.13", "SHA512withRSA");
     EXPECTED_OID_ALIASES.put("1.2.840.113549.1.1.10", "RSASSA-PSS");
+    EXPECTED_OID_ALIASES.put("2.16.840.1.101.3.4.3.13", "SHA3-224withRSA");
+    EXPECTED_OID_ALIASES.put("2.16.840.1.101.3.4.3.14", "SHA3-256withRSA");
+    EXPECTED_OID_ALIASES.put("2.16.840.1.101.3.4.3.15", "SHA3-384withRSA");
+    EXPECTED_OID_ALIASES.put("2.16.840.1.101.3.4.3.16", "SHA3-512withRSA");
+    EXPECTED_OID_ALIASES.put("1.3.101.112", "Ed25519");
   }
 
   private static Stream<Arguments> oidAliasParams() {
@@ -1216,7 +1225,10 @@ public final class EvpSignatureSpecificTest {
   @MethodSource("oidAliasParams")
   public void signatureByOidProducesVerifiableSignature(String oid, String expectedAlgorithm)
       throws GeneralSecurityException {
-    final KeyPair kp = expectedAlgorithm.contains("ECDSA") ? ECDSA_PAIR : RSA_PAIR;
+    final KeyPair kp =
+        expectedAlgorithm.contains("ECDSA")
+            ? ECDSA_PAIR
+            : expectedAlgorithm.equals("Ed25519") ? ED25519_PAIR : RSA_PAIR;
     final Signature signer = Signature.getInstance(oid, NATIVE_PROVIDER);
     if (expectedAlgorithm.equals("RSASSA-PSS")) {
       signer.setParameter(new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1));
