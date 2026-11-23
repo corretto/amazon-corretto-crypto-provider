@@ -12,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
@@ -1204,13 +1205,11 @@ public final class EvpSignatureSpecificTest {
 
   @ParameterizedTest
   @MethodSource("oidAliasParams")
-  public void signatureGetInstanceByOidResolvesToAccp(String oid, String expectedAlgorithm)
-      throws NoSuchAlgorithmException {
-    final Signature sig = Signature.getInstance(oid, NATIVE_PROVIDER);
-    assertEquals(
-        NATIVE_PROVIDER.getName(),
-        sig.getProvider().getName(),
-        "OID " + oid + " should resolve to ACCP");
+  public void oidAliasResolvesToSameServiceAsName(String oid, String expectedAlgorithm) {
+    assertSame(
+        NATIVE_PROVIDER.getService("Signature", expectedAlgorithm),
+        NATIVE_PROVIDER.getService("Signature", oid),
+        "OID " + oid + " should map to the same service as " + expectedAlgorithm);
   }
 
   @ParameterizedTest

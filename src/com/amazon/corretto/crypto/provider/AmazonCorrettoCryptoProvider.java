@@ -82,8 +82,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
   private transient SelfTestSuite selfTestSuite = new SelfTestSuite();
 
-  // OID aliases for signature algorithms so that JCA lookups by OID (e.g. during cert chain
-  // validation) resolve to ACCP instead of falling through to a lower-priority provider.
+  // OID aliases so that direct JCA lookups by OID resolve to ACCP.
   private static final Map<String, String> SIGNATURE_OIDS = new HashMap<>();
 
   static {
