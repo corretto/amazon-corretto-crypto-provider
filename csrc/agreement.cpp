@@ -25,13 +25,20 @@ void checkAgreementResult(int result)
     unsigned long errCode = drainOpensslErrors();
     std::string msg = formatOpensslError(errCode, "Unexpectected agreement error");
 
-    if (errCode == 0x05066065 // Invalid public key
-        || errCode == 0x06000068 // Different Parameters
-    ) {
-        throw_java_ex(EX_INVALID_KEY, msg);
-    } else {
-        throw_java_ex(EX_RUNTIME_CRYPTO, msg);
+    // A peer key AWS-LC refuses must surface as InvalidKeyException, the exception
+    // KeyAgreement.doPhase declares for it. Callers rely on that distinction:
+    // com.sun.crypto.provider.DHKEM turns InvalidKeyException into
+    // DecapsulateException and lets anything else escape as a ProviderException.
+    if (ERR_GET_LIB(errCode) == ERR_LIB_EVP) {
+        switch (ERR_GET_REASON(errCode)) {
+        case EVP_R_DIFFERENT_PARAMETERS: // peer key belongs to another curve
+        case EVP_R_INVALID_PEER_KEY: // X25519 peer point of small order
+            throw_java_ex(EX_INVALID_KEY, msg);
+        default:
+            break;
+        }
     }
+    throw_java_ex(EX_RUNTIME_CRYPTO, msg);
 }
 } // namespace
 
