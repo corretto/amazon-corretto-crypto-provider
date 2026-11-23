@@ -5,6 +5,7 @@ package com.amazon.corretto.crypto.provider;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
+import java.security.InvalidKeyException;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.KeySpec;
 import java.util.Arrays;
@@ -12,8 +13,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import javax.crypto.SecretKey;
+import javax.crypto.interfaces.PBEKey;
 import javax.crypto.spec.PBEKeySpec;
-import javax.crypto.spec.SecretKeySpec;
 
 class Pbkdf2SecretKeyFactorySpi extends KdfSpi {
 
@@ -42,21 +43,96 @@ class Pbkdf2SecretKeyFactorySpi extends KdfSpi {
     }
 
     final PBEKeySpec spec = (PBEKeySpec) keySpec;
-    final byte[] salt = spec.getSalt();
-    final int iterations = spec.getIterationCount();
-    final int keyLengthBits = spec.getKeyLength();
+    final char[] password = spec.getPassword();
+    try {
+      return derive(password, spec.getSalt(), spec.getIterationCount(), spec.getKeyLength());
+    } finally {
+      Arrays.fill(password, '\0');
+    }
+  }
 
+  @Override
+  protected KeySpec engineGetKeySpec(final SecretKey key, final Class<?> keySpec)
+      throws InvalidKeySpecException {
+    if (!(key instanceof PBEKey)) {
+      throw new InvalidKeySpecException("Only PBEKey is accepted");
+    }
+    // Accept any class a PBEKeySpec can be assigned to, so KeySpec.class works too. Asking
+    // instead whether keySpec is a PBEKeySpec would reject it.
+    if (keySpec == null || !keySpec.isAssignableFrom(PBEKeySpec.class)) {
+      throw new InvalidKeySpecException("Only PBEKeySpec is accepted");
+    }
+
+    final PBEKey pbeKey = (PBEKey) key;
+    final char[] password = pbeKey.getPassword();
+    final byte[] encoded = pbeKey.getEncoded();
+    if (encoded == null) {
+      throw new InvalidKeySpecException("Key has no encoding");
+    }
+    try {
+      return new PBEKeySpec(
+          password, pbeKey.getSalt(), pbeKey.getIterationCount(), encoded.length * 8);
+    } catch (final IllegalArgumentException e) {
+      throw new InvalidKeySpecException("Invalid key component(s)", e);
+    } finally {
+      if (password != null) {
+        Arrays.fill(password, '\0');
+      }
+      Arrays.fill(encoded, (byte) 0);
+    }
+  }
+
+  @Override
+  protected SecretKey engineTranslateKey(final SecretKey key) throws InvalidKeyException {
+    if (key == null
+        || !algorithmName.equalsIgnoreCase(key.getAlgorithm())
+        || !"RAW".equalsIgnoreCase(key.getFormat())) {
+      throw new InvalidKeyException("Only " + algorithmName + " keys in RAW format are accepted");
+    }
+    if (key instanceof Pbkdf2Key) {
+      return key;
+    }
+    if (!(key instanceof PBEKey)) {
+      throw new InvalidKeyException("Only PBEKey is accepted");
+    }
+
+    final PBEKey pbeKey = (PBEKey) key;
+    final char[] password = pbeKey.getPassword();
+    final byte[] encoded = pbeKey.getEncoded();
+    if (encoded == null) {
+      throw new InvalidKeyException("Key has no encoding");
+    }
+    try {
+      // Derive from the foreign key's own components so the result's retained password, salt and
+      // iteration count agree with its bytes.
+      return derive(password, pbeKey.getSalt(), pbeKey.getIterationCount(), encoded.length * 8);
+    } catch (final InvalidKeySpecException e) {
+      throw new InvalidKeyException("Invalid key component(s)", e);
+    } finally {
+      if (password != null) {
+        Arrays.fill(password, '\0');
+      }
+      Arrays.fill(encoded, (byte) 0);
+    }
+  }
+
+  private Pbkdf2Key derive(
+      final char[] password, final byte[] salt, final int iterations, final int keyLengthBits)
+      throws InvalidKeySpecException {
     if (salt == null) {
       throw new InvalidKeySpecException("Salt cannot be null");
+    }
+    if (iterations <= 0) {
+      throw new InvalidKeySpecException("Positive iteration count required");
     }
     if (keyLengthBits <= 0) {
       throw new InvalidKeySpecException("Positive key length required");
     }
 
-    final char[] password = spec.getPassword();
-    final byte[] passwordBytes = charsToBytes(password);
+    // PBEKeySpec normalizes a null password to empty; a foreign PBEKey may still hand us one.
+    final char[] pw = password == null ? new char[0] : password;
+    final byte[] passwordBytes = charsToBytes(pw);
     final byte[] derivedKey = new byte[keyLengthBits / 8];
-
     try {
       pbkdf2(
           passwordBytes,
@@ -67,9 +143,8 @@ class Pbkdf2SecretKeyFactorySpi extends KdfSpi {
           digestCode,
           derivedKey,
           derivedKey.length);
-      return new SecretKeySpec(derivedKey, algorithmName);
+      return new Pbkdf2Key(algorithmName, pw, salt, iterations, derivedKey);
     } finally {
-      Arrays.fill(password, '\0');
       Arrays.fill(passwordBytes, (byte) 0);
       Arrays.fill(derivedKey, (byte) 0);
     }

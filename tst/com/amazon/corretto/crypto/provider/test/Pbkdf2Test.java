@@ -5,14 +5,27 @@ package com.amazon.corretto.crypto.provider.test;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.decodeHex;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
+import java.security.spec.KeySpec;
 import java.util.stream.Stream;
+import javax.crypto.Mac;
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
+import javax.crypto.interfaces.PBEKey;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.parallel.Execution;
@@ -223,6 +236,225 @@ public class Pbkdf2Test {
   public void pbkdf2sAreAvailable() throws Exception {
     for (String digest : DIGESTS) {
       SecretKeyFactory.getInstance("PBKDF2With" + digest, TestUtil.NATIVE_PROVIDER);
+    }
+  }
+
+  private static final char[] PASSWORD = "some hidden string".toCharArray();
+  private static final byte[] SALT = "saltsalt".getBytes(StandardCharsets.UTF_8);
+  private static final int ITERATIONS = 1000;
+  private static final int KEY_BITS = 128;
+
+  private static SecretKeyFactory accpFactory(final String digest) throws Exception {
+    return SecretKeyFactory.getInstance("PBKDF2With" + digest, TestUtil.NATIVE_PROVIDER);
+  }
+
+  private static SecretKey accpKey(final String digest) throws Exception {
+    return accpFactory(digest).generateSecret(new PBEKeySpec(PASSWORD, SALT, ITERATIONS, KEY_BITS));
+  }
+
+  // Recovering a PBEKeySpec is what javax/crypto/SecretKeyFactory/PBKDF2TranslateTest and
+  // java/security/spec/IsAssignableFromOrder need from an ACCP-produced key.
+  @ParameterizedTest
+  @MethodSource("digests")
+  public void keySpecRoundTrip(final String digest) throws Exception {
+    final SecretKeyFactory skf = accpFactory(digest);
+    final SecretKey key = accpKey(digest);
+
+    final PBEKeySpec recovered = (PBEKeySpec) skf.getKeySpec(key, PBEKeySpec.class);
+    assertArrayEquals(PASSWORD, recovered.getPassword());
+    assertArrayEquals(SALT, recovered.getSalt());
+    assertEquals(ITERATIONS, recovered.getIterationCount());
+    assertEquals(KEY_BITS, recovered.getKeyLength());
+    assertArrayEquals(key.getEncoded(), skf.generateSecret(recovered).getEncoded());
+  }
+
+  @ParameterizedTest
+  @MethodSource("digests")
+  public void keyExposesPbeComponents(final String digest) throws Exception {
+    final PBEKey key = (PBEKey) accpKey(digest);
+    assertArrayEquals(PASSWORD, key.getPassword());
+    assertArrayEquals(SALT, key.getSalt());
+    assertEquals(ITERATIONS, key.getIterationCount());
+    assertEquals("RAW", key.getFormat());
+    assertEquals("PBKDF2With" + digest, key.getAlgorithm());
+  }
+
+  // SecretKeyFactory callers request KeySpec.class, so the assignability test must run in that
+  // direction. SecretKeySpec is not a PBEKeySpec, so it is rejected, as SunJCE rejects it.
+  @Test
+  public void getKeySpecChecksAssignabilityFromPbeKeySpec() throws Exception {
+    final SecretKeyFactory skf = accpFactory("HmacSHA256");
+    final SecretKey key = accpKey("HmacSHA256");
+    assertTrue(skf.getKeySpec(key, KeySpec.class) instanceof PBEKeySpec);
+    assertThrows(InvalidKeySpecException.class, () -> skf.getKeySpec(key, SecretKeySpec.class));
+  }
+
+  @Test
+  public void getKeySpecRejectsNonPbeKey() throws Exception {
+    final SecretKeyFactory skf = accpFactory("HmacSHA256");
+    final SecretKey raw = new SecretKeySpec(new byte[16], "PBKDF2WithHmacSHA256");
+    final InvalidKeySpecException e =
+        assertThrows(InvalidKeySpecException.class, () -> skf.getKeySpec(raw, PBEKeySpec.class));
+    assertTrue(e.getMessage().contains("PBEKey"), e.getMessage());
+  }
+
+  // com/sun/crypto/provider/Cipher/PBE/PBKDF2Translate checks that a foreign PBEKey translates to
+  // a key with identical bytes, so the two providers must agree on the derivation.
+  @ParameterizedTest
+  @MethodSource("digests")
+  public void translateKeyFromSunJce(final String digest) throws Exception {
+    final SecretKey sunKey =
+        SecretKeyFactory.getInstance("PBKDF2With" + digest, "SunJCE")
+            .generateSecret(new PBEKeySpec(PASSWORD, SALT, ITERATIONS, KEY_BITS));
+    assertTrue(sunKey instanceof PBEKey, "SunJCE PBKDF2 keys are PBEKeys");
+
+    final SecretKey translated = accpFactory(digest).translateKey(sunKey);
+    assertEquals(TestUtil.NATIVE_PROVIDER_PACKAGE, translated.getClass().getPackage().getName());
+    assertArrayEquals(sunKey.getEncoded(), translated.getEncoded());
+    assertArrayEquals(PASSWORD, ((PBEKey) translated).getPassword());
+    assertArrayEquals(SALT, ((PBEKey) translated).getSalt());
+    assertEquals(ITERATIONS, ((PBEKey) translated).getIterationCount());
+  }
+
+  @Test
+  public void translateKeyPassesThroughOwnKey() throws Exception {
+    final SecretKey key = accpKey("HmacSHA256");
+    assertSame(key, accpFactory("HmacSHA256").translateKey(key));
+  }
+
+  @Test
+  public void translateKeyRejectsBadInput() throws Exception {
+    final SecretKeyFactory skf = accpFactory("HmacSHA256");
+
+    final InvalidKeyException notPbe =
+        assertThrows(
+            InvalidKeyException.class,
+            () -> skf.translateKey(new SecretKeySpec(new byte[16], "PBKDF2WithHmacSHA256")));
+    assertTrue(notPbe.getMessage().contains("PBEKey"), notPbe.getMessage());
+
+    assertThrows(
+        InvalidKeyException.class, () -> skf.translateKey(new SecretKeySpec(new byte[16], "AES")));
+
+    // A PBEKey whose iteration count cannot derive anything must be refused, not derived from.
+    assertThrows(
+        InvalidKeyException.class,
+        () -> skf.translateKey(new FixedPbeKey("PBKDF2WithHmacSHA256", PASSWORD, SALT, 0)));
+  }
+
+  // The password lives for the key's lifetime, so destroy() has to be what bounds it.
+  @Test
+  public void destroyClearsRetainedSecrets() throws Exception {
+    final SecretKey key = accpKey("HmacSHA256");
+    final char[] retainedPassword = (char[]) TestUtil.sneakyGetField(key, "password");
+    final byte[] retainedKey = (byte[]) TestUtil.sneakyGetField(key, "key");
+    assertArrayEquals(PASSWORD, retainedPassword);
+
+    key.destroy();
+
+    assertTrue(key.isDestroyed());
+    assertArrayEquals(new char[retainedPassword.length], retainedPassword);
+    assertArrayEquals(new byte[retainedKey.length], retainedKey);
+    assertThrows(IllegalStateException.class, () -> ((PBEKey) key).getPassword());
+    assertThrows(IllegalStateException.class, key::getEncoded);
+    assertThrows(IllegalStateException.class, () -> ((PBEKey) key).getSalt());
+    assertThrows(IllegalStateException.class, () -> ((PBEKey) key).getIterationCount());
+
+    key.destroy();
+    assertTrue(key.isDestroyed());
+  }
+
+  // PBE Mac services read the password, salt and iteration count off the key, which is how
+  // com/sun/crypto/provider/Cipher/PBE/PBMacBuffer reaches this code.
+  @Test
+  public void pbeMacAcceptsAccpKey() throws Exception {
+    final Mac mac;
+    try {
+      mac = Mac.getInstance("HmacPBESHA256", "SunJCE");
+    } catch (final NoSuchAlgorithmException e) {
+      Assumptions.abort("HmacPBESHA256 Mac unavailable");
+      return;
+    }
+    final byte[] message = "message".getBytes(StandardCharsets.UTF_8);
+
+    mac.init(accpKey("HmacSHA256"));
+    final byte[] fromAccpKey = mac.doFinal(message);
+
+    mac.init(
+        SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256", "SunJCE")
+            .generateSecret(new PBEKeySpec(PASSWORD, SALT, ITERATIONS, KEY_BITS)));
+    assertArrayEquals(mac.doFinal(message), fromAccpKey);
+  }
+
+  // Serializing drops the password: the stream carries only the derived bytes.
+  @Test
+  public void serializationOmitsPassword() throws Exception {
+    final SecretKey key = accpKey("HmacSHA256");
+
+    final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+    try (ObjectOutputStream out = new ObjectOutputStream(bytes)) {
+      out.writeObject(key);
+    }
+    final Object restored =
+        new ObjectInputStream(new ByteArrayInputStream(bytes.toByteArray())).readObject();
+
+    assertEquals(SecretKeySpec.class, restored.getClass());
+    final SecretKey restoredKey = (SecretKey) restored;
+    assertArrayEquals(key.getEncoded(), restoredKey.getEncoded());
+    assertEquals(key.getAlgorithm(), restoredKey.getAlgorithm());
+  }
+
+  private static Stream<String> digests() {
+    return Stream.of(DIGESTS);
+  }
+
+  /** A foreign PBEKey, as the JDK translateKey tests supply. */
+  private static final class FixedPbeKey implements PBEKey {
+    private static final long serialVersionUID = 1;
+
+    private final String algorithm;
+    private final char[] password;
+    private final byte[] salt;
+    private final int iterationCount;
+
+    FixedPbeKey(
+        final String algorithm,
+        final char[] password,
+        final byte[] salt,
+        final int iterationCount) {
+      this.algorithm = algorithm;
+      this.password = password.clone();
+      this.salt = salt.clone();
+      this.iterationCount = iterationCount;
+    }
+
+    @Override
+    public String getAlgorithm() {
+      return algorithm;
+    }
+
+    @Override
+    public String getFormat() {
+      return "RAW";
+    }
+
+    @Override
+    public byte[] getEncoded() {
+      return new byte[KEY_BITS / 8];
+    }
+
+    @Override
+    public char[] getPassword() {
+      return password.clone();
+    }
+
+    @Override
+    public byte[] getSalt() {
+      return salt.clone();
+    }
+
+    @Override
+    public int getIterationCount() {
+      return iterationCount;
     }
   }
 }
