@@ -27,8 +27,8 @@ class EdGen extends EvpKeyPairGenerator {
   }
 
   @Override
-  protected EvpEdPrivateKey getPrivateKey(long keyPtr) {
-    return new EvpEdPrivateKey(keyPtr);
+  protected EvpEdPrivateKey getPrivateKey(final EvpKey.InternalKey key) {
+    return new EvpEdPrivateKey(key);
   }
 
   @Override
