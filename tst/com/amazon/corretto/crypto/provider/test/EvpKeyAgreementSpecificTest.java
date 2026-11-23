@@ -15,10 +15,12 @@ import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.Provider;
+import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.security.interfaces.ECPublicKey;
 import java.security.spec.ECGenParameterSpec;
+import java.security.spec.X509EncodedKeySpec;
 import javax.crypto.KeyAgreement;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -147,6 +149,30 @@ public class EvpKeyAgreementSpecificTest {
     final KeyPair x448KeyPair = KeyPairGenerator.getInstance("X448").generateKeyPair();
     final KeyAgreement accpAgreement = KeyAgreement.getInstance("XDH", NATIVE_PROVIDER);
     assertThrows(InvalidKeyException.class, () -> accpAgreement.init(x448KeyPair.getPrivate()));
+  }
+
+  // An X25519 public key with a zero u-coordinate has small order, so the agreed secret is all
+  // zeros and AWS-LC refuses it with EVP_R_INVALID_PEER_KEY. SunEC rejects the same key with
+  // InvalidKeyException ("Point has small order"). The JDK's javax/crypto/KEM/KemTest.java reaches
+  // this key through DHKEM by decapsulating an all-zero encapsulation.
+  @Test
+  public void xdhKeyAgreementRejectsSmallOrderPeerKey() throws Exception {
+    TestUtil.assumeMinimumJavaVersion(17);
+    // SubjectPublicKeyInfo for X25519 (OID 1.3.101.110) with a 32-byte all-zero u-coordinate.
+    final byte[] zeroUSpki =
+        TestUtil.decodeHex(
+            "302a300506032b656e032100"
+                + "0000000000000000000000000000000000000000000000000000000000000000");
+    final PublicKey smallOrderKey =
+        KeyFactory.getInstance("XDH", NATIVE_PROVIDER)
+            .generatePublic(new X509EncodedKeySpec(zeroUSpki));
+
+    final KeyPair accpKeyPair =
+        KeyPairGenerator.getInstance("X25519", NATIVE_PROVIDER).generateKeyPair();
+    final KeyAgreement accpAgreement = KeyAgreement.getInstance("XDH", NATIVE_PROVIDER);
+    accpAgreement.init(accpKeyPair.getPrivate());
+
+    assertThrows(InvalidKeyException.class, () -> accpAgreement.doPhase(smallOrderKey, true));
   }
 
   @Test
