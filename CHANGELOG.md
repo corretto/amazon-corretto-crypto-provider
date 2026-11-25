@@ -3,9 +3,11 @@
 ## 2.6.0
 
 ### Minor
+* Moved ACCP-FIPS to AWS-LC-FIPS 4.x, covered by FIPS certificates [5595](https://csrc.nist.gov/projects/cryptographic-module-validation-program/certificate/5595) (dynamic) and [5596](https://csrc.nist.gov/projects/cryptographic-module-validation-program/certificate/5596) (static). ML-DSA is an approved service in that module, so ACCP-FIPS now registers ML-DSA KeyFactory, KeyPairGenerator and Signature, and `MlDsaUtils` works in FIPS builds.
 * [PR 433:](https://github.com/corretto/amazon-corretto-crypto-provider/pull/433) Add build option for exposing self-test failure messages
 
 ### Patch
+* Removed ACCP's hand-rolled ML-KEM SubjectPublicKeyInfo encoder and decoder, which stood in for the `i2d_PUBKEY` and `d2i_PUBKEY` that AWS-LC-FIPS 3.x lacked for ML-KEM. ACCP-FIPS still supplies the RFC 9935 `seed` private-key decoder, which the FIPS module does not implement.
 * Documented ACCP's current glibc floor (2.26, Amazon Linux 2) in a new Platform Support section. A future release will raise this floor when the release pipeline moves off Amazon Linux 2, and will be called out here when it happens.
 
 ## 2.5.0

@@ -393,12 +393,11 @@ public class MlKemTest {
   @MethodSource("mlKemParamSets")
   public void testPrivateKeyChoicesParse(String paramSet) throws Exception {
     // ACCP parses the seed and expandedKey CHOICEs of RFC 9935 Section 6 in every build. Those
-    // are the two mainline AWS-LC implements, and ACCP's regular-FIPS fallover parser exists to
-    // stand in for that decoder, so it accepts exactly them and no more (see the both CHOICE in
-    // testBothChoiceRejected). AWS-LC-FIPS 3.1.0 decodes neither, so in regular FIPS the fallover
-    // parser is what accepts both encodings here. Every assertion is encoding-independent: the
-    // two encodings carry the same key material, so each must decapsulate a given ciphertext to
-    // the same shared secret.
+    // are the two mainline AWS-LC implements, and ACCP's fallover parser stands in for whichever
+    // of them the linked AWS-LC does not decode, so it accepts exactly those two and no more (see
+    // the both CHOICE in testBothChoiceRejected). Every assertion is encoding-independent: the two
+    // encodings carry the same key material, so each must decapsulate a given ciphertext to the
+    // same shared secret.
     KeyPairGenerator bcKeyGen = KeyPairGenerator.getInstance("ML-KEM", TestUtil.BC_PROVIDER);
     bcKeyGen.initialize(TestUtil.getMlKemParamSpec(paramSet));
     KeyPair bcKeyPair = bcKeyGen.generateKeyPair();
@@ -765,26 +764,12 @@ public class MlKemTest {
    * Asserts that a PKCS#8 encoding carrying one malformed field that no ML-KEM encoder emits is
    * never absorbed into the key.
    *
-   * <p>Which of the two acceptable answers a build gives turns on the AWS-LC it links rather than
-   * on the build flavor, and the inputs that distinguish the two decoders are exactly these, so
-   * there is nothing to probe with: key it on the reported version, via {@link
-   * TestUtil#linkedAwsLcLacksMlKemPrivDecode}. Where ACCP's fallover parser in keyutils.cpp is the
-   * whole decoder, hold it to the strictness it documents -- these are the only assertions anywhere
-   * that pin it, and without them the checks could be deleted and every build would still pass.
-   * Where the linked AWS-LC decodes ML-KEM itself, its answer is whatever that version does, so
-   * accept either and require only that an accepted key re-encodes to exactly the well-formed
-   * encoding the field was grafted onto.
-   *
-   * <p>TODO [AWS-LC-FIPS 4.x]: drop the tolerance once the FIPS module implements priv_decode for
-   * ML-KEM. parseMLKEMPrivateKey goes away with it, and every build then answers with AWS-LC's
-   * decoder rather than ACCP's own.
+   * <p>Every build decodes ML-KEM with AWS-LC's own priv_decode, so the answer is whatever that
+   * version does: accept either rejection or acceptance, and require only that an accepted key
+   * re-encodes to exactly the well-formed encoding the field was grafted onto.
    */
   private static void assertMalformedFieldNotAbsorbed(
       KeyFactory keyFactory, String label, byte[] wellFormed, byte[] malformed) throws Exception {
-    if (TestUtil.linkedAwsLcLacksMlKemPrivDecode()) {
-      assertPrivateKeyRejected(keyFactory, label, malformed);
-      return;
-    }
     try {
       PrivateKey ignored = keyFactory.generatePrivate(new PKCS8EncodedKeySpec(malformed));
       assertArrayEquals(
@@ -1080,8 +1065,8 @@ public class MlKemTest {
   @ParameterizedTest
   @MethodSource("mlKemParamSets")
   public void testPrivateKeyEncodingIsSeedFormat(String paramSet) throws Exception {
-    // ACCP cannot EMIT the seed encoding against an AWS-LC that stores no keygen seed, such as the
-    // AWS-LC-FIPS 3.1.0 that regular FIPS pins: getEncoded() produces the expanded form instead.
+    // ACCP cannot EMIT the seed encoding against an AWS-LC that stores no keygen seed, as the FIPS
+    // module does not: getEncoded() produces the expanded form instead.
     // (Seed PARSING is supported everywhere; see testPrivateKeyChoicesParse, which also pins the
     // expanded form those builds emit here.) Keyed on the linked AWS-LC rather than on the FIPS
     // build flavor, so that this skips only where the capability is genuinely absent -- see

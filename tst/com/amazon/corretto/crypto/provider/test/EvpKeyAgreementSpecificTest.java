@@ -109,6 +109,33 @@ public class EvpKeyAgreementSpecificTest {
     assertArrayEquals(aliceSecret, bobSecret);
   }
 
+  @Test
+  public void testAccpXdhKeyAgreementAcceptsBouncyCastleX25519Key() throws Exception {
+    TestUtil.assumeMinimumJavaVersion(17);
+    final KeyPair bcKeyPair =
+        KeyPairGenerator.getInstance("X25519", TestUtil.BC_PROVIDER).generateKeyPair();
+    assertEquals(
+        "X25519",
+        bcKeyPair.getPublic().getAlgorithm(),
+        "BouncyCastle names an X25519 key by its curve, which is the case under test");
+
+    final KeyPair accpKeyPair =
+        KeyPairGenerator.getInstance("X25519", NATIVE_PROVIDER).generateKeyPair();
+
+    final KeyAgreement accpAgreement = KeyAgreement.getInstance("XDH", NATIVE_PROVIDER);
+    accpAgreement.init(accpKeyPair.getPrivate());
+    accpAgreement.doPhase(bcKeyPair.getPublic(), true);
+
+    final KeyAgreement bcAgreement = KeyAgreement.getInstance("X25519", TestUtil.BC_PROVIDER);
+    bcAgreement.init(bcKeyPair.getPrivate());
+    bcAgreement.doPhase(accpKeyPair.getPublic(), true);
+
+    assertArrayEquals(
+        accpAgreement.generateSecret(),
+        bcAgreement.generateSecret(),
+        "BouncyCastle and ACCP must agree on the shared secret");
+  }
+
   // ACCP registers KeyAgreement under the "XDH" name, whose SupportedKeyClasses (XECPublicKey /
   // XECPrivateKey) also match X448 keys. ACCP only supports X25519, so init'ing with a (SunEC) X448
   // key must fail with InvalidKeyException, letting the JCA fall through to another provider. This

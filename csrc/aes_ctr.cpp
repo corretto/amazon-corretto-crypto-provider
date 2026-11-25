@@ -86,18 +86,18 @@ public:
         // must pass in a null EVP_CIPHER to leave it unchanged.
         if (key != nullptr) {
             switch (key_len) {
-                case KEY_LEN_AES128:
-                    cipher = EVP_aes_128_ctr();
-                    break;
-                case KEY_LEN_AES192:
-                    cipher = EVP_aes_192_ctr();
-                    break;
-                case KEY_LEN_AES256:
-                    cipher = EVP_aes_256_ctr();
-                    break;
-                default:
-                    // This should not happen since we enforce this in the Java layer.
-                    throw java_ex(EX_ERROR, "THIS SHOULD NOT BE REACHABLE. Invalid AES key size.");
+            case KEY_LEN_AES128:
+                cipher = EVP_aes_128_ctr();
+                break;
+            case KEY_LEN_AES192:
+                cipher = EVP_aes_192_ctr();
+                break;
+            case KEY_LEN_AES256:
+                cipher = EVP_aes_256_ctr();
+                break;
+            default:
+                // This should not happen since we enforce this in the Java layer.
+                throw java_ex(EX_ERROR, "THIS SHOULD NOT BE REACHABLE. Invalid AES key size.");
             }
         }
 

@@ -652,7 +652,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
 
     this.shouldRegisterEd25519ph = (!isFips() || isExperimentalFips());
 
-    this.shouldRegisterMLDSA = (!isFips() || isExperimentalFips());
+    this.shouldRegisterMLDSA = true;
 
     this.shouldRegisterAesCfb = (!isFips() || isExperimentalFips());
 

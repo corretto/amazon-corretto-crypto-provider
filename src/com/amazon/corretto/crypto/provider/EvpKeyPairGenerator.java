@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.amazon.corretto.crypto.provider;
 
+import static java.util.logging.Logger.getLogger;
+
 import java.security.GeneralSecurityException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
@@ -11,6 +13,7 @@ import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.util.logging.Level;
 
 abstract class EvpKeyPairGenerator extends KeyPairGeneratorSpi {
 
@@ -39,8 +42,8 @@ abstract class EvpKeyPairGenerator extends KeyPairGeneratorSpi {
   // Provides an appropriate KeyFactory for this key type
   protected abstract KeyFactory getKeyFactory();
 
-  // Generates a private key of `evpKeyType`, from the provided native resource reference
-  protected abstract PrivateKey getPrivateKey(long keyPtr);
+  // Generates a private key of `evpKeyType`, taking over ownership of the given native key
+  protected abstract PrivateKey getPrivateKey(EvpKey.InternalKey key);
 
   // Generates a public key of `evpKeyType`, from the private key
   protected abstract PublicKey getPublicKey(PrivateKey privateKey);
@@ -51,12 +54,24 @@ abstract class EvpKeyPairGenerator extends KeyPairGeneratorSpi {
 
   @Override
   public KeyPair generateKeyPair() {
-    long keyPtr = generateEvpKey(evpKeyType.nativeValue);
-    final PrivateKey privateKey = getPrivateKey(keyPtr);
-    final PublicKey publicKey = getPublicKey(privateKey);
+    // Wrapped first so that every failure below has an owner that can release the native key.
+    final EvpKey.InternalKey nativeKey =
+        new EvpKey.InternalKey(generateEvpKey(evpKeyType.nativeValue));
+    PrivateKey privateKey = null;
+    final PublicKey publicKey;
+    try {
+      privateKey = getPrivateKey(nativeKey);
+      // Takes a reference of its own on the native key, and can fail doing so.
+      publicKey = getPublicKey(privateKey);
+    } catch (final RuntimeException | Error e) {
+      destroyQuietly((EvpKey) privateKey);
+      nativeKey.release();
+      throw e;
+    }
     if (keyFactory == null) {
       // This case indicates situations where a KeyFactory is not available
       // for this key type due to JDK incompatibility or JCA provider issues.
+      // The caller receives ACCP's own keys and owns them from here.
       return new KeyPair(publicKey, privateKey);
     }
     try {
@@ -67,6 +82,25 @@ abstract class EvpKeyPairGenerator extends KeyPairGeneratorSpi {
       return new KeyPair(jcePublicKey, jcePrivateKey);
     } catch (final GeneralSecurityException e) {
       throw new RuntimeException("Error generating key pair", e);
+    } finally {
+      // The caller only sees the JCE keys built above, so nothing can reach these two again and
+      // the native keys would otherwise sit in the janitor until the next GC.
+      destroyQuietly((EvpKey) privateKey);
+      destroyQuietly((EvpKey) publicKey);
+    }
+  }
+
+  // Releasing one key must neither skip the other nor replace an exception already on its way to
+  // the caller. |key| is null when generation failed before it was built.
+  private static void destroyQuietly(final EvpKey key) {
+    if (key == null) {
+      return;
+    }
+    try {
+      key.destroy();
+    } catch (final RuntimeException e) {
+      getLogger("AmazonCorrettoCryptoProvider")
+          .log(Level.WARNING, "Could not release a generated key", e);
     }
   }
 }

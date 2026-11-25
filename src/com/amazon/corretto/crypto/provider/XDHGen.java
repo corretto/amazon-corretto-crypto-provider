@@ -105,8 +105,8 @@ class XDHGen extends EvpKeyPairGenerator {
   }
 
   @Override
-  protected EvpXECPrivateKey getPrivateKey(long keyPtr) {
-    return new EvpXECPrivateKey(keyPtr);
+  protected EvpXECPrivateKey getPrivateKey(final EvpKey.InternalKey key) {
+    return new EvpXECPrivateKey(key);
   }
 
   @Override

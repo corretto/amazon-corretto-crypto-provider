@@ -20,10 +20,6 @@ class EvpXECPrivateKey extends EvpXECKey
 
   @Override
   public EvpXECPublicKey getPublicKey() {
-    ephemeral = false;
-    sharedKey = true;
-    final EvpXECPublicKey result = new EvpXECPublicKey(internalKey);
-    result.sharedKey = true;
-    return result;
+    return new EvpXECPublicKey(upRefInternalKey());
   }
 }

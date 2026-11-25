@@ -655,8 +655,7 @@ public:
     // Exposed for unit testing of the cleanse-and-stash logic without a real JVM. Copies
     // |len| bytes from |src| into |dst| (resizing |dst| accordingly), then OPENSSL_cleanses
     // |src|. Tolerates len == 0.
-    static void cleanse_and_stash(
-        uint8_t* src, jsize len, std::vector<uint8_t, SecureAlloc<uint8_t> >& dst);
+    static void cleanse_and_stash(uint8_t* src, jsize len, std::vector<uint8_t, SecureAlloc<uint8_t> >& dst);
 
     // deleting copy & move operations to satisfy rule of five
     JByteArrayCritical(const JByteArrayCritical&) = delete;
@@ -676,7 +675,6 @@ private:
     // allocation-free and noexcept. Cleared by commitBack() to make it idempotent.
     std::vector<uint8_t, SecureAlloc<uint8_t> > stash_;
 };
-
 
 class SimpleBuffer {
 public:

@@ -464,11 +464,9 @@ else()
     set(TEST_FIPS_PROPERTY "-DFIPS=false")
 endif()
 
-# ML-DSA is not yet in a FIPS branch of AWS-LC consumable by ACCP, so keep its
-# native source gated to non-FIPS / experimental-FIPS builds.
-if(EXPERIMENTAL_FIPS OR (NOT FIPS))
-    set(C_SRC ${C_SRC} csrc/mldsa_gen.cpp)
-endif()
+# ML-DSA has an approved implementation in the FIPS branch of AWS-LC that ACCP
+# consumes, so its native source is compiled for ALL builds (including FIPS).
+set(C_SRC ${C_SRC} csrc/mldsa_gen.cpp)
 
 # ML-KEM has an approved implementation in the FIPS branch of AWS-LC that ACCP
 # consumes, so its native sources are compiled for ALL builds (including FIPS).
