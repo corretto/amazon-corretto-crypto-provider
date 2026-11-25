@@ -17,7 +17,7 @@ struct WatchedFree {
     int count;
 };
 
-WatchedFree watched[2] = { };
+WatchedFree watched[2];
 
 void* test_malloc(size_t size, const char*, int) { return std::malloc(size); }
 void* test_realloc(void* ptr, size_t size, const char*, int) { return std::realloc(ptr, size); }
@@ -54,7 +54,7 @@ void test_move_construction()
         TEST_ASSERT(watched[0].count == 1);
     }
     TEST_ASSERT(watched[0].count == 1);
-    watched[0] = { };
+    watched[0] = WatchedFree();
 
     EVP_PKEY_auto empty;
     EVP_PKEY_auto moved(std::move(empty));
@@ -76,8 +76,8 @@ void test_move_assignment_and_replacement()
         destination.clear();
     }
     TEST_ASSERT(watched[0].count == 1 && watched[1].count == 1);
-    watched[0] = { };
-    watched[1] = { };
+    watched[0] = WatchedFree();
+    watched[1] = WatchedFree();
 }
 
 void test_release_ownership()
@@ -90,7 +90,7 @@ void test_release_ownership()
     TEST_ASSERT(watched[0].count == 0);
     EVP_PKEY_free(key);
     TEST_ASSERT(watched[0].count == 1);
-    watched[0] = { };
+    watched[0] = WatchedFree();
 
     key = new_watched_key(0);
     {
@@ -101,7 +101,7 @@ void test_release_ownership()
     TEST_ASSERT(watched[0].count == 0);
     EVP_PKEY_free(key);
     TEST_ASSERT(watched[0].count == 1);
-    watched[0] = { };
+    watched[0] = WatchedFree();
 }
 
 } // namespace

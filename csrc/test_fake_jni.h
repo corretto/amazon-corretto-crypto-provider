@@ -30,7 +30,7 @@ struct FakeArray : _jbyteArray {
 };
 
 struct FakeJni : JNIEnv {
-    JNINativeInterface_ table = { };
+    JNINativeInterface_ table = JNINativeInterface_();
     std::vector<std::unique_ptr<FakeArray> > arrays;
     std::vector<jarray> releases;
     std::vector<jarray> commits;
