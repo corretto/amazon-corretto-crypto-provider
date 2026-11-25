@@ -154,17 +154,14 @@ public class HpkeCipherTest {
     final KeyPair kp = suite.generateKeyPair();
     final Provider.Service service = NATIVE_PROVIDER.getService("Cipher", "HPKE");
     assertNotNull(service);
-    // ACCP's ML-KEM keys are listed too, so that they reach HpkeCipher's import advice.
-    assertEquals(
-        HpkeKey.class.getName() + "|com.amazon.corretto.crypto.provider.EvpKemKey",
-        service.getAttribute("SupportedKeyClasses"));
+    assertEquals(HpkeKey.class.getName(), service.getAttribute("SupportedKeyClasses"));
     assertTrue(service.supportsParameter(kp.getPublic()));
     assertTrue(service.supportsParameter(kp.getPrivate()));
     if (NATIVE_PROVIDER.getService("KeyPairGenerator", "ML-KEM-768") != null) {
       final KeyPair mlkem =
           KeyPairGenerator.getInstance("ML-KEM-768", NATIVE_PROVIDER).generateKeyPair();
-      assertTrue(service.supportsParameter(mlkem.getPublic()));
-      assertTrue(service.supportsParameter(mlkem.getPrivate()));
+      assertFalse(service.supportsParameter(mlkem.getPublic()));
+      assertFalse(service.supportsParameter(mlkem.getPrivate()));
     }
     for (final String algorithm : new String[] {"RSA", "EC"}) {
       final KeyPair foreign =
@@ -515,34 +512,17 @@ public class HpkeCipherTest {
     suite.assumeAvailable();
     final KeyPair mlkem =
         KeyPairGenerator.getInstance("ML-KEM-768", NATIVE_PROVIDER).generateKeyPair();
-    final InvalidKeyException forPublic =
-        Assertions.assertThrows(
-            InvalidKeyException.class,
-            () -> cipher().init(Cipher.ENCRYPT_MODE, mlkem.getPublic(), suite.spec()));
-    final InvalidKeyException forPrivate =
-        Assertions.assertThrows(
-            InvalidKeyException.class,
-            () ->
-                cipher()
-                    .init(
-                        Cipher.DECRYPT_MODE,
-                        mlkem.getPrivate(),
-                        suite.spec().withEncapsulation(new byte[suite.encLength])));
-    assertMlKemKeyAdvice(forPublic, forPrivate);
-  }
-
-  /** Import advice must avoid internal class names and point senders to public-key import. */
-  static void assertMlKemKeyAdvice(
-      final InvalidKeyException forPublic, final InvalidKeyException forPrivate) {
-    assertTrue(
-        forPublic.getMessage().contains("HpkePublicKey.fromEncoded"), forPublic.getMessage());
-    assertFalse(forPublic.getMessage().contains("seed"), forPublic.getMessage());
-    assertTrue(
-        forPrivate.getMessage().contains("HpkePrivateKey.fromEncoded"), forPrivate.getMessage());
-    assertTrue(forPrivate.getMessage().contains("seed"), forPrivate.getMessage());
-    for (final InvalidKeyException ex : new InvalidKeyException[] {forPublic, forPrivate}) {
-      assertFalse(ex.getMessage().contains("EvpKem"), ex.getMessage());
-    }
+    assertThrows(
+        InvalidKeyException.class,
+        () -> cipher().init(Cipher.ENCRYPT_MODE, mlkem.getPublic(), suite.spec()));
+    assertThrows(
+        InvalidKeyException.class,
+        () ->
+            cipher()
+                .init(
+                    Cipher.DECRYPT_MODE,
+                    mlkem.getPrivate(),
+                    suite.spec().withEncapsulation(new byte[suite.encLength])));
   }
 
   @ParameterizedTest

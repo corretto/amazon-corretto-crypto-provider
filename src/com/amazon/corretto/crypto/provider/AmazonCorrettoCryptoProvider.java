@@ -230,16 +230,11 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     addService("Cipher", "RSA/ECB/OAEPWithSHA1AndMGF1Padding", "RsaCipher$OAEPSha1");
 
     if (shouldRegisterHpke) {
-      // Include EvpKemKey so default lookup reaches HpkeCipher's HPKE import advice.
-      // See README.md's HPKE Considerations for provider selection.
       addService(
           "Cipher",
           "HPKE",
           "HpkeCipher",
-          singletonMap(
-              "SupportedKeyClasses",
-              "com.amazon.corretto.crypto.provider.HpkeKey"
-                  + "|com.amazon.corretto.crypto.provider.EvpKemKey"));
+          singletonMap("SupportedKeyClasses", "com.amazon.corretto.crypto.provider.HpkeKey"));
       addService("KeyPairGenerator", "HPKE", "HpkeGen");
     }
 

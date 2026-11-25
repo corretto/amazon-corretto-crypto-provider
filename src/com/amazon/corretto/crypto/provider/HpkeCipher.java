@@ -8,7 +8,6 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.Key;
 import java.security.NoSuchAlgorithmException;
-import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
 import java.util.Arrays;
@@ -117,17 +116,6 @@ class HpkeCipher extends CipherSpi {
       throws InvalidKeyException, InvalidAlgorithmParameterException {
     synchronized (lock_) {
       reset();
-      if (key instanceof EvpKemKey) {
-        // Public-key import needs no seed; private-key import requires a retained seed.
-        throw new InvalidKeyException(
-            key instanceof PublicKey
-                ? "HPKE requires an HpkePublicKey, not an ML-KEM public key; import the raw ML-KEM"
-                    + " public key (the SubjectPublicKeyInfo key bits) with"
-                    + " HpkePublicKey.fromEncoded"
-                : "HPKE requires an HpkePrivateKey, not an ML-KEM private key; import its 64-byte"
-                    + " ML-KEM seed (from a seed-form PKCS#8 encoding, if the key retains its"
-                    + " seed) with HpkePrivateKey.fromEncoded");
-      }
       if (!(key instanceof HpkeKey)) {
         throw new InvalidKeyException(
             "HPKE requires an HpkePublicKey or HpkePrivateKey, not "
