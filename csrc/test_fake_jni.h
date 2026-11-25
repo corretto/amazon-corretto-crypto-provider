@@ -1,6 +1,5 @@
 // Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
-// A fake JNIEnv for native tests that borrow Java byte arrays.
 #ifndef TEST_FAKE_JNI_H
 #define TEST_FAKE_JNI_H 1
 
@@ -13,6 +12,7 @@
 #include <string>
 #include <vector>
 
+// A fake JNIEnv for native tests that borrow Java byte arrays.
 struct FakeArray : _jbyteArray {
     std::vector<uint8_t> bytes;
     std::vector<uint8_t> copy;

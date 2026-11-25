@@ -1,6 +1,5 @@
 // Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
-// Native tests for csrc/hpke.cpp: Java array borrows across seal/open, and key ownership.
 #include "auto_free.h"
 #include "buffer.h"
 #include "generated-headers.h"
@@ -16,6 +15,7 @@
 
 using namespace AmazonCorrettoCryptoProvider;
 
+// Native tests for csrc/hpke.cpp: Java array borrows across seal/open, and key ownership.
 namespace {
 
 // Counts frees of one watched pointer, through AWS-LC's allocation hooks.
