@@ -13,10 +13,6 @@ import javax.security.auth.Destroyable;
  * @serial exclude
  */
 public final class HpkePrivateKey extends HpkeKey implements PrivateKey, Destroyable {
-  static {
-    Loader.load();
-  }
-
   private static native long nativeGenerate(int kemId, int kdfId, int aeadId);
 
   private static native long nativeImport(int kemId, int kdfId, int aeadId, byte[] seed)

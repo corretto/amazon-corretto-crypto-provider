@@ -22,10 +22,6 @@ import javax.crypto.ShortBufferException;
 
 /** Seals and opens messages in an HPKE base-mode context. */
 class HpkeCipher extends CipherSpi {
-  static {
-    Loader.load();
-  }
-
   private static native long nativeSetupSender(
       int kemId, int kdfId, int aeadId, byte[] recipientPublicKey, byte[] info, byte[] encOut)
       throws InvalidKeyException;

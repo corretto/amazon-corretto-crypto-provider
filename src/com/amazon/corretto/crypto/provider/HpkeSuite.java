@@ -10,20 +10,19 @@ enum HpkeSuite {
   ML_KEM_1024_HKDF_SHA384_AES_256_GCM(HpkeParameterSpec.ML_KEM_1024_HKDF_SHA384_AES_256_GCM);
 
   static {
-    Loader.load();
-  }
-
-  static {
     // Availability comes from native capabilities, independently of build flavor, JDK version and
     // ML-KEM service registration. The main AWS-LC pin provides both suites; the FIPS pin neither.
-    for (final HpkeSuite suite : values()) {
-      final int[] lengths = nativeSuiteLengths(suite.kemId, suite.kdfId, suite.aeadId);
-      if (lengths != null) {
-        suite.available = true;
-        suite.publicKeyLength = lengths[0];
-        suite.privateKeyLength = lengths[1];
-        suite.encLength = lengths[2];
-        suite.aeadOverhead = lengths[3];
+    // Without the native library, no suite is available.
+    if (Loader.IS_AVAILABLE) {
+      for (final HpkeSuite suite : values()) {
+        final int[] lengths = nativeSuiteLengths(suite.kemId, suite.kdfId, suite.aeadId);
+        if (lengths != null) {
+          suite.available = true;
+          suite.publicKeyLength = lengths[0];
+          suite.privateKeyLength = lengths[1];
+          suite.encLength = lengths[2];
+          suite.aeadOverhead = lengths[3];
+        }
       }
     }
   }

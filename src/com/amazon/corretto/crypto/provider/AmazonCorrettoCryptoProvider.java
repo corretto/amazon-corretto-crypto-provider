@@ -657,8 +657,7 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
     this.shouldRegisterAesCfb = (!isFips() || isExperimentalFips());
 
     this.shouldRegisterMLKEM = Utils.isMlKemSupported();
-    // Check loading before probing the linked library's suites; see HpkeSuite.
-    this.shouldRegisterHpke = Loader.IS_AVAILABLE && HpkeSuite.anyAvailable();
+    this.shouldRegisterHpke = HpkeSuite.anyAvailable();
 
     // XECKeys were introduced in JDK11, but ACCP's keys aren't compatible until JDK12+.
     // See comment in XDHGen.java for more details.
