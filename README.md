@@ -179,7 +179,7 @@ ML-KEM-768 / HKDF-SHA256 / AES-128-GCM and ML-KEM-1024 / HKDF-SHA384 / AES-256-G
 Availability depends on the linked AWS-LC. The ML-KEM codepoints come from draft-ietf-hpke-pq and may change.
 
 Initialize ACCP's `HPKE` KeyPairGenerator with a suite constant from
-[`HpkeParameterSpec`](./src/com/amazon/corretto/crypto/provider/HpkeParameterSpec.java).
+[`HpkeSpec`](./src/com/amazon/corretto/crypto/provider/HpkeSpec.java).
 It produces [`HpkePublicKey`](./src/com/amazon/corretto/crypto/provider/HpkePublicKey.java) and
 [`HpkePrivateKey`](./src/com/amazon/corretto/crypto/provider/HpkePrivateKey.java), bound to the whole
 suite; see [`HpkeKey`](./src/com/amazon/corretto/crypto/provider/HpkeKey.java) for encodings.

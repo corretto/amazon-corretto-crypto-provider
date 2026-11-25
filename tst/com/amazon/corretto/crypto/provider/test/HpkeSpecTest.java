@@ -15,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.amazon.corretto.crypto.provider.HpkeKey;
-import com.amazon.corretto.crypto.provider.HpkeParameterSpec;
+import com.amazon.corretto.crypto.provider.HpkeSpec;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.Key;
 import java.security.KeyPair;
@@ -42,41 +42,40 @@ import org.junit.jupiter.params.provider.EnumSource;
 @ExtendWith(TestResultLogger.class)
 @Execution(ExecutionMode.CONCURRENT)
 @ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
-public class HpkeParameterSpecTest {
-  private static final HpkeParameterSpec SUITE =
-      HpkeParameterSpec.ML_KEM_768_HKDF_SHA256_AES_128_GCM;
+public class HpkeSpecTest {
+  private static final HpkeSpec SUITE = HpkeSpec.ML_KEM_768_HKDF_SHA256_AES_128_GCM;
   private static final String JDK_SPEC_CLASS = "javax.crypto.spec.HPKEParameterSpec";
   private static final byte[] EMPTY = new byte[0];
 
   @Test
   public void codepoints() {
-    assertEquals(0x0041, HpkeParameterSpec.KEM_ML_KEM_768);
-    assertEquals(0x0042, HpkeParameterSpec.KEM_ML_KEM_1024);
-    assertEquals(0x0001, HpkeParameterSpec.KDF_HKDF_SHA256);
-    assertEquals(0x0002, HpkeParameterSpec.KDF_HKDF_SHA384);
-    assertEquals(0x0001, HpkeParameterSpec.AEAD_AES_128_GCM);
-    assertEquals(0x0002, HpkeParameterSpec.AEAD_AES_256_GCM);
+    assertEquals(0x0041, HpkeSpec.KEM_ML_KEM_768);
+    assertEquals(0x0042, HpkeSpec.KEM_ML_KEM_1024);
+    assertEquals(0x0001, HpkeSpec.KDF_HKDF_SHA256);
+    assertEquals(0x0002, HpkeSpec.KDF_HKDF_SHA384);
+    assertEquals(0x0001, HpkeSpec.AEAD_AES_128_GCM);
+    assertEquals(0x0002, HpkeSpec.AEAD_AES_256_GCM);
   }
 
   @Test
   public void namedSuiteConstants() {
-    assertSuite(HpkeParameterSpec.ML_KEM_768_HKDF_SHA256_AES_128_GCM, 0x0041, 0x0001, 0x0001);
-    assertSuite(HpkeParameterSpec.ML_KEM_1024_HKDF_SHA384_AES_256_GCM, 0x0042, 0x0002, 0x0002);
+    assertSuite(HpkeSpec.ML_KEM_768_HKDF_SHA256_AES_128_GCM, 0x0041, 0x0001, 0x0001);
+    assertSuite(HpkeSpec.ML_KEM_1024_HKDF_SHA384_AES_256_GCM, 0x0042, 0x0002, 0x0002);
   }
 
   private static void assertSuite(
-      final HpkeParameterSpec spec, final int kem, final int kdf, final int aead) {
+      final HpkeSpec spec, final int kem, final int kdf, final int aead) {
     assertEquals(kem, spec.kem_id());
     assertEquals(kdf, spec.kdf_id());
     assertEquals(aead, spec.aead_id());
     assertArrayEquals(new byte[0], spec.info());
     assertNull(spec.encapsulation());
-    assertEquals(HpkeParameterSpec.of(kem, kdf, aead), spec);
+    assertEquals(HpkeSpec.of(kem, kdf, aead), spec);
   }
 
   @Test
   public void ofSetsIdsAndDefaults() {
-    final HpkeParameterSpec spec = HpkeParameterSpec.of(0x0041, 0x0001, 0x0001);
+    final HpkeSpec spec = HpkeSpec.of(0x0041, 0x0001, 0x0001);
     assertEquals(0x0041, spec.kem_id());
     assertEquals(0x0001, spec.kdf_id());
     assertEquals(0x0001, spec.aead_id());
@@ -86,25 +85,23 @@ public class HpkeParameterSpecTest {
 
   @Test
   public void ofAcceptsAnyIdInRangeButRejectsOutOfRange() {
-    HpkeParameterSpec.of(0, 0, 0);
-    HpkeParameterSpec.of(0xFFFF, 0xFFFF, 0xFFFF);
+    HpkeSpec.of(0, 0, 0);
+    HpkeSpec.of(0xFFFF, 0xFFFF, 0xFFFF);
     for (final int invalid : new int[] {-1, 0x10000}) {
       assertEquals(
           "kem_id must be in [0, 65535]: " + invalid,
           Assertions.assertThrows(
-                  IllegalArgumentException.class,
-                  () -> HpkeParameterSpec.of(invalid, invalid, invalid))
+                  IllegalArgumentException.class, () -> HpkeSpec.of(invalid, invalid, invalid))
               .getMessage());
       assertEquals(
           "kdf_id must be in [0, 65535]: " + invalid,
           Assertions.assertThrows(
-                  IllegalArgumentException.class,
-                  () -> HpkeParameterSpec.of(0x41, invalid, invalid))
+                  IllegalArgumentException.class, () -> HpkeSpec.of(0x41, invalid, invalid))
               .getMessage());
       assertEquals(
           "aead_id must be in [0, 65535]: " + invalid,
           Assertions.assertThrows(
-                  IllegalArgumentException.class, () -> HpkeParameterSpec.of(0x41, 1, invalid))
+                  IllegalArgumentException.class, () -> HpkeSpec.of(0x41, 1, invalid))
               .getMessage());
     }
   }
@@ -133,8 +130,8 @@ public class HpkeParameterSpecTest {
   public void withersAreImmutableAndCopyDefensively() {
     final byte[] info = {1, 2, 3};
     final byte[] enc = {4, 5, 6};
-    final HpkeParameterSpec withInfo = SUITE.withInfo(info);
-    final HpkeParameterSpec withBoth = withInfo.withEncapsulation(enc);
+    final HpkeSpec withInfo = SUITE.withInfo(info);
+    final HpkeSpec withBoth = withInfo.withEncapsulation(enc);
 
     // The original specs are unchanged.
     assertArrayEquals(new byte[0], SUITE.info());
@@ -163,21 +160,19 @@ public class HpkeParameterSpecTest {
 
   @Test
   public void equalsAndHashCode() {
-    final HpkeParameterSpec a = SUITE.withInfo(new byte[] {1}).withEncapsulation(new byte[2]);
-    final HpkeParameterSpec b =
-        HpkeParameterSpec.of(0x0041, 0x0001, 0x0001)
-            .withInfo(new byte[] {1})
-            .withEncapsulation(new byte[2]);
+    final HpkeSpec a = SUITE.withInfo(new byte[] {1}).withEncapsulation(new byte[2]);
+    final HpkeSpec b =
+        HpkeSpec.of(0x0041, 0x0001, 0x0001).withInfo(new byte[] {1}).withEncapsulation(new byte[2]);
     assertEquals(a, b);
     assertEquals(a.hashCode(), b.hashCode());
     assertNotEquals(a, SUITE);
     assertNotEquals(a, a.withInfo(new byte[] {2}));
     assertNotEquals(a, a.withEncapsulation(new byte[3]));
-    assertNotEquals(SUITE, HpkeParameterSpec.of(0x0041, 0x0002, 0x0001));
+    assertNotEquals(SUITE, HpkeSpec.of(0x0041, 0x0002, 0x0001));
     assertNotEquals(SUITE, SUITE.withEncapsulation(new byte[0]));
   }
 
-  private static HpkeParameterSpec fromComponents(
+  private static HpkeSpec fromComponents(
       final int kem,
       final int kdf,
       final int aead,
@@ -188,11 +183,11 @@ public class HpkeParameterSpecTest {
       final Object authKey)
       throws Throwable {
     return sneakyInvoke(
-        HpkeParameterSpec.class, "fromComponents", kem, kdf, aead, info, enc, psk, pskId, authKey);
+        HpkeSpec.class, "fromComponents", kem, kdf, aead, info, enc, psk, pskId, authKey);
   }
 
-  private static HpkeParameterSpec from(final AlgorithmParameterSpec params) throws Throwable {
-    return sneakyInvoke(HpkeParameterSpec.class, "from", params);
+  private static HpkeSpec from(final AlgorithmParameterSpec params) throws Throwable {
+    return sneakyInvoke(HpkeSpec.class, "from", params);
   }
 
   private static void assertRejected(final String message, final ThrowingSupplier call) {
@@ -210,7 +205,7 @@ public class HpkeParameterSpecTest {
   public void convertsCuratedSuites(final HpkeTestSuite suite) throws Throwable {
     final byte[] info = {1, 2, 3};
     final byte[] enc = {4, 5, 6, 7};
-    final HpkeParameterSpec spec =
+    final HpkeSpec spec =
         fromComponents(suite.kemId, suite.kdfId, suite.aeadId, info, enc, null, EMPTY, null);
     assertEquals(suite.spec().withInfo(info).withEncapsulation(enc), spec);
     // Arrays are copied on the way in.
@@ -223,7 +218,7 @@ public class HpkeParameterSpecTest {
   @Test
   public void emptyInfoAndNoEncapsulation() throws Throwable {
     final HpkeTestSuite suite = HpkeTestSuite.MLKEM768;
-    final HpkeParameterSpec spec =
+    final HpkeSpec spec =
         fromComponents(suite.kemId, suite.kdfId, suite.aeadId, EMPTY, null, null, EMPTY, null);
     assertEquals(suite.namedSpec(), spec);
     assertArrayEquals(EMPTY, spec.info());
@@ -265,9 +260,8 @@ public class HpkeParameterSpecTest {
       {0xFFFF, 0xFFFF, 0xFFFF},
     };
     for (final int[] ids : suites) {
-      final HpkeParameterSpec spec =
-          fromComponents(ids[0], ids[1], ids[2], EMPTY, null, null, EMPTY, null);
-      assertEquals(HpkeParameterSpec.of(ids[0], ids[1], ids[2]), spec);
+      final HpkeSpec spec = fromComponents(ids[0], ids[1], ids[2], EMPTY, null, null, EMPTY, null);
+      assertEquals(HpkeSpec.of(ids[0], ids[1], ids[2]), spec);
     }
   }
 
@@ -275,7 +269,7 @@ public class HpkeParameterSpecTest {
   public void adapterSpecForUncuratedSuiteIsRejectedAtInit() throws Throwable {
     final HpkeTestSuite suite = HpkeTestSuite.MLKEM768;
     suite.assumeAvailable();
-    final HpkeParameterSpec spec = fromComponents(0x0040, 1, 1, EMPTY, null, null, EMPTY, null);
+    final HpkeSpec spec = fromComponents(0x0040, 1, 1, EMPTY, null, null, EMPTY, null);
     final KeyPair pair = suite.generateKeyPair();
     final Cipher cipher = Cipher.getInstance("HPKE", NATIVE_PROVIDER);
     Assertions.assertThrows(
@@ -317,7 +311,7 @@ public class HpkeParameterSpecTest {
 
   private static boolean onlyKnownJdkSpecMethods(final List<String> names) throws Throwable {
     final List<String> unknown =
-        TestUtil.sneakyInvoke(HpkeParameterSpec.class, "unknownJdkSpecMethods", (Object) names);
+        TestUtil.sneakyInvoke(HpkeSpec.class, "unknownJdkSpecMethods", (Object) names);
     return unknown.isEmpty();
   }
 
@@ -325,26 +319,25 @@ public class HpkeParameterSpecTest {
   public void unadaptableJdkSpecSaysWhy() throws Throwable {
     final List<String> names = new ArrayList<>(Arrays.asList("kem_id", "zeta", "info", "alpha"));
     final List<String> unknown =
-        TestUtil.sneakyInvoke(HpkeParameterSpec.class, "unknownJdkSpecMethods", (Object) names);
+        TestUtil.sneakyInvoke(HpkeSpec.class, "unknownJdkSpecMethods", (Object) names);
     assertEquals(Arrays.asList("alpha", "zeta"), unknown);
     final String message =
-        TestUtil.sneakyInvoke(
-            HpkeParameterSpec.class, "unadaptableJdkSpecMessage", (Object) unknown);
+        TestUtil.sneakyInvoke(HpkeSpec.class, "unadaptableJdkSpecMessage", (Object) unknown);
     assertEquals(
         "ACCP does not recognize method(s) [alpha, zeta] of "
             + JDK_SPEC_CLASS
             + " on this JDK;"
-            + " use com.amazon.corretto.crypto.provider.HpkeParameterSpec or upgrade ACCP",
+            + " use com.amazon.corretto.crypto.provider.HpkeSpec or upgrade ACCP",
         message);
     final String unreadable =
-        TestUtil.sneakyInvoke(HpkeParameterSpec.class, "unadaptableJdkSpecMessage", (Object) null);
+        TestUtil.sneakyInvoke(HpkeSpec.class, "unadaptableJdkSpecMessage", (Object) null);
     assertTrue(unreadable.startsWith("ACCP cannot read " + JDK_SPEC_CLASS), unreadable);
     assertTrue(unreadable.endsWith("or upgrade ACCP"), unreadable);
   }
 
   @Test
   public void fromPassesAccpSpecsThrough() throws Throwable {
-    final HpkeParameterSpec spec =
+    final HpkeSpec spec =
         HpkeTestSuite.MLKEM768.spec().withInfo(new byte[] {1}).withEncapsulation(new byte[] {2});
     assertSame(spec, from(spec));
   }
@@ -352,8 +345,7 @@ public class HpkeParameterSpecTest {
   @Test
   public void fromRejectsNullAndForeignSpecs() {
     assertRejected(
-        "An HpkeParameterSpec (or, on JDK 26+, javax.crypto.spec.HPKEParameterSpec) must be"
-            + " provided",
+        "An HpkeSpec (or, on JDK 26+, javax.crypto.spec.HPKEParameterSpec) must be" + " provided",
         () -> from(null));
     assertRejected(
         "Unsupported params type: " + ECGenParameterSpec.class.getName(),

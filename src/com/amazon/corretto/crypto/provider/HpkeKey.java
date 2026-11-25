@@ -42,7 +42,7 @@ public abstract class HpkeKey implements Key {
   }
 
   /** Resolves import suite ids, ignoring info and encapsulation; see {@link HpkeSuite#require}. */
-  static HpkeSuite importSuite(final HpkeParameterSpec spec) throws InvalidKeyException {
+  static HpkeSuite importSuite(final HpkeSpec spec) throws InvalidKeyException {
     Utils.requireNonNull(spec, "spec must not be null");
     Loader.checkNativeLibraryAvailability();
     try {
@@ -53,12 +53,12 @@ public abstract class HpkeKey implements Key {
   }
 
   /**
-   * Returns the named {@link HpkeParameterSpec} constant for this key's suite (base mode, empty
-   * {@code info}, no encapsulation), e.g. for {@code key.parameterSpec().withEncapsulation(enc)}.
+   * Returns the named {@link HpkeSpec} constant for this key's suite (base mode, empty {@code
+   * info}, no encapsulation), e.g. for {@code key.parameterSpec().withEncapsulation(enc)}.
    *
    * @return this key's suite parameters
    */
-  public final HpkeParameterSpec parameterSpec() {
+  public final HpkeSpec parameterSpec() {
     return suite.spec();
   }
 

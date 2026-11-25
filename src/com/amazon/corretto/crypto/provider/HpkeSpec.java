@@ -37,7 +37,7 @@ import java.util.TreeSet;
  * <p>Instances are immutable, so the constants are safe to share. Byte arrays are copied on the way
  * in and on the way out.
  */
-public final class HpkeParameterSpec implements AlgorithmParameterSpec {
+public final class HpkeSpec implements AlgorithmParameterSpec {
 
   /** KEM id for ML-KEM-768 (draft-ietf-hpke-pq). */
   public static final int KEM_ML_KEM_768 = 0x0041;
@@ -83,11 +83,11 @@ public final class HpkeParameterSpec implements AlgorithmParameterSpec {
   }
 
   /** ML-KEM-768, HKDF-SHA256, AES-128-GCM; base mode, empty info. */
-  public static final HpkeParameterSpec ML_KEM_768_HKDF_SHA256_AES_128_GCM =
+  public static final HpkeSpec ML_KEM_768_HKDF_SHA256_AES_128_GCM =
       of(KEM_ML_KEM_768, KDF_HKDF_SHA256, AEAD_AES_128_GCM);
 
   /** ML-KEM-1024, HKDF-SHA384, AES-256-GCM (the CNSA 2.0 algorithms); base mode, empty info. */
-  public static final HpkeParameterSpec ML_KEM_1024_HKDF_SHA384_AES_256_GCM =
+  public static final HpkeSpec ML_KEM_1024_HKDF_SHA384_AES_256_GCM =
       of(KEM_ML_KEM_1024, KDF_HKDF_SHA384, AEAD_AES_256_GCM);
 
   private final int kemId;
@@ -96,7 +96,7 @@ public final class HpkeParameterSpec implements AlgorithmParameterSpec {
   private final byte[] info;
   private final byte[] encapsulation;
 
-  private HpkeParameterSpec(
+  private HpkeSpec(
       final int kemId,
       final int kdfId,
       final int aeadId,
@@ -119,7 +119,7 @@ public final class HpkeParameterSpec implements AlgorithmParameterSpec {
    * @return the base-mode suite parameters
    * @throws IllegalArgumentException if any id is outside {@code [0, 65535]}
    */
-  public static HpkeParameterSpec of(final int kem_id, final int kdf_id, final int aead_id) {
+  public static HpkeSpec of(final int kem_id, final int kdf_id, final int aead_id) {
     return create(kem_id, kdf_id, aead_id, null, null);
   }
 
@@ -127,7 +127,7 @@ public final class HpkeParameterSpec implements AlgorithmParameterSpec {
    * Copies {@code info} and {@code encapsulation}; unlike {@link #withInfo}, accepts an empty
    * {@code info}. A null {@code info} means empty; a null {@code encapsulation} means none.
    */
-  private static HpkeParameterSpec create(
+  private static HpkeSpec create(
       final int kemId,
       final int kdfId,
       final int aeadId,
@@ -136,7 +136,7 @@ public final class HpkeParameterSpec implements AlgorithmParameterSpec {
     checkId("kem_id", kemId);
     checkId("kdf_id", kdfId);
     checkId("aead_id", aeadId);
-    return new HpkeParameterSpec(
+    return new HpkeSpec(
         kemId,
         kdfId,
         aeadId,
@@ -150,15 +150,15 @@ public final class HpkeParameterSpec implements AlgorithmParameterSpec {
    * @throws InvalidAlgorithmParameterException if {@code params} is null, of another type, a JDK
    *     spec with a PSK or an auth key, or a JDK spec whose class the adapter does not recognize
    */
-  static HpkeParameterSpec from(final AlgorithmParameterSpec params)
+  static HpkeSpec from(final AlgorithmParameterSpec params)
       throws InvalidAlgorithmParameterException {
     if (params == null) {
       throw new InvalidAlgorithmParameterException(
-          "An HpkeParameterSpec (or, on JDK 26+, javax.crypto.spec.HPKEParameterSpec) must be"
+          "An HpkeSpec (or, on JDK 26+, javax.crypto.spec.HPKEParameterSpec) must be"
               + " provided");
     }
-    if (params instanceof HpkeParameterSpec) {
-      return (HpkeParameterSpec) params;
+    if (params instanceof HpkeSpec) {
+      return (HpkeSpec) params;
     }
     if (JdkSpec.CLASS == null && JDK_SPEC_CLASS.equals(params.getClass().getName())) {
       throw new InvalidAlgorithmParameterException(
@@ -188,7 +188,7 @@ public final class HpkeParameterSpec implements AlgorithmParameterSpec {
   }
 
   /** Converts JDK accessor values independently of reflection, allowing tests on older JDKs. */
-  private static HpkeParameterSpec fromComponents(
+  private static HpkeSpec fromComponents(
       final int kemId,
       final int kdfId,
       final int aeadId,
@@ -230,7 +230,7 @@ public final class HpkeParameterSpec implements AlgorithmParameterSpec {
                 + " of "
                 + JDK_SPEC_CLASS
                 + " on this JDK";
-    return why + "; use " + HpkeParameterSpec.class.getName() + " or upgrade ACCP";
+    return why + "; use " + HpkeSpec.class.getName() + " or upgrade ACCP";
   }
 
   private static void checkId(final String name, final int id) {
@@ -248,12 +248,12 @@ public final class HpkeParameterSpec implements AlgorithmParameterSpec {
    * @throws NullPointerException if {@code info} is null
    * @throws IllegalArgumentException if {@code info} is empty
    */
-  public HpkeParameterSpec withInfo(final byte[] info) {
+  public HpkeSpec withInfo(final byte[] info) {
     Objects.requireNonNull(info, "info must not be null");
     if (info.length == 0) {
       throw new IllegalArgumentException("info is empty");
     }
-    return new HpkeParameterSpec(kemId, kdfId, aeadId, info.clone(), encapsulation);
+    return new HpkeSpec(kemId, kdfId, aeadId, info.clone(), encapsulation);
   }
 
   /**
@@ -264,9 +264,9 @@ public final class HpkeParameterSpec implements AlgorithmParameterSpec {
    * @return a spec with the given encapsulation and all other parameters unchanged
    * @throws NullPointerException if {@code encapsulation} is null
    */
-  public HpkeParameterSpec withEncapsulation(final byte[] encapsulation) {
+  public HpkeSpec withEncapsulation(final byte[] encapsulation) {
     Objects.requireNonNull(encapsulation, "encapsulation must not be null");
-    return new HpkeParameterSpec(kemId, kdfId, aeadId, info, encapsulation.clone());
+    return new HpkeSpec(kemId, kdfId, aeadId, info, encapsulation.clone());
   }
 
   /**
@@ -329,10 +329,10 @@ public final class HpkeParameterSpec implements AlgorithmParameterSpec {
     if (this == obj) {
       return true;
     }
-    if (!(obj instanceof HpkeParameterSpec)) {
+    if (!(obj instanceof HpkeSpec)) {
       return false;
     }
-    final HpkeParameterSpec other = (HpkeParameterSpec) obj;
+    final HpkeSpec other = (HpkeSpec) obj;
     return kemId == other.kemId
         && kdfId == other.kdfId
         && aeadId == other.aeadId
@@ -357,7 +357,7 @@ public final class HpkeParameterSpec implements AlgorithmParameterSpec {
   @Override
   public String toString() {
     return String.format(
-        "HpkeParameterSpec{kem_id=0x%04x, kdf_id=0x%04x, aead_id=0x%04x, info=%d bytes,"
+        "HpkeSpec{kem_id=0x%04x, kdf_id=0x%04x, aead_id=0x%04x, info=%d bytes,"
             + " encapsulation=%s}",
         kemId,
         kdfId,

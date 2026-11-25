@@ -5,7 +5,7 @@ package com.amazon.corretto.crypto.provider.test;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
-import com.amazon.corretto.crypto.provider.HpkeParameterSpec;
+import com.amazon.corretto.crypto.provider.HpkeSpec;
 import java.security.GeneralSecurityException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -14,13 +14,13 @@ import javax.crypto.Cipher;
 /** Spec-defined lengths, kept as literals to independently check AWS-LC's reported lengths. */
 enum HpkeTestSuite {
   MLKEM768(
-      HpkeParameterSpec.ML_KEM_768_HKDF_SHA256_AES_128_GCM,
+      HpkeSpec.ML_KEM_768_HKDF_SHA256_AES_128_GCM,
       "ML_KEM_768_HKDF_SHA256_AES_128_GCM",
       1184,
       64,
       1088),
   MLKEM1024(
-      HpkeParameterSpec.ML_KEM_1024_HKDF_SHA384_AES_256_GCM,
+      HpkeSpec.ML_KEM_1024_HKDF_SHA384_AES_256_GCM,
       "ML_KEM_1024_HKDF_SHA384_AES_256_GCM",
       1568,
       64,
@@ -35,12 +35,12 @@ enum HpkeTestSuite {
   final int publicKeyLength;
   final int seedLength;
   final int encLength;
-  private final HpkeParameterSpec namedSpec;
+  private final HpkeSpec namedSpec;
   // The name of the matching constant of ACCP's package-private HpkeSuite enum.
   private final String accpName;
 
   HpkeTestSuite(
-      final HpkeParameterSpec namedSpec,
+      final HpkeSpec namedSpec,
       final String accpName,
       final int publicKeyLength,
       final int seedLength,
@@ -55,11 +55,11 @@ enum HpkeTestSuite {
     this.encLength = encLength;
   }
 
-  HpkeParameterSpec spec() {
-    return HpkeParameterSpec.of(kemId, kdfId, aeadId);
+  HpkeSpec spec() {
+    return HpkeSpec.of(kemId, kdfId, aeadId);
   }
 
-  HpkeParameterSpec namedSpec() {
+  HpkeSpec namedSpec() {
     return namedSpec;
   }
 

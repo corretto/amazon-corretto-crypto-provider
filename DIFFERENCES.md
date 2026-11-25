@@ -91,7 +91,7 @@ For ML-DSA key generation (`KeyPairGenerator`) and signing (`Signature.initSign(
 
 ## HPKE differs from JDK 26's HPKE Cipher
 
-ACCP accepts `HpkeParameterSpec` on JDK 8+ and JDK 26's `javax.crypto.spec.HPKEParameterSpec` for
+ACCP accepts `HpkeSpec` on JDK 8+ and JDK 26's `javax.crypto.spec.HPKEParameterSpec` for
 ML-KEM-768 and ML-KEM-1024 base-mode suites. Classical DHKEM, PSK/auth modes, and secret export are unsupported.
 
 ACCP requires suite-bound `HpkePublicKey` and `HpkePrivateKey` objects with `RAW` encodings

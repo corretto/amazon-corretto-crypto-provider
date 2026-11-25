@@ -6,8 +6,8 @@ import java.security.InvalidAlgorithmParameterException;
 
 /** Supported HPKE suites and their availability and lengths in the linked AWS-LC. */
 enum HpkeSuite {
-  ML_KEM_768_HKDF_SHA256_AES_128_GCM(HpkeParameterSpec.ML_KEM_768_HKDF_SHA256_AES_128_GCM),
-  ML_KEM_1024_HKDF_SHA384_AES_256_GCM(HpkeParameterSpec.ML_KEM_1024_HKDF_SHA384_AES_256_GCM);
+  ML_KEM_768_HKDF_SHA256_AES_128_GCM(HpkeSpec.ML_KEM_768_HKDF_SHA256_AES_128_GCM),
+  ML_KEM_1024_HKDF_SHA384_AES_256_GCM(HpkeSpec.ML_KEM_1024_HKDF_SHA384_AES_256_GCM);
 
   static {
     // Availability comes from native capabilities, independently of build flavor, JDK version and
@@ -33,7 +33,7 @@ enum HpkeSuite {
   final int kemId;
   final int kdfId;
   final int aeadId;
-  private final HpkeParameterSpec spec;
+  private final HpkeSpec spec;
   // Written once, by the static initializer above, and only for available suites.
   private boolean available;
   private int publicKeyLength;
@@ -41,7 +41,7 @@ enum HpkeSuite {
   private int encLength;
   private int aeadOverhead;
 
-  HpkeSuite(final HpkeParameterSpec spec) {
+  HpkeSuite(final HpkeSpec spec) {
     this.spec = spec;
     this.kemId = spec.kem_id();
     this.kdfId = spec.kdf_id();
@@ -52,7 +52,7 @@ enum HpkeSuite {
     return available;
   }
 
-  HpkeParameterSpec spec() {
+  HpkeSpec spec() {
     return spec;
   }
 

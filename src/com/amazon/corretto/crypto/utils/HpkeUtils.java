@@ -3,9 +3,9 @@
 package com.amazon.corretto.crypto.utils;
 
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
-import com.amazon.corretto.crypto.provider.HpkeParameterSpec;
 import com.amazon.corretto.crypto.provider.HpkePrivateKey;
 import com.amazon.corretto.crypto.provider.HpkePublicKey;
+import com.amazon.corretto.crypto.provider.HpkeSpec;
 import com.amazon.corretto.crypto.provider.RuntimeCryptoException;
 import java.security.GeneralSecurityException;
 import java.security.InvalidAlgorithmParameterException;
@@ -132,7 +132,7 @@ public final class HpkeUtils {
     return Cipher.getInstance("HPKE", AmazonCorrettoCryptoProvider.INSTANCE);
   }
 
-  private static HpkeParameterSpec spec(final HpkeParameterSpec suite, final byte[] info) {
+  private static HpkeSpec spec(final HpkeSpec suite, final byte[] info) {
     // withInfo rejects an empty info, which is already the default.
     return info == null || info.length == 0 ? suite : suite.withInfo(info);
   }

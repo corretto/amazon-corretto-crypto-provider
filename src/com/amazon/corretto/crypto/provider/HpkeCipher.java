@@ -89,8 +89,8 @@ class HpkeCipher extends CipherSpi {
   /**
    * Initializes a fresh HPKE context at sequence number 0. Encryption requires an {@link
    * HpkePublicKey}; decryption requires an undestroyed {@link HpkePrivateKey}. Parameters must be
-   * an {@link HpkeParameterSpec} or JDK 26's {@code javax.crypto.spec.HPKEParameterSpec}, naming
-   * the key's suite in base mode.
+   * an {@link HpkeSpec} or JDK 26's {@code javax.crypto.spec.HPKEParameterSpec}, naming the key's
+   * suite in base mode.
    *
    * <p>The sender's spec must have no encapsulation. Initialization encapsulates immediately, and
    * {@link #engineGetIV()} returns the resulting {@code enc}. The recipient's spec must carry that
@@ -121,7 +121,7 @@ class HpkeCipher extends CipherSpi {
             "HPKE requires an HpkePublicKey or HpkePrivateKey, not "
                 + (key == null ? "null" : key.getClass().getName()));
       }
-      final HpkeParameterSpec spec = HpkeParameterSpec.from(params);
+      final HpkeSpec spec = HpkeSpec.from(params);
       if (opmode != Cipher.ENCRYPT_MODE && opmode != Cipher.DECRYPT_MODE) {
         throw new UnsupportedOperationException("HPKE supports only ENCRYPT_MODE and DECRYPT_MODE");
       }
@@ -233,7 +233,7 @@ class HpkeCipher extends CipherSpi {
     synchronized (lock_) {
       reset();
       throw new InvalidKeyException(
-          "An HpkeParameterSpec (or, on JDK 26+, javax.crypto.spec.HPKEParameterSpec) must be"
+          "An HpkeSpec (or, on JDK 26+, javax.crypto.spec.HPKEParameterSpec) must be"
               + " provided");
     }
   }

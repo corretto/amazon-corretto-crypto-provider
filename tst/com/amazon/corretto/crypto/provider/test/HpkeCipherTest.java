@@ -14,9 +14,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.amazon.corretto.crypto.provider.HpkeKey;
-import com.amazon.corretto.crypto.provider.HpkeParameterSpec;
 import com.amazon.corretto.crypto.provider.HpkePrivateKey;
 import com.amazon.corretto.crypto.provider.HpkePublicKey;
+import com.amazon.corretto.crypto.provider.HpkeSpec;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -69,7 +69,7 @@ public class HpkeCipherTest {
 
   /** Encrypts with a fresh sender Cipher; returns {enc, ciphertext}. */
   private static byte[][] seal(
-      final PublicKey pub, final HpkeParameterSpec spec, final byte[] aad, final byte[] plaintext)
+      final PublicKey pub, final HpkeSpec spec, final byte[] aad, final byte[] plaintext)
       throws Exception {
     final Cipher sender = cipher();
     sender.init(Cipher.ENCRYPT_MODE, pub, spec);
@@ -94,7 +94,7 @@ public class HpkeCipherTest {
 
   private static byte[] open(
       final PrivateKey priv,
-      final HpkeParameterSpec spec,
+      final HpkeSpec spec,
       final byte[] enc,
       final byte[] aad,
       final byte[] ciphertext)
@@ -219,7 +219,7 @@ public class HpkeCipherTest {
       throws Exception {
     suite.assumeAvailable();
     final KeyPair kp = suite.generateKeyPair();
-    final HpkeParameterSpec spec = withInfo ? suite.spec().withInfo(INFO) : suite.spec();
+    final HpkeSpec spec = withInfo ? suite.spec().withInfo(INFO) : suite.spec();
     final byte[] aad = withAad ? AAD : null;
     final byte[][] sealed = seal(kp.getPublic(), spec, aad, PLAINTEXT);
     assertEquals(suite.encLength, sealed[0].length);
@@ -307,24 +307,24 @@ public class HpkeCipherTest {
   @Test
   public void rejectsUncuratedSuite() throws Exception {
     final KeyPair kp = anyAvailableSuite().generateKeyPair();
-    for (final HpkeParameterSpec spec :
-        new HpkeParameterSpec[] {
+    for (final HpkeSpec spec :
+        new HpkeSpec[] {
           // Valid RFC 9180 suites with classical KEMs, which ACCP does not offer.
-          HpkeParameterSpec.of(0x0020, 0x0001, 0x0001),
-          HpkeParameterSpec.of(0x0010, 0x0001, 0x0001),
+          HpkeSpec.of(0x0020, 0x0001, 0x0001),
+          HpkeSpec.of(0x0010, 0x0001, 0x0001),
           // Curated KEMs with another KDF or AEAD.
-          HpkeParameterSpec.of(0x0041, 0x0002, 0x0002),
-          HpkeParameterSpec.of(0x0042, 0x0001, 0x0001),
+          HpkeSpec.of(0x0041, 0x0002, 0x0002),
+          HpkeSpec.of(0x0042, 0x0001, 0x0001),
           // Export-only AEAD.
-          HpkeParameterSpec.of(0x0041, 0x0001, 0xFFFF),
+          HpkeSpec.of(0x0041, 0x0001, 0xFFFF),
           // An ML-KEM KEM id that ACCP does not curate.
-          HpkeParameterSpec.of(0x0040, 0x0001, 0x0001),
+          HpkeSpec.of(0x0040, 0x0001, 0x0001),
         }) {
       assertThrows(
           InvalidAlgorithmParameterException.class,
           () -> cipher().init(Cipher.ENCRYPT_MODE, kp.getPublic(), spec));
     }
-    final HpkeParameterSpec uncurated = HpkeParameterSpec.of(0x0040, 0x0001, 0x0001);
+    final HpkeSpec uncurated = HpkeSpec.of(0x0040, 0x0001, 0x0001);
     assertThrows(
         InvalidAlgorithmParameterException.class,
         () -> KeyPairGenerator.getInstance("HPKE", NATIVE_PROVIDER).initialize(uncurated));
@@ -449,8 +449,7 @@ public class HpkeCipherTest {
   public void rejectsWrongKeyKindAndMode() throws Exception {
     final HpkeTestSuite suite = anyAvailableSuite();
     final KeyPair kp = suite.generateKeyPair();
-    final HpkeParameterSpec recipientSpec =
-        suite.spec().withEncapsulation(new byte[suite.encLength]);
+    final HpkeSpec recipientSpec = suite.spec().withEncapsulation(new byte[suite.encLength]);
     assertThrows(
         InvalidKeyException.class,
         () -> cipher().init(Cipher.ENCRYPT_MODE, kp.getPrivate(), suite.spec()));
@@ -485,7 +484,7 @@ public class HpkeCipherTest {
   @Test
   public void rejectsNonHpkeKeys() throws Exception {
     final HpkeTestSuite suite = anyAvailableSuite();
-    final HpkeParameterSpec spec = suite.spec();
+    final HpkeSpec spec = suite.spec();
     for (final String algorithm : new String[] {"RSA", "EC"}) {
       final KeyPair foreign =
           KeyPairGenerator.getInstance(algorithm, NATIVE_PROVIDER).generateKeyPair();
@@ -530,7 +529,7 @@ public class HpkeCipherTest {
   public void tamperingIsDetected(final HpkeTestSuite suite) throws Exception {
     suite.assumeAvailable();
     final KeyPair kp = suite.generateKeyPair();
-    final HpkeParameterSpec spec = suite.spec().withInfo(INFO);
+    final HpkeSpec spec = suite.spec().withInfo(INFO);
     final byte[][] sealed = seal(kp.getPublic(), spec, AAD, PLAINTEXT);
     final byte[] enc = sealed[0];
     final byte[] ct = sealed[1];
@@ -598,10 +597,8 @@ public class HpkeCipherTest {
   public void wrapAndUnwrapModesFailBeforeTheSuiteCheck() throws Exception {
     final KeyPair kp = anyAvailableSuite().generateKeyPair();
     // Unsupported wrapping modes take precedence over suite validation.
-    for (final HpkeParameterSpec spec :
-        new HpkeParameterSpec[] {
-          HpkeParameterSpec.of(0x0020, 0x0001, 0x0001), HpkeParameterSpec.of(0x0041, 0x0001, 0xFFFF)
-        }) {
+    for (final HpkeSpec spec :
+        new HpkeSpec[] {HpkeSpec.of(0x0020, 0x0001, 0x0001), HpkeSpec.of(0x0041, 0x0001, 0xFFFF)}) {
       for (final Key key : new Key[] {kp.getPublic(), kp.getPrivate()}) {
         assertThrows(
             UnsupportedOperationException.class, () -> cipher().init(Cipher.WRAP_MODE, key, spec));

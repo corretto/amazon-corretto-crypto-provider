@@ -8,9 +8,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import com.amazon.corretto.crypto.provider.HpkeParameterSpec;
 import com.amazon.corretto.crypto.provider.HpkePrivateKey;
 import com.amazon.corretto.crypto.provider.HpkePublicKey;
+import com.amazon.corretto.crypto.provider.HpkeSpec;
 import com.amazon.corretto.crypto.utils.HpkeUtils;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
@@ -148,7 +148,7 @@ public class HpkeUtilsTest {
     recipient.init(
         Cipher.DECRYPT_MODE,
         k.priv,
-        HpkeParameterSpec.of(suite.kemId, suite.kdfId, suite.aeadId)
+        HpkeSpec.of(suite.kemId, suite.kdfId, suite.aeadId)
             .withInfo(INFO)
             .withEncapsulation(Arrays.copyOf(sealed, enc)));
     recipient.updateAAD(AAD);

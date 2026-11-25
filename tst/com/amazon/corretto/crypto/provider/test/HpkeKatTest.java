@@ -7,9 +7,9 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-import com.amazon.corretto.crypto.provider.HpkeParameterSpec;
 import com.amazon.corretto.crypto.provider.HpkePrivateKey;
 import com.amazon.corretto.crypto.provider.HpkePublicKey;
+import com.amazon.corretto.crypto.provider.HpkeSpec;
 import com.amazon.corretto.crypto.utils.HpkeUtils;
 import java.util.Arrays;
 import java.util.Spliterator;
@@ -136,7 +136,7 @@ public class HpkeKatTest {
     recipient.init(
         Cipher.DECRYPT_MODE,
         skR,
-        HpkeParameterSpec.of(v.suite.kemId, v.suite.kdfId, v.suite.aeadId)
+        HpkeSpec.of(v.suite.kemId, v.suite.kdfId, v.suite.aeadId)
             .withInfo(v.info)
             .withEncapsulation(v.enc));
     for (int i = 0; i < ENCRYPTIONS; i++) {
@@ -151,8 +151,8 @@ public class HpkeKatTest {
     v.suite.assumeAvailable();
     final HpkePublicKey pkR = HpkePublicKey.fromEncoded(v.suite.namedSpec(), v.pkRm);
     final HpkePrivateKey skR = HpkePrivateKey.fromEncoded(v.suite.namedSpec(), v.skRm);
-    final HpkeParameterSpec spec =
-        HpkeParameterSpec.of(v.suite.kemId, v.suite.kdfId, v.suite.aeadId).withInfo(v.info);
+    final HpkeSpec spec =
+        HpkeSpec.of(v.suite.kemId, v.suite.kdfId, v.suite.aeadId).withInfo(v.info);
     final Cipher sender = Cipher.getInstance("HPKE", NATIVE_PROVIDER);
     sender.init(Cipher.ENCRYPT_MODE, pkR, spec);
     final Cipher recipient = Cipher.getInstance("HPKE", NATIVE_PROVIDER);

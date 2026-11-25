@@ -59,7 +59,7 @@ public final class HpkePrivateKey extends HpkeKey implements PrivateKey, Destroy
    *     seed} has the wrong length or is rejected by AWS-LC
    * @throws IllegalArgumentException if {@code spec} or {@code seed} is null
    */
-  public static HpkePrivateKey fromEncoded(final HpkeParameterSpec spec, final byte[] seed)
+  public static HpkePrivateKey fromEncoded(final HpkeSpec spec, final byte[] seed)
       throws InvalidKeyException {
     final HpkeSuite s = importSuite(spec);
     Utils.requireNonNull(seed, "seed must not be null");

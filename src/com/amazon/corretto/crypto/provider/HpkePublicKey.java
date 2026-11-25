@@ -32,7 +32,7 @@ public final class HpkePublicKey extends HpkeKey implements PublicKey {
    *     raw} has the wrong length or is rejected by AWS-LC
    * @throws IllegalArgumentException if {@code spec} or {@code raw} is null
    */
-  public static HpkePublicKey fromEncoded(final HpkeParameterSpec spec, final byte[] raw)
+  public static HpkePublicKey fromEncoded(final HpkeSpec spec, final byte[] raw)
       throws InvalidKeyException {
     final HpkeSuite s = importSuite(spec);
     Utils.requireNonNull(raw, "raw must not be null");

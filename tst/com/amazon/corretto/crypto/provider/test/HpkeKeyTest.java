@@ -13,9 +13,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.amazon.corretto.crypto.provider.HpkeKey;
-import com.amazon.corretto.crypto.provider.HpkeParameterSpec;
 import com.amazon.corretto.crypto.provider.HpkePrivateKey;
 import com.amazon.corretto.crypto.provider.HpkePublicKey;
+import com.amazon.corretto.crypto.provider.HpkeSpec;
 import java.io.ByteArrayOutputStream;
 import java.io.NotSerializableException;
 import java.io.ObjectOutputStream;
@@ -154,25 +154,25 @@ public class HpkeKeyTest {
         InvalidKeyException.class,
         () ->
             HpkePrivateKey.fromEncoded(
-                HpkeParameterSpec.ML_KEM_768_HKDF_SHA256_AES_128_GCM, new byte[2400]));
+                HpkeSpec.ML_KEM_768_HKDF_SHA256_AES_128_GCM, new byte[2400]));
   }
 
   @Test
   public void fromEncodedRejectsUncuratedSuitesAndNulls() throws Exception {
     assumeHpkeRegistered();
     // 0x0010 is the RFC 9180 P-256 KEM, which ACCP's HPKE does not offer.
-    final HpkeParameterSpec p256 = HpkeParameterSpec.of(0x0010, 0x0001, 0x0001);
+    final HpkeSpec p256 = HpkeSpec.of(0x0010, 0x0001, 0x0001);
     assertThrows(InvalidKeyException.class, () -> HpkePublicKey.fromEncoded(p256, new byte[65]));
     assertThrows(InvalidKeyException.class, () -> HpkePrivateKey.fromEncoded(p256, new byte[32]));
     // A curated KEM with another KDF and AEAD.
-    final HpkeParameterSpec other = HpkeParameterSpec.of(0x0041, 0x0002, 0x0002);
+    final HpkeSpec other = HpkeSpec.of(0x0041, 0x0002, 0x0002);
     assertThrows(
         InvalidKeyException.class,
         () -> HpkePublicKey.fromEncoded(other, new byte[HpkeTestSuite.MLKEM768.publicKeyLength]));
     assertThrows(
         InvalidKeyException.class,
         () -> HpkePrivateKey.fromEncoded(other, new byte[HpkeTestSuite.MLKEM768.seedLength]));
-    final HpkeParameterSpec named = HpkeParameterSpec.ML_KEM_768_HKDF_SHA256_AES_128_GCM;
+    final HpkeSpec named = HpkeSpec.ML_KEM_768_HKDF_SHA256_AES_128_GCM;
     assertThrows(
         IllegalArgumentException.class, () -> HpkePublicKey.fromEncoded(null, new byte[1]));
     assertThrows(
@@ -263,19 +263,19 @@ public class HpkeKeyTest {
   @Test
   public void generatorRejectsUncuratedSuite() throws Exception {
     final KeyPairGenerator kpg = generator();
-    for (final HpkeParameterSpec spec :
-        new HpkeParameterSpec[] {
-          HpkeParameterSpec.of(0x0020, 0x0001, 0x0001),
-          HpkeParameterSpec.of(0x0010, 0x0001, 0x0001),
-          HpkeParameterSpec.of(0x0041, 0x0002, 0x0002),
-          HpkeParameterSpec.of(0x0042, 0x0001, 0x0001),
+    for (final HpkeSpec spec :
+        new HpkeSpec[] {
+          HpkeSpec.of(0x0020, 0x0001, 0x0001),
+          HpkeSpec.of(0x0010, 0x0001, 0x0001),
+          HpkeSpec.of(0x0041, 0x0002, 0x0002),
+          HpkeSpec.of(0x0042, 0x0001, 0x0001),
         }) {
       assertThrows(InvalidAlgorithmParameterException.class, () -> kpg.initialize(spec));
     }
   }
 
   @Test
-  public void generatorRequiresHpkeParameterSpec() throws Exception {
+  public void generatorRequiresHpkeSpec() throws Exception {
     final KeyPairGenerator kpg = generator();
     assertThrows(IllegalStateException.class, kpg::generateKeyPair);
     assertThrows(UnsupportedOperationException.class, () -> kpg.initialize(256));

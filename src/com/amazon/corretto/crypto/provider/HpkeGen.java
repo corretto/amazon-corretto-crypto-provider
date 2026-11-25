@@ -24,13 +24,13 @@ class HpkeGen extends KeyPairGeneratorSpi {
    */
   @Override
   public void initialize(final int keysize, final SecureRandom random) {
-    throw new UnsupportedOperationException("HPKE key generation requires an HpkeParameterSpec");
+    throw new UnsupportedOperationException("HPKE key generation requires an HpkeSpec");
   }
 
   /**
-   * Selects the suite for subsequent {@code generateKeyPair()} calls. Accepts {@link
-   * HpkeParameterSpec} or JDK 26's {@code javax.crypto.spec.HPKEParameterSpec} for a supported
-   * base-mode suite provided by the linked AWS-LC. Info and encapsulation are ignored.
+   * Selects the suite for subsequent {@code generateKeyPair()} calls. Accepts {@link HpkeSpec} or
+   * JDK 26's {@code javax.crypto.spec.HPKEParameterSpec} for a supported base-mode suite provided
+   * by the linked AWS-LC. Info and encapsulation are ignored.
    *
    * <p>The {@code random} parameter is ignored; key generation draws from AWS-LC's DRBG.
    *
@@ -40,7 +40,7 @@ class HpkeGen extends KeyPairGeneratorSpi {
   @Override
   public void initialize(final AlgorithmParameterSpec params, final SecureRandom random)
       throws InvalidAlgorithmParameterException {
-    final HpkeParameterSpec spec = HpkeParameterSpec.from(params);
+    final HpkeSpec spec = HpkeSpec.from(params);
     suite = HpkeSuite.require(spec.kem_id(), spec.kdf_id(), spec.aead_id());
   }
 
@@ -54,8 +54,7 @@ class HpkeGen extends KeyPairGeneratorSpi {
   public KeyPair generateKeyPair() {
     final HpkeSuite selected = suite;
     if (selected == null) {
-      throw new IllegalStateException(
-          "HPKE KeyPairGenerator must be initialized with an HpkeParameterSpec");
+      throw new IllegalStateException("HPKE KeyPairGenerator must be initialized with an HpkeSpec");
     }
     final HpkePrivateKey privateKey = HpkePrivateKey.generate(selected);
     return new KeyPair(privateKey.getPublicKey(), privateKey);
