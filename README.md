@@ -195,13 +195,8 @@ When splitting large data, authenticate ordering and completion in AAD. Permanen
 requires a new sender context and encapsulation; reusing the old encapsulation permits replays.
 Use independent contexts for loss tolerance.
 
-A failed open clears buffered input and AAD without advancing the sequence number, and zeroes the
-output range, including overlapping ciphertext. Retry with an intact copy and supply AAD again.
-`ShortBufferException` preserves message state; retry with the same final input and a larger buffer.
-
-Name ACCP explicitly, or call `init` before querying Cipher properties so provider selection can
-consider the key. See [DIFFERENCES.md](./DIFFERENCES.md#hpke-differs-from-jdk-26s-hpke-cipher)
-for JDK 26 compatibility and the linked API documentation for method contracts.
+See [DIFFERENCES.md](./DIFFERENCES.md#hpke-differs-from-jdk-26s-hpke-cipher) for JDK 26
+compatibility.
 
 # Notes on ACCP-FIPS
 ACCP-FIPS is a variation of ACCP which uses AWS-LC-FIPS 4.x as its cryptographic module. This version of AWS-LC-FIPS has FIPS certificates [5595](https://csrc.nist.gov/projects/cryptographic-module-validation-program/certificate/5595) (dynamic) and [5596](https://csrc.nist.gov/projects/cryptographic-module-validation-program/certificate/5596) (static).

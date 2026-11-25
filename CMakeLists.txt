@@ -471,9 +471,9 @@ set(C_SRC ${C_SRC} csrc/mldsa_gen.cpp)
 # ML-KEM has an approved implementation in the FIPS branch of AWS-LC that ACCP
 # consumes, so its native sources are compiled for ALL builds (including FIPS).
 # ML-KEM always ships (as the Multi-Release overlay) and its JNI symbols must
-# exist wherever it registers, so these are compiled unconditionally.
-set(C_SRC ${C_SRC} csrc/mlkem_gen.cpp csrc/mlkem_spi.cpp)
-set(C_SRC ${C_SRC} csrc/hpke.cpp)
+# exist wherever it registers, so these are compiled unconditionally. HPKE
+# registers based on the linked AWS-LC's suites, so it is compiled likewise.
+set(C_SRC ${C_SRC} csrc/mlkem_gen.cpp csrc/mlkem_spi.cpp csrc/hpke.cpp)
 
 add_library(amazonCorrettoCryptoProvider SHARED ${C_SRC})
 
