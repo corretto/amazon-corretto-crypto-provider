@@ -496,6 +496,9 @@ if(ENABLE_NATIVE_TEST_HOOKS)
     add_executable(test_buffer EXCLUDE_FROM_ALL csrc/test_buffer.cpp)
     target_link_libraries(test_buffer amazonCorrettoCryptoProvider)
 
+    add_executable(test_hpke EXCLUDE_FROM_ALL csrc/test_hpke.cpp)
+    target_link_libraries(test_hpke amazonCorrettoCryptoProvider)
+
     add_executable(test_auto_free EXCLUDE_FROM_ALL csrc/test_auto_free.cpp)
     target_compile_options(test_auto_free PRIVATE -fno-elide-constructors)
     target_link_libraries(test_auto_free amazonCorrettoCryptoProvider)
@@ -1059,6 +1062,13 @@ if(ENABLE_NATIVE_TEST_HOOKS)
         COMMAND $<TARGET_FILE:test_buffer>
     )
     add_dependencies(check check-buffer)
+
+    add_custom_target(check-hpke
+        COMMAND ${CMAKE_COMMAND} -E copy ${OPENSSL_CRYPTO_LIBRARY} $<TARGET_FILE_DIR:test_hpke>
+        COMMAND $<TARGET_FILE:test_hpke>
+        DEPENDS test_hpke
+    )
+    add_dependencies(check check-hpke)
 
     add_custom_target(check-auto-free
         COMMAND ${CMAKE_COMMAND} -E copy ${OPENSSL_CRYPTO_LIBRARY} $<TARGET_FILE_DIR:test_auto_free>
