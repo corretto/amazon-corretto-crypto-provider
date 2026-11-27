@@ -4,6 +4,7 @@
 #include "buffer.h"
 #include "env.h"
 #include "generated-headers.h"
+#include "hpke_suites.h"
 #include "util.h"
 #include <openssl/aead.h>
 #include <openssl/err.h>
@@ -14,8 +15,6 @@
 #include <new>
 #include <vector>
 
-// Base-mode ML-KEM suites follow hpke.h capabilities, including builds with no available suites.
-
 using namespace AmazonCorrettoCryptoProvider;
 
 #define EX_BADTAG                      "javax/crypto/AEADBadTagException"
@@ -23,30 +22,6 @@ using namespace AmazonCorrettoCryptoProvider;
 #define EX_PROVIDER                    "java/security/ProviderException"
 
 namespace {
-
-struct HpkeSuiteRow {
-    uint16_t kem_id;
-    uint16_t kdf_id;
-    uint16_t aead_id;
-    const EVP_HPKE_KEM* (*kem)(void);
-    const EVP_HPKE_KDF* (*kdf)(void);
-    const EVP_HPKE_AEAD* (*aead)(void);
-};
-
-const HpkeSuiteRow kHpkeSuites[] = {
-#if defined(EVP_HPKE_MLKEM768)
-    // draft-ietf-hpke-pq ML-KEM-768, HKDF-SHA256, AES-128-GCM.
-    { EVP_HPKE_MLKEM768, EVP_HPKE_HKDF_SHA256, EVP_HPKE_AES_128_GCM, EVP_hpke_mlkem768, EVP_hpke_hkdf_sha256,
-        EVP_hpke_aes_128_gcm },
-#endif
-#if defined(EVP_HPKE_MLKEM1024) && defined(EVP_HPKE_HKDF_SHA384)
-    // draft-ietf-hpke-pq ML-KEM-1024, HKDF-SHA384, AES-256-GCM.
-    { EVP_HPKE_MLKEM1024, EVP_HPKE_HKDF_SHA384, EVP_HPKE_AES_256_GCM, EVP_hpke_mlkem1024, EVP_hpke_hkdf_sha384,
-        EVP_hpke_aes_256_gcm },
-#endif
-    // Sentinel: a zero-length array is ill-formed under -pedantic. Every loop stops at it.
-    { 0, 0, 0, nullptr, nullptr, nullptr },
-};
 
 const HpkeSuiteRow* lookup_suite(jint kem_id, jint kdf_id, jint aead_id)
 {
@@ -432,21 +407,7 @@ extern "C" JNIEXPORT void JNICALL Java_com_amazon_corretto_crypto_provider_HpkeC
 extern "C" JNIEXPORT jboolean JNICALL Java_com_amazon_corretto_crypto_provider_test_NativeTestHooks_hpkeSuiteAvailable(
     JNIEnv*, jclass, jint kemId, jint kdfId, jint aeadId)
 {
-#if defined(EVP_HPKE_MLKEM768)
-    if (kemId == EVP_HPKE_MLKEM768 && kdfId == EVP_HPKE_HKDF_SHA256 && aeadId == EVP_HPKE_AES_128_GCM) {
-        return EVP_hpke_mlkem768() != nullptr && EVP_hpke_hkdf_sha256() != nullptr && EVP_hpke_aes_128_gcm() != nullptr
-            ? JNI_TRUE
-            : JNI_FALSE;
-    }
-#endif
-#if defined(EVP_HPKE_MLKEM1024) && defined(EVP_HPKE_HKDF_SHA384)
-    if (kemId == EVP_HPKE_MLKEM1024 && kdfId == EVP_HPKE_HKDF_SHA384 && aeadId == EVP_HPKE_AES_256_GCM) {
-        return EVP_hpke_mlkem1024() != nullptr && EVP_hpke_hkdf_sha384() != nullptr && EVP_hpke_aes_256_gcm() != nullptr
-            ? JNI_TRUE
-            : JNI_FALSE;
-    }
-#endif
-    return JNI_FALSE;
+    return lookup_suite(kemId, kdfId, aeadId) != nullptr ? JNI_TRUE : JNI_FALSE;
 }
 
 extern "C" JNIEXPORT jobjectArray JNICALL

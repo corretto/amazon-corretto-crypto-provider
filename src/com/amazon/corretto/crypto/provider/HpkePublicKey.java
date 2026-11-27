@@ -12,6 +12,8 @@ import java.util.Arrays;
  * @serial exclude
  */
 public final class HpkePublicKey extends HpkeKey implements PublicKey {
+  private static final long serialVersionUID = 1;
+
   private final byte[] publicKey;
 
   /** Takes ownership of {@code publicKey}; callers must not modify it afterwards. */

@@ -19,7 +19,13 @@ import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.ShortBufferException;
 
-/** Seals and opens messages in an HPKE base-mode context. */
+/**
+ * Seals and opens messages in an HPKE base-mode context.
+ *
+ * <p>Each method call is atomic, so threads may share a sender that seals each message with a
+ * single {@code doFinal}. A message built from several {@code updateAAD}, {@code update}, and
+ * {@code doFinal} calls must come from one thread at a time.
+ */
 class HpkeCipher extends CipherSpi {
   private static native long nativeSetupSender(
       int kemId, int kdfId, int aeadId, byte[] recipientPublicKey, byte[] info, byte[] encOut)
@@ -101,8 +107,8 @@ class HpkeCipher extends CipherSpi {
    *     by AWS-LC
    * @throws InvalidAlgorithmParameterException if parameters are missing or unsupported, the suite
    *     is unavailable or mismatched, or the encapsulation is missing, unexpected, or invalid
-   * @throws UnsupportedOperationException if a wrapping mode is requested, checked before suite
-   *     support
+   * @throws UnsupportedOperationException if a wrapping mode is requested, checked after the key
+   *     type and parameters but before suite support
    */
   @Override
   protected void engineInit(
@@ -129,9 +135,6 @@ class HpkeCipher extends CipherSpi {
       }
       if (!sender && !(key instanceof HpkePrivateKey)) {
         throw new InvalidKeyException("HPKE DECRYPT_MODE requires the recipient's private key");
-      }
-      if (!sender && ((HpkePrivateKey) key).isDestroyed()) {
-        throw new InvalidKeyException("HPKE private key has been destroyed");
       }
       final byte[] enc = spec.encapsulationInternal();
       if (sender && enc != null) {
@@ -179,7 +182,7 @@ class HpkeCipher extends CipherSpi {
                           nativeSetupRecipient(
                               ptr, suite.kemId, suite.kdfId, suite.aeadId, enc, info)));
         } catch (final IllegalStateException ex) {
-          // Classify a racing destroy() as an invalid key too.
+          // A destroyed key, including one destroyed concurrently, is an invalid key.
           if (privateKey.isDestroyed()) {
             throw new InvalidKeyException("HPKE private key has been destroyed", ex);
           }
@@ -348,7 +351,8 @@ class HpkeCipher extends CipherSpi {
 
   /**
    * Buffers input for the current message without producing output. AWS-LC seals or opens the whole
-   * message at finalization, so each message must fit in a Java array.
+   * message at finalization, so each message must fit in a Java array. As with SunJCE, {@code
+   * update(ByteBuffer, ByteBuffer)} still requires output space for the whole message.
    *
    * @throws IllegalStateException if the Cipher has not been initialized
    */
@@ -502,9 +506,6 @@ class HpkeCipher extends CipherSpi {
         inputLen = buffer_.size();
       }
       final boolean sender = mode_ == Cipher.ENCRYPT_MODE;
-      if (!sender && inputLen < suite_.aeadOverhead()) {
-        throw new AEADBadTagException("HPKE decryption failed");
-      }
       // AWS-LC allows exact in-place or disjoint output. Copy other overlaps and cleanse
       // afterwards.
       if (input == output

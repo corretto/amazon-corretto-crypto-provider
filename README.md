@@ -176,7 +176,8 @@ other provider to try.
 
 ACCP supports [RFC 9180](https://datatracker.ietf.org/doc/html/rfc9180) base mode on JDK 8+ with
 ML-KEM-768 / HKDF-SHA256 / AES-128-GCM and ML-KEM-1024 / HKDF-SHA384 / AES-256-GCM.
-Availability depends on the linked AWS-LC. The ML-KEM codepoints come from draft-ietf-hpke-pq and may change.
+Availability depends on the linked AWS-LC, and ACCP-FIPS does not register HPKE.
+The ML-KEM codepoints come from draft-ietf-hpke-pq and may change.
 
 Initialize ACCP's `HPKE` KeyPairGenerator with a suite constant from
 [`HpkeSpec`](./src/com/amazon/corretto/crypto/provider/HpkeSpec.java).
@@ -187,13 +188,10 @@ Do not reuse keys across ML-KEM and HPKE.
 For independent messages, [`HpkeUtils`](./src/com/amazon/corretto/crypto/utils/HpkeUtils.java) provides
 `seal` and `open` with `enc || ciphertext` framing and explicit ACCP selection.
 
-For a Cipher context, use the same suite and `info` on both sides. Transport the sender's
-`getIV()` encapsulation to the recipient's `withEncapsulation(enc)` parameters; `doFinal` returns
-only the message output. Supply matching AAD before each message's `update` calls.
-Messages are buffered until `doFinal`, must fit in a Java array, and must be opened in order.
-When splitting large data, authenticate ordering and completion in AAD. Permanent message loss
-requires a new sender context and encapsulation; reusing the old encapsulation permits replays.
-Use independent contexts for loss tolerance.
+For a Cipher context, pass the sender's `getIV()` encapsulation to the recipient's
+`withEncapsulation(enc)`. Messages are buffered until `doFinal` and must be opened in order.
+When splitting large data, authenticate ordering and completion in AAD. After a message is lost
+for good, start a new sender context; reusing the old encapsulation permits replays.
 
 See [DIFFERENCES.md](./DIFFERENCES.md#hpke-differs-from-jdk-26s-hpke-cipher) for JDK 26
 compatibility.
@@ -229,6 +227,7 @@ Notable differences between ACCP and ACCP-FIPS:
 * In FIPS-mode, RSA keys are limited to 2048, 3072, or 4096 bits in size with public exponent F4.
 * Due to the fact that an older branch of AWS-LC is used in FIPS-mode, there will be performance differences between ACCP and ACCP-FIPS. We highly recommend performing detailed performance testing of your application if you choose to experiment with ACCP-FIPS.
 * Between versions 2.1.0 and 2.3.3 (inclusive), ACCP-FIPS does not register SecureRandom by default due to the performance of AWS-LC’s entropy source in FIPS-mode, with older versions of AWS-LC. Since version 2.4.0, ACCP-FIPS behaves as ACCP: it registers SecureRandom from AWS-LC by default. [A system property](https://github.com/corretto/amazon-corretto-crypto-provider#other-system-properties) is available to change the default behavior.
+* ACCP-FIPS does not register HPKE, because the AWS-LC-FIPS release it links provides no ML-KEM HPKE suites.
 * ACCP-FIPS cannot *serialize* an ML-KEM private key in the seed format of [RFC 9935](https://datatracker.ietf.org/doc/html/rfc9935#section-6): the `KEM_KEY` of the AWS-LC-FIPS release ACCP-FIPS links has no field in which to retain the keygen seed, so `PrivateKey.getEncoded()` emits the `expandedKey` CHOICE where ACCP emits `seed`. Both CHOICEs are still *parsed* in every build, so a seed-format key imported through `KeyFactory` works everywhere; it simply re-encodes to the expanded form under FIPS. ACCP supplies the seed decoder itself, since the FIPS module decodes only the `expandedKey` CHOICE. For well-formed keys this is the only intended behavioral difference in ML-KEM key handling between the FIPS and non-FIPS builds, and it goes away when ACCP-FIPS moves to an AWS-LC-FIPS release whose `KEM_KEY` retains the seed. Builds configured with `-DEXPERIMENTAL_FIPS=1` track the non-FIPS AWS-LC branch and so are unaffected.
 
 ACCP-FIPS is only supported on the following platforms:

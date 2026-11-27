@@ -30,6 +30,8 @@ import java.security.Key;
  * @serial exclude
  */
 public abstract class HpkeKey implements Key {
+  private static final long serialVersionUID = 1;
+
   private final HpkeSuite suite;
 
   HpkeKey(final HpkeSuite suite) {

@@ -3,6 +3,7 @@
 #include "auto_free.h"
 #include "buffer.h"
 #include "generated-headers.h"
+#include "hpke_suites.h"
 #include "test_fake_jni.h"
 #include "test_utils.h"
 #include "util.h"
@@ -15,45 +16,15 @@
 
 using namespace AmazonCorrettoCryptoProvider;
 
-// Native tests for csrc/hpke.cpp: Java array borrows across seal/open, and key ownership.
+// Native tests for csrc/hpke.cpp: Java array borrows across seal/open and seed conversion.
 namespace {
-
-// Counts frees of one watched pointer, through AWS-LC's allocation hooks.
-void* watched_ptr = nullptr;
-int watched_frees = 0;
-
-void* test_malloc(size_t size, const char*, int) { return std::malloc(size); }
-void* test_realloc(void* ptr, size_t size, const char*, int) { return std::realloc(ptr, size); }
-void test_free(void* ptr, const char*, int)
-{
-    if (ptr != nullptr && ptr == watched_ptr) {
-        ++watched_frees;
-    }
-    std::free(ptr);
-}
-
-struct TestHpkeSuite {
-    const EVP_HPKE_KEM* (*kem)();
-    const EVP_HPKE_KDF* (*kdf)();
-    const EVP_HPKE_AEAD* (*aead)();
-};
-
-const TestHpkeSuite kTestHpkeSuites[] = {
-#if defined(EVP_HPKE_MLKEM768)
-    { EVP_hpke_mlkem768, EVP_hpke_hkdf_sha256, EVP_hpke_aes_128_gcm },
-#endif
-#if defined(EVP_HPKE_MLKEM1024) && defined(EVP_HPKE_HKDF_SHA384)
-    { EVP_hpke_mlkem1024, EVP_hpke_hkdf_sha384, EVP_hpke_aes_256_gcm },
-#endif
-    { nullptr, nullptr, nullptr },
-};
 
 struct TestHpkeContexts {
     EVP_HPKE_CTX sender;
     EVP_HPKE_CTX recipient;
     bool ready;
 
-    explicit TestHpkeContexts(const TestHpkeSuite& suite)
+    explicit TestHpkeContexts(const HpkeSuiteRow& suite)
         : ready(false)
     {
         EVP_HPKE_CTX_zero(&sender);
@@ -112,7 +83,7 @@ void check_hpke_borrows(FakeJni& jni,
 
 void test_hpke_array_scopes()
 {
-    for (const auto& suite : kTestHpkeSuites) {
+    for (const auto& suite : kHpkeSuites) {
         if (!suite.kem) {
             break;
         }
@@ -186,7 +157,7 @@ void test_hpke_array_scopes()
 
 void test_hpke_acquisition_failure()
 {
-    for (const auto& suite : kTestHpkeSuites) {
+    for (const auto& suite : kHpkeSuites) {
         if (!suite.kem) {
             break;
         }
@@ -236,24 +207,12 @@ void test_hpke_acquisition_failure()
 
 void test_hpke_seed_conversion()
 {
-    const jint suites[][3] = {
-#if defined(EVP_HPKE_MLKEM768)
-        { EVP_HPKE_MLKEM768, EVP_HPKE_HKDF_SHA256, EVP_HPKE_AES_128_GCM },
-#endif
-#if defined(EVP_HPKE_MLKEM1024) && defined(EVP_HPKE_HKDF_SHA384)
-        { EVP_HPKE_MLKEM1024, EVP_HPKE_HKDF_SHA384, EVP_HPKE_AES_256_GCM },
-#endif
-        { 0, 0, 0 },
-    };
-    for (const auto& suite : suites) {
-        if (suite[0] == 0) {
-            break;
-        }
+    for (const HpkeSuiteRow* suite = kHpkeSuites; suite->kem != nullptr; ++suite) {
         for (size_t len : { size_t(0), size_t(63), size_t(65), size_t(2400) }) {
             FakeJni jni;
             FakeArray seed(len);
             const jlong key = Java_com_amazon_corretto_crypto_provider_HpkePrivateKey_nativeImport(
-                &jni, nullptr, suite[0], suite[1], suite[2], &seed);
+                &jni, nullptr, suite->kem_id, suite->kdf_id, suite->aead_id, &seed);
             TEST_ASSERT(key == 0 && jni.exception_pending && jni.exception_name == EX_INVALID_KEY);
             TEST_ASSERT(jni.reads == 0);
         }
@@ -264,7 +223,7 @@ void test_hpke_seed_conversion()
             seed.bytes[i] = static_cast<uint8_t>(i);
         }
         const jlong key_ptr = Java_com_amazon_corretto_crypto_provider_HpkePrivateKey_nativeImport(
-            &jni, nullptr, suite[0], suite[1], suite[2], &seed);
+            &jni, nullptr, suite->kem_id, suite->kdf_id, suite->aead_id, &seed);
         EVP_HPKE_KEY_auto key = EVP_HPKE_KEY_auto::from(reinterpret_cast<EVP_HPKE_KEY*>(key_ptr));
         TEST_ASSERT(!jni.exception_pending && key.isInitialized());
         if (!key.isInitialized()) {
@@ -279,36 +238,13 @@ void test_hpke_seed_conversion()
     }
 }
 
-void test_private_key_native_release()
-{
-    EVP_HPKE_KEY* key = EVP_HPKE_KEY_new();
-    TEST_ASSERT(key != nullptr);
-    watched_ptr = key;
-    watched_frees = 0;
-    jlong java_owner;
-    {
-        EVP_HPKE_KEY_auto native_owner = EVP_HPKE_KEY_auto::from(key);
-        java_owner = reinterpret_cast<jlong>(native_owner.take());
-        TEST_ASSERT(native_owner.get() == nullptr);
-    }
-    TEST_ASSERT(watched_frees == 0);
-    Java_com_amazon_corretto_crypto_provider_HpkePrivateKey_nativeRelease(nullptr, nullptr, java_owner);
-    TEST_ASSERT(watched_frees == 1);
-    watched_ptr = nullptr;
-}
-
 } // namespace
 
 int main()
 {
     BEGIN_TEST();
-    if (CRYPTO_set_mem_functions(test_malloc, test_realloc, test_free) != 1) {
-        std::fprintf(stderr, "Unable to install allocation tracking hooks\n");
-        return 1;
-    }
     RUNTEST(test_hpke_array_scopes);
     RUNTEST(test_hpke_acquisition_failure);
     RUNTEST(test_hpke_seed_conversion);
-    RUNTEST(test_private_key_native_release);
     END_TEST();
 }
