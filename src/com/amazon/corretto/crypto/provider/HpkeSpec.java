@@ -5,23 +5,14 @@ package com.amazon.corretto.crypto.provider;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.spec.AlgorithmParameterSpec;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Objects;
-import java.util.Set;
-import java.util.TreeSet;
 
 /**
  * Parameters for ACCP's {@code HPKE} Cipher and KeyPairGenerator: an RFC 9180 base-mode suite,
- * optional {@code info}, and the recipient's KEM encapsulation.
+ * optional {@code info}, and the sender's KEM encapsulation for the recipient.
  *
  * <p>The supported suites have named constants with empty {@code info} and no encapsulation:
  *
@@ -30,9 +21,10 @@ import java.util.TreeSet;
  *   <li>{@link #ML_KEM_1024_HKDF_SHA384_AES_256_GCM}
  * </ul>
  *
- * <p>Suite support is checked when a Cipher or KeyPairGenerator is initialized and depends on the
- * linked AWS-LC. ACCP also accepts JDK 26's {@code javax.crypto.spec.HPKEParameterSpec} for
- * supported base-mode suites; PSK and auth modes are unsupported.
+ * <p>Suite support depends on the linked AWS-LC and is checked when a Cipher or KeyPairGenerator is
+ * initialized, or a key is imported with {@code fromEncoded}. ACCP also accepts JDK 26's {@code
+ * javax.crypto.spec.HPKEParameterSpec} for supported base-mode suites; PSK and auth modes are
+ * unsupported.
  *
  * <p>Instances are immutable, so the constants are safe to share. Byte arrays are copied on the way
  * in and on the way out.
@@ -58,29 +50,6 @@ public final class HpkeSpec implements AlgorithmParameterSpec {
   public static final int AEAD_AES_256_GCM = 0x0002;
 
   private static final String JDK_SPEC_CLASS = "javax.crypto.spec.HPKEParameterSpec";
-  // Unknown public instance methods may represent fields the adapter would silently drop.
-  private static final Set<String> KNOWN_JDK_SPEC_METHODS = new HashSet<>();
-
-  static {
-    KNOWN_JDK_SPEC_METHODS.addAll(
-        Arrays.asList(
-            "of",
-            "withInfo",
-            "withPsk",
-            "withEncapsulation",
-            "withAuthKey",
-            "kem_id",
-            "kdf_id",
-            "aead_id",
-            "info",
-            "psk",
-            "psk_id",
-            "authKey",
-            "encapsulation"));
-    for (final Method m : Object.class.getMethods()) {
-      KNOWN_JDK_SPEC_METHODS.add(m.getName());
-    }
-  }
 
   /** ML-KEM-768, HKDF-SHA256, AES-128-GCM; base mode, empty info. */
   public static final HpkeSpec ML_KEM_768_HKDF_SHA256_AES_128_GCM =
@@ -148,7 +117,7 @@ public final class HpkeSpec implements AlgorithmParameterSpec {
    * Adapts ACCP or JDK parameters without checking suite support; see {@link HpkeSuite#require}.
    *
    * @throws InvalidAlgorithmParameterException if {@code params} is null, of another type, a JDK
-   *     spec with a PSK or an auth key, or a JDK spec whose class the adapter does not recognize
+   *     spec with a PSK or an auth key
    */
   static HpkeSpec from(final AlgorithmParameterSpec params)
       throws InvalidAlgorithmParameterException {
@@ -159,10 +128,6 @@ public final class HpkeSpec implements AlgorithmParameterSpec {
     }
     if (params instanceof HpkeSpec) {
       return (HpkeSpec) params;
-    }
-    if (JdkSpec.CLASS == null && JDK_SPEC_CLASS.equals(params.getClass().getName())) {
-      throw new InvalidAlgorithmParameterException(
-          unadaptableJdkSpecMessage(JdkSpec.UNRECOGNIZED_METHODS));
     }
     if (JdkSpec.CLASS == null || !JdkSpec.CLASS.isInstance(params)) {
       throw new InvalidAlgorithmParameterException(
@@ -207,32 +172,6 @@ public final class HpkeSpec implements AlgorithmParameterSpec {
     return create(kemId, kdfId, aeadId, info, encapsulation);
   }
 
-  /**
-   * The method names the JDK-spec adapter does not know, sorted. A new public method may mean a new
-   * field that the adapter would silently drop.
-   */
-  static List<String> unknownJdkSpecMethods(final Collection<String> methodNames) {
-    final Set<String> unknown = new TreeSet<>(methodNames);
-    unknown.removeAll(KNOWN_JDK_SPEC_METHODS);
-    return new ArrayList<>(unknown);
-  }
-
-  /**
-   * The error for a JDK spec that the adapter cannot convert: {@code unrecognized} lists the JDK
-   * class's unknown methods, or is null if the class could not be read at all.
-   */
-  static String unadaptableJdkSpecMessage(final List<String> unrecognized) {
-    final String why =
-        unrecognized == null
-            ? "ACCP cannot read " + JDK_SPEC_CLASS + " on this JDK"
-            : "ACCP does not recognize method(s) "
-                + unrecognized
-                + " of "
-                + JDK_SPEC_CLASS
-                + " on this JDK";
-    return why + "; use " + HpkeSpec.class.getName() + " or upgrade ACCP";
-  }
-
   private static void checkId(final String name, final int id) {
     if (id < 0 || id > 0xFFFF) {
       throw new IllegalArgumentException(name + " must be in [0, 65535]: " + id);
@@ -257,8 +196,8 @@ public final class HpkeSpec implements AlgorithmParameterSpec {
   }
 
   /**
-   * Returns a copy with the recipient's KEM encapsulation ({@code enc}), defensively copying the
-   * input array.
+   * Returns a copy with the sender's KEM encapsulation ({@code enc}), defensively copying the input
+   * array.
    *
    * @param encapsulation the sender's KEM encapsulation
    * @return a spec with the given encapsulation and all other parameters unchanged
@@ -381,12 +320,9 @@ public final class HpkeSpec implements AlgorithmParameterSpec {
     static final MethodHandle PSK;
     static final MethodHandle PSK_ID;
     static final MethodHandle AUTH_KEY;
-    // Unknown methods that prevented adaptation, or null for other lookup failures.
-    static final List<String> UNRECOGNIZED_METHODS;
 
     static {
       Class<?> cls = null;
-      List<String> unrecognized = null;
       MethodHandle kemId = null;
       MethodHandle kdfId = null;
       MethodHandle aeadId = null;
@@ -406,24 +342,12 @@ public final class HpkeSpec implements AlgorithmParameterSpec {
         psk = accessor(c, "psk", Object.class);
         pskId = accessor(c, "psk_id", Object.class);
         authKey = accessor(c, "authKey", Object.class);
-        final Set<String> names = new HashSet<>();
-        for (final Method m : c.getMethods()) {
-          if (!Modifier.isStatic(m.getModifiers())) {
-            names.add(m.getName());
-          }
-        }
-        final List<String> unknown = unknownJdkSpecMethods(names);
-        if (unknown.isEmpty()) {
-          cls = c;
-        } else {
-          unrecognized = Collections.unmodifiableList(unknown);
-        }
+        cls = c;
       } catch (final ReflectiveOperationException | LinkageError | RuntimeException ex) {
         // Not on this JDK (or not usable): JDK specs are then rejected as an unsupported type.
         cls = null;
       }
       CLASS = cls;
-      UNRECOGNIZED_METHODS = unrecognized;
       KEM_ID = kemId;
       KDF_ID = kdfId;
       AEAD_ID = aeadId;

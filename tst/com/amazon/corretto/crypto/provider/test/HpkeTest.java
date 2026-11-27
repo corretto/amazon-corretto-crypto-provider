@@ -1070,26 +1070,6 @@ public class HpkeTest {
         () -> fromComponents(s.kemId, s.kdfId, s.aeadId, EMPTY, null, null, EMPTY, authKey));
   }
 
-  @Test
-  public void unadaptableJdkSpecSaysWhy() throws Throwable {
-    final List<String> names = new ArrayList<>(Arrays.asList("kem_id", "zeta", "info", "alpha"));
-    final List<String> unknown =
-        TestUtil.sneakyInvoke(HpkeSpec.class, "unknownJdkSpecMethods", (Object) names);
-    assertEquals(Arrays.asList("alpha", "zeta"), unknown);
-    final String message =
-        TestUtil.sneakyInvoke(HpkeSpec.class, "unadaptableJdkSpecMessage", (Object) unknown);
-    assertEquals(
-        "ACCP does not recognize method(s) [alpha, zeta] of "
-            + JDK_SPEC_CLASS
-            + " on this JDK;"
-            + " use com.amazon.corretto.crypto.provider.HpkeSpec or upgrade ACCP",
-        message);
-    final String unreadable =
-        TestUtil.sneakyInvoke(HpkeSpec.class, "unadaptableJdkSpecMessage", (Object) null);
-    assertTrue(unreadable.startsWith("ACCP cannot read " + JDK_SPEC_CLASS), unreadable);
-    assertTrue(unreadable.endsWith("or upgrade ACCP"), unreadable);
-  }
-
   private static Class<?> jdkSpecClassOrSkip() {
     Class<?> cls = null;
     try {
