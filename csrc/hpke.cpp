@@ -11,6 +11,7 @@
 #include <openssl/hpke.h>
 #include <openssl/mem.h>
 #include <memory>
+#include <new>
 #include <vector>
 
 // Base-mode ML-KEM suites follow hpke.h capabilities, including builds with no available suites.
@@ -206,6 +207,7 @@ extern "C" JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_Hpke
     try {
         raii_env env(pEnv);
         const EVP_HPKE_KEM* kem = find_suite(kemId, kdfId, aeadId)->kem();
+        ERR_clear_error();
         EVP_HPKE_KEY_auto key = EVP_HPKE_KEY_auto::from(EVP_HPKE_KEY_new());
         CHECK_OPENSSL(key.isInitialized());
         CHECK_OPENSSL(EVP_HPKE_KEY_generate(key.get(), kem));
@@ -222,6 +224,7 @@ extern "C" JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_Hpke
     try {
         raii_env env(pEnv);
         const EVP_HPKE_KEM* kem = find_suite(kemId, kdfId, aeadId)->kem();
+        ERR_clear_error();
         java_buffer seedBuf = java_buffer::from_array(env, seedArray);
         if (seedBuf.len() != EVP_HPKE_KEM_private_key_len(kem)) {
             throw_java_ex(EX_INVALID_KEY, "Invalid HPKE private key");
@@ -318,6 +321,9 @@ extern "C" JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_Hpke
         return reinterpret_cast<jlong>(ctx.release());
     } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);
+    } catch (const std::bad_alloc&) {
+        // SecureAlloc throws bad_alloc; it must not cross the JNI boundary.
+        java_ex(EX_OOM, "Unable to allocate memory for HPKE inputs").throw_to_java(pEnv);
     }
     return 0;
 }
@@ -348,6 +354,9 @@ extern "C" JNIEXPORT jlong JNICALL Java_com_amazon_corretto_crypto_provider_Hpke
         return reinterpret_cast<jlong>(ctx.release());
     } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);
+    } catch (const std::bad_alloc&) {
+        // SecureAlloc throws bad_alloc; it must not cross the JNI boundary.
+        java_ex(EX_OOM, "Unable to allocate memory for HPKE inputs").throw_to_java(pEnv);
     }
     return 0;
 }
@@ -517,6 +526,9 @@ Java_com_amazon_corretto_crypto_provider_test_NativeTestHooks_hpkeSealWithSeedFo
         return result;
     } catch (java_ex& ex) {
         ex.throw_to_java(pEnv);
+    } catch (const std::bad_alloc&) {
+        // SecureAlloc throws bad_alloc; it must not cross the JNI boundary.
+        java_ex(EX_OOM, "Unable to allocate memory for HPKE inputs").throw_to_java(pEnv);
     }
     return nullptr;
 }
