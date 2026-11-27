@@ -176,7 +176,7 @@ other provider to try.
 
 ACCP supports [RFC 9180](https://datatracker.ietf.org/doc/html/rfc9180) base mode on JDK 8+ with
 ML-KEM-768 / HKDF-SHA256 / AES-128-GCM and ML-KEM-1024 / HKDF-SHA384 / AES-256-GCM.
-Availability depends on the linked AWS-LC, and ACCP-FIPS does not register HPKE.
+ACCP registers HPKE whenever the linked AWS-LC provides these suites, in FIPS and non-FIPS builds alike.
 The ML-KEM codepoints come from draft-ietf-hpke-pq and may change.
 
 Initialize ACCP's `HPKE` KeyPairGenerator with a suite constant from
@@ -227,7 +227,7 @@ Notable differences between ACCP and ACCP-FIPS:
 * In FIPS-mode, RSA keys are limited to 2048, 3072, or 4096 bits in size with public exponent F4.
 * Due to the fact that an older branch of AWS-LC is used in FIPS-mode, there will be performance differences between ACCP and ACCP-FIPS. We highly recommend performing detailed performance testing of your application if you choose to experiment with ACCP-FIPS.
 * Between versions 2.1.0 and 2.3.3 (inclusive), ACCP-FIPS does not register SecureRandom by default due to the performance of AWS-LC’s entropy source in FIPS-mode, with older versions of AWS-LC. Since version 2.4.0, ACCP-FIPS behaves as ACCP: it registers SecureRandom from AWS-LC by default. [A system property](https://github.com/corretto/amazon-corretto-crypto-provider#other-system-properties) is available to change the default behavior.
-* ACCP-FIPS does not register HPKE, because the AWS-LC-FIPS release it links provides no ML-KEM HPKE suites.
+* As in other builds, ACCP-FIPS registers HPKE only if the AWS-LC-FIPS release it links provides the HPKE suites.
 * ACCP-FIPS cannot *serialize* an ML-KEM private key in the seed format of [RFC 9935](https://datatracker.ietf.org/doc/html/rfc9935#section-6): the `KEM_KEY` of the AWS-LC-FIPS release ACCP-FIPS links has no field in which to retain the keygen seed, so `PrivateKey.getEncoded()` emits the `expandedKey` CHOICE where ACCP emits `seed`. Both CHOICEs are still *parsed* in every build, so a seed-format key imported through `KeyFactory` works everywhere; it simply re-encodes to the expanded form under FIPS. ACCP supplies the seed decoder itself, since the FIPS module decodes only the `expandedKey` CHOICE. For well-formed keys this is the only intended behavioral difference in ML-KEM key handling between the FIPS and non-FIPS builds, and it goes away when ACCP-FIPS moves to an AWS-LC-FIPS release whose `KEM_KEY` retains the seed. Builds configured with `-DEXPERIMENTAL_FIPS=1` track the non-FIPS AWS-LC branch and so are unaffected.
 
 ACCP-FIPS is only supported on the following platforms:
