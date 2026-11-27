@@ -32,6 +32,24 @@ public class NativeTestHooks {
   public static native void borrowCheckRange(
       byte[] array, int offset, int length, int off2, int len2);
 
+  /** Checks AWS-LC's accessors for the curated suites, independently of ACCP's suite table. */
+  public static native boolean hpkeSuiteAvailable(int kemId, int kdfId, int aeadId);
+
+  /**
+   * Deterministic KAT seal: message i uses sequence i; encapsulation goes to {@code encOut}. The
+   * shipped native symbol binds only to this test class.
+   */
+  public static native byte[][] hpkeSealWithSeedForTesting(
+      int kemId,
+      int kdfId,
+      int aeadId,
+      byte[] recipientPublicKey,
+      byte[] info,
+      byte[] seed,
+      byte[][] aads,
+      byte[][] plaintexts,
+      byte[] encOut);
+
   public static boolean hasNativeHooks() {
     try {
       // Force loading library
