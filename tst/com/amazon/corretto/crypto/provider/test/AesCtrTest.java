@@ -699,7 +699,9 @@ public class AesCtrTest {
         () -> Cipher.getInstance("AES/Ctr/InvalidPadding", TestUtil.NATIVE_PROVIDER));
 
     // Direct invocation via reflection
-    Object spi = TestUtil.sneakyConstruct(SPI_CLASS.getName(), TestUtil.NATIVE_PROVIDER);
+    Object spi =
+        TestUtil.sneakyConstruct(
+            SPI_CLASS.getName(), TestUtil.NATIVE_PROVIDER, /*fixedKeySizeInBytes*/ 0);
     assertThrows(
         NoSuchPaddingException.class,
         () -> TestUtil.sneakyInvoke(spi, "engineSetPadding", "FakePadding"));
@@ -710,7 +712,9 @@ public class AesCtrTest {
 
   @Test
   public void testMiscellaneous() throws Throwable {
-    Object spi = TestUtil.sneakyConstruct(SPI_CLASS.getName(), TestUtil.NATIVE_PROVIDER);
+    Object spi =
+        TestUtil.sneakyConstruct(
+            SPI_CLASS.getName(), TestUtil.NATIVE_PROVIDER, /*fixedKeySizeInBytes*/ 0);
     TestUtil.sneakyInvoke(spi, "engineSetPadding", "NoPadding"); // valid, nothing happens
     TestUtil.sneakyInvoke(spi, "engineSetMode", "CTR"); // valid, nothing happens
 
