@@ -28,6 +28,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.AlgorithmParameters;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
+import java.security.InvalidParameterException;
 import java.security.Key;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -750,46 +751,6 @@ public class HpkeTest {
     }
   }
 
-  private static int capacity(final Object spi, final String field) throws Throwable {
-    return ((byte[]) TestUtil.sneakyInvoke(TestUtil.sneakyGetField(spi, field), "getDataBuffer"))
-        .length;
-  }
-
-  @Test
-  public void largeMessageBufferIsNotRetained() throws Throwable {
-    final HpkeTestSuite suite = anyAvailableSuite();
-    final KeyPair kp = suite.generateKeyPair();
-    // The SPI is used directly: reflection into javax.crypto.Cipher is not possible on JDK 17+.
-    final Object spi =
-        TestUtil.sneakyConstruct(TestUtil.NATIVE_PROVIDER_PACKAGE + ".HpkeCipher", NATIVE_PROVIDER);
-    TestUtil.sneakyInvoke(
-        spi, "engineInit", Cipher.ENCRYPT_MODE, kp.getPublic(), suite.spec(), (SecureRandom) null);
-    final int retained = 64 * 1024;
-    final byte[][] cts = new byte[3][];
-    final byte[][] messages = {new byte[1024], new byte[200 * 1024], new byte[1024]};
-    for (int i = 0; i < messages.length; i++) {
-      new Random(i).nextBytes(messages[i]);
-      TestUtil.sneakyInvoke(spi, "engineUpdateAAD", messages[i], 0, messages[i].length);
-      TestUtil.sneakyInvoke(spi, "engineUpdate", messages[i], 0, messages[i].length);
-      cts[i] = TestUtil.sneakyInvoke(spi, "engineDoFinal", new byte[0], 0, 0);
-      assertEquals(messages[i].length + HpkeTestSuite.AEAD_OVERHEAD, cts[i].length);
-      for (final String field : new String[] {"buffer_", "aad_"}) {
-        final int capacity = capacity(spi, field);
-        if (messages[i].length > retained) {
-          assertTrue(capacity <= retained, field + " " + capacity);
-        } else {
-          assertTrue(capacity > 0 && capacity <= retained, field + " " + capacity);
-        }
-      }
-    }
-    final byte[] enc = TestUtil.sneakyInvoke(spi, "engineGetIV");
-    final Cipher recipient = recipient(suite, kp, enc);
-    for (int i = 0; i < messages.length; i++) {
-      recipient.updateAAD(messages[i]);
-      assertArrayEquals(messages[i], recipient.doFinal(cts[i]), "message " + i);
-    }
-  }
-
   private static void assumeHpkeRegistered() {
     assumeTrue(HpkeTestSuite.anyAvailable(), "the linked AWS-LC provides no HPKE suite");
   }
@@ -876,13 +837,21 @@ public class HpkeTest {
   public void generatorRequiresHpkeSpec() throws Exception {
     final KeyPairGenerator kpg = generator();
     assertThrows(IllegalStateException.class, kpg::generateKeyPair);
-    assertThrows(UnsupportedOperationException.class, () -> kpg.initialize(256));
+    assertThrows(InvalidParameterException.class, () -> kpg.initialize(256));
+    kpg.initialize(-1, new SecureRandom());
     assertThrows(
         InvalidAlgorithmParameterException.class,
         () -> kpg.initialize(new IvParameterSpec(new byte[16])));
     assertThrows(
         InvalidAlgorithmParameterException.class,
         () -> kpg.initialize((AlgorithmParameterSpec) null));
+    assertThrows(IllegalStateException.class, kpg::generateKeyPair);
+
+    // A failed initialize must not leave a previously selected suite in place.
+    kpg.initialize(anyAvailableSuite().spec());
+    assertThrows(
+        InvalidAlgorithmParameterException.class,
+        () -> kpg.initialize(new IvParameterSpec(new byte[16])));
     assertThrows(IllegalStateException.class, kpg::generateKeyPair);
   }
 

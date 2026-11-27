@@ -59,9 +59,6 @@ class HpkeCipher extends CipherSpi {
     }
   }
 
-  // Reuse typical buffers; release larger ones after cleansing to avoid retaining peak capacity.
-  private static final int RETAINED_CAPACITY = 64 * 1024;
-
   private static AccessibleByteArrayOutputStream newStream() {
     return new AccessibleByteArrayOutputStream(0, Integer.MAX_VALUE);
   }
@@ -76,13 +73,13 @@ class HpkeCipher extends CipherSpi {
   // @GuardedBy("lock_") The sender's encapsulation; null for a recipient or before init.
   private byte[] enc_;
   // @GuardedBy("lock_")
-  private AccessibleByteArrayOutputStream buffer_ = newStream();
+  private final AccessibleByteArrayOutputStream buffer_ = newStream();
   // @GuardedBy("lock_")
-  private AccessibleByteArrayOutputStream aad_ = newStream();
+  private final AccessibleByteArrayOutputStream aad_ = newStream();
   // @GuardedBy("lock_")
   private boolean dataStarted_;
 
-  HpkeCipher(final AmazonCorrettoCryptoProvider provider) {
+  HpkeCipher() {
     Loader.checkNativeLibraryAvailability();
   }
 
@@ -265,15 +262,9 @@ class HpkeCipher extends CipherSpi {
 
   // @GuardedBy("lock_")
   private void resetMessage() {
-    // reset() zeroes the used bytes, so a released array holds no message data.
+    // reset() zeroes the used bytes.
     buffer_.reset();
     aad_.reset();
-    if (buffer_.getDataBuffer().length > RETAINED_CAPACITY) {
-      buffer_ = newStream();
-    }
-    if (aad_.getDataBuffer().length > RETAINED_CAPACITY) {
-      aad_ = newStream();
-    }
     dataStarted_ = false;
   }
 

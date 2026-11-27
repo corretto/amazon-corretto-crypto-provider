@@ -3,6 +3,7 @@
 package com.amazon.corretto.crypto.provider;
 
 import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidParameterException;
 import java.security.KeyPair;
 import java.security.KeyPairGeneratorSpi;
 import java.security.SecureRandom;
@@ -13,18 +14,20 @@ class HpkeGen extends KeyPairGeneratorSpi {
   // Volatile because initialize() and generateKeyPair() may run on different threads.
   private volatile HpkeSuite suite;
 
-  HpkeGen(final AmazonCorrettoCryptoProvider provider) {
+  HpkeGen() {
     Loader.checkNativeLibraryAvailability();
   }
 
   /**
-   * Rejects initialization by key size; an HPKE suite must be selected with parameters.
-   *
-   * @throws UnsupportedOperationException always
+   * HPKE key sizes are fixed by the suite, so a suite can't be selected by key size. Per the {@code
+   * KeyPairGenerator.initialize(int, SecureRandom)} contract, such a request is rejected with
+   * {@code InvalidParameterException}. As for ML-KEM, a keysize of -1 is accepted as a no-op.
    */
   @Override
   public void initialize(final int keysize, final SecureRandom random) {
-    throw new UnsupportedOperationException("HPKE key generation requires an HpkeSpec");
+    if (keysize != -1) {
+      throw new InvalidParameterException("HPKE key generation requires an HpkeSpec");
+    }
   }
 
   /**
@@ -35,11 +38,12 @@ class HpkeGen extends KeyPairGeneratorSpi {
    * <p>The {@code random} parameter is ignored; key generation draws from AWS-LC's DRBG.
    *
    * @throws InvalidAlgorithmParameterException if parameters are missing, unsupported, or name an
-   *     unavailable suite
+   *     unavailable suite; the generator is then uninitialized
    */
   @Override
   public void initialize(final AlgorithmParameterSpec params, final SecureRandom random)
       throws InvalidAlgorithmParameterException {
+    suite = null;
     final HpkeSpec spec = HpkeSpec.from(params);
     suite = HpkeSuite.require(spec.kem_id(), spec.kdf_id(), spec.aead_id());
   }
