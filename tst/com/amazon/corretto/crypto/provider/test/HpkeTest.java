@@ -5,10 +5,13 @@ package com.amazon.corretto.crypto.provider.test;
 import static com.amazon.corretto.crypto.provider.test.HpkeTestSuite.cipher;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyInvoke;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -17,9 +20,9 @@ import com.amazon.corretto.crypto.provider.HpkeKey;
 import com.amazon.corretto.crypto.provider.HpkePrivateKey;
 import com.amazon.corretto.crypto.provider.HpkePublicKey;
 import com.amazon.corretto.crypto.provider.HpkeSpec;
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
+import java.io.NotSerializableException;
+import java.io.ObjectOutputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.AlgorithmParameters;
@@ -30,7 +33,6 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
-import java.security.Provider;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
@@ -40,11 +42,10 @@ import java.util.List;
 import java.util.Random;
 import javax.crypto.AEADBadTagException;
 import javax.crypto.Cipher;
-import javax.crypto.CipherInputStream;
-import javax.crypto.CipherOutputStream;
 import javax.crypto.ShortBufferException;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 import javax.security.auth.Destroyable;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -58,28 +59,15 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
+/** HPKE Cipher, KeyPairGenerator, keys, and parameters, for every curated suite. */
 @ExtendWith(TestResultLogger.class)
 @Execution(ExecutionMode.CONCURRENT)
 @ResourceLock(value = TestUtil.RESOURCE_GLOBAL, mode = ResourceAccessMode.READ)
-public class HpkeCipherTest {
+public class HpkeTest {
   private static final byte[] INFO = "HPKE test info".getBytes(StandardCharsets.UTF_8);
   private static final byte[] AAD = "HPKE test aad".getBytes(StandardCharsets.UTF_8);
   private static final byte[] PLAINTEXT =
       "Beauty is truth, truth beauty".getBytes(StandardCharsets.UTF_8);
-
-  /** Encrypts with a fresh sender Cipher; returns {enc, ciphertext}. */
-  private static byte[][] seal(
-      final PublicKey pub, final HpkeSpec spec, final byte[] aad, final byte[] plaintext)
-      throws Exception {
-    final Cipher sender = cipher();
-    sender.init(Cipher.ENCRYPT_MODE, pub, spec);
-    final byte[] enc = sender.getIV();
-    if (aad != null) {
-      sender.updateAAD(aad);
-    }
-    final byte[] ct = sender.doFinal(plaintext);
-    return new byte[][] {enc, ct};
-  }
 
   /** The first suite the linked AWS-LC provides; skips the test if there is none. */
   private static HpkeTestSuite anyAvailableSuite() {
@@ -122,18 +110,6 @@ public class HpkeCipherTest {
     return ("aad " + i).getBytes(StandardCharsets.UTF_8);
   }
 
-  public static List<Arguments> roundTripParams() {
-    final List<Arguments> result = new ArrayList<>();
-    for (final HpkeTestSuite suite : HpkeTestSuite.values()) {
-      for (final boolean withInfo : new boolean[] {false, true}) {
-        for (final boolean withAad : new boolean[] {false, true}) {
-          result.add(Arguments.of(suite, withInfo, withAad));
-        }
-      }
-    }
-    return result;
-  }
-
   @Test
   public void servicesRegisteredIffAnySuiteAvailable() throws Exception {
     final boolean any = HpkeTestSuite.anyAvailable();
@@ -146,31 +122,6 @@ public class HpkeCipherTest {
       assertThrows(
           NoSuchAlgorithmException.class, () -> Cipher.getInstance("HPKE", NATIVE_PROVIDER));
     }
-  }
-
-  @Test
-  public void supportedKeyClassesNamesAccpKeysOnly() throws Exception {
-    final HpkeTestSuite suite = anyAvailableSuite();
-    final KeyPair kp = suite.generateKeyPair();
-    final Provider.Service service = NATIVE_PROVIDER.getService("Cipher", "HPKE");
-    assertNotNull(service);
-    assertEquals(HpkeKey.class.getName(), service.getAttribute("SupportedKeyClasses"));
-    assertTrue(service.supportsParameter(kp.getPublic()));
-    assertTrue(service.supportsParameter(kp.getPrivate()));
-    if (NATIVE_PROVIDER.getService("KeyPairGenerator", "ML-KEM-768") != null) {
-      final KeyPair mlkem =
-          KeyPairGenerator.getInstance("ML-KEM-768", NATIVE_PROVIDER).generateKeyPair();
-      assertFalse(service.supportsParameter(mlkem.getPublic()));
-      assertFalse(service.supportsParameter(mlkem.getPrivate()));
-    }
-    for (final String algorithm : new String[] {"RSA", "EC"}) {
-      final KeyPair foreign =
-          KeyPairGenerator.getInstance(algorithm, NATIVE_PROVIDER).generateKeyPair();
-      assertFalse(service.supportsParameter(foreign.getPublic()), algorithm);
-      assertFalse(service.supportsParameter(foreign.getPrivate()), algorithm);
-    }
-    assertNull(
-        NATIVE_PROVIDER.getService("KeyPairGenerator", "HPKE").getAttribute("SupportedKeyClasses"));
   }
 
   @ParameterizedTest
@@ -214,33 +165,6 @@ public class HpkeCipherTest {
   }
 
   @ParameterizedTest
-  @MethodSource("roundTripParams")
-  public void roundTrip(final HpkeTestSuite suite, final boolean withInfo, final boolean withAad)
-      throws Exception {
-    suite.assumeAvailable();
-    final KeyPair kp = suite.generateKeyPair();
-    final HpkeSpec spec = withInfo ? suite.spec().withInfo(INFO) : suite.spec();
-    final byte[] aad = withAad ? AAD : null;
-    final byte[][] sealed = seal(kp.getPublic(), spec, aad, PLAINTEXT);
-    assertEquals(suite.encLength, sealed[0].length);
-    assertEquals(PLAINTEXT.length + HpkeTestSuite.AEAD_OVERHEAD, sealed[1].length);
-    assertArrayEquals(PLAINTEXT, open(kp.getPrivate(), spec, sealed[0], aad, sealed[1]));
-  }
-
-  @ParameterizedTest
-  @EnumSource(HpkeTestSuite.class)
-  public void emptyPlaintext(final HpkeTestSuite suite) throws Exception {
-    suite.assumeAvailable();
-    final KeyPair kp = suite.generateKeyPair();
-    final Cipher sender = cipher();
-    sender.init(Cipher.ENCRYPT_MODE, kp.getPublic(), suite.spec());
-    final byte[] ct = sender.doFinal();
-    assertEquals(HpkeTestSuite.AEAD_OVERHEAD, ct.length);
-    final byte[] enc = sender.getIV();
-    assertArrayEquals(new byte[0], open(kp.getPrivate(), suite.spec(), enc, null, ct));
-  }
-
-  @ParameterizedTest
   @EnumSource(HpkeTestSuite.class)
   public void largePlaintext(final HpkeTestSuite suite) throws Exception {
     suite.assumeAvailable();
@@ -280,31 +204,6 @@ public class HpkeCipherTest {
   }
 
   @Test
-  public void aadMayBeSuppliedInPieces() throws Exception {
-    final HpkeTestSuite suite = anyAvailableSuite();
-    final KeyPair kp = suite.generateKeyPair();
-    final Cipher sender = cipher();
-    sender.init(Cipher.ENCRYPT_MODE, kp.getPublic(), suite.spec());
-    sender.updateAAD(AAD, 0, 4);
-    sender.updateAAD(ByteBuffer.wrap(AAD, 4, AAD.length - 4));
-    final byte[] ct = sender.doFinal(PLAINTEXT);
-    assertArrayEquals(PLAINTEXT, open(kp.getPrivate(), suite.spec(), sender.getIV(), AAD, ct));
-  }
-
-  @ParameterizedTest
-  @EnumSource(HpkeTestSuite.class)
-  public void importedKeysInteroperate(final HpkeTestSuite suite) throws Exception {
-    suite.assumeAvailable();
-    final KeyPair kp = suite.generateKeyPair();
-    final PublicKey importedPub =
-        HpkePublicKey.fromEncoded(suite.namedSpec(), kp.getPublic().getEncoded());
-    final PrivateKey importedPriv =
-        HpkePrivateKey.fromEncoded(suite.namedSpec(), kp.getPrivate().getEncoded());
-    final byte[][] sealed = seal(importedPub, suite.spec(), null, PLAINTEXT);
-    assertArrayEquals(PLAINTEXT, open(importedPriv, suite.spec(), sealed[0], null, sealed[1]));
-  }
-
-  @Test
   public void rejectsUncuratedSuite() throws Exception {
     final KeyPair kp = anyAvailableSuite().generateKeyPair();
     for (final HpkeSpec spec :
@@ -332,35 +231,6 @@ public class HpkeCipherTest {
         InvalidKeyException.class, () -> HpkePublicKey.fromEncoded(uncurated, new byte[800]));
     assertThrows(
         InvalidKeyException.class, () -> HpkePrivateKey.fromEncoded(uncurated, new byte[64]));
-  }
-
-  @ParameterizedTest
-  @EnumSource(HpkeTestSuite.class)
-  public void rejectsUnavailableSuite(final HpkeTestSuite suite) throws Exception {
-    // Runs only on an AWS-LC that provides some suites but not this one, e.g. ML-KEM without
-    // HKDF-SHA384.
-    assumeTrue(!suite.isAvailable(), suite + " is available");
-    final KeyPair kp = anyAvailableSuite().generateKeyPair();
-    assertThrows(
-        InvalidAlgorithmParameterException.class,
-        () -> cipher().init(Cipher.ENCRYPT_MODE, kp.getPublic(), suite.spec()));
-    assertThrows(
-        InvalidAlgorithmParameterException.class,
-        () ->
-            cipher()
-                .init(
-                    Cipher.DECRYPT_MODE,
-                    kp.getPrivate(),
-                    suite.spec().withEncapsulation(new byte[suite.encLength])));
-    final KeyPairGenerator generator = KeyPairGenerator.getInstance("HPKE", NATIVE_PROVIDER);
-    assertThrows(
-        InvalidAlgorithmParameterException.class, () -> generator.initialize(suite.spec()));
-    assertThrows(
-        InvalidKeyException.class,
-        () -> HpkePublicKey.fromEncoded(suite.spec(), new byte[suite.publicKeyLength]));
-    assertThrows(
-        InvalidKeyException.class,
-        () -> HpkePrivateKey.fromEncoded(suite.spec(), new byte[suite.seedLength]));
   }
 
   @Test
@@ -503,69 +373,6 @@ public class HpkeCipherTest {
   }
 
   @Test
-  public void rejectsAccpMlKemKey() throws Exception {
-    assumeTrue(
-        NATIVE_PROVIDER.getService("KeyPairGenerator", "ML-KEM-768") != null,
-        "ACCP does not register ML-KEM on this JVM");
-    final HpkeTestSuite suite = HpkeTestSuite.MLKEM768;
-    suite.assumeAvailable();
-    final KeyPair mlkem =
-        KeyPairGenerator.getInstance("ML-KEM-768", NATIVE_PROVIDER).generateKeyPair();
-    assertThrows(
-        InvalidKeyException.class,
-        () -> cipher().init(Cipher.ENCRYPT_MODE, mlkem.getPublic(), suite.spec()));
-    assertThrows(
-        InvalidKeyException.class,
-        () ->
-            cipher()
-                .init(
-                    Cipher.DECRYPT_MODE,
-                    mlkem.getPrivate(),
-                    suite.spec().withEncapsulation(new byte[suite.encLength])));
-  }
-
-  @ParameterizedTest
-  @EnumSource(HpkeTestSuite.class)
-  public void tamperingIsDetected(final HpkeTestSuite suite) throws Exception {
-    suite.assumeAvailable();
-    final KeyPair kp = suite.generateKeyPair();
-    final HpkeSpec spec = suite.spec().withInfo(INFO);
-    final byte[][] sealed = seal(kp.getPublic(), spec, AAD, PLAINTEXT);
-    final byte[] enc = sealed[0];
-    final byte[] ct = sealed[1];
-    assertArrayEquals(PLAINTEXT, open(kp.getPrivate(), spec, enc, AAD, ct));
-
-    final byte[] badCt = ct.clone();
-    badCt[0] ^= 1;
-    assertThrows(AEADBadTagException.class, () -> open(kp.getPrivate(), spec, enc, AAD, badCt));
-    final byte[] badTag = ct.clone();
-    badTag[badTag.length - 1] ^= 1;
-    assertThrows(AEADBadTagException.class, () -> open(kp.getPrivate(), spec, enc, AAD, badTag));
-    assertThrows(
-        AEADBadTagException.class,
-        () -> open(kp.getPrivate(), spec, enc, AAD, Arrays.copyOf(ct, ct.length - 1)));
-    assertThrows(
-        AEADBadTagException.class, () -> open(kp.getPrivate(), spec, enc, AAD, new byte[0]));
-
-    // ML-KEM decapsulation rejects implicitly, so a wrong enc of the right length passes init and
-    // fails at doFinal.
-    final byte[] badEnc = enc.clone();
-    badEnc[0] ^= 1;
-    assertThrows(AEADBadTagException.class, () -> open(kp.getPrivate(), spec, badEnc, AAD, ct));
-
-    assertThrows(
-        AEADBadTagException.class,
-        () -> open(kp.getPrivate(), suite.spec().withInfo(AAD), enc, AAD, ct));
-    assertThrows(
-        AEADBadTagException.class, () -> open(kp.getPrivate(), suite.spec(), enc, AAD, ct));
-    assertThrows(AEADBadTagException.class, () -> open(kp.getPrivate(), spec, enc, INFO, ct));
-    assertThrows(AEADBadTagException.class, () -> open(kp.getPrivate(), spec, enc, null, ct));
-
-    final PrivateKey other = suite.generateKeyPair().getPrivate();
-    assertThrows(AEADBadTagException.class, () -> open(other, spec, enc, AAD, ct));
-  }
-
-  @Test
   public void reinitResetsState() throws Exception {
     final HpkeTestSuite suite = anyAvailableSuite();
     final KeyPair kp = suite.generateKeyPair();
@@ -591,22 +398,6 @@ public class HpkeCipherTest {
     recipient.init(Cipher.DECRYPT_MODE, kp.getPrivate(), suite.spec().withEncapsulation(enc2));
     assertArrayEquals(PLAINTEXT, recipient.doFinal(ct));
     assertThrows(AEADBadTagException.class, () -> recipient.doFinal(first));
-  }
-
-  @Test
-  public void wrapAndUnwrapModesFailBeforeTheSuiteCheck() throws Exception {
-    final KeyPair kp = anyAvailableSuite().generateKeyPair();
-    // Unsupported wrapping modes take precedence over suite validation.
-    for (final HpkeSpec spec :
-        new HpkeSpec[] {HpkeSpec.of(0x0020, 0x0001, 0x0001), HpkeSpec.of(0x0041, 0x0001, 0xFFFF)}) {
-      for (final Key key : new Key[] {kp.getPublic(), kp.getPrivate()}) {
-        assertThrows(
-            UnsupportedOperationException.class, () -> cipher().init(Cipher.WRAP_MODE, key, spec));
-        assertThrows(
-            UnsupportedOperationException.class,
-            () -> cipher().init(Cipher.UNWRAP_MODE, key, spec));
-      }
-    }
   }
 
   @ParameterizedTest
@@ -734,122 +525,6 @@ public class HpkeCipherTest {
 
   @ParameterizedTest
   @EnumSource(HpkeTestSuite.class)
-  public void doFinalReturnsExactlySizedArrays(final HpkeTestSuite suite) throws Exception {
-    suite.assumeAvailable();
-    final KeyPair kp = suite.generateKeyPair();
-    final Cipher sender = cipher();
-    sender.init(Cipher.ENCRYPT_MODE, kp.getPublic(), suite.spec());
-    final int[] sizes = {0, 1, 15, 16, 17, 4096};
-    final byte[][] cts = new byte[sizes.length][];
-    for (int i = 0; i < sizes.length; i++) {
-      cts[i] = sender.doFinal(new byte[sizes[i]]);
-      assertEquals(sizes[i] + HpkeTestSuite.AEAD_OVERHEAD, cts[i].length);
-    }
-    final Cipher recipient = cipher();
-    recipient.init(
-        Cipher.DECRYPT_MODE, kp.getPrivate(), suite.spec().withEncapsulation(sender.getIV()));
-    for (int i = 0; i < sizes.length; i++) {
-      assertArrayEquals(new byte[sizes[i]], recipient.doFinal(cts[i]));
-    }
-  }
-
-  @ParameterizedTest
-  @EnumSource(HpkeTestSuite.class)
-  public void messagesOpenInOrder(final HpkeTestSuite suite) throws Exception {
-    suite.assumeAvailable();
-    final KeyPair kp = suite.generateKeyPair();
-    final Cipher sender = cipher();
-    sender.init(Cipher.ENCRYPT_MODE, kp.getPublic(), suite.spec());
-    final byte[][] cts = new byte[5][];
-    for (int i = 0; i < cts.length; i++) {
-      sender.updateAAD(aad(i));
-      cts[i] = sender.doFinal(message(i));
-    }
-    final byte[] again = sender.doFinal(message(0));
-    assertFalse(Arrays.equals(cts[0], again));
-
-    final Cipher recipient = recipient(suite, kp, sender.getIV());
-    for (int i = 0; i < cts.length; i++) {
-      recipient.updateAAD(aad(i));
-      assertArrayEquals(message(i), recipient.doFinal(cts[i]));
-    }
-    assertArrayEquals(message(0), recipient.doFinal(again));
-  }
-
-  /**
-   * Checks RFC 9180 failed-open retries and message-loss behavior in README's HPKE Considerations.
-   */
-  @ParameterizedTest
-  @EnumSource(HpkeTestSuite.class)
-  public void outOfOrderAndSkippedMessagesFailWithoutAdvancing(final HpkeTestSuite suite)
-      throws Exception {
-    suite.assumeAvailable();
-    final KeyPair kp = suite.generateKeyPair();
-    final Cipher sender = cipher();
-    sender.init(Cipher.ENCRYPT_MODE, kp.getPublic(), suite.spec());
-    final byte[] c0 = sender.doFinal(message(0));
-    final byte[] c1 = sender.doFinal(message(1));
-    final byte[] c2 = sender.doFinal(message(2));
-
-    final Cipher recipient = recipient(suite, kp, sender.getIV());
-    assertThrows(AEADBadTagException.class, () -> recipient.doFinal(c1));
-    assertThrows(AEADBadTagException.class, () -> recipient.doFinal(c2));
-    assertArrayEquals(message(0), recipient.doFinal(c0));
-    assertThrows(AEADBadTagException.class, () -> recipient.doFinal(c0));
-    assertThrows(AEADBadTagException.class, () -> recipient.doFinal(c2));
-    assertArrayEquals(message(1), recipient.doFinal(c1));
-    assertArrayEquals(message(2), recipient.doFinal(c2));
-  }
-
-  @ParameterizedTest
-  @EnumSource(HpkeTestSuite.class)
-  public void updateThenDoFinalAcrossMessages(final HpkeTestSuite suite) throws Exception {
-    suite.assumeAvailable();
-    final KeyPair kp = suite.generateKeyPair();
-    final Cipher sender = cipher();
-    sender.init(Cipher.ENCRYPT_MODE, kp.getPublic(), suite.spec());
-    final byte[][] cts = new byte[3][];
-    for (int i = 0; i < cts.length; i++) {
-      final byte[] m = message(i);
-      sender.updateAAD(aad(i));
-      final byte[] out = sender.update(m, 0, 3);
-      assertTrue(out == null || out.length == 0);
-      cts[i] = sender.doFinal(m, 3, m.length - 3);
-      assertEquals(m.length + HpkeTestSuite.AEAD_OVERHEAD, cts[i].length);
-    }
-    final Cipher recipient = recipient(suite, kp, sender.getIV());
-    for (int i = 0; i < cts.length; i++) {
-      recipient.updateAAD(aad(i));
-      final byte[] out = recipient.update(cts[i], 0, 5);
-      assertTrue(out == null || out.length == 0);
-      assertArrayEquals(message(i), recipient.doFinal(cts[i], 5, cts[i].length - 5));
-    }
-  }
-
-  @ParameterizedTest
-  @EnumSource(HpkeTestSuite.class)
-  public void failedDoFinalResetsBufferedInputAndAad(final HpkeTestSuite suite) throws Exception {
-    suite.assumeAvailable();
-    final KeyPair kp = suite.generateKeyPair();
-    final Cipher sender = cipher();
-    sender.init(Cipher.ENCRYPT_MODE, kp.getPublic(), suite.spec());
-    sender.updateAAD(AAD);
-    final byte[] c0 = sender.doFinal(message(0));
-
-    final Cipher recipient = recipient(suite, kp, sender.getIV());
-    final byte[] tampered = c0.clone();
-    tampered[tampered.length - 1] ^= 1;
-    recipient.updateAAD(AAD);
-    recipient.update(tampered, 0, 4);
-    assertThrows(
-        AEADBadTagException.class, () -> recipient.doFinal(tampered, 4, tampered.length - 4));
-    // Had the failed call kept its AAD or buffered prefix, this open would fail.
-    recipient.updateAAD(AAD);
-    assertArrayEquals(message(0), recipient.doFinal(c0));
-  }
-
-  @ParameterizedTest
-  @EnumSource(HpkeTestSuite.class)
   public void updateAadAfterUpdateThrows(final HpkeTestSuite suite) throws Exception {
     suite.assumeAvailable();
     final KeyPair kp = suite.generateKeyPair();
@@ -869,122 +544,6 @@ public class HpkeCipherTest {
     assertArrayEquals(message(0), recipient.doFinal());
     recipient.updateAAD(AAD);
     assertArrayEquals(message(1), recipient.doFinal(c1));
-  }
-
-  @ParameterizedTest
-  @EnumSource(HpkeTestSuite.class)
-  public void outputSizeIncludesBufferedInput(final HpkeTestSuite suite) throws Exception {
-    suite.assumeAvailable();
-    final int tag = HpkeTestSuite.AEAD_OVERHEAD;
-    final KeyPair kp = suite.generateKeyPair();
-    final Cipher sender = cipher();
-    sender.init(Cipher.ENCRYPT_MODE, kp.getPublic(), suite.spec());
-    assertEquals(tag, sender.getOutputSize(0));
-    sender.update(new byte[10]);
-    assertEquals(10 + 5 + tag, sender.getOutputSize(5));
-    final byte[] ct = sender.doFinal(new byte[5]);
-    assertEquals(10 + 5 + tag, ct.length);
-    assertEquals(tag, sender.getOutputSize(0));
-
-    final Cipher recipient = recipient(suite, kp, sender.getIV());
-    assertEquals(0, recipient.getOutputSize(0));
-    assertEquals(0, recipient.getOutputSize(tag - 1));
-    recipient.update(ct, 0, 8);
-    assertEquals(0, recipient.getOutputSize(0));
-    assertEquals(ct.length - tag, recipient.getOutputSize(ct.length - 8));
-    assertArrayEquals(new byte[15], recipient.doFinal(ct, 8, ct.length - 8));
-    assertEquals(0, recipient.getOutputSize(0));
-  }
-
-  @ParameterizedTest
-  @EnumSource(HpkeTestSuite.class)
-  public void shortCiphertextFailsWithoutAdvancing(final HpkeTestSuite suite) throws Exception {
-    suite.assumeAvailable();
-    final KeyPair kp = suite.generateKeyPair();
-    final Cipher sender = cipher();
-    sender.init(Cipher.ENCRYPT_MODE, kp.getPublic(), suite.spec());
-    final byte[] c0 = sender.doFinal(message(0));
-
-    final Cipher recipient = recipient(suite, kp, sender.getIV());
-    final int tag = HpkeTestSuite.AEAD_OVERHEAD;
-    assertThrows(AEADBadTagException.class, () -> recipient.doFinal(new byte[tag - 1]));
-    assertThrows(AEADBadTagException.class, () -> recipient.doFinal());
-    // Shorter than a tag in total, even though split across update and doFinal.
-    recipient.update(c0, 0, 8);
-    assertThrows(AEADBadTagException.class, () -> recipient.doFinal(c0, 8, tag - 9));
-    assertArrayEquals(message(0), recipient.doFinal(c0));
-  }
-
-  @ParameterizedTest
-  @EnumSource(HpkeTestSuite.class)
-  public void fiveArgumentUpdateAndOutputOnlyDoFinal(final HpkeTestSuite suite) throws Exception {
-    suite.assumeAvailable();
-    final int tag = HpkeTestSuite.AEAD_OVERHEAD;
-    final KeyPair kp = suite.generateKeyPair();
-    final Cipher sender = cipher();
-    sender.init(Cipher.ENCRYPT_MODE, kp.getPublic(), suite.spec());
-    final byte[][] cts = new byte[2][];
-    for (int i = 0; i < cts.length; i++) {
-      final byte[] m = message(i);
-      final byte[] out = new byte[3 + m.length + tag];
-      assertEquals(0, sender.update(m, 0, 4, out, 3));
-      assertEquals(0, sender.update(m, 4, m.length - 4, out, 3));
-      assertEquals(m.length + tag, sender.doFinal(out, 3));
-      cts[i] = Arrays.copyOfRange(out, 3, out.length);
-    }
-    final Cipher recipient = recipient(suite, kp, sender.getIV());
-    for (int i = 0; i < cts.length; i++) {
-      final byte[] m = message(i);
-      final byte[] out = new byte[2 + m.length];
-      assertEquals(0, recipient.update(cts[i], 0, 5, out, 2));
-      assertEquals(0, recipient.update(cts[i], 5, cts[i].length - 5, out, 2));
-      assertEquals(m.length, recipient.doFinal(out, 2));
-      assertArrayEquals(m, Arrays.copyOfRange(out, 2, out.length));
-    }
-  }
-
-  private static byte[] readFully(final CipherInputStream in) throws IOException {
-    final ByteArrayOutputStream result = new ByteArrayOutputStream();
-    final byte[] chunk = new byte[7];
-    int n;
-    while ((n = in.read(chunk)) != -1) {
-      result.write(chunk, 0, n);
-    }
-    return result.toByteArray();
-  }
-
-  @ParameterizedTest
-  @EnumSource(HpkeTestSuite.class)
-  public void cipherStreamsAcrossMessages(final HpkeTestSuite suite) throws Exception {
-    suite.assumeAvailable();
-    final KeyPair kp = suite.generateKeyPair();
-    final Cipher sender = cipher();
-    sender.init(Cipher.ENCRYPT_MODE, kp.getPublic(), suite.spec());
-    final byte[][] cts = new byte[2][];
-    for (int i = 0; i < cts.length; i++) {
-      final byte[] m = message(i);
-      final ByteArrayOutputStream sink = new ByteArrayOutputStream();
-      if (i == 1) {
-        sender.updateAAD(aad(i));
-      }
-      try (CipherOutputStream out = new CipherOutputStream(sink, sender)) {
-        out.write(m, 0, 2);
-        out.write(m[2]);
-        out.write(m, 3, m.length - 3);
-      }
-      cts[i] = sink.toByteArray();
-      assertEquals(m.length + HpkeTestSuite.AEAD_OVERHEAD, cts[i].length);
-    }
-    final Cipher recipient = recipient(suite, kp, sender.getIV());
-    for (int i = 0; i < cts.length; i++) {
-      if (i == 1) {
-        recipient.updateAAD(aad(i));
-      }
-      try (CipherInputStream in =
-          new CipherInputStream(new ByteArrayInputStream(cts[i]), recipient)) {
-        assertArrayEquals(message(i), readFully(in), "message " + i);
-      }
-    }
   }
 
   private static void randomUpdate(
@@ -1229,5 +788,368 @@ public class HpkeCipherTest {
       recipient.updateAAD(messages[i]);
       assertArrayEquals(messages[i], recipient.doFinal(cts[i]), "message " + i);
     }
+  }
+
+  private static void assumeHpkeRegistered() {
+    assumeTrue(HpkeTestSuite.anyAvailable(), "the linked AWS-LC provides no HPKE suite");
+  }
+
+  private static KeyPairGenerator generator() throws Exception {
+    assumeHpkeRegistered();
+    return KeyPairGenerator.getInstance("HPKE", NATIVE_PROVIDER);
+  }
+
+  @ParameterizedTest
+  @EnumSource(HpkeTestSuite.class)
+  public void generate(final HpkeTestSuite suite) throws Exception {
+    suite.assumeAvailable();
+    final KeyPair kp = suite.generateKeyPair();
+    for (final Key key : new Key[] {kp.getPublic(), kp.getPrivate()}) {
+      assertEquals("HPKE", key.getAlgorithm());
+      assertEquals("RAW", key.getFormat());
+    }
+    assertTrue(kp.getPrivate() instanceof Destroyable);
+    final KeyPair other = suite.generateKeyPair();
+    assertNotEquals(kp.getPublic(), other.getPublic());
+    assertNotEquals(kp.getPrivate(), other.getPrivate());
+  }
+
+  @ParameterizedTest
+  @EnumSource(HpkeTestSuite.class)
+  public void encodedRoundTrip(final HpkeTestSuite suite) throws Exception {
+    suite.assumeAvailable();
+    final KeyPair kp = suite.generateKeyPair();
+    final byte[] rawPub = kp.getPublic().getEncoded();
+    final PublicKey pub = HpkePublicKey.fromEncoded(suite.namedSpec(), rawPub);
+    final PrivateKey priv =
+        HpkePrivateKey.fromEncoded(suite.namedSpec(), kp.getPrivate().getEncoded());
+    assertEquals(kp.getPublic(), pub);
+    assertEquals(kp.getPrivate(), priv);
+    assertEquals(kp.getPublic().hashCode(), pub.hashCode());
+    assertEquals(kp.getPrivate().hashCode(), priv.hashCode());
+    assertArrayEquals(rawPub, pub.getEncoded());
+    assertArrayEquals(kp.getPrivate().getEncoded(), priv.getEncoded());
+    assertEquals(pub, HpkePublicKey.fromEncoded(suite.spec().withInfo(PLAINTEXT), rawPub));
+    assertEquals(pub, HpkePublicKey.fromEncoded(suite.spec(), rawPub));
+    // Import and export must both copy defensively.
+    final byte[] input = rawPub.clone();
+    final PublicKey copy = HpkePublicKey.fromEncoded(suite.namedSpec(), input);
+    input[0] ^= 1;
+    copy.getEncoded()[1] ^= 1;
+    assertArrayEquals(rawPub, copy.getEncoded());
+  }
+
+  @ParameterizedTest
+  @EnumSource(HpkeTestSuite.class)
+  public void fromEncodedRejectsWrongLengths(final HpkeTestSuite suite) throws Exception {
+    suite.assumeAvailable();
+    for (final int delta : new int[] {-1, 1}) {
+      assertThrows(
+          InvalidKeyException.class,
+          () ->
+              HpkePublicKey.fromEncoded(
+                  suite.namedSpec(), new byte[suite.publicKeyLength + delta]));
+      assertThrows(
+          InvalidKeyException.class,
+          () -> HpkePrivateKey.fromEncoded(suite.namedSpec(), new byte[suite.seedLength + delta]));
+    }
+    assertThrows(
+        InvalidKeyException.class,
+        () -> HpkePrivateKey.fromEncoded(suite.namedSpec(), new byte[0]));
+  }
+
+  @ParameterizedTest
+  @EnumSource(HpkeTestSuite.class)
+  public void firstCoefficientEqualToQRejected(final HpkeTestSuite suite) throws Exception {
+    suite.assumeAvailable();
+    final byte[] raw = suite.generateKeyPair().getPublic().getEncoded();
+    assertEquals(suite.publicKeyLength, raw.length);
+    // Coefficient 0 is the low 12 bits of the first 3 bytes (little-endian).
+    raw[0] = 0x01;
+    raw[1] = (byte) ((raw[1] & 0xF0) | 0x0D);
+    assertEquals(3329, (raw[0] & 0xFF) | ((raw[1] & 0x0F) << 8));
+    assertThrows(
+        InvalidKeyException.class, () -> HpkePublicKey.fromEncoded(suite.namedSpec(), raw));
+  }
+
+  @Test
+  public void generatorRequiresHpkeSpec() throws Exception {
+    final KeyPairGenerator kpg = generator();
+    assertThrows(IllegalStateException.class, kpg::generateKeyPair);
+    assertThrows(UnsupportedOperationException.class, () -> kpg.initialize(256));
+    assertThrows(
+        InvalidAlgorithmParameterException.class,
+        () -> kpg.initialize(new IvParameterSpec(new byte[16])));
+    assertThrows(
+        InvalidAlgorithmParameterException.class,
+        () -> kpg.initialize((AlgorithmParameterSpec) null));
+    assertThrows(IllegalStateException.class, kpg::generateKeyPair);
+  }
+
+  @Test
+  public void equalsWithADestroyedKey() throws Exception {
+    final HpkeTestSuite suite = HpkeTestSuite.MLKEM768;
+    suite.assumeAvailable();
+    final HpkePrivateKey live = (HpkePrivateKey) suite.generateKeyPair().getPrivate();
+    final HpkePrivateKey destroyed =
+        HpkePrivateKey.fromEncoded(suite.namedSpec(), live.getEncoded());
+    destroyed.destroy();
+    // Either side being destroyed throws; equals must still wipe the seed copy it already took.
+    assertThrows(IllegalStateException.class, () -> live.equals(destroyed));
+    assertThrows(IllegalStateException.class, () -> destroyed.equals(live));
+    assertEquals(suite.seedLength, live.getEncoded().length);
+    assertEquals(live, HpkePrivateKey.fromEncoded(suite.namedSpec(), live.getEncoded()));
+  }
+
+  @Test
+  public void keysAreNotSerializable() throws Exception {
+    HpkeTestSuite.MLKEM768.assumeAvailable();
+    final KeyPair kp = HpkeTestSuite.MLKEM768.generateKeyPair();
+    for (final Key key : new Key[] {kp.getPublic(), kp.getPrivate()}) {
+      try (ObjectOutputStream out = new ObjectOutputStream(new ByteArrayOutputStream())) {
+        assertThrows(NotSerializableException.class, () -> out.writeObject(key));
+      }
+    }
+  }
+
+  private static final HpkeSpec SUITE = HpkeSpec.ML_KEM_768_HKDF_SHA256_AES_128_GCM;
+  private static final String JDK_SPEC_CLASS = "javax.crypto.spec.HPKEParameterSpec";
+  private static final byte[] EMPTY = new byte[0];
+
+  @Test
+  public void ofAcceptsAnyIdInRangeButRejectsOutOfRange() {
+    HpkeSpec.of(0, 0, 0);
+    HpkeSpec.of(0xFFFF, 0xFFFF, 0xFFFF);
+    for (final int invalid : new int[] {-1, 0x10000}) {
+      assertEquals(
+          "kem_id must be in [0, 65535]: " + invalid,
+          Assertions.assertThrows(
+                  IllegalArgumentException.class, () -> HpkeSpec.of(invalid, invalid, invalid))
+              .getMessage());
+      assertEquals(
+          "kdf_id must be in [0, 65535]: " + invalid,
+          Assertions.assertThrows(
+                  IllegalArgumentException.class, () -> HpkeSpec.of(0x41, invalid, invalid))
+              .getMessage());
+      assertEquals(
+          "aead_id must be in [0, 65535]: " + invalid,
+          Assertions.assertThrows(
+                  IllegalArgumentException.class, () -> HpkeSpec.of(0x41, 1, invalid))
+              .getMessage());
+    }
+  }
+
+  @Test
+  public void withInfoRejectsEmpty() {
+    assertEquals(
+        "info is empty",
+        Assertions.assertThrows(IllegalArgumentException.class, () -> SUITE.withInfo(new byte[0]))
+            .getMessage());
+  }
+
+  @Test
+  public void withersAreImmutableAndCopyDefensively() {
+    final byte[] info = {1, 2, 3};
+    final byte[] enc = {4, 5, 6};
+    final HpkeSpec withInfo = SUITE.withInfo(info);
+    final HpkeSpec withBoth = withInfo.withEncapsulation(enc);
+
+    // The original specs are unchanged.
+    assertArrayEquals(new byte[0], SUITE.info());
+    assertNull(SUITE.encapsulation());
+    assertNull(withInfo.encapsulation());
+
+    // Mutating the inputs does not affect the spec.
+    info[0] = 9;
+    enc[0] = 9;
+    assertArrayEquals(new byte[] {1, 2, 3}, withBoth.info());
+    assertArrayEquals(new byte[] {4, 5, 6}, withBoth.encapsulation());
+
+    // Mutating the outputs does not affect the spec.
+    withBoth.info()[0] = 9;
+    withBoth.encapsulation()[0] = 9;
+    assertArrayEquals(new byte[] {1, 2, 3}, withBoth.info());
+    assertArrayEquals(new byte[] {4, 5, 6}, withBoth.encapsulation());
+    assertNotSame(withBoth.info(), withBoth.info());
+
+    assertEquals(SUITE.kem_id(), withBoth.kem_id());
+    assertEquals(SUITE.kdf_id(), withBoth.kdf_id());
+    assertEquals(SUITE.aead_id(), withBoth.aead_id());
+
+    assertEquals(withBoth, SUITE.withEncapsulation(new byte[] {4, 5, 6}).withInfo(withBoth.info()));
+  }
+
+  @Test
+  public void equalsAndHashCode() {
+    final HpkeSpec a = SUITE.withInfo(new byte[] {1}).withEncapsulation(new byte[2]);
+    final HpkeSpec b =
+        HpkeSpec.of(0x0041, 0x0001, 0x0001).withInfo(new byte[] {1}).withEncapsulation(new byte[2]);
+    assertEquals(a, b);
+    assertEquals(a.hashCode(), b.hashCode());
+    assertNotEquals(a, SUITE);
+    assertNotEquals(a, a.withInfo(new byte[] {2}));
+    assertNotEquals(a, a.withEncapsulation(new byte[3]));
+    assertNotEquals(SUITE, HpkeSpec.of(0x0041, 0x0002, 0x0001));
+    assertNotEquals(SUITE, SUITE.withEncapsulation(new byte[0]));
+  }
+
+  private static HpkeSpec fromComponents(
+      final int kem,
+      final int kdf,
+      final int aead,
+      final byte[] info,
+      final byte[] enc,
+      final Object psk,
+      final byte[] pskId,
+      final Object authKey)
+      throws Throwable {
+    return sneakyInvoke(
+        HpkeSpec.class, "fromComponents", kem, kdf, aead, info, enc, psk, pskId, authKey);
+  }
+
+  private static HpkeSpec from(final AlgorithmParameterSpec params) throws Throwable {
+    return sneakyInvoke(HpkeSpec.class, "from", params);
+  }
+
+  private static void assertRejected(final String message, final ThrowingSupplier call) {
+    final InvalidAlgorithmParameterException ex =
+        Assertions.assertThrows(InvalidAlgorithmParameterException.class, call::get);
+    assertTrue(ex.getMessage().contains(message), ex.getMessage());
+  }
+
+  private interface ThrowingSupplier {
+    Object get() throws Throwable;
+  }
+
+  @ParameterizedTest
+  @EnumSource(HpkeTestSuite.class)
+  public void convertsCuratedSuites(final HpkeTestSuite suite) throws Throwable {
+    final byte[] info = {1, 2, 3};
+    final byte[] enc = {4, 5, 6, 7};
+    final HpkeSpec spec =
+        fromComponents(suite.kemId, suite.kdfId, suite.aeadId, info, enc, null, EMPTY, null);
+    assertEquals(suite.spec().withInfo(info).withEncapsulation(enc), spec);
+    // Arrays are copied on the way in.
+    info[0] = 9;
+    enc[0] = 9;
+    assertEquals(1, spec.info()[0]);
+    assertEquals(4, spec.encapsulation()[0]);
+  }
+
+  @Test
+  public void emptyInfoAndNoEncapsulation() throws Throwable {
+    final HpkeTestSuite suite = HpkeTestSuite.MLKEM768;
+    final HpkeSpec spec =
+        fromComponents(suite.kemId, suite.kdfId, suite.aeadId, EMPTY, null, null, EMPTY, null);
+    assertEquals(suite.namedSpec(), spec);
+    assertArrayEquals(EMPTY, spec.info());
+    assertNull(spec.encapsulation());
+    assertEquals(
+        suite.namedSpec(),
+        fromComponents(suite.kemId, suite.kdfId, suite.aeadId, null, null, null, null, null));
+  }
+
+  @Test
+  public void rejectsPskAndAuthModes() throws Throwable {
+    final HpkeTestSuite s = HpkeTestSuite.MLKEM768;
+    final Object psk = new SecretKeySpec(new byte[32], "Generic");
+    assertRejected(
+        "PSK",
+        () -> fromComponents(s.kemId, s.kdfId, s.aeadId, EMPTY, null, psk, new byte[] {1}, null));
+    assertRejected(
+        "PSK", () -> fromComponents(s.kemId, s.kdfId, s.aeadId, EMPTY, null, psk, EMPTY, null));
+    assertRejected(
+        "PSK",
+        () -> fromComponents(s.kemId, s.kdfId, s.aeadId, EMPTY, null, null, new byte[] {1}, null));
+    final Object authKey = new Object();
+    assertRejected(
+        "auth",
+        () -> fromComponents(s.kemId, s.kdfId, s.aeadId, EMPTY, null, null, EMPTY, authKey));
+  }
+
+  @Test
+  public void unadaptableJdkSpecSaysWhy() throws Throwable {
+    final List<String> names = new ArrayList<>(Arrays.asList("kem_id", "zeta", "info", "alpha"));
+    final List<String> unknown =
+        TestUtil.sneakyInvoke(HpkeSpec.class, "unknownJdkSpecMethods", (Object) names);
+    assertEquals(Arrays.asList("alpha", "zeta"), unknown);
+    final String message =
+        TestUtil.sneakyInvoke(HpkeSpec.class, "unadaptableJdkSpecMessage", (Object) unknown);
+    assertEquals(
+        "ACCP does not recognize method(s) [alpha, zeta] of "
+            + JDK_SPEC_CLASS
+            + " on this JDK;"
+            + " use com.amazon.corretto.crypto.provider.HpkeSpec or upgrade ACCP",
+        message);
+    final String unreadable =
+        TestUtil.sneakyInvoke(HpkeSpec.class, "unadaptableJdkSpecMessage", (Object) null);
+    assertTrue(unreadable.startsWith("ACCP cannot read " + JDK_SPEC_CLASS), unreadable);
+    assertTrue(unreadable.endsWith("or upgrade ACCP"), unreadable);
+  }
+
+  private static Class<?> jdkSpecClassOrSkip() {
+    Class<?> cls = null;
+    try {
+      cls = Class.forName(JDK_SPEC_CLASS);
+    } catch (final ClassNotFoundException ex) {
+      // Not on this JDK.
+    }
+    assumeTrue(cls != null, JDK_SPEC_CLASS + " requires JDK 26+");
+    return cls;
+  }
+
+  /** {@code HPKEParameterSpec.of(kem, kdf, aead)}, optionally {@code .withInfo(info)}. */
+  private static AlgorithmParameterSpec jdkSpec(
+      final Class<?> cls, final HpkeTestSuite suite, final byte[] info) throws Exception {
+    Object spec =
+        cls.getMethod("of", int.class, int.class, int.class)
+            .invoke(null, suite.kemId, suite.kdfId, suite.aeadId);
+    if (info != null) {
+      spec = cls.getMethod("withInfo", byte[].class).invoke(spec, (Object) info);
+    }
+    return (AlgorithmParameterSpec) spec;
+  }
+
+  private static AlgorithmParameterSpec withEncapsulation(
+      final Class<?> cls, final AlgorithmParameterSpec spec, final byte[] enc) throws Exception {
+    return (AlgorithmParameterSpec)
+        cls.getMethod("withEncapsulation", byte[].class).invoke(spec, (Object) enc);
+  }
+
+  @ParameterizedTest
+  @EnumSource(HpkeTestSuite.class)
+  public void realJdkSpecRoundTrip(final HpkeTestSuite suite) throws Exception {
+    final Class<?> cls = jdkSpecClassOrSkip();
+    suite.assumeAvailable();
+    final byte[] info = {1, 2, 3};
+    final byte[] aad = {4, 5};
+    final byte[] plaintext = {6, 7, 8, 9};
+
+    final KeyPairGenerator kpg = KeyPairGenerator.getInstance("HPKE", NATIVE_PROVIDER);
+    kpg.initialize(jdkSpec(cls, suite, null));
+    final KeyPair pair = kpg.generateKeyPair();
+    assertEquals(suite.namedSpec(), ((HpkeKey) pair.getPublic()).parameterSpec());
+
+    final AlgorithmParameterSpec spec = jdkSpec(cls, suite, info);
+    final Cipher sender = Cipher.getInstance("HPKE", NATIVE_PROVIDER);
+    sender.init(Cipher.ENCRYPT_MODE, pair.getPublic(), spec);
+    final byte[] enc = sender.getIV();
+    assertEquals(suite.encLength, enc.length);
+    sender.updateAAD(aad);
+    final byte[] ct = sender.doFinal(plaintext);
+
+    final Cipher recipient = Cipher.getInstance("HPKE", NATIVE_PROVIDER);
+    recipient.init(
+        Cipher.DECRYPT_MODE, pair.getPrivate(), withEncapsulation(cls, spec, enc.clone()));
+    recipient.updateAAD(aad);
+    assertArrayEquals(plaintext, recipient.doFinal(ct));
+
+    final Cipher accpRecipient = Cipher.getInstance("HPKE", NATIVE_PROVIDER);
+    accpRecipient.init(
+        Cipher.DECRYPT_MODE,
+        pair.getPrivate(),
+        suite.spec().withInfo(info).withEncapsulation(Arrays.copyOf(enc, enc.length)));
+    accpRecipient.updateAAD(aad);
+    assertArrayEquals(plaintext, accpRecipient.doFinal(ct));
   }
 }

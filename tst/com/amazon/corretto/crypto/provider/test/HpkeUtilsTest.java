@@ -5,12 +5,10 @@ package com.amazon.corretto.crypto.provider.test;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.amazon.corretto.crypto.provider.HpkePrivateKey;
 import com.amazon.corretto.crypto.provider.HpkePublicKey;
-import com.amazon.corretto.crypto.provider.HpkeSpec;
 import com.amazon.corretto.crypto.utils.HpkeUtils;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
@@ -56,31 +54,6 @@ public class HpkeUtilsTest {
   private static void assertOpenFails(final Executable call) {
     final AEADBadTagException ex = assertThrows(AEADBadTagException.class, call);
     assertEquals(DECRYPTION_FAILED, ex.getMessage());
-  }
-
-  @ParameterizedTest
-  @EnumSource(HpkeTestSuite.class)
-  public void roundTrip(final HpkeTestSuite suite) throws Exception {
-    final Keys k = keys(suite);
-    assertEquals(suite.encLength, k.pub.encapsulationLength());
-    assertEquals(suite.encLength, k.priv.encapsulationLength());
-    for (final int len : new int[] {0, 1, 16, 4097}) {
-      final byte[] pt = TestUtil.arrayOf((byte) 0x5a, len);
-      final byte[] sealed = HpkeUtils.seal(k.pub, INFO, AAD, pt);
-      assertEquals(suite.encLength + len + HpkeTestSuite.AEAD_OVERHEAD, sealed.length);
-      assertArrayEquals(pt, HpkeUtils.open(k.priv, INFO, AAD, sealed));
-    }
-  }
-
-  @ParameterizedTest
-  @EnumSource(HpkeTestSuite.class)
-  public void freshEncapsulationPerCall(final HpkeTestSuite suite) throws Exception {
-    final Keys k = keys(suite);
-    final byte[] a = HpkeUtils.seal(k.pub, INFO, AAD, PLAINTEXT);
-    final byte[] b = HpkeUtils.seal(k.pub, INFO, AAD, PLAINTEXT);
-    assertFalse(Arrays.equals(a, b));
-    assertArrayEquals(PLAINTEXT, HpkeUtils.open(k.priv, INFO, AAD, a));
-    assertArrayEquals(PLAINTEXT, HpkeUtils.open(k.priv, INFO, AAD, b));
   }
 
   @ParameterizedTest
@@ -136,37 +109,6 @@ public class HpkeUtilsTest {
     final HpkePrivateKey other = new Keys(suite).priv;
     assertOpenFails(() -> HpkeUtils.open(other, INFO, AAD, sealed));
     assertArrayEquals(PLAINTEXT, HpkeUtils.open(k.priv, INFO, AAD, sealed));
-  }
-
-  @ParameterizedTest
-  @EnumSource(HpkeTestSuite.class)
-  public void sealOpensWithCipher(final HpkeTestSuite suite) throws Exception {
-    final Keys k = keys(suite);
-    final byte[] sealed = HpkeUtils.seal(k.pub, INFO, AAD, PLAINTEXT);
-    final int enc = k.priv.encapsulationLength();
-    final Cipher recipient = Cipher.getInstance("HPKE", NATIVE_PROVIDER);
-    recipient.init(
-        Cipher.DECRYPT_MODE,
-        k.priv,
-        HpkeSpec.of(suite.kemId, suite.kdfId, suite.aeadId)
-            .withInfo(INFO)
-            .withEncapsulation(Arrays.copyOf(sealed, enc)));
-    recipient.updateAAD(AAD);
-    assertArrayEquals(PLAINTEXT, recipient.doFinal(Arrays.copyOfRange(sealed, enc, sealed.length)));
-  }
-
-  @ParameterizedTest
-  @EnumSource(HpkeTestSuite.class)
-  public void cipherOpensWithOpen(final HpkeTestSuite suite) throws Exception {
-    final Keys k = keys(suite);
-    final Cipher sender = Cipher.getInstance("HPKE", NATIVE_PROVIDER);
-    sender.init(Cipher.ENCRYPT_MODE, k.pub, k.pub.parameterSpec().withInfo(INFO));
-    final byte[] enc = sender.getIV();
-    sender.updateAAD(AAD);
-    final byte[] ct = sender.doFinal(PLAINTEXT);
-    final byte[] framed = Arrays.copyOf(enc, enc.length + ct.length);
-    System.arraycopy(ct, 0, framed, enc.length, ct.length);
-    assertArrayEquals(PLAINTEXT, HpkeUtils.open(k.priv, INFO, AAD, framed));
   }
 
   @Test

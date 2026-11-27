@@ -4,6 +4,8 @@ package com.amazon.corretto.crypto.provider.test;
 
 import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assertArraysHexEquals;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -17,8 +19,12 @@ import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.ECGenParameterSpec;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Supplier;
+import javax.crypto.AEADBadTagException;
 import javax.crypto.Cipher;
 import javax.crypto.KeyAgreement;
 import javax.crypto.SecretKey;
@@ -32,6 +38,8 @@ import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.junit.jupiter.api.parallel.ResourceAccessMode;
 import org.junit.jupiter.api.parallel.ResourceLock;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 @ExtendWith(TestResultLogger.class)
 @Execution(ExecutionMode.SAME_THREAD)
@@ -283,6 +291,58 @@ public class KeyReuseThreadStormTest {
       threads.add(t);
     }
     executeThreads(threads);
+  }
+
+  /** Threads share one HPKE sender, so every seal must take its own sequence number. */
+  @ParameterizedTest
+  @EnumSource(HpkeTestSuite.class)
+  public void hpkeSharedSenderThreadStorm(final HpkeTestSuite suite) throws Throwable {
+    suite.assumeAvailable();
+    final KeyPair kp = suite.generateKeyPair();
+    final Cipher sender = Cipher.getInstance("HPKE", NATIVE_PROVIDER);
+    sender.init(Cipher.ENCRYPT_MODE, kp.getPublic(), suite.spec());
+    final Queue<byte[][]> sealed = new ConcurrentLinkedQueue<>();
+    final int iterations = 25;
+    final List<TestThread> threads = new ArrayList<>();
+    for (int x = 0; x < 8; x++) {
+      threads.add(
+          new TestThread("HpkeSenderThread-" + x, new SecureRandom(), iterations) {
+            @Override
+            public void run() {
+              try {
+                for (int i = 0; i < iterations_; i++) {
+                  final byte[] pt = Arrays.copyOf(message_, i + 1);
+                  sealed.add(new byte[][] {pt, sender.doFinal(pt)});
+                }
+              } catch (final Throwable t) {
+                result = t;
+              }
+            }
+          });
+    }
+    executeThreads(threads);
+    assertEquals(threads.size() * iterations, sealed.size());
+
+    // Seal order is unknown, so open each ciphertext at the next sequence number by trial.
+    final Cipher recipient = Cipher.getInstance("HPKE", NATIVE_PROVIDER);
+    recipient.init(
+        Cipher.DECRYPT_MODE, kp.getPrivate(), suite.spec().withEncapsulation(sender.getIV()));
+    final List<byte[][]> remaining = new ArrayList<>(sealed);
+    while (!remaining.isEmpty()) {
+      boolean opened = false;
+      for (final Iterator<byte[][]> it = remaining.iterator(); it.hasNext(); ) {
+        final byte[][] entry = it.next();
+        try {
+          assertArrayEquals(entry[0], recipient.doFinal(entry[1]));
+        } catch (final AEADBadTagException ex) {
+          continue;
+        }
+        it.remove();
+        opened = true;
+        break;
+      }
+      assertTrue(opened, remaining.size() + " ciphertexts left and none opens");
+    }
   }
 
   private abstract static class TestThread extends Thread {
