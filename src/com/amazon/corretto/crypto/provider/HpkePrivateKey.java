@@ -27,6 +27,7 @@ public final class HpkePrivateKey extends HpkeKey implements PrivateKey, Destroy
   // Owns the native EVP_HPKE_KEY. Seed exports are fresh native copies, never cached on the heap.
   private final InternalKey internalKey;
   private volatile boolean isDestroyed = false;
+  private volatile Integer cachedHashCode;
 
   private HpkePrivateKey(final HpkeSuite suite, final long ptr) {
     super(suite);
@@ -162,10 +163,30 @@ public final class HpkePrivateKey extends HpkeKey implements PrivateKey, Destroy
     }
   }
 
-  /** Returns the suite's KEM id, without accessing the seed, even after destruction. */
+  /**
+   * Returns a hash of the seed, as {@code EvpKey} does for other private keys. The hash is computed
+   * on first use and cached, so it stays available after destruction once computed.
+   *
+   * @throws IllegalStateException if this key was destroyed before its hash was first computed
+   */
   @Override
   public int hashCode() {
-    return suite().kemId;
+    Integer result = cachedHashCode;
+    if (result == null) {
+      synchronized (this) {
+        result = cachedHashCode;
+        if (result == null) {
+          final byte[] seed = getEncoded();
+          try {
+            result = Arrays.hashCode(seed);
+          } finally {
+            Arrays.fill(seed, (byte) 0);
+          }
+          cachedHashCode = result;
+        }
+      }
+    }
+    return result;
   }
 
   private static final class InternalKey extends NativeResource {

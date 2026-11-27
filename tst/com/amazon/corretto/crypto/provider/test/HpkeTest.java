@@ -6,6 +6,7 @@ import static com.amazon.corretto.crypto.provider.test.HpkeTestSuite.cipher;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.NATIVE_PROVIDER;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.assertThrows;
 import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyInvoke;
+import static com.amazon.corretto.crypto.provider.test.TestUtil.sneakyInvoke_int;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -152,6 +153,21 @@ public class HpkeTest {
     assertNull(recipient.getParameters());
     assertEquals(16, recipient.getBlockSize());
     assertArrayEquals(PLAINTEXT, recipient.doFinal(ct));
+  }
+
+  @ParameterizedTest
+  @EnumSource(HpkeTestSuite.class)
+  public void keySize(final HpkeTestSuite suite) throws Throwable {
+    suite.assumeAvailable();
+    final KeyPair kp = suite.generateKeyPair();
+    final Object spi = TestUtil.sneakyConstruct("com.amazon.corretto.crypto.provider.HpkeCipher");
+    assertEquals(
+        8 * suite.publicKeyLength, sneakyInvoke_int(spi, "engineGetKeySize", kp.getPublic()));
+    assertEquals(8 * suite.seedLength, sneakyInvoke_int(spi, "engineGetKeySize", kp.getPrivate()));
+    final KeyPair rsa = KeyPairGenerator.getInstance("RSA", NATIVE_PROVIDER).generateKeyPair();
+    assertThrows(
+        InvalidKeyException.class,
+        () -> sneakyInvoke_int(spi, "engineGetKeySize", rsa.getPublic()));
   }
 
   @Test
@@ -341,7 +357,13 @@ public class HpkeTest {
   public void rejectsDestroyedPrivateKey() throws Exception {
     final HpkeTestSuite suite = anyAvailableSuite();
     final KeyPair kp = suite.generateKeyPair();
+    final Cipher sender = cipher();
+    sender.init(Cipher.ENCRYPT_MODE, kp.getPublic(), suite.spec());
+    final byte[] ct = sender.doFinal(PLAINTEXT);
+    final Cipher recipient = recipient(suite, kp, sender.getIV());
     ((Destroyable) kp.getPrivate()).destroy();
+    // An initialized context survives destruction of its key; new initializations do not.
+    assertArrayEquals(PLAINTEXT, recipient.doFinal(ct));
     assertThrows(
         InvalidKeyException.class,
         () ->
@@ -856,13 +878,25 @@ public class HpkeTest {
   }
 
   @Test
-  public void equalsWithADestroyedKey() throws Exception {
+  public void destroyedPrivateKey() throws Exception {
     final HpkeTestSuite suite = HpkeTestSuite.MLKEM768;
     suite.assumeAvailable();
     final HpkePrivateKey live = (HpkePrivateKey) suite.generateKeyPair().getPrivate();
     final HpkePrivateKey destroyed =
         HpkePrivateKey.fromEncoded(suite.namedSpec(), live.getEncoded());
+    final int hash = destroyed.hashCode();
+    assertEquals(live.hashCode(), hash);
     destroyed.destroy();
+    assertTrue(destroyed.isDestroyed());
+    // The hash is cached once computed; everything else that needs the seed throws.
+    assertEquals(hash, destroyed.hashCode());
+    assertThrows(IllegalStateException.class, destroyed::getEncoded);
+    assertThrows(IllegalStateException.class, destroyed::getPublicKey);
+    assertThrows(IllegalStateException.class, destroyed::destroy);
+    final HpkePrivateKey unhashed =
+        HpkePrivateKey.fromEncoded(suite.namedSpec(), live.getEncoded());
+    unhashed.destroy();
+    assertThrows(IllegalStateException.class, unhashed::hashCode);
     // Either side being destroyed throws; equals must still wipe the seed copy it already took.
     assertThrows(IllegalStateException.class, () -> live.equals(destroyed));
     assertThrows(IllegalStateException.class, () -> destroyed.equals(live));

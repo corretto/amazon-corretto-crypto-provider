@@ -11,10 +11,12 @@ import com.amazon.corretto.crypto.provider.HpkePrivateKey;
 import com.amazon.corretto.crypto.provider.HpkePublicKey;
 import com.amazon.corretto.crypto.utils.HpkeUtils;
 import java.nio.charset.StandardCharsets;
+import java.security.InvalidKeyException;
 import java.security.KeyPair;
 import java.util.Arrays;
 import javax.crypto.AEADBadTagException;
 import javax.crypto.Cipher;
+import javax.security.auth.Destroyable;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.function.Executable;
@@ -112,7 +114,7 @@ public class HpkeUtilsTest {
   }
 
   @Test
-  public void rejectsNulls() throws Exception {
+  public void rejectsNullsAndDestroyedKeys() throws Exception {
     final HpkeTestSuite suite = HpkeTestSuite.MLKEM768;
     final Keys k = keys(suite);
     assertThrows(IllegalArgumentException.class, () -> HpkeUtils.seal(null, INFO, AAD, PLAINTEXT));
@@ -120,5 +122,7 @@ public class HpkeUtilsTest {
     final byte[] sealed = HpkeUtils.seal(k.pub, INFO, AAD, PLAINTEXT);
     assertThrows(IllegalArgumentException.class, () -> HpkeUtils.open(null, INFO, AAD, sealed));
     assertThrows(IllegalArgumentException.class, () -> HpkeUtils.open(k.priv, INFO, AAD, null));
+    ((Destroyable) k.priv).destroy();
+    assertThrows(InvalidKeyException.class, () -> HpkeUtils.open(k.priv, INFO, AAD, sealed));
   }
 }
